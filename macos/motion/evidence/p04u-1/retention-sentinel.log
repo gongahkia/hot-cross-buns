@@ -2,8 +2,8 @@
 Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--58304C5D6DBC2206.txt
-[3/5] Compiling GatorMacTests NativeStreamingTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:148:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+[3/5] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:148:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 146 | @Test @MainActor func streamingCadenceDoesNotRetainReleasedViewModelOrReadingAnchors() async {
 147 |     let positions = NativeReadingPositions(); positions.remember("A", anchor: "row-9", following: false)
 148 |     var model: NativeStreamingPresentation? = NativeStreamingPresentation(); weak var probe = model
@@ -11,7 +11,7 @@ Building for debugging...
 149 |     model?.receive(motionEntry("One"), policy: .init(), now: 1)
 150 |     model?.receive(motionEntry("One two three four five"), policy: .init(), now: 2)
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:191:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:191:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 189 | @Test @MainActor func streamingVisibilityProbeHasNoFocusAndReleasesObservers() {
 190 |     var probe: NativeMotionVisibility.Probe? = .init(update: { _ in })
 191 |     weak var weakProbe = probe
@@ -20,13 +20,13 @@ Building for debugging...
 193 |     probe?.detach(); probe = nil; #expect(weakProbe == nil)
 
 [#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
-[4/5] Emitting module GatorMacTests
+[4/5] Emitting module HotCrossBunsMacTests
 [4/6] Write Objects.LinkFileList
-[5/6] Linking GatorNativePackageTests
+[5/6] Linking HotCrossBunsNativePackageTests
 Build complete! (2.49s)
 Test Suite 'Selected tests' started at 2026-11-20 16:15:29.377.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 16:15:29.378.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 16:15:29.378.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 16:15:29.378.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 16:15:29.378.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 16:15:29.378.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

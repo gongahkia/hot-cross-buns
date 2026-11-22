@@ -96,7 +96,7 @@ export type ComposerSource = {id: string; label: string; service: string; status
 export type ComposerSources = {id: string; choices: ComposerSource[]; selected: string[]; issue?: string; disabled?: string};
 export type SourceAction = {id: string; request_id: string} & ({action: "refresh"} | {action: "select"; ids: string[]});
 export type ComposerModel = { provider: string; model: string; label: string; unavailable?: string };
-export type TerminalPreferences = { theme: "terminal" | "gator" | "light" | "contrast" | "mono"; sidebarCollapsed: boolean; groupChatsByFolder: boolean; workDetailsSections: { outputs: boolean; context: boolean; connections: boolean; workspace: boolean } };
+export type TerminalPreferences = { theme: "terminal" | "hot-cross-buns" | "light" | "contrast" | "mono"; sidebarCollapsed: boolean; groupChatsByFolder: boolean; workDetailsSections: { outputs: boolean; context: boolean; connections: boolean; workspace: boolean } };
 export type TerminalPreferencesPatch = Partial<Omit<TerminalPreferences, "workDetailsSections">> & { workDetailsSections?: Partial<TerminalPreferences["workDetailsSections"]> };
 export type TerminalPreferencesAction = { id: string; request_id: string } & ({ action: "configure"; patch: TerminalPreferencesPatch } | { action: "migrate"; legacy: TerminalPreferences });
 export type ModelProcessing = { kind: "local" | "local_endpoint" | "remote" | "unknown"; destination?: string; description: string };
@@ -136,6 +136,7 @@ export type FollowingGoal = {id: string; title: string; status: string; outcome?
 export type GoalAction = {request_id: string; id: string} & ({action: "inspect"} | {action: "pause" | "resume"; digest: string});
 export type GoalReview = {id: string; digest: string; title: string; status: string; lines: string[]; enabled_checks: number};
 export type BackendState = {
+  personal_memory_result?: PersonalMemoryResult;
 	preferences_revision?: number;
  dialogue?: DialogueMessage[]; dialogue_more?: boolean; dialogue_issue?: string; dialogue_busy?: boolean; dialogue_active?: boolean;
  dialogue_peers?: DialoguePeer[];
@@ -261,3 +262,8 @@ export type Frame = {
 };
 
 export type { ExternalTargetSnapshot, ExternalTargetResponse, ExternalTerminalAction, ExternalTerminalReceipt } from "./external";
+
+export type PersonalMemoryTopic = { id: string; icon?: string; kind: "memory" | "note" | "guidance"; category: string; title: string; text: string; scope: string; source: string; status: string; revision: string; updated_at: string; conversation_id?: string; editable: boolean };
+export type PersonalMemoryCatalog = { entries: PersonalMemoryTopic[]; categories: Record<string, number>; total: number; matched: number; page: number; pages: number; warnings?: string[] };
+export type PersonalMemoryAction = { request_id: string; action: "list" | "add" | "correct" | "forget"; memory_kind?: "fact" | "preference" | "note"; id?: string; revision?: string; text?: string; query?: string; category?: string; page?: number };
+export type PersonalMemoryResult = { request_id: string; catalog?: PersonalMemoryCatalog; error?: string };

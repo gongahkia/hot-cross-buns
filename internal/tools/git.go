@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/hostproc"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const maxGitOutputBytes = 128 * 1024
@@ -170,7 +170,7 @@ func untrackedFiles(ctx context.Context, root workspace.Root) ([]string, error) 
 			continue
 		}
 		path := strings.TrimPrefix(entry, "?? ")
-		if filepath.Clean(path) == ".gator" || strings.HasPrefix(filepath.ToSlash(filepath.Clean(path)), ".gator/") {
+		if filepath.Clean(path) == ".hot-cross-buns" || strings.HasPrefix(filepath.ToSlash(filepath.Clean(path)), ".hot-cross-buns/") {
 			continue
 		}
 		files = append(files, path)

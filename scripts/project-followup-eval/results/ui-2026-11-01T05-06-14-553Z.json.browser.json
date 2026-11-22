@@ -3,7 +3,7 @@
     {
       "name": "initial-live-answer",
       "milliseconds": 3050,
-      "answer": "Work ended after 2s\n\nGator\nWork failed\n\nI couldn't finish that run: model turn 1: decode OpenAI stream event: unexpected end of JSON input",
+      "answer": "Work ended after 2s\n\nHot Cross Buns\nWork failed\n\nI couldn't finish that run: model turn 1: decode OpenAI stream event: unexpected end of JSON input",
       "checked": false
     }
   ],

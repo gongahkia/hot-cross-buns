@@ -8,8 +8,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func (m Model) retainsRequests() bool { return m.config.SessionStore != nil && m.conversation != "" }

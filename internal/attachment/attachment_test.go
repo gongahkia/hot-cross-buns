@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestLoadPDFAndTextAttachments(t *testing.T) {

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/rattles"
-	"github.com/gongahkia/gator/internal/workactivity"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/rattles"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func waitWorkEvent(events <-chan tea.Msg) tea.Cmd {

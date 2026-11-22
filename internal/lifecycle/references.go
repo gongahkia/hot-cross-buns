@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 func (s Store) ensureIdle() error {

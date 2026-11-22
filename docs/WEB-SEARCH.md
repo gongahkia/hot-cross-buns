@@ -1,13 +1,13 @@
 # Configurable web search
 
-Gator supports host-selected TinyFish, Exa, Tavily and Brave search adapters.
+Hot Cross Buns supports host-selected TinyFish, Exa, Tavily and Brave search adapters.
 They reuse the existing bounded HTTP tools, public-address DNS checks, pinned
 connections, proxy-free transport, request limits and query approvals. No SDK,
 browser service or new application runtime is installed.
 
 ## Configure
 
-Set the selected provider and its key in the environment of the Gator process:
+Set the selected provider and its key in the environment of the Hot Cross Buns process:
 
 | Provider value | Credential variable | API used |
 | --- | --- | --- |
@@ -19,19 +19,19 @@ Set the selected provider and its key in the environment of the Gator process:
 For example, the local evaluation's Git-ignored `.env` can contain:
 
 ```dotenv
-GATOR_WEB_SEARCH_PROVIDER=tinyfish
+HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER=tinyfish
 TINYFISH_API_KEY=your_key_here
 ```
 
 The evaluation launcher reads those named values and passes them to its child
-process. Ordinary Gator reads process environment; it does **not** automatically
+process. Ordinary Hot Cross Buns reads process environment; it does **not** automatically
 source a project's `.env`. Launch/restart the app with the intended environment.
 Do not put credentials in project instructions, model arguments, approval text
 or committed files.
 
 If exactly one search key is configured and no provider is specified, that
 provider is selected. Existing Brave-only configurations retain their behavior.
-Multiple keys require an explicit `GATOR_WEB_SEARCH_PROVIDER`. Unknown providers,
+Multiple keys require an explicit `HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER`. Unknown providers,
 missing selected keys and ambiguous selection fail closed with a configuration
 error. An HTTP failure does not cause fallback to another vendor, credential or
 paid search mode. Existing host diagnostics report the selected provider, not keys.
@@ -43,7 +43,7 @@ choose a provider, API endpoint, key, browser action, agent or research mode.
 Queries are sent to the explicitly configured search service.
 
 Native coding tools retain their existing network and query-approval boundaries.
-In desktop Work, ask Gator to research the public web. `web_access` checks the
+In desktop Work, ask Hot Cross Buns to research the public web. `web_access` checks the
 current task's scope/usage, requests additional scope, or revokes it. A request
 opens the native **Review web research access** card with the requested sites or
 public-web scope, purpose, host-selected service, shared limits and data-sharing
@@ -181,11 +181,11 @@ Adapter contracts checked against first-party references on 1 November 2026:
 - [Tavily Search](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 - Existing Brave adapter and its retained tests.
 
-These are Gator-owned HTTP adapters, not copied SDK implementations.
+These are Hot Cross Buns-owned HTTP adapters, not copied SDK implementations.
 
 ```sh
 go test ./internal/tools ./internal/workrun -run 'Test.*(WebSearch|WorkSearch|Search|HTTP)' -count=1
-go test ./cmd/gator -run 'Test(DoctorReportsConfiguredWebSearch|WebResearchEnvironment|ExecutorReadsWebSearch)' -count=1
+go test ./cmd/hot-cross-buns -run 'Test(DoctorReportsConfiguredWebSearch|WebResearchEnvironment|ExecutorReadsWebSearch)' -count=1
 ```
 
 Both commands pass locally. Fixtures cover all four request/auth contracts,

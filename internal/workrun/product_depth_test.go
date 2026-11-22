@@ -3,14 +3,14 @@ package workrun
 import (
 	"context"
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 )
 
 type auditRecordingModel struct{ requests []agent.TurnRequest }
@@ -92,7 +92,7 @@ func TestLegacyReplayProviderChangeAndHeadNavigation(t *testing.T) {
 	parent.Version = 1
 	parent.Replay = nil
 	payload, _ := json.Marshal(parent)
-	path := filepath.Join(state, "gator", "conversations", first.ConversationID, "revisions", first.RevisionID+".json")
+	path := filepath.Join(state, "hot-cross-buns", "conversations", first.ConversationID, "revisions", first.RevisionID+".json")
 	if err := os.WriteFile(path, payload, 0600); err != nil {
 		t.Fatal(err)
 	}

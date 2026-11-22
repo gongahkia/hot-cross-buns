@@ -1,9 +1,9 @@
 {
-  "CFBundleDisplayName" => "Gator"
-  "CFBundleExecutable" => "GatorMac"
+  "CFBundleDisplayName" => "Hot Cross Buns"
+  "CFBundleExecutable" => "HotCrossBunsMac"
   "CFBundleIconFile" => "AppIcon"
-  "CFBundleIdentifier" => "dev.gator.native"
-  "CFBundleName" => "Gator"
+  "CFBundleIdentifier" => "dev.hot-cross-buns.native"
+  "CFBundleName" => "Hot Cross Buns"
   "CFBundlePackageType" => "APPL"
   "CFBundleShortVersionString" => "0.1.0"
   "CFBundleVersion" => "1"

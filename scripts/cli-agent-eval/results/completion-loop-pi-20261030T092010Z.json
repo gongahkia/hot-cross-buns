@@ -56,7 +56,7 @@
           ],
           "sha256": "61a8b8fcac6a6d7a2de2b95ada2a21dba8ec1dcb8d5645d46f16760fbee51d8c",
           "status": "failed",
-          "error": "combined verification failed: exit status 1: Traceback (most recent call last):\n  File \"/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-cli-eval-1253947657/state/gator/workspaces/a78701116eb400a19260ba72b52b7e83/completion-live/scratch/integration-001/verify.py\", line 5, in \u003cmodule\u003e\n    assert actual == expected, f\"normalize_title({value!r}): expected {expected!r}, got {actual!r}\"\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: normalize_title('  Hello   WORLD  '): expected 'hello world', got '  hello   world  '",
+          "error": "combined verification failed: exit status 1: Traceback (most recent call last):\n  File \"/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-cli-eval-1253947657/state/hot-cross-buns/workspaces/a78701116eb400a19260ba72b52b7e83/completion-live/scratch/integration-001/verify.py\", line 5, in \u003cmodule\u003e\n    assert actual == expected, f\"normalize_title({value!r}): expected {expected!r}, got {actual!r}\"\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: normalize_title('  Hello   WORLD  '): expected 'hello world', got '  hello   world  '",
           "verification": [
             {
               "argv": [
@@ -73,11 +73,11 @@
                 "verify.py"
               ],
               "passed": false,
-              "diagnostic": "Traceback (most recent call last):\n  File \"/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-cli-eval-1253947657/state/gator/workspaces/a78701116eb400a19260ba72b52b7e83/completion-live/scratch/integration-001/verify.py\", line 5, in \u003cmodule\u003e\n    assert actual == expected, f\"normalize_title({value!r}): expected {expected!r}, got {actual!r}\"\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: normalize_title('  Hello   WORLD  '): expected 'hello world', got '  hello   world  '\n"
+              "diagnostic": "Traceback (most recent call last):\n  File \"/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-cli-eval-1253947657/state/hot-cross-buns/workspaces/a78701116eb400a19260ba72b52b7e83/completion-live/scratch/integration-001/verify.py\", line 5, in \u003cmodule\u003e\n    assert actual == expected, f\"normalize_title({value!r}): expected {expected!r}, got {actual!r}\"\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: normalize_title('  Hello   WORLD  '): expected 'hello world', got '  hello   world  '\n"
             }
           ]
         },
-        "feedback": "Deterministic verification failed: combined verification failed: exit status 1: Traceback (most recent call last):\n  File \"/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-cli-eval-1253947657/state/gator/workspaces/a78701116eb400a19260ba72b52b7e83/completion-live/scratch/integration-001/verify.py\", line 5, in \u003cmodule\u003e\n    assert actual == expected, f\"normalize_title({value!r}): expected {expected!r}, got {actual!r}\"\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: normalize_title('  Hello   WORLD  '): expected 'hello world', got '  hello   world  '"
+        "feedback": "Deterministic verification failed: combined verification failed: exit status 1: Traceback (most recent call last):\n  File \"/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-cli-eval-1253947657/state/hot-cross-buns/workspaces/a78701116eb400a19260ba72b52b7e83/completion-live/scratch/integration-001/verify.py\", line 5, in \u003cmodule\u003e\n    assert actual == expected, f\"normalize_title({value!r}): expected {expected!r}, got {actual!r}\"\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: normalize_title('  Hello   WORLD  '): expected 'hello world', got '  hello   world  '"
       },
       {
         "number": 2,

@@ -19,7 +19,7 @@
     "args": [
       "press",
       "menu",
-      "AXMenuItem::Gator"
+      "AXMenuItem::Hot Cross Buns"
     ],
     "exit": 0,
     "output": "press=0\n"
@@ -54,7 +54,7 @@
     "args": [
       "wait",
       "conversation",
-      "gator.composer.text"
+      "hot-cross-buns.composer.text"
     ],
     "exit": 0,
     "output": "ready=true\n"
@@ -65,13 +65,13 @@
       "conversation"
     ],
     "exit": 0,
-    "output": "activated=Optional(true) raised=0 main=0 focus=0 ready=true\ncontroller=12546 frontName=PresenceCheck frontBundle=dev.gator.presence.finalcheck front=12492 target=12492 window=conversation focused=AXTextArea:Message Gator:gator.composer.text\n"
+    "output": "activated=Optional(true) raised=0 main=0 focus=0 ready=true\ncontroller=12546 frontName=PresenceCheck frontBundle=dev.hot-cross-buns.presence.finalcheck front=12492 target=12492 window=conversation focused=AXTextArea:Message Hot Cross Buns:hot-cross-buns.composer.text\n"
   },
   {
     "args": [
       "set-value",
       "conversation",
-      "gator.composer.text",
+      "hot-cross-buns.composer.text",
       "Controlled local presence observation"
     ],
     "exit": 0,

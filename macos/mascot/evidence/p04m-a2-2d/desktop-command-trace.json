@@ -1,7 +1,7 @@
 [
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 20375,
     "requestedConversation": "work-20261119T064300-df0416aa21488cb0",
     "trace": "bridge-20374.jsonl"
@@ -167,7 +167,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 20377,
     "requestedConversation": "work-20261119T064302-10bb90db3ca89b36",
     "trace": "bridge-20376.jsonl"
@@ -319,7 +319,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 19584,
     "requestedConversation": "work-20261119T064153-24c0e332b26abfb7",
     "trace": "bridge-19582.jsonl"
@@ -736,7 +736,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 25304,
     "requestedConversation": "work-20261119T064304-c7b7cbaeb67a052d",
     "trace": "bridge-25303.jsonl"
@@ -789,7 +789,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 24438,
     "requestedConversation": "work-20261119T064153-24c0e332b26abfb7",
     "trace": "bridge-24437.jsonl"
@@ -940,7 +940,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 20385,
     "requestedConversation": "work-20261119T064304-c7b7cbaeb67a052d",
     "trace": "bridge-20384.jsonl"
@@ -1092,7 +1092,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 24483,
     "requestedConversation": "work-20261119T064304-c7b7cbaeb67a052d",
     "trace": "bridge-24482.jsonl"
@@ -1187,7 +1187,7 @@
   },
   {
     "direction": "launch",
-    "runtime": "/tmp/gator-native-test-mascot-mwzxmaad/Gator-Mascot-Desktop.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/hot-cross-buns-native-test-mascot-mwzxmaad/HotCrossBuns-Mascot-Desktop.app/Contents/Resources/hot-cross-buns-runtime",
     "pid": 23136,
     "requestedConversation": "work-20261119T064153-24c0e332b26abfb7",
     "trace": "bridge-23135.jsonl"

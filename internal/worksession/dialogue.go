@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 // DialogueTurn retains conversational admission separately from executing Work

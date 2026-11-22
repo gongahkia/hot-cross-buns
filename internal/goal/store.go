@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const Version = 1
@@ -54,7 +54,7 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(abs, "gator", "goals")
+	root := filepath.Join(abs, "hot-cross-buns", "goals")
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return Store{}, err
 	}

@@ -1,10 +1,10 @@
 # User Work benchmark, fifty-task corpus
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-16. [Version 4](../internal/eval/testdata/user-work-v4/dataset.json) preserves the 30 version 3 cases and adds 20 jobs across documents, design, spreadsheets, presentations, research, and file organization. The new cases have 14 development and 6 held-out tasks. The full corpus has 37 development and 13 held-out tasks. The four inherited version 2 held-out cases were inspected in earlier live work; they are no longer unseen.
 
-The added range follows [Anthropic's Cowork examples](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork), which include organizing files, synthesizing research, producing reports and documents, creating formula-driven spreadsheets and charts, and making presentations. Anthropic's [product guide](https://claude.com/resources/guides/claude-cowork-product-guide/product-overview) also describes cross-file knowledge work, while its [Cowork use-case library](https://academy.claude.com/cowork/use-cases) includes branded content and design specs. These sources informed task selection; they are not a claim that Gator matches Cowork's breadth or quality.
+The added range follows [Anthropic's Cowork examples](https://support.claude.com/en/articles/13345190-get-started-with-claude-cowork), which include organizing files, synthesizing research, producing reports and documents, creating formula-driven spreadsheets and charts, and making presentations. Anthropic's [product guide](https://claude.com/resources/guides/claude-cowork-product-guide/product-overview) also describes cross-file knowledge work, while its [Cowork use-case library](https://academy.claude.com/cowork/use-cases) includes branded content and design specs. These sources informed task selection; they are not a claim that Hot Cross Buns matches Cowork's breadth or quality.
 
 | New task | Inputs | Deliverable | Main thing measured |
 | --- | --- | --- | --- |
@@ -33,11 +33,11 @@ Four small PDFs and one deck source were generated with [the fixture generator](
 
 ## What the checks mean
 
-All 50 cases pass scripted execution through Gator's Work service. Scripted turns contain reference tool actions, so this proves fixture loading, artifact creation, contract validation, and deterministic grader wiring. It **does not** measure autonomous model success. There is no live version 4 pass rate yet; the earlier version 2 score of 11/21 belongs only to its original live run and mixed provider/task failures.
+All 50 cases pass scripted execution through Hot Cross Buns's Work service. Scripted turns contain reference tool actions, so this proves fixture loading, artifact creation, contract validation, and deterministic grader wiring. It **does not** measure autonomous model success. There is no live version 4 pass rate yet; the earlier version 2 score of 11/21 belongs only to its original live run and mixed provider/task failures.
 
 Version 4 adds graders for extracted DOCX/PDF text, actual spreadsheet formulas, and chart presence. Existing graders inspect visible PPTX slide text, JSON fields, workbook cells, and text/CSV outputs. The [review rubric](../internal/eval/testdata/user-work-v4/review-rubric.json) covers factual support, completion, audience fit, and manual rework. The PDF extractor may collapse spaces at line boundaries; document graders therefore use short factual spans, and reviewers must inspect the whole artifact for meaning.
 
-For the four design cases, a reviewer should render the HTML/SVG and check visual hierarchy, small-screen legibility, color contrast, keyboard access, and brand consistency. A valid SVG/HTML file or a matching CSS token is not evidence of good design. Likewise, DOCX/PDF layout, spreadsheet usability, and slide presentation quality need human inspection. The scripted examples are reference answers, not evidence that Gator chose those outputs unaided.
+For the four design cases, a reviewer should render the HTML/SVG and check visual hierarchy, small-screen legibility, color contrast, keyboard access, and brand consistency. A valid SVG/HTML file or a matching CSS token is not evidence of good design. Likewise, DOCX/PDF layout, spreadsheet usability, and slide presentation quality need human inspection. The scripted examples are reference answers, not evidence that Hot Cross Buns chose those outputs unaided.
 
 The corpus exposed two product defects during calibration: new workbook creation passed a typed-nil template reader and panicked; editing a PPTX mutated an existing slide's XML while decoding text. Both paths now have regression tests. Finding those defects is useful engineering evidence, but neither fix establishes a live task pass rate.
 
@@ -45,13 +45,13 @@ The corpus exposed two product defects during calibration: new workbook creation
 
 ```sh
 go run ./scripts/generate_user_work_v4_fixtures.go
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval validate internal/eval/testdata/user-work-v4/dataset.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/user-work-v4/dataset.json \
-  --id user-work-v4-scripted --split all --report-dir /tmp/gator-user-work-v4-scripted
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/user-work-v4/dataset.json \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval validate internal/eval/testdata/user-work-v4/dataset.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/user-work-v4/dataset.json \
+  --id user-work-v4-scripted --split all --report-dir /tmp/hot-cross-buns-user-work-v4-scripted
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/user-work-v4/dataset.json \
   --id user-work-v4-live-development --split development --live \
   --provider PROVIDER --model MODEL --max-model-requests 500 \
-  --timeout-seconds 3600 --report-dir /tmp/gator-user-work-v4-live-development
+  --timeout-seconds 3600 --report-dir /tmp/hot-cross-buns-user-work-v4-live-development
 ```
 
 Use a new report directory for each run. A live run requires provider credentials and enough request quota; the prior Gemini free-tier quota was exhausted. Keep provider failures separate from task failures. Review development failures before running the six newly added held-out cases, and keep the old inspected cases distinct when reporting an unseen score. Repeat runs and compare against a same-model baseline before claiming usefulness.

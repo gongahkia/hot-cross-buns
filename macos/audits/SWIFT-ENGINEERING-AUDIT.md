@@ -1,10 +1,10 @@
-# Gator Swift engineering and architecture audit
+# Hot Cross Buns Swift engineering and architecture audit
 
 Date: 2026-11-17 (Asia/Singapore). Read-only application review; the two audit reports are the only files authored in the repository by this review. No implementation, README edit, commit, dependency installation, credential/provider change, real external action, signing work or backend-goal resumption occurred. Test providers used loopback and disposable profiles.
 
 ## 1. Executive assessment
 
-**The architecture is sound enough to retain, and the codebase remains maintainable, but persistence and shutdown need corrections before substantial native expansion.** The 33 production Swift files total 4,458 lines: 2,738 in GatorCore and 1,720 in GatorMac. The important separation is already present: Go owns execution and durable authorization; an application-wide coordinator owns selection and capacity; one state object owns each runtime; SwiftUI/AppKit present that state through typed methods.
+**The architecture is sound enough to retain, and the codebase remains maintainable, but persistence and shutdown need corrections before substantial native expansion.** The 33 production Swift files total 4,458 lines: 2,738 in HotCrossBunsCore and 1,720 in HotCrossBunsMac. The important separation is already present: Go owns execution and durable authorization; an application-wide coordinator owns selection and capacity; one state object owns each runtime; SwiftUI/AppKit present that state through typed methods.
 
 The current complete Swift suite passes **133 tests in 38.762 seconds**. An explicit Swift 6 strict-concurrency build with warnings treated as errors also passes. These results coexist with new failure evidence: concurrent archive writers lost 14 of 16 unrelated records; an owner reported successful shutdown despite a new draft save failing during shutdown; a direct child's inherited output pipes extended shutdown to 8.027 seconds. The first is logical archive corruption under multiple independent writers, not malformed JSON. No unintended external execution or approval bypass was reproduced.
 
@@ -15,7 +15,7 @@ Five priority risks are E01–E05 below. E01–E03 should be corrected and regre
 - Initial HEAD: `13134d5f2c81ae6f4ed8c4bea1948774d15307e6`.
 - Initial local changes: modified `macos/PROVIDER-DIAGNOSTICS.md`, `macos/TRANCHE08-ACCEPTANCE-CLOSURE.md`, `macos/TRANCHE08-LOCAL-DEV-ACCEPTANCE.md`; untracked `macos/Evidence/Local-Dev-Acceptance/headless/{final-integrity.json,offline-regional-override.go.txt,offline-regional-override.jsonl}`.
 - During review an external commit advanced HEAD to `137fb7ea923d14149badbb02e102ffdfb6e34bed`. It incorporated those report/evidence changes and added `macos/audits/evidence/uiux/headless/{baseline.json,swift-audit.log}`. That other audit's log continued changing. This review did not write those files or create that commit.
-- `git diff 13134d5f2c81ae6f4ed8c4bea1948774d15307e6 HEAD -- macos/Sources macos/Tests macos/Package.swift macos/Resources macos/scripts cmd/gator/ui_bridge.go internal/workapp internal/attachment app-host ui docs/CLI-TUI-PORT.md docs/TERMINAL.md docs/DEVELOPMENT.md` was empty. Source/test/contract evidence and the fresh runtime therefore cover both revisions.
+- `git diff 13134d5f2c81ae6f4ed8c4bea1948774d15307e6 HEAD -- macos/Sources macos/Tests macos/Package.swift macos/Resources macos/scripts cmd/hot-cross-buns/ui_bridge.go internal/workapp internal/attachment app-host ui docs/CLI-TUI-PORT.md docs/TERMINAL.md docs/DEVELOPMENT.md` was empty. Source/test/contract evidence and the fresh runtime therefore cover both revisions.
 - Apple Swift 6.3.3 (`swiftlang-6.3.3.1.3`), arm64 host, Darwin 25.5.0. Package tools version 6.1; build description confirms `-swift-version 6` and target `arm64-apple-macosx15.0` for both production and both test modules. Minimum deployment target and Info.plist both specify macOS 15.
 - Go 1.27.3 locally; `go.mod` requires 1.25.13. Native package has **no third-party Swift dependencies**. System dependencies: Foundation, Observation, CryptoKit, Security, ImageIO, UniformTypeIdentifiers, Darwin, SwiftUI/AppKit.
 - Node 20.19.5 and Bun 1.3.11 were on the shell PATH. Node is below app-host's declared `>=22.12.0`; Bun is below the 1.4.2 documented terminal development version. The selected Node host tests passed, but this does not establish full supported-toolchain terminal acceptance. No installation was attempted.
@@ -25,15 +25,15 @@ Five priority risks are E01–E05 below. E01–E03 should be corrected and regre
 
 Every production Swift file in the requested two directories was inspected. Paths below are relative to `macos/`.
 
-### GatorCore — application/host implementation, no SwiftUI dependency
+### HotCrossBunsCore — application/host implementation, no SwiftUI dependency
 
 | File (lines) | Responsibility and dependency boundary |
 | --- | --- |
 | `BridgeProtocol.swift` (231) | Lossless JSONValue display envelope; snapshot/message/transcript projections; exact action review identity; NDJSON byte framing; internal finite outbound command encoding. Does not confer tool authority. |
 | `GoBridgeConnection.swift` (198) | Launch configuration, transport protocol and actor; subprocess, queued writes, pipe readers, nonce waiters, diagnostics, disconnection and exit escalation. |
-| `ManagedSessionProtocol.swift` (69) | Internal managed navigation, dispatch, task control and host configuration DTOs/validation. Not exported to GatorMac. |
+| `ManagedSessionProtocol.swift` (69) | Internal managed navigation, dispatch, task control and host configuration DTOs/validation. Not exported to HotCrossBunsMac. |
 | `ManagedSessionCoordinator.swift` (507) | Main-actor observable application singleton: selected owner, bounded owner registry, serialized navigation/admissions, background dispatch, capacity, inspection/correction routing, focus and all-owner shutdown. |
-| `GatorApplicationState.swift` (885) | Main-actor observable single-owner state: transport generation, projection, drafts/imports, admission/settings/stop/approval state, plan reads/authorization, recovery/access/receipt state and durable client receipts. |
+| `HotCrossBunsApplicationState.swift` (885) | Main-actor observable single-owner state: transport generation, projection, drafts/imports, admission/settings/stop/approval state, plan reads/authorization, recovery/access/receipt state and durable client receipts. |
 | `NativeDraftStore.swift` (161) | Actor for native-only JSON archives, versions 1–7, owner-context merging, retention, protected operation IDs and atomic file replacement. |
 | `NativeDraftAttachments.swift` (16) | Captured attachment import identity/context/generation and explicit clipboard policy. |
 | `NativeUploadStore.swift` (188) | Shared upload actor; descriptor-relative private immutable staging, hashing, validation, bounded image normalization/thumbnails. |
@@ -43,11 +43,11 @@ Every production Swift file in the requested two directories was inspected. Path
 | `NativeRecoveryPreparation.swift` (65) | Recovery-token/access-selection identities, explicit preparation intents and durable preparation status. |
 | `NativeMessageContent.swift` (38) | Presentation-only paragraph/list/heading/code-fence projection; structured review data bypasses Markdown. |
 
-### GatorMac — scenes, presentation and narrow platform adapters
+### HotCrossBunsMac — scenes, presentation and narrow platform adapters
 
 | File (lines) | Responsibility |
 | --- | --- |
-| `GatorApp.swift` (87) | One shared coordinator above MenuBarExtra and full Window; commands, native environment/profile paths and brand image lookup. |
+| `HotCrossBunsApp.swift` (87) | One shared coordinator above MenuBarExtra and full Window; commands, native environment/profile paths and brand image lookup. |
 | `AppDelegate.swift` (61) | Activation/window observers, guarded Quit, draft/owner cleanup before application termination; owns notch presentation. |
 | `ConversationView.swift` (342) | Main conversation, menus, recents/activity routing, lazy transcript, follow-latest scrolling, notices/model details; private message row. |
 | `ComposerView.swift` (76) | Draft/composer controls, explicit Send, plan-first, attachment and correction presentation. |
@@ -70,16 +70,16 @@ Every production Swift file in the requested two directories was inspected. Path
 
 ### Package, resources, scripts and contracts
 
-`Package.swift`: executable GatorMac → GatorCore; GatorCoreTests → GatorCore (copied Fixtures), GatorMacTests → both. No cycles or external Swift package resolution. AppKit-dependent tests exist despite the requested test-path focus being GatorCoreTests; they were included in the full run.
+`Package.swift`: executable HotCrossBunsMac → HotCrossBunsCore; HotCrossBunsCoreTests → HotCrossBunsCore (copied Fixtures), HotCrossBunsMacTests → both. No cycles or external Swift package resolution. AppKit-dependent tests exist despite the requested test-path focus being HotCrossBunsCoreTests; they were included in the full run.
 
-`Resources/Info.plist`: accessory app (`LSUIElement=true`), bundle ID `dev.gator.native`, macOS 15; no microphone feature declared. `GatorHead.png` is 1024×1024; `GatorMenuBar.png` is 36×36. `scripts/make-app-icon.swift` generates the original silhouette PNG/iconset. Its bitmap/argument force unwraps concern a bounded development generator, not user-supplied production attachment decoding. `scripts/build-dev-app.sh` builds Swift and Go, stages a fresh app, copies resources, checks plist and refuses an existing destination. No signing/notarization audit was performed. Normal SwiftPM resource-free execution uses the brand's system-symbol fallback; the development bundle copies actual images.
+`Resources/Info.plist`: accessory app (`LSUIElement=true`), bundle ID `dev.hot-cross-buns.native`, macOS 15; no microphone feature declared. `HotCrossBunsHead.png` is 1024×1024; `HotCrossBunsMenuBar.png` is 36×36. `scripts/make-app-icon.swift` generates the original silhouette PNG/iconset. Its bitmap/argument force unwraps concern a bounded development generator, not user-supplied production attachment decoding. `scripts/build-dev-app.sh` builds Swift and Go, stages a fresh app, copies resources, checks plist and refuses an existing destination. No signing/notarization audit was performed. Normal SwiftPM resource-free execution uses the brand's system-symbol fallback; the development bundle copies actual images.
 
 | External area inspected | Authority/responsibility |
 | --- | --- |
-| `cmd/gator/ui_bridge.go` | Version-1 NDJSON decoder/encoder and canonical workapp routing. State is emitted before nonce acknowledgment; acknowledgments confirm dispatch through the model, not business success. |
+| `cmd/hot-cross-buns/ui_bridge.go` | Version-1 NDJSON decoder/encoder and canonical workapp routing. State is emitted before nonce acknowledgment; acknowledgments confirm dispatch through the model, not business success. |
 | Relevant `internal/workapp/` bridge, commands, sessions/dialogue, requests/run, plan, recovery/access, receipts and catalog files/tests | Canonical state, admission/dedup, exact current review, task origin/run controls, execution leases, plan/recovery identity, queues and terminal panels. Unrelated Go packages were not exhaustively read. |
 | `internal/worksession/requests.go:269` and lease test | Targeted boundary expansion: execution ownership uses a nonblocking exclusive lock held for the actual run and released on process exit. This was necessary to assess native multi-instance authority. |
-| `internal/attachment/{attachment,uploads,originals,pdf}.go` and selected tests; `cmd/gator/attachments.go` | Go attachment loading, provider/retained-original naming, bounds and validation; backend remains authoritative after Swift checks. |
+| `internal/attachment/{attachment,uploads,originals,pdf}.go` and selected tests; `cmd/hot-cross-buns/attachments.go` | Go attachment loading, provider/retained-original naming, bounds and validation; backend remains authoritative after Swift checks. |
 | `app-host/contracts/` | Complete contract inventory: protocol, frontend, files, voice, source/code previews, inspection and external-terminal DTOs. Contract availability alone is not native reachability. |
 | `app-host/src/{backend,application,sessions,drafts,uploads}.mjs` | Reference terminal host: one process per session, host-private commands, profile/data coordination, file/export/evidence services and native helpers. Swift does not import this JS layer. |
 | `ui/src/`, terminal docs, relevant app controller/tool definitions | Actual terminal entry points and conversational coverage, detailed in the companion parity report. |
@@ -88,7 +88,7 @@ Recent verification reviewed: Tranches 01–08 records, Tranche08 acceptance clo
 
 ## 3. Architecture assessment
 
-The dependency direction is appropriate. GatorCore imports no SwiftUI; GatorMac cannot construct internal BridgeCommand/HostCommand or raw-send protocol frames. The coordinator holds application selection/capacity, while GatorApplicationState holds one owner's transport, snapshot, exact tokens and drafts. Dismissing a presentation does not stop an owner. The notch reuses the same application coordinator rather than owning a runtime. Go execution journals and locks remain the final authority.
+The dependency direction is appropriate. HotCrossBunsCore imports no SwiftUI; HotCrossBunsMac cannot construct internal BridgeCommand/HostCommand or raw-send protocol frames. The coordinator holds application selection/capacity, while HotCrossBunsApplicationState holds one owner's transport, snapshot, exact tokens and drafts. Dismissing a presentation does not stop an owner. The notch reuses the same application coordinator rather than owning a runtime. Go execution journals and locks remain the final authority.
 
 Repeated checks have different purposes: native UI eligibility supplies current affordances; synchronous typed methods reject stale callbacks; post-persistence checks handle actor reentrancy; Go revalidates actual scope/leases/tokens. Removing these layers as “duplicate validation” would weaken a demonstrated security invariant. Frame text/attachment bounds similarly protect independent boundaries.
 
@@ -132,7 +132,7 @@ Approval identity includes generation, context, conversation, interaction, exact
 
 Pending and uncertain client identities survive restart as uncertainty; reconnect never sends a message/approval/authorization. Explicit admission retry retains the same original ID and Go checks retained text/options/uploads. Ordinary sends do not set `queue_only`. Go authority must continue to distinguish queued work and recovery preparation from execution. No automatic replay was found in the inspected native paths.
 
-Views can call public owner methods (including the legacy single-owner navigation methods), so access control is a compile-time guard against raw host frames, not a sandbox around malicious application code. GatorMac currently uses coordinator-mediated managed navigation. Preserve this route for new features; do not introduce raw command escape hatches. A disabled button is not the authorization check.
+Views can call public owner methods (including the legacy single-owner navigation methods), so access control is a compile-time guard against raw host frames, not a sandbox around malicious application code. HotCrossBunsMac currently uses coordinator-mediated managed navigation. Preserve this route for new features; do not introduce raw command escape hatches. A disabled button is not the authorization check.
 
 ## 7. Persistence correctness
 
@@ -150,7 +150,7 @@ Explicit picker selections balance security-scoped access in the upload actor. C
 
 ImageIO checks complete format and dimensions before thumbnail raster allocation: at most 16,777,216 pixels, width/height ≤16,384; source bytes ≤4 MiB for selected images and ≤16 MiB for clipboard decode. Thumbnails max 160px. Clipboard normalization can allocate a full image within that pixel cap; the limit is bounded, not tiny. NSPasteboard supplies Data before the byte check, so its initial framework allocation is not controlled by this implementation. Symlink, changed-bytes, corrupt-image and bounded-image tests pass. No actual leak was demonstrated.
 
-**Known duplicate-document-basename limitation (E07, P2): broader Go/provider/retained-original identity contract, not a Swift overwrite defect.** Native opaque IDs and hashes are distinct; the ordered `upload_submit.files` retains them. `internal/attachment/uploads.go:67` reduces provider names to `filepath.Base`; `cmd/gator/attachments.go:43` calls shared ValidateLoaded, which rejects equal names (`attachment.go:194`); retained originals also use basenames and ValidateOriginals. Two independent `report.md` selections are safely rejected before inference, preserving the draft and separate immutable bytes. The real-Go regression passed. Renaming user files or removing a validator in Swift is not a coherent correction. Repeated image pastes already use distinct generated names and pass their regression.
+**Known duplicate-document-basename limitation (E07, P2): broader Go/provider/retained-original identity contract, not a Swift overwrite defect.** Native opaque IDs and hashes are distinct; the ordered `upload_submit.files` retains them. `internal/attachment/uploads.go:67` reduces provider names to `filepath.Base`; `cmd/hot-cross-buns/attachments.go:43` calls shared ValidateLoaded, which rejects equal names (`attachment.go:194`); retained originals also use basenames and ValidateOriginals. Two independent `report.md` selections are safely rejected before inference, preserving the draft and separate immutable bytes. The real-Go regression passed. Renaming user files or removing a validator in Swift is not a coherent correction. Repeated image pastes already use distinct generated names and pass their regression.
 
 Native uploads are intentionally never pruned after selection/removal/admission. That is conservative retained storage, not an in-memory leak. It can grow without a disk quota across sessions; R03 records the need for a future reference-aware lifecycle, not permission to delete copies now.
 
@@ -177,9 +177,9 @@ Shared `@State` coordinator lifetime above both scenes is correct; environment r
 
 Exact decisions combine SwiftUI focus/AX behavior with an NSButton adapter; no default Return shortcut. Current unit tests cover semantic key rules and AppKit input; historical actual keyboard acceptance verifies focused Return did not decide and explicit Space declined the inert original-token approval. Full physical IME, VoiceOver and Full Keyboard Access are still separate operator checks. The two layers of focus/keyboard handling are a brittle integration surface deserving maintained component tests, not an established duplicate-action defect: guards retire/deduplicate decisions.
 
-Menus/controls have accessible labels; exact material text is literal/selectable, with complete disclosures. Announcements avoid token deltas. Reduce Motion disables transitions and replaces ongoing progress with static feedback. Dynamic type/contrast/large-text layouts and screen-reader spoken behavior were not physically verified here. No extra GUI automation was run; GatorMacTests instantiate small AppKit components/windows headlessly as part of the requested suite.
+Menus/controls have accessible labels; exact material text is literal/selectable, with complete disclosures. Announcements avoid token deltas. Reduce Motion disables transitions and replaces ongoing progress with static feedback. Dynamic type/contrast/large-text layouts and screen-reader spoken behavior were not physically verified here. No extra GUI automation was run; HotCrossBunsMacTests instantiate small AppKit components/windows headlessly as part of the requested suite.
 
-macOS 15 availability is checked by compilation targeting 15.0. Local SDK SwiftUI interface explicitly marks `defaultLaunchBehavior` available at macOS 15 (`GatorApp.swift:29`); scroll APIs similarly compile at the declared target. This is API validation, not a macOS 15 runtime test. The current host runs a newer OS; Intel execution was not tested.
+macOS 15 availability is checked by compilation targeting 15.0. Local SDK SwiftUI interface explicitly marks `defaultLaunchBehavior` available at macOS 15 (`HotCrossBunsApp.swift:29`); scroll APIs similarly compile at the declared target. This is API validation, not a macOS 15 runtime test. The current host runs a newer OS; Intel execution was not tested.
 
 Notch geometry uses real `safeAreaInsets` and auxiliary areas, accepts nonzero/negative screen origins and rejects displays without camera-gap evidence. It chooses the first eligible NSScreen and centers on the display midpoint, assuming symmetric built-in camera placement. No physical multi-display/Spaces/hotplug/fullscreen configuration was tested here. Existing geometry tests cover symmetric and negative-origin fixtures, not off-center camera gaps. The panel cannot become main, hover does not make it key, and explicit entry remembers a weak previous window. Keep these constraints; consider display policy only when an actual multi-display requirement is defined.
 
@@ -203,30 +203,30 @@ Counts are `@Test` declarations; parameterized argument cases are additional exe
 
 | File in `macos/Tests/` | Count | Main evidence / boundary |
 | --- | ---: | --- |
-| `GatorCoreTests/ApplicationStateTests.swift` | 10 | Mock transport; ack/result separation, newer drafts, settings, approval, disconnect/reconnect and corrupt store. |
-| `GatorCoreTests/BridgeProtocolTests.swift` | 5 | Byte-split UTF-8/coalescing, malformed/version/size/EOF, outbound admission and literal JSON. |
-| `GatorCoreTests/GoIntegrationTests.swift` | 5 | Real Go stream/restart/reconnect; actual Node subprocess transport; blocked stdin; killed-owner regression. |
-| `GatorCoreTests/ManagedGoIntegrationTests.swift` | 1 | Real Go independent work and retained child results. |
-| `GatorCoreTests/ManagedSessionTests.swift` | 12 | Mock SessionFixture: serialized transitions, host sequence dedup, origin/run controls, capacity, uncertainty, owner isolation. |
-| `GatorCoreTests/NativeAttachmentDisconnectTests.swift` | 1 | Actual Go lost-admission identity and no replay. |
-| `GatorCoreTests/NativeAttachmentDraftTests.swift` | 8 | Mock owners + real filesystem; imports, stale context, versions and promotion. |
-| `GatorCoreTests/NativeAttachmentIntegrationTests.swift` | 3 | Real Go files-only/document/image admission and durable initial owner. |
-| `GatorCoreTests/NativeClosureAcceptanceTests.swift` | 2 | Real Go equal-basename safe rejection; headless state-stream benchmark. |
-| `GatorCoreTests/NativeDraftStoreTests.swift` | 2 | Actual private files, profile isolation, uncertainty and corruption preservation. |
-| `GatorCoreTests/NativeInertApprovalIntegrationTests.swift` | 1 | Actual Go inert web review, owner/draft/background-work isolation. |
-| `GatorCoreTests/NativeMessageContentTests.swift` | 1 | Native Markdown/code whitespace. |
-| `GatorCoreTests/NativePerformanceTests.swift` | 3 | Existing decode/projection, real process startup and thumbnail measurements. |
-| `GatorCoreTests/NativePlanAuthorizationTests.swift` | 13 | Mock authorization state machine, wrong identity/results, capacity, post-save checks, restart reconciliation, retention. |
-| `GatorCoreTests/NativePlanIntegrationTests.swift` | 4 | Actual Go execution once, revised review, approved restore without start and Go rejection independent of native guards. |
-| `GatorCoreTests/NativeRecoveryIntegrationTests.swift` | 3 | Real interrupted plan and exact receipt/Sent checks against inert local service; foreign identity rejection. |
-| `GatorCoreTests/NativeRecoveryTests.swift` | 12 | Recovery presentation, distinct evidence, exact bundle identity and mock receipt uncertainty/retention. |
-| `GatorCoreTests/NativeReviewIntegrationTests.swift` | 2 | Real Go action correction and revised plan ownership. |
-| `GatorCoreTests/NativeTaskReviewTests.swift` | 14 | Mock task/correction/approval/plan reads, literal public content, focus/generation and decision semantics. |
-| `GatorCoreTests/NativeUploadStoreTests.swift` | 6 | Real filesystem copies, permissions, symlinks, hashes, dimensions/limits, repeated paste names. |
-| `GatorCoreTests/RecoveryPreparationIntegrationTests.swift` | 4 | Actual Go failure/access/retry preparation, positional account/token boundaries, no execution before new plan approval. |
-| `GatorCoreTests/RecoveryPreparationTests.swift` | 10 | Mock eligibility, selection invalidation, late/wrong result, capacity and explicit-decision freshness. |
-| `GatorMacTests/NativeInputTests.swift` | 9 | Real small AppKit objects/pasteboards/windows; key/paste/IME APIs, owner editor replacement, contrast and window references. |
-| `GatorMacTests/NotchGeometryTests.swift` | 2 | Pure camera-gap/negative-origin geometry. |
+| `HotCrossBunsCoreTests/ApplicationStateTests.swift` | 10 | Mock transport; ack/result separation, newer drafts, settings, approval, disconnect/reconnect and corrupt store. |
+| `HotCrossBunsCoreTests/BridgeProtocolTests.swift` | 5 | Byte-split UTF-8/coalescing, malformed/version/size/EOF, outbound admission and literal JSON. |
+| `HotCrossBunsCoreTests/GoIntegrationTests.swift` | 5 | Real Go stream/restart/reconnect; actual Node subprocess transport; blocked stdin; killed-owner regression. |
+| `HotCrossBunsCoreTests/ManagedGoIntegrationTests.swift` | 1 | Real Go independent work and retained child results. |
+| `HotCrossBunsCoreTests/ManagedSessionTests.swift` | 12 | Mock SessionFixture: serialized transitions, host sequence dedup, origin/run controls, capacity, uncertainty, owner isolation. |
+| `HotCrossBunsCoreTests/NativeAttachmentDisconnectTests.swift` | 1 | Actual Go lost-admission identity and no replay. |
+| `HotCrossBunsCoreTests/NativeAttachmentDraftTests.swift` | 8 | Mock owners + real filesystem; imports, stale context, versions and promotion. |
+| `HotCrossBunsCoreTests/NativeAttachmentIntegrationTests.swift` | 3 | Real Go files-only/document/image admission and durable initial owner. |
+| `HotCrossBunsCoreTests/NativeClosureAcceptanceTests.swift` | 2 | Real Go equal-basename safe rejection; headless state-stream benchmark. |
+| `HotCrossBunsCoreTests/NativeDraftStoreTests.swift` | 2 | Actual private files, profile isolation, uncertainty and corruption preservation. |
+| `HotCrossBunsCoreTests/NativeInertApprovalIntegrationTests.swift` | 1 | Actual Go inert web review, owner/draft/background-work isolation. |
+| `HotCrossBunsCoreTests/NativeMessageContentTests.swift` | 1 | Native Markdown/code whitespace. |
+| `HotCrossBunsCoreTests/NativePerformanceTests.swift` | 3 | Existing decode/projection, real process startup and thumbnail measurements. |
+| `HotCrossBunsCoreTests/NativePlanAuthorizationTests.swift` | 13 | Mock authorization state machine, wrong identity/results, capacity, post-save checks, restart reconciliation, retention. |
+| `HotCrossBunsCoreTests/NativePlanIntegrationTests.swift` | 4 | Actual Go execution once, revised review, approved restore without start and Go rejection independent of native guards. |
+| `HotCrossBunsCoreTests/NativeRecoveryIntegrationTests.swift` | 3 | Real interrupted plan and exact receipt/Sent checks against inert local service; foreign identity rejection. |
+| `HotCrossBunsCoreTests/NativeRecoveryTests.swift` | 12 | Recovery presentation, distinct evidence, exact bundle identity and mock receipt uncertainty/retention. |
+| `HotCrossBunsCoreTests/NativeReviewIntegrationTests.swift` | 2 | Real Go action correction and revised plan ownership. |
+| `HotCrossBunsCoreTests/NativeTaskReviewTests.swift` | 14 | Mock task/correction/approval/plan reads, literal public content, focus/generation and decision semantics. |
+| `HotCrossBunsCoreTests/NativeUploadStoreTests.swift` | 6 | Real filesystem copies, permissions, symlinks, hashes, dimensions/limits, repeated paste names. |
+| `HotCrossBunsCoreTests/RecoveryPreparationIntegrationTests.swift` | 4 | Actual Go failure/access/retry preparation, positional account/token boundaries, no execution before new plan approval. |
+| `HotCrossBunsCoreTests/RecoveryPreparationTests.swift` | 10 | Mock eligibility, selection invalidation, late/wrong result, capacity and explicit-decision freshness. |
+| `HotCrossBunsMacTests/NativeInputTests.swift` | 9 | Real small AppKit objects/pasteboards/windows; key/paste/IME APIs, owner editor replacement, contrast and window references. |
+| `HotCrossBunsMacTests/NotchGeometryTests.swift` | 2 | Pure camera-gap/negative-origin geometry. |
 
 Mocks are not the only security evidence: the full suite runs current Go processes with isolated local config, fixture credentials and loopback providers. Several fixtures seed canonical journals using existing helper Go programs. Trace assertions check lack of execution where only review/preparation was requested. No remote provider/account action is necessary to validate these transitions.
 
@@ -239,10 +239,10 @@ Some names overstate their assertions: `tabLeavesComposerAndShiftTabReturnsWitho
 All commands ran at repository root unless stated. Full logs stayed in `/tmp/`, separate from the other audit's tracked log.
 
 ```sh
-go build -o /tmp/gator-swift-audit-runtime ./cmd/gator
-GATOR_TEST_BINARY=/tmp/gator-swift-audit-runtime swift test --package-path macos --scratch-path /tmp/gator-swift-audit-build --no-parallel
-swift build --package-path macos --scratch-path /tmp/gator-swift-audit-build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-go test ./cmd/gator ./internal/workapp ./internal/attachment ./internal/worksession -run 'Test(UIBridge|BridgeUploads|DesktopApprovalCannot|ExecutionOwnerIsExclusive|DialogueAdmission|.*TaskPlan.*Reject|.*RequestRecovery.*|.*Upload.*)' -count=1
+go build -o /tmp/hot-cross-buns-swift-audit-runtime ./cmd/hot-cross-buns
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-swift-audit-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-swift-audit-build --no-parallel
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-swift-audit-build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/attachment ./internal/worksession -run 'Test(UIBridge|BridgeUploads|DesktopApprovalCannot|ExecutionOwnerIsExclusive|DialogueAdmission|.*TaskPlan.*Reject|.*RequestRecovery.*|.*Upload.*)' -count=1
 node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs app-host/tests/policy.test.mjs
 swiftlint lint --quiet macos/Sources
 swiftformat --lint macos/Sources
@@ -252,7 +252,7 @@ bash -n macos/scripts/build-dev-app.sh
 
 - Go runtime build PASS. Sequential Swift suite PASS: 133, zero failures, 38.762s; test build 24.17s on this fresh scratch tree. No skipped Swift tests reported.
 - Explicit strict build PASS in 8.96s; no compiler warnings/errors; language mode unchanged.
-- Selected Go tests PASS in cmd/gator 0.627s, workapp 1.104s, attachment 0.754s, worksession 1.217s. Regex selects contract tests, **not full Go-package or repository coverage**.
+- Selected Go tests PASS in cmd/hot-cross-buns 0.627s, workapp 1.104s, attachment 0.754s, worksession 1.217s. Regex selects contract tests, **not full Go-package or repository coverage**.
 - Selected host tests PASS: 63, zero fail/skip, 130.741ms reported by Node. Runtime-version caveat above. Full terminal/host/Go suites were not required or run.
 - SwiftLint exits 2 for its default violations; SwiftFormat exits 1 (31/33 need default formatting), with a no-Swift-version-configured warning. An initial `swiftlint lint --quiet --path macos/Sources` failed because installed 0.65.1 uses positional paths; the positional rerun above completed inspection. These are explicitly failed optional style probes, not silently omitted checks.
 - Plist and shell syntax PASS. No development app was rebuilt/launched or signed in this audit.
@@ -281,7 +281,7 @@ Severity follows the requested categories. “Confirmed” means code flow or bo
 
 #### E01 — P0 — Concurrent native archive transactions silently lose unrelated durable records
 
-- **Location:** `macos/Sources/GatorCore/NativeDraftStore.swift:83` (read/merge/write), `:149` (publish); `macos/Sources/GatorMac/GatorApp.swift:70` (same profile chooses same filename).
+- **Location:** `macos/Sources/HotCrossBunsCore/NativeDraftStore.swift:83` (read/merge/write), `:149` (publish); `macos/Sources/HotCrossBunsMac/HotCrossBunsApp.swift:70` (same profile chooses same filename).
 - **Evidence:** 16 independently instantiated stores wrote distinct conversation drafts concurrently to one profile: all 16 returned success, but only **2** records survived. JSON remained valid. One shared actor serializes the current coordinator; no cross-instance lock or native single-instance admission was found.
 - **Interleaving:** A reads archive X; B reads X; A merges owner A and renames X+A; B merges owner B into its old X and renames X+B. A's unrelated draft/operation records disappear. Separate native processes are not isolated by Swift actors. Lost pending identities would be more serious than the synthetic text-only sample, but that extension was not executed.
 - **Verification:** scratch `writers` probe in Appendix; 16 writers is below both retention caps, so eviction is not the explanation.
@@ -290,7 +290,7 @@ Severity follows the requested categories. “Confirmed” means code flow or bo
 
 #### E02 — P1 — Quit can report success after accepting a new draft that failed to save
 
-- **Location:** `GatorApplicationState.swift:90`, `:320`, `:343`, `:484`; `ManagedSessionCoordinator.swift:498`; `AppDelegate.swift:51`.
+- **Location:** `HotCrossBunsApplicationState.swift:90`, `:320`, `:343`, `:484`; `ManagedSessionCoordinator.swift:498`; `AppDelegate.swift:51`.
 - **Evidence:** scratch transport held shutdown after the initial flush. `canEditDraft` remained true. A new edit was made while a disposable filesystem obstruction forced its save to fail. `flushDrafts()` returned false, `persistenceIssue` was visible, but the in-progress `shutdown()` still returned **true**. AppDelegate terminates on that boolean.
 - **Interleaving:** close flushes save A → awaits transport shutdown → MainActor accepts edit B and schedules save B → B fails → transport exits → shutdown returns success without rechecking B. `canEditDraft` does not depend on closing status, and the coordinator's stopping flag disables sends/navigation, not editor mutation.
 - **Verification:** `late-edit` probe below; real private profiles untouched. The probe proves false-success and unsaved accepted input; actual NSApp termination was inferred directly from AppDelegate, not triggered.
@@ -308,7 +308,7 @@ Severity follows the requested categories. “Confirmed” means code flow or bo
 
 #### E04 — P2 — A persisted uncertain receipt operation has no native reconciliation path
 
-- **Location:** `NativeDraftStore.swift:73`, `NativeRecovery.swift:46`, `GatorApplicationState.swift:784`, `:819`.
+- **Location:** `NativeDraftStore.swift:73`, `NativeRecovery.swift:46`, `HotCrossBunsApplicationState.swift:784`, `:819`.
 - **Evidence:** restored receipt phase is `uncertain`; every future receipt request is refused while unresolved. Result consumption requires `pending.generation == generation`, which cannot hold for the restored old generation. No receipt reset/reconciliation method exists. A fresh-generation scratch snapshot with the original matching result did not clear it; even **Inspect Saved Check** stayed blocked.
 - **Failure scenario:** disconnect/restart during local receipt inspection or read-only Sent check permanently prevents later native checks in that owner, despite copy telling the user to reconnect and inspect. It also pins the cached owner.
 - **Verification:** `receipt` probe and existing `receiptDisconnectPersistsUncertainty...` test, which verifies no replay but stops short of eventual recovery.
@@ -333,13 +333,13 @@ Severity follows the requested categories. “Confirmed” means code flow or bo
 
 #### E07 — P2 — Equal document basenames cannot be admitted together
 
-- **Location:** `internal/attachment/uploads.go:67`, `internal/attachment/attachment.go:194`, `cmd/gator/attachments.go:43`; native path `BridgeProtocol.swift:201` correctly retains IDs.
+- **Location:** `internal/attachment/uploads.go:67`, `internal/attachment/attachment.go:194`, `cmd/hot-cross-buns/attachments.go:43`; native path `BridgeProtocol.swift:201` correctly retains IDs.
 - **Evidence/scenario:** two distinct opaque IDs ending in `report.md` pass Swift staging but fail Go duplicate provider-name validation. Real-Go test passes for safe rejection/no inference/draft retention.
 - **Verification:** `duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution` in the full suite. **Correction:** coherent backend/provider/retained-original identity contract with unique identity separate from display basename. Do not bypass validators or silently rename originals in Swift. **Benefit:** selecting same-named independent documents safely. **Effort:** MEDIUM/LARGE across contracts. **Confidence:** HIGH. Broader contract limitation, not a Swift copy defect.
 
 #### E08 — P3 — Unsupported-workflow strings lag the managed implementation
 
-- **Location:** `BridgeProtocol.swift:111`, `GatorApplicationState.swift:111`, `ConversationView.swift:294`.
+- **Location:** `BridgeProtocol.swift:111`, `HotCrossBunsApplicationState.swift:111`, `ConversationView.swift:294`.
 - **Evidence/scenario:** snapshot text says managed sessions are unavailable although the coordinator implements them; another message says conversation-during-work arrives later. Most managed paths suppress those notices, but connection details can show the generic snapshot notice directly. This confuses diagnosis/parity interpretation during transient dispatch.
 - **Verification:** source conditions/copy; no GUI reproduction claimed. **Correction:** capability-aware copy based on current managed projection; retain honest queue/external-handoff limitations. **Benefit:** accurate user-facing diagnostics. **Effort:** SMALL. **Confidence:** HIGH for contradictory strings; transient visibility source-derived.
 
@@ -347,11 +347,11 @@ Severity follows the requested categories. “Confirmed” means code flow or bo
 
 | ID / priority | Exact location, evidence and specific scenario | Verification boundary and recommendation | Benefit / effort / confidence |
 | --- | --- | --- | --- |
-| R01 / P2 risk | `GatorApplicationState.swift:667,781,871`: polling ignores cancellation errors. If an executing MainActor waiter is canceled while its pending condition remains true, Task.sleep throws immediately; the non-suspending loop can starve the MainActor deadline/result task that would clear it. | No current caller cancels the private coordinator transition handle, so reachable production cancellation was **not confirmed**. Honor cancellation or use an explicitly noncancelable, event-driven application-owned waiter with bounded termination. | Avoid future cancellation starvation; SMALL/MEDIUM; high confidence in canceled-loop behavior, medium in product exposure. |
+| R01 / P2 risk | `HotCrossBunsApplicationState.swift:667,781,871`: polling ignores cancellation errors. If an executing MainActor waiter is canceled while its pending condition remains true, Task.sleep throws immediately; the non-suspending loop can starve the MainActor deadline/result task that would clear it. | No current caller cancels the private coordinator transition handle, so reachable production cancellation was **not confirmed**. Honor cancellation or use an explicitly noncancelable, event-driven application-owned waiter with bounded termination. | Avoid future cancellation starvation; SMALL/MEDIUM; high confidence in canceled-loop behavior, medium in product exposure. |
 | R02 / P2 risk | `NativeAttachmentActions.swift:47`: item-provider continuation has no timeout/cancellation escape. A provider never invoking completion leaves attachmentImport active and sending unavailable in that owner. | Misbehaving provider not induced. Add owned cancellation/timeout that invalidates import identity; handle any late completion once. | Recover stuck imports; MEDIUM; medium. |
-| R03 / P2 improvement | `GatorApplicationState.swift:329`; `NativeUploadStore.swift:37`; `GatorApplicationState.swift:43,27,31`: one full save per edit, disk copies never pruned, owner caches have no lifetime cap. | No measured memory leak or sustained disk/backlog problem. Measure burst edits/long sessions; coalesce unsent draft saves while retaining immediate durable pre-send operation writes. Design reference-aware upload maintenance only with Go/journal ownership evidence. | Bound future retained growth/I/O; MEDIUM; high source confidence, impact unmeasured. |
-| R04 / P2 risk | `GatorApplicationState.swift:437`: successful transport ack with no cancelling/terminal state leaves `stopping=true`; no stop-result deadline. | Not reproduced with real Go. Add a bounded “stop outcome unconfirmed” presentation without automatic repeat; never call ack cancellation success. | Avoid misleading permanent Stopping state; SMALL; medium. |
-| R05 / P2 risk | `GoBridgeConnection.swift:191`; `GatorApplicationState.swift:492`: unconfirmed process exit only calls fail; transport shutdown returns Void and owner unconditionally marks closed/success. | SIGKILL confirmation failure not reproduced. Return a typed cleanup result and propagate it through coordinator/Quit. Keep old owner retained when exit is not confirmed. | Honest cleanup ownership; SMALL/MEDIUM; high source confidence, low observed incidence. |
+| R03 / P2 improvement | `HotCrossBunsApplicationState.swift:329`; `NativeUploadStore.swift:37`; `HotCrossBunsApplicationState.swift:43,27,31`: one full save per edit, disk copies never pruned, owner caches have no lifetime cap. | No measured memory leak or sustained disk/backlog problem. Measure burst edits/long sessions; coalesce unsent draft saves while retaining immediate durable pre-send operation writes. Design reference-aware upload maintenance only with Go/journal ownership evidence. | Bound future retained growth/I/O; MEDIUM; high source confidence, impact unmeasured. |
+| R04 / P2 risk | `HotCrossBunsApplicationState.swift:437`: successful transport ack with no cancelling/terminal state leaves `stopping=true`; no stop-result deadline. | Not reproduced with real Go. Add a bounded “stop outcome unconfirmed” presentation without automatic repeat; never call ack cancellation success. | Avoid misleading permanent Stopping state; SMALL; medium. |
+| R05 / P2 risk | `GoBridgeConnection.swift:191`; `HotCrossBunsApplicationState.swift:492`: unconfirmed process exit only calls fail; transport shutdown returns Void and owner unconditionally marks closed/success. | SIGKILL confirmation failure not reproduced. Return a typed cleanup result and propagate it through coordinator/Quit. Keep old owner retained when exit is not confirmed. | Honest cleanup ownership; SMALL/MEDIUM; high source confidence, low observed incidence. |
 
 No stylistic P3 backlog is manufactured from unconfigured analyzer defaults. E08 is the only registered P3 issue.
 
@@ -389,12 +389,12 @@ No real account sign-in, provider inference, mail/Sent lookup, browser/computer 
 
 ## Appendix — bounded reproduction evidence
 
-The probes compiled **unchanged production GatorCore sources** with an isolated `@main` harness. Temporary output only; no test files or package manifests were changed:
+The probes compiled **unchanged production HotCrossBunsCore sources** with an isolated `@main` harness. Temporary output only; no test files or package manifests were changed:
 
 ```sh
-swiftc -swift-version 6 -parse-as-library macos/Sources/GatorCore/*.swift /tmp/gator-swift-audit-probes.swift -o /tmp/gator-swift-audit-probes
-python3 /tmp/gator-swift-audit-run-probes.py
-/tmp/gator-swift-audit-probes receipt /tmp/gator-audit-receipt-probe
+swiftc -swift-version 6 -parse-as-library macos/Sources/HotCrossBunsCore/*.swift /tmp/hot-cross-buns-swift-audit-probes.swift -o /tmp/hot-cross-buns-swift-audit-probes
+python3 /tmp/hot-cross-buns-swift-audit-run-probes.py
+/tmp/hot-cross-buns-swift-audit-probes receipt /tmp/hot-cross-buns-audit-receipt-probe
 ```
 
 Observed outputs:
@@ -453,7 +453,7 @@ actor AuditGateTransport: BridgeTransport {
         let identity = NativeReceiptIdentity(conversationID: "audit", runID: "run-one", actionID: "action-" + String(repeating: "a", count: 16), correlationID: String(repeating: "b", count: 32), manifestSHA256: String(repeating: "c", count: 64))
         var a = NativeArchive(); var pending = NativeReceiptOperation(id: "original-check", nonce: "nonce", identity: identity, generation: UUID(), action: .inspect); pending.phase = "uncertain"
         a.selectedConversationID = "audit"; a.receiptOperationsByContext = ["conversation:audit": pending]; try await store.save(a)
-        let app = GatorApplicationState(configuration: BridgeLaunchConfiguration(runtime: URL(fileURLWithPath: "/unused"), workspace: root), store: store, factory: { t })
+        let app = HotCrossBunsApplicationState(configuration: BridgeLaunchConfiguration(runtime: URL(fileURLWithPath: "/unused"), workspace: root), store: store, factory: { t })
         await app.start(); while !app.isConnected { await Task.yield() }
         let bundle: JSONValue = .object(["RunID": .string(identity.runID), "ManifestSHA256": .string(identity.manifestSHA256), "Actions": .array([.object(["ID": .string(identity.actionID), "CorrelationID": .string(identity.correlationID), "Operation": .string("gmail_send"), "Status": .string("unknown")])])])
         let historical = BridgeSnapshot(.object(["conversation_id": .string("audit"), "running": .bool(false), "messages": .array([.object(["activity": .object(["state": .string("failed")])]), .object(["text": .string("Later successful answer"), "activity": .object(["state": .string("completed")])])])]))
@@ -465,7 +465,7 @@ actor AuditGateTransport: BridgeTransport {
     }
     @MainActor static func lateEdit(_ root: URL) async throws {
         let t = AuditGateTransport(), directory = root.appendingPathComponent("drafts"), store = NativeDraftStore(directory: directory, profile: "late")
-        let app = GatorApplicationState(configuration: BridgeLaunchConfiguration(runtime: URL(fileURLWithPath: "/unused"), workspace: root), store: store, factory: { t })
+        let app = HotCrossBunsApplicationState(configuration: BridgeLaunchConfiguration(runtime: URL(fileURLWithPath: "/unused"), workspace: root), store: store, factory: { t })
         await app.start(); while !app.isConnected { await Task.yield() }
         app.editDraft("saved before quit"); _ = await app.flushDrafts()
         let close = Task { await app.shutdown(confirmed: true) }
@@ -485,9 +485,9 @@ Scratch controller:
 
 ```python
 import os, tempfile, subprocess, json, pathlib
-binary='/tmp/gator-swift-audit-probes'
+binary='/tmp/hot-cross-buns-swift-audit-probes'
 for mode in ['writers','late-edit','descendant']:
-    with tempfile.TemporaryDirectory(prefix='gator-audit-'+mode+'-') as root:
+    with tempfile.TemporaryDirectory(prefix='hot-cross-buns-audit-'+mode+'-') as root:
         if mode=='descendant':
             script=pathlib.Path(root)/'fixture.py'
             script.write_text('''#!/usr/bin/python3

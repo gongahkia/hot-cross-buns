@@ -14,14 +14,14 @@ import { Backend } from '../app-host/src/backend.mjs';
 const execute = promisify(execFile);
 const waitFor = async predicate => { for (let i = 0; i < 300; i++) { const value = await predicate(); if (value) return value; await new Promise(r => setTimeout(r, 50)); } throw new Error('Fixture did not reach expected state'); };
 test('real Go owners behind terminal/companion transports are inspected without replacement workers', { timeout: 240000 }, async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-inspection-real-'));
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-inspection-real-'));
   const binary = join(root, process.platform === 'win32' ? 'runtime.exe' : 'runtime');
   try {
-    await execute('go', ['build', '-o', binary, './cmd/gator'], { timeout: 90000 });
+    await execute('go', ['build', '-o', binary, './cmd/hot-cross-buns'], { timeout: 90000 });
     for (const frontend of ['terminal', 'companion']) {
       const dir = join(root, frontend), workspace = join(dir, 'workspace'), config = join(dir, 'config'), state = join(dir, 'state'), tokenFile = join(dir, 'token');
       await mkdir(dir, { mode: 0o700 });
-      await mkdir(workspace, { recursive: true }); await mkdir(join(config, 'gator'), { recursive: true });
+      await mkdir(workspace, { recursive: true }); await mkdir(join(config, 'hot-cross-buns'), { recursive: true });
       await writeFile(tokenFile, 'a'.repeat(64) + '\n', { mode: 0o600 });
       const exported = join(dir, 'device.token'), device = await addDevice(tokenFile, 'Fixture phone', exported), token = (await readFile(exported, 'utf8')).trim();
       const actor = await inspectionDeviceActor(tokenFile, device.id);
@@ -37,10 +37,10 @@ test('real Go owners behind terminal/companion transports are inspected without 
       });
       try {
         await new Promise(r => provider.listen(0, '127.0.0.1', r));
-        await writeFile(join(config, 'gator/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${provider.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }));
-        const env = { ...process.env, GATOR_CONFIG_DIR: config, GATOR_STATE_DIR: state, GATOR_INTERNAL_COMMANDS: '1', GATOR_UI_SESSION_HOST: '1' };
+        await writeFile(join(config, 'hot-cross-buns/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${provider.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }));
+        const env = { ...process.env, HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: state, HOT_CROSS_BUNS_INTERNAL_COMMANDS: '1', HOT_CROSS_BUNS_UI_SESSION_HOST: '1' };
         await execute(binary, ['work', '--source', workspace, '--mode', 'inspect', 'Seed inspection fixture'], { env, timeout: 30000 });
-        const id = (await readdir(join(state, 'gator/conversations'))).find(n => n.startsWith('work-'));
+        const id = (await readdir(join(state, 'hot-cross-buns/conversations'))).find(n => n.startsWith('work-'));
         assert.ok(id);
         companion = createCompanion({ binary, workspace, env, tokenFile, spawnBackend: conversation => { spawns++; assert.equal(frontend, 'companion', 'inspection must never spawn a worker'); host = new Backend(binary, workspace, env, ['ui-backend', conversation, '']); return host; } });
         const address = await companion.listen(), base = `http://127.0.0.1:${address.port}`;
@@ -53,7 +53,7 @@ test('real Go owners behind terminal/companion transports are inspected without 
           const response = await fetch(`${base}/v1/chats/${id}/actions`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(frame) }); assert.equal(response.status, 200, await response.text());
         } else await host.submitUpload(frame);
         await waitFor(() => held);
-        const controlDir = join(state, 'gator/work-control');
+        const controlDir = join(state, 'hot-cross-buns/work-control');
         const owner = await waitFor(async () => { for (const name of await readdir(controlDir)) { if (name.endsWith('.json')) { const value = JSON.parse(await readFile(join(controlDir, name), 'utf8')); if (value.inspection) return value; } } });
         assert.deepEqual((await get('/v1/work')).targets, [], 'conversation/device access is not an inspection grant');
         // Exercise the actual host-local enrollment-aware grant helper.
@@ -61,7 +61,7 @@ test('real Go owners behind terminal/companion transports are inspected without 
         if (frontend === 'terminal') {
           // A second real live conversation is not covered by the first grant.
           await execute(binary, ['work', '--source', workspace, '--mode', 'inspect', 'Another seed conversation'], { env, timeout: 30000 });
-          const otherID = (await readdir(join(state, 'gator/conversations'))).find(n => n.startsWith('work-') && n !== id);
+          const otherID = (await readdir(join(state, 'hot-cross-buns/conversations'))).find(n => n.startsWith('work-') && n !== id);
           assert.ok(otherID);
           otherHost = new Backend(binary, workspace, env, ['ui-backend', otherID, '']); await otherHost.ready();
           await otherHost.submitUpload({ type: 'upload_submit', upload: { request_id: 'other-inspection', context: `conversation:${otherID}`, text: 'T1-held second conversation', files: [] } });
@@ -95,7 +95,7 @@ test('real Go owners behind terminal/companion transports are inspected without 
 });
 
 test('inspection revocation while queued or reading suppresses private responses and never starts a worker', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-inspection-auth-')), tokenFile = join(root, 'owner.token'), exported = join(root, 'device.token');
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-inspection-auth-')), tokenFile = join(root, 'owner.token'), exported = join(root, 'device.token');
   let companion, release, entered;
   const gate = new Promise(r => release = r), started = new Promise(r => entered = r);
   try {

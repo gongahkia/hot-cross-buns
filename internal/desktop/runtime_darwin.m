@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-static void gator_copy_string(NSString *value, char *destination, int size) {
+static void hot_cross_buns_copy_string(NSString *value, char *destination, int size) {
   if (destination == NULL || size < 1) return;
   destination[0] = '\0';
   if (value == nil) return;
@@ -13,11 +13,11 @@ static void gator_copy_string(NSString *value, char *destination, int size) {
   destination[size - 1] = '\0';
 }
 
-int gator_desktop_accessibility_trusted(void) {
+int hot_cross_buns_desktop_accessibility_trusted(void) {
   return AXIsProcessTrusted() ? 1 : 0;
 }
 
-int gator_desktop_front_window(uint32_t *window_id, int *pid, double *x, double *y, double *width, double *height, char *bundle_id, int bundle_size, char *title, int title_size) {
+int hot_cross_buns_desktop_front_window(uint32_t *window_id, int *pid, double *x, double *y, double *width, double *height, char *bundle_id, int bundle_size, char *title, int title_size) {
   @autoreleasepool {
     CFArrayRef windows = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
     if (windows == NULL) return 0;
@@ -38,8 +38,8 @@ int gator_desktop_front_window(uint32_t *window_id, int *pid, double *x, double 
       if (y) *y = bounds.origin.y;
       if (width) *width = bounds.size.width;
       if (height) *height = bounds.size.height;
-      gator_copy_string(application.bundleIdentifier, bundle_id, bundle_size);
-      gator_copy_string(window[(id)kCGWindowName], title, title_size);
+      hot_cross_buns_copy_string(application.bundleIdentifier, bundle_id, bundle_size);
+      hot_cross_buns_copy_string(window[(id)kCGWindowName], title, title_size);
       found = 1;
       break;
     }
@@ -48,7 +48,7 @@ int gator_desktop_front_window(uint32_t *window_id, int *pid, double *x, double 
   }
 }
 
-int gator_desktop_click(double x, double y) {
+int hot_cross_buns_desktop_click(double x, double y) {
   CGEventRef down = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, CGPointMake(x, y), kCGMouseButtonLeft);
   CGEventRef up = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseUp, CGPointMake(x, y), kCGMouseButtonLeft);
   if (down == NULL || up == NULL) { if (down) CFRelease(down); if (up) CFRelease(up); return 0; }
@@ -59,7 +59,7 @@ int gator_desktop_click(double x, double y) {
   return 1;
 }
 
-int gator_desktop_double_click(double x, double y) {
+int hot_cross_buns_desktop_double_click(double x, double y) {
   CGPoint point = CGPointMake(x, y);
   CGEventRef down1 = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, point, kCGMouseButtonLeft);
   CGEventRef up1 = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseUp, point, kCGMouseButtonLeft);
@@ -79,7 +79,7 @@ int gator_desktop_double_click(double x, double y) {
   return 1;
 }
 
-int gator_desktop_drag(const double *xs, const double *ys, int count) {
+int hot_cross_buns_desktop_drag(const double *xs, const double *ys, int count) {
   if (xs == NULL || ys == NULL || count < 2 || count > 128) return 0;
   CGEventRef down = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, CGPointMake(xs[0], ys[0]), kCGMouseButtonLeft);
   if (down == NULL) return 0;
@@ -101,7 +101,7 @@ int gator_desktop_drag(const double *xs, const double *ys, int count) {
   return completed;
 }
 
-int gator_desktop_move(double x, double y) {
+int hot_cross_buns_desktop_move(double x, double y) {
   CGEventRef move = CGEventCreateMouseEvent(NULL, kCGEventMouseMoved, CGPointMake(x, y), kCGMouseButtonLeft);
   if (move == NULL) return 0;
   CGEventPost(kCGHIDEventTap, move);
@@ -109,8 +109,8 @@ int gator_desktop_move(double x, double y) {
   return 1;
 }
 
-int gator_desktop_scroll(double x, double y, int delta_x, int delta_y) {
-  if (!gator_desktop_move(x, y)) return 0;
+int hot_cross_buns_desktop_scroll(double x, double y, int delta_x, int delta_y) {
+  if (!hot_cross_buns_desktop_move(x, y)) return 0;
   CGEventRef scroll = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitLine, 2, delta_y, delta_x);
   if (scroll == NULL) return 0;
   CGEventPost(kCGHIDEventTap, scroll);
@@ -118,7 +118,7 @@ int gator_desktop_scroll(double x, double y, int delta_x, int delta_y) {
   return 1;
 }
 
-int gator_desktop_type(const char *value) {
+int hot_cross_buns_desktop_type(const char *value) {
   @autoreleasepool {
     if (value == NULL) return 0;
     NSString *text = [NSString stringWithUTF8String:value];
@@ -138,7 +138,7 @@ int gator_desktop_type(const char *value) {
   }
 }
 
-int gator_desktop_press(int keycode) {
+int hot_cross_buns_desktop_press(int keycode) {
   CGEventRef down = CGEventCreateKeyboardEvent(NULL, (CGKeyCode)keycode, true);
   CGEventRef up = CGEventCreateKeyboardEvent(NULL, (CGKeyCode)keycode, false);
   if (down == NULL || up == NULL) { if (down) CFRelease(down); if (up) CFRelease(up); return 0; }
@@ -149,7 +149,7 @@ int gator_desktop_press(int keycode) {
   return 1;
 }
 
-int gator_desktop_focused_field_sensitive(int pid) {
+int hot_cross_buns_desktop_focused_field_sensitive(int pid) {
   AXUIElementRef application = AXUIElementCreateApplication((pid_t)pid);
   if (application == NULL) return -1;
   CFTypeRef focused = NULL;

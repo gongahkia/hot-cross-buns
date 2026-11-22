@@ -12,13 +12,13 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/inbox"
-	"github.com/gongahkia/gator/internal/suggestion"
-	"github.com/gongahkia/gator/internal/usage"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 type OverviewItem struct {
@@ -70,7 +70,7 @@ func ReadOverview(ctx context.Context, stateDir string, supervisor bool, now tim
 		{ID: "blocked", Title: "What is blocked", Items: []OverviewItem{}},
 	}}
 	var seen struct{ At time.Time }
-	data, err := os.ReadFile(filepath.Join(stateDir, "gator", "overview", "seen.json"))
+	data, err := os.ReadFile(filepath.Join(stateDir, "hot-cross-buns", "overview", "seen.json"))
 	if err == nil {
 		err = json.Unmarshal(data, &seen)
 		if err == nil && !seen.At.IsZero() {
@@ -252,7 +252,7 @@ func ReadOverview(ctx context.Context, stateDir string, supervisor bool, now tim
 		issue("shared usage", err)
 	}
 	// Restore receipts remain actionable when external projects were unavailable.
-	if data, err := os.ReadFile(filepath.Join(stateDir, "gator", "data-control", "restored.json")); err == nil && len(data) > 0 && !restoreReviewDone(stateDir) {
+	if data, err := os.ReadFile(filepath.Join(stateDir, "hot-cross-buns", "data-control", "restored.json")); err == nil && len(data) > 0 && !restoreReviewDone(stateDir) {
 		// Missing source folders are detected above for active goals. The receipt
 		// points to mappings and recovery guidance for historical-only sources too.
 		add(2, OverviewItem{ID: "restored", Kind: "data", Title: "Review this restored profile", Detail: "Set up providers, map missing sources, and review paused checks before enabling them."})
@@ -292,7 +292,7 @@ func MarkOverviewSeen(stateDir string, at time.Time) error {
 	if at.IsZero() || at.After(time.Now().Add(time.Minute)) {
 		return errors.New("invalid overview review time")
 	}
-	root := filepath.Join(stateDir, "gator", "overview")
+	root := filepath.Join(stateDir, "hot-cross-buns", "overview")
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return err
 	}
@@ -346,6 +346,6 @@ func MarkOverviewSeen(stateDir string, at time.Time) error {
 }
 
 func restoreReviewDone(root string) bool {
-	_, err := os.Stat(filepath.Join(root, "gator", "data-control", "restore-reviewed.json"))
+	_, err := os.Stat(filepath.Join(root, "hot-cross-buns", "data-control", "restore-reviewed.json"))
 	return err == nil
 }

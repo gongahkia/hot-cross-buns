@@ -1,4 +1,4 @@
-// Package usage accounts for provider requests across Gator processes. The
+// Package usage accounts for provider requests across Hot Cross Buns processes. The
 // ledger contains counters and provider labels, never prompts or credentials.
 package usage
 
@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
 )
 
 var ErrLimit = errors.New("shared usage limit reached; open /usage to review limits")
@@ -68,7 +68,7 @@ func Open(stateDir string) (Store, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("usage state directory required")
 	}
-	root := filepath.Join(stateDir, "gator", "usage")
+	root := filepath.Join(stateDir, "hot-cross-buns", "usage")
 	for _, path := range []string{root, filepath.Join(root, "days"), filepath.Join(root, "active")} {
 		if err := os.MkdirAll(path, 0700); err != nil {
 			return Store{}, err

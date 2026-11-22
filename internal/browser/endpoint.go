@@ -9,7 +9,7 @@ import (
 
 // ValidateCDPEndpoint keeps attached Chromium control strictly local. A CDP
 // endpoint is powerful enough to inspect an entire existing browser profile,
-// so Gator refuses hostnames, credentials, paths, and non-loopback addresses.
+// so Hot Cross Buns refuses hostnames, credentials, paths, and non-loopback addresses.
 func ValidateCDPEndpoint(value string) error {
 	parsed, err := url.Parse(strings.TrimSpace(value))
 	if err != nil || parsed == nil {

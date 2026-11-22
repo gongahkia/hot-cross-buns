@@ -12,8 +12,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 var controlDigest = regexp.MustCompile(`^[a-f0-9]{64}$`)

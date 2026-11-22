@@ -11,8 +11,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 var creationIdentity = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{15,95}$`)

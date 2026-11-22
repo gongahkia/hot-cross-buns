@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/presentation"
-	"github.com/gongahkia/gator/internal/workbook"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/presentation"
+	"github.com/gongahkia/hot-cross-buns/internal/workbook"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 type WriteDocumentArtifact struct {
@@ -59,7 +59,7 @@ func (t WriteDocumentArtifact) Execute(_ context.Context, raw json.RawMessage) (
 		}
 	case ".pdf":
 		if arguments.TemplatePath != "" {
-			return agent.ToolResult{}, errors.New("PDF rendering uses a Gator theme and does not accept a DOCX template")
+			return agent.ToolResult{}, errors.New("PDF rendering uses a Hot Cross Buns theme and does not accept a DOCX template")
 		}
 		contents, preview, err = document.RenderPDF(arguments.Document)
 	default:
@@ -71,7 +71,7 @@ func (t WriteDocumentArtifact) Execute(_ context.Context, raw json.RawMessage) (
 	if err := artifact.WriteBinary(t.Root, t.Contract, arguments.Path, contents); err != nil {
 		return agent.ToolResult{}, err
 	}
-	evidence, err := artifact.NewRendererEvidence(arguments.Path, "gator.document.v1", arguments.Document.Normalize(), templateBytes, contents)
+	evidence, err := artifact.NewRendererEvidence(arguments.Path, "hot-cross-buns.document.v1", arguments.Document.Normalize(), templateBytes, contents)
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
@@ -107,7 +107,7 @@ type WritePresentationArtifact struct {
 func (t WritePresentationArtifact) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
 		Name:        "work_write_presentation",
-		Description: "Create an editable PPTX from a semantic presentation spec, or edit a source-relative PPTX with explicit bounded operations. New decks support titles, body paragraphs, speaker notes, and fade/push/wipe transitions. set_title, set_body and set_notes replace one identifiable text shape and reject ambiguous targets. Existing decks preserve untouched media, embedded objects, unsupported animations, and VBA raw parts; Gator never reads, authors, edits, or executes VBA. Package validation does not establish native PowerPoint layout fidelity.",
+		Description: "Create an editable PPTX from a semantic presentation spec, or edit a source-relative PPTX with explicit bounded operations. New decks support titles, body paragraphs, speaker notes, and fade/push/wipe transitions. set_title, set_body and set_notes replace one identifiable text shape and reject ambiguous targets. Existing decks preserve untouched media, embedded objects, unsupported animations, and VBA raw parts; Hot Cross Buns never reads, authors, edits, or executes VBA. Package validation does not establish native PowerPoint layout fidelity.",
 		Parameters:  schema(`{"type":"object","additionalProperties":false,"required":["path"],"properties":{"path":{"type":"string","pattern":"\\.pptx$"},"template_path":{"type":"string","description":"Source-relative existing PPTX to edit; requires edits and cannot be combined with presentation"},"presentation":{"type":"object","description":"Required for a new deck; cannot be combined with template_path","required":["title","slides"],"properties":{"version":{"type":"integer"},"title":{"type":"string"},"theme":{"enum":["professional","minimal","report"]},"slides":{"type":"array","items":{"type":"object","required":["title","body"],"properties":{"title":{"type":"string"},"body":{"type":"array","minItems":1,"items":{"type":"string"},"description":"Visible slide text; put key facts here, not only in speaker notes"},"notes":{"type":"string"},"transition":{"enum":["none","fade","push","wipe"]}}}}}},"edits":{"type":"array","maxItems":256,"items":{"type":"object","required":["operation"],"properties":{"operation":{"type":"string"},"slide":{"type":"integer"},"to":{"type":"integer"},"find":{"type":"string"},"replace":{"type":"string"},"title":{"type":"string"},"body":{"type":"array","items":{"type":"string"}},"notes":{"type":"string"},"transition":{"enum":["none","fade","push","wipe"]}}}}}}`),
 	}
 }
@@ -158,7 +158,7 @@ func (t WritePresentationArtifact) Execute(_ context.Context, raw json.RawMessag
 	if err := artifact.WriteBinary(t.Root, t.Contract, arguments.Path, contents); err != nil {
 		return agent.ToolResult{}, err
 	}
-	evidence, err := artifact.NewRendererEvidence(arguments.Path, "gator.presentation.v1", evidenceSpec, templateBytes, contents)
+	evidence, err := artifact.NewRendererEvidence(arguments.Path, "hot-cross-buns.presentation.v1", evidenceSpec, templateBytes, contents)
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
@@ -210,7 +210,7 @@ func (t WriteWorkbookArtifact) Execute(_ context.Context, raw json.RawMessage) (
 	if err := artifact.WriteBinary(t.Root, t.Contract, arguments.Path, contents); err != nil {
 		return agent.ToolResult{}, err
 	}
-	evidence, err := artifact.NewRendererEvidence(arguments.Path, "gator.workbook.v1", arguments.Workbook.Normalize(), templateBytes, contents)
+	evidence, err := artifact.NewRendererEvidence(arguments.Path, "hot-cross-buns.workbook.v1", arguments.Workbook.Normalize(), templateBytes, contents)
 	if err != nil {
 		return agent.ToolResult{}, err
 	}

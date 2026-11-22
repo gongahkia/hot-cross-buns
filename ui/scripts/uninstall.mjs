@@ -4,18 +4,18 @@ import { homedir } from "node:os";
 import { acquireUpdateGuard } from "../../app-host/src/update-guard.mjs";
 const prefix = process.argv[2] && resolve(process.argv[2]);
 if (!prefix) throw new Error("Usage: node ui/scripts/uninstall.mjs PREFIX");
-const root = join(prefix, "lib/gator-terminal");
+const root = join(prefix, "lib/hot-cross-buns-terminal");
 if (!(await lstat(root)).isDirectory() || !(await lstat(join(root, "installation.json"))).isFile()) throw new Error("Installation ownership requires an ordinary directory and manifest.");
 const manifest = JSON.parse(await readFile(join(root, "installation.json"), "utf8"));
-const launcher = join(prefix, "bin", process.platform === "win32" ? "gator.cmd" : "gator");
-if (manifest.product !== "gator-terminal" || manifest.root !== root || manifest.launcher !== launcher || manifest.prefix !== prefix || manifest.version !== 1) throw new Error("Installation ownership could not be verified.");
+const launcher = join(prefix, "bin", process.platform === "win32" ? "hot-cross-buns.cmd" : "hot-cross-buns");
+if (manifest.product !== "hot-cross-buns-terminal" || manifest.root !== root || manifest.launcher !== launcher || manifest.prefix !== prefix || manifest.version !== 1) throw new Error("Installation ownership could not be verified.");
 if (process.platform !== "win32") {
-  if (!(await lstat(launcher)).isSymbolicLink() || await readlink(launcher) !== join("..", "lib/gator-terminal/bin/gator")) throw new Error("The launcher is no longer owned by this installation.");
-} else if (await readFile(launcher, "utf8") !== '@echo off\r\nbun "%~dp0..\\lib\\gator-terminal\\bin\\gator" %*\r\n') throw new Error("The launcher changed after installation.");
+  if (!(await lstat(launcher)).isSymbolicLink() || await readlink(launcher) !== join("..", "lib/hot-cross-buns-terminal/bin/hot-cross-buns")) throw new Error("The launcher is no longer owned by this installation.");
+} else if (await readFile(launcher, "utf8") !== '@echo off\r\nbun "%~dp0..\\lib\\hot-cross-buns-terminal\\bin\\hot-cross-buns" %*\r\n') throw new Error("The launcher changed after installation.");
 // Preserve the same canonical cross-process/supervisor guard used by the app's
 // updater. Windows cannot remove an executing runtime; release its idle lease
 // after confirmation, immediately before deleting the owned installation.
-const guard = await acquireUpdateGuard(join(root, "runtime", process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"), process.cwd(), process.env);
+const guard = await acquireUpdateGuard(join(root, "runtime", process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"), process.cwd(), process.env);
 // Resolve missing descendants through their nearest existing ancestor too:
 // an external-looking path may enter the installation through a directory link.
 async function canonical(path, depth = 0) {
@@ -33,8 +33,8 @@ try {
   if (!Array.isArray(guard.profilePaths) || guard.profilePaths.length !== 2 || guard.profilePaths.some(path => typeof path !== "string" || !isAbsolute(path))) throw new Error("This runtime cannot verify profile locations for removal. Use a current terminal build before uninstalling.");
   // Match ui/src/index.tsx, and protect the retained desktop override even
   // when a separate terminal override currently takes precedence.
-  const defaultUserData = process.platform === "darwin" ? join(homedir(), "Library/Application Support/Gator") : process.platform === "win32" ? join(process.env.APPDATA || homedir(), "Gator") : join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "Gator");
-  const paths = [...guard.profilePaths, defaultUserData, process.env.GATOR_TERMINAL_USER_DATA, process.env.GATOR_DESKTOP_USER_DATA].filter(Boolean);
+  const defaultUserData = process.platform === "darwin" ? join(homedir(), "Library/Application Support/Hot Cross Buns") : process.platform === "win32" ? join(process.env.APPDATA || homedir(), "Hot Cross Buns") : join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "Hot Cross Buns");
+  const paths = [...guard.profilePaths, defaultUserData, process.env.HOT_CROSS_BUNS_TERMINAL_USER_DATA, process.env.HOT_CROSS_BUNS_DESKTOP_USER_DATA].filter(Boolean);
   const ownedRoot = await realpath(root);
   for (const path of paths) {
     const candidate = await canonical(resolve(path)), inside = relative(ownedRoot, candidate);
@@ -43,4 +43,4 @@ try {
   if (process.platform === "win32") { await guard.release(); released = true; }
   await rm(launcher); await rm(root, { recursive: true });
 } finally { if (!released) await guard.release(); }
-console.log("Uninstalled Gator terminal. Checked profile and draft storage locations were retained. Background services are never removed implicitly; review them in Recovery before uninstalling.");
+console.log("Uninstalled Hot Cross Buns terminal. Checked profile and draft storage locations were retained. Background services are never removed implicitly; review them in Recovery before uninstalling.");

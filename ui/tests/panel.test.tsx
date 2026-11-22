@@ -5,17 +5,17 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`long reviews with multiple actions scroll without selecting or executing at ${width}×${height}`, async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-review-reading-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-review-reading-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
   host.current.panel = { id: "exact-review", kind: "confirmation", title: "Review saved agreement", selected: 0,
     rows: [{ label: "Save the exact change" }, { label: "Edit the proposed change" }, { label: "Keep the previous agreement" }],
     blocks: [{ lines: [...Array.from({ length: 60 }, (_, index) => `Retained review line ${index}`), "END OF EXACT REVIEW"] }],
     hints: [{ shortcut: "Enter", action: "select action" }, { shortcut: "Esc", action: "back" }] }
-  const client = new GatorClient(host)
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => undefined, write: async () => {} }} />, { width, height, kittyKeyboard: true })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   try {
@@ -30,13 +30,13 @@ for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`long 
 })
 
 test("credential keyboard and paste buffers paint only masks and preserve explicit form submission", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-secret-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-secret-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
   // A form can replace a longer list; old/out-of-range selections must still
   // open its only field rather than passing Enter through as a save action.
   host.current.panel = { id: "provider-form", kind: "form", title: "Provider credentials", selected: 3,
     rows: [{ label: "API key", input: { secret: true, limit: 100 } }], hints: [{ shortcut: "ctrl+enter", action: "Review configuration" }] }
-  const client = new GatorClient(host)
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   try {
@@ -59,10 +59,10 @@ test("credential keyboard and paste buffers paint only masks and preserve explic
 })
 
 test("unsaved typed form fields survive cancelled hub navigation and leave only after discard", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-form-guard-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-form-guard-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
   host.current.panel = { id: "retained-form", kind: "form", title: "Recurring check", selected: 0, rows: [{ label: "Title", input: { limit: 100, value: "" } }] }
-  const client = new GatorClient(host)
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   try {
@@ -79,11 +79,11 @@ test("unsaved typed form fields survive cancelled hub navigation and leave only 
 })
 
 test("loaded filters keep original record indices and empty results cannot activate a hidden item", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-loaded-filter-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-loaded-filter-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
   host.current.panel = { id: "models", kind: "models", title: "Models", selected: 0, rows: [{ label: "First provider" }, { label: "Second provider" }, { label: "Anthropic fixture" }] }
   host.dispatch = async frame => { if (frame.panel?.action === "select" && host.current.panel) host.change({ ...host.current, panel: { ...host.current.panel, selected: frame.panel.row } }) }
-  const client = new GatorClient(host)
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   try {
@@ -99,12 +99,12 @@ test("loaded filters keep original record indices and empty results cannot activ
 })
 
 test("model controls render once while hints missing from the footer remain reachable", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-panel-hints-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-panel-hints-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
   host.current.panel = { id: "model-list", kind: "models", title: "Cloud models", selected: 0,
     rows: [{ label: "fixture / model-one" }], footer: "↑/↓ choose · Enter use · C configure key · Esc back",
     hints: [{ shortcut: "↑/↓", action: "choose" }, { shortcut: "Enter", action: "use" }, { shortcut: "C", action: "configure" }, { shortcut: "N", action: "new provider" }, { shortcut: "Esc", action: "back" }] }
-  const client = new GatorClient(host)
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   try {
     await client.start(); await setup.flush(); await Bun.sleep(30); await setup.flush()

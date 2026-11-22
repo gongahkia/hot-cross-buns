@@ -18,7 +18,7 @@ export class TerminalPreferences {
   #queue(patch, defaults = false) { const operation = this.#pending.then(() => this.#update(patch, defaults)); this.#pending = operation.catch(() => {}); return operation; }
   #state(owner) {
     const state = owner.state?.terminal_preferences;
-    if (!state || typeof state.initialized !== "boolean" || !/^[a-f0-9]{64}$/.test(state.id) || !complete(state.values)) throw new Error("This Gator runtime cannot load terminal preferences. Rebuild or reconnect before changing them.");
+    if (!state || typeof state.initialized !== "boolean" || !/^[a-f0-9]{64}$/.test(state.id) || !complete(state.values)) throw new Error("This Hot Cross Buns runtime cannot load terminal preferences. Rebuild or reconnect before changing them.");
     if (state.issue) throw new Error(state.issue);
     return state;
   }

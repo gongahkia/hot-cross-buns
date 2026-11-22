@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/model"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func runCompletionLoop(ctx context.Context, cfg cliagent.Config, root, source string) error {
@@ -49,7 +49,7 @@ print("4 acceptance cases passed")
 	defer cancel()
 	start := time.Now()
 	_, runErr := service.Execute(ctx, request)
-	files, readErr := filepath.Glob(filepath.Join(state, "gator", "completions", request.RunID, "*.json"))
+	files, readErr := filepath.Glob(filepath.Join(state, "hot-cross-buns", "completions", request.RunID, "*.json"))
 	checks := map[string]bool{"work_succeeded": runErr == nil, "one_retained_loop": readErr == nil && len(files) == 1}
 	var evidence json.RawMessage
 	var record struct {

@@ -19,9 +19,9 @@ struct NativeMascotRequest: Equatable, Sendable {
     var motionAllowed: Bool { animate && !reduceMotion }
 }
 enum NativeMascotPreference {
-    static let shown = "gator.mascot.shown"
-    static let animated = "gator.mascot.animated"
-    static let style = "gator.mascot.style"
+    static let shown = "hot-cross-buns.mascot.shown"
+    static let animated = "hot-cross-buns.mascot.animated"
+    static let style = "hot-cross-buns.mascot.style"
     static func appearance(_ value: String) -> NativeMascotStyle { NativeMascotStyle(rawValue: value) ?? .rendered }
 }
 struct NativeMascotClip: Sendable {

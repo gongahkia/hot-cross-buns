@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 )
 
 // ReviewChat changes exactly the saved revision the user inspected. The origin

@@ -1,4 +1,4 @@
-// Package document validates and renders Gator's provider-independent document specification.
+// Package document validates and renders Hot Cross Buns's provider-independent document specification.
 package document
 
 import (
@@ -212,7 +212,7 @@ func RenderDOCX(spec Spec) ([]byte, Preview, error) {
 	return output.Bytes(), spec.Preview(), nil
 }
 
-// RenderDOCXTemplate fills explicit gator:title and gator:body placeholders or
+// RenderDOCXTemplate fills explicit hot-cross-buns:title and hot-cross-buns:body placeholders or
 // tagged content controls while preserving the rest of a safe macro-free DOCX.
 func RenderDOCXTemplate(spec Spec, template io.Reader) ([]byte, Preview, error) {
 	spec = spec.Normalize()
@@ -252,12 +252,12 @@ func RenderDOCXTemplate(spec Spec, template io.Reader) ([]byte, Preview, error) 
 			title := xmlTextRun(spec.Title)
 			body := templateBodyXML(spec)
 			var replaced bool
-			documentXML, replaced, err = replaceMarker(documentXML, "gator:title", title)
+			documentXML, replaced, err = replaceMarker(documentXML, "hot-cross-buns:title", title)
 			if err != nil {
 				return nil, Preview{}, err
 			}
 			found = found || replaced
-			documentXML, replaced, err = replaceMarker(documentXML, "gator:body", body)
+			documentXML, replaced, err = replaceMarker(documentXML, "hot-cross-buns:body", body)
 			if err != nil {
 				return nil, Preview{}, err
 			}
@@ -275,7 +275,7 @@ func RenderDOCXTemplate(spec Spec, template io.Reader) ([]byte, Preview, error) 
 		}
 	}
 	if !found {
-		return nil, Preview{}, errors.New("DOCX template requires a gator:title or gator:body placeholder/content control")
+		return nil, Preview{}, errors.New("DOCX template requires a hot-cross-buns:title or hot-cross-buns:body placeholder/content control")
 	}
 	if err := writer.Close(); err != nil {
 		return nil, Preview{}, err
@@ -286,7 +286,7 @@ func RenderDOCXTemplate(spec Spec, template io.Reader) ([]byte, Preview, error) 
 func replaceMarker(documentXML, marker, replacement string) (string, bool, error) {
 	placeholder := "{{" + marker + "}}"
 	if strings.Contains(documentXML, placeholder) {
-		if marker == "gator:body" {
+		if marker == "hot-cross-buns:body" {
 			position := strings.Index(documentXML, placeholder)
 			// <w:pPr> and <w:pStyle> are not paragraphs. Resolve the
 			// enclosing element from XML tokens instead of a name prefix.

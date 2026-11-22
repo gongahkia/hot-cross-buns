@@ -13,7 +13,7 @@ for number in (3,4,5):
         records=[json.loads(x) for x in p.read_text().splitlines()];events+=records;launches += [x for x in records if x['direction']=='launch']
     decisions=[x for x in events if x.get('direction')=='command' and x.get('type')=='approval']
     interactions=[]
-    for p in (fixture/'state/gator/interactions').glob('*/*.json'):
+    for p in (fixture/'state/hot-cross-buns/interactions').glob('*/*.json'):
         value=json.loads(p.read_text());interactions.append({'path':str(p),'status':value['status'],'approved':value.get('approved'),'SHA256':hashlib.sha256(p.read_bytes()).hexdigest()})
     live=[]
     for x in launches:

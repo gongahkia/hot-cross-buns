@@ -1,5 +1,5 @@
 import { createContext, createMemo, createSignal, getOwner, onCleanup, runWithOwner, untrack, useContext, type ParentProps } from "solid-js"
-import type { BackendState } from "@gator/application-host/contracts/protocol"
+import type { BackendState } from "@hot-cross-buns/application-host/contracts/protocol"
 import { useClient } from "./client"
 
 // Keep the last immutable value when a complete native snapshot repeats a
@@ -53,6 +53,6 @@ export function DataProvider(props: ParentProps) {
 }
 export function useData() {
   const data = useContext(Context)
-  if (!data) throw new Error("Missing Gator data provider")
+  if (!data) throw new Error("Missing Hot Cross Buns data provider")
   return data
 }

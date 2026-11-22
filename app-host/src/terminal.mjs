@@ -9,7 +9,7 @@ const encodedPowerShell = (value) => Buffer.from(value, "utf16le").toString("bas
 const powershellQuote = (value) => `'${String(value).replaceAll("'", "''")}'`;
 
 export function windowsTerminalScript(job, result) {
-  const environment = (job.env ?? []).filter((value) => /^(GATOR_STATE_DIR|GATOR_CONFIG_DIR)=/.test(value));
+  const environment = (job.env ?? []).filter((value) => /^(HOT_CROSS_BUNS_STATE_DIR|HOT_CROSS_BUNS_CONFIG_DIR)=/.test(value));
   const payload = Buffer.from(JSON.stringify({ program: job.program, arguments: windowsArguments(job.args ?? []), dir: job.dir || process.cwd(), environment, result }), "utf8").toString("base64");
   // Decode data, then launch a native executable with an exact command line.
   // PowerShell 5.1's call operator would lose empty arguments and quotes.
@@ -22,14 +22,14 @@ try {
   $start.Arguments = $job.arguments
   $start.WorkingDirectory = $job.dir
   $start.UseShellExecute = $false
-  $start.EnvironmentVariables['GATOR_INTERNAL_COMMANDS'] = '1'
+  $start.EnvironmentVariables['HOT_CROSS_BUNS_INTERNAL_COMMANDS'] = '1'
   foreach ($entry in $job.environment) { $separator = $entry.IndexOf('='); $start.EnvironmentVariables[$entry.Substring(0, $separator)] = $entry.Substring($separator + 1) }
   $child = [Diagnostics.Process]::Start($start)
   $child.WaitForExit()
   $code = $child.ExitCode
 } catch { Write-Host $_ -ForegroundColor Red }
 finally { [IO.File]::WriteAllText($job.result, [string]$code) }
-Write-Host ''; Write-Host 'Gator action finished. You can close this window.'
+Write-Host ''; Write-Host 'Hot Cross Buns action finished. You can close this window.'
 exit $code
 `;
 }
@@ -42,18 +42,18 @@ export function windowsTerminalLauncher(job, result) {
 }
 
 export function terminalScript(job, result) {
-  const environment = (job.env ?? []).filter((value) => /^(GATOR_STATE_DIR|GATOR_CONFIG_DIR)=/.test(value));
-  // App-owned handoffs can use private runtime handlers; this never starts a Gator terminal UI.
-  const command = ["env", "GATOR_INTERNAL_COMMANDS=1", ...environment.map(shellQuote), shellQuote(job.program), ...(job.args ?? []).map(shellQuote)].join(" ");
-  const onExit = `gator_exit=$?; printf '%s' "$gator_exit" > ${shellQuote(result)}`;
-  return `#!/bin/sh\numask 077\ntrap ${shellQuote(onExit)} EXIT\ntrap 'exit 130' INT TERM HUP\ncd ${shellQuote(job.dir || process.cwd())} || exit 1\n${command}\ngator_exit=$?\nprintf '\\nGator action finished. You can close this window.\\n'\nexit "$gator_exit"\n`;
+  const environment = (job.env ?? []).filter((value) => /^(HOT_CROSS_BUNS_STATE_DIR|HOT_CROSS_BUNS_CONFIG_DIR)=/.test(value));
+  // App-owned handoffs can use private runtime handlers; this never starts a Hot Cross Buns terminal UI.
+  const command = ["env", "HOT_CROSS_BUNS_INTERNAL_COMMANDS=1", ...environment.map(shellQuote), shellQuote(job.program), ...(job.args ?? []).map(shellQuote)].join(" ");
+  const onExit = `hot_cross_buns_exit=$?; printf '%s' "$hot_cross_buns_exit" > ${shellQuote(result)}`;
+  return `#!/bin/sh\numask 077\ntrap ${shellQuote(onExit)} EXIT\ntrap 'exit 130' INT TERM HUP\ncd ${shellQuote(job.dir || process.cwd())} || exit 1\n${command}\nhot_cross_buns_exit=$?\nprintf '\\nHot Cross Buns action finished. You can close this window.\\n'\nexit "$hot_cross_buns_exit"\n`;
 }
 
 // Only a Go-produced handoff can reach this function. The renderer cannot
 // supply a program, argument, directory, environment, or shell fragment.
 export async function terminalHandoff(job) {
-  const directory = await mkdtemp(join(tmpdir(), "gator-desktop-terminal-"));
-  const script = join(directory, "Gator.command");
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns-desktop-terminal-"));
+  const script = join(directory, "HotCrossBuns.command");
   const result = join(directory, "result");
   if (process.platform !== "win32") await writeFile(script, terminalScript(job, result), { mode: 0o700 });
   try {

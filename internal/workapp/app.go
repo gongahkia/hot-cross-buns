@@ -1,30 +1,31 @@
-// Package workapp owns Gator's conversation application state and display-safe
+// Package workapp owns Hot Cross Buns's conversation application state and display-safe
 // projections. The terminal host renders its projections over the JSON-lines bridge.
 package workapp
 
 import (
 	"context"
-	"github.com/gongahkia/gator/internal/modelcatalog"
+	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
+	"github.com/gongahkia/hot-cross-buns/internal/personalization"
 	"os/exec"
 	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/agent"
-	appconfig "github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/delivery"
-	"github.com/gongahkia/gator/internal/followup"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/inbox"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/workactivity"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workhome"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	appconfig "github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/delivery"
+	"github.com/gongahkia/hot-cross-buns/internal/followup"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type RunResult struct {
@@ -127,7 +128,7 @@ type BundleActionRequest struct {
 }
 
 // RunOptions contains the user-selected orchestration controls that accompany
-// one prompt. They configure Gator and bound its internal Code specialist;
+// one prompt. They configure Hot Cross Buns and bound its internal Code specialist;
 // they are never editable by the manager model itself.
 type RunOptions struct {
 	RuntimeRequestID        string `json:"-"`
@@ -186,6 +187,7 @@ type ModelStatus struct {
 type GoalState struct{ Title, SourcePath, ConversationID string }
 
 type Config struct {
+	PersonalMemory           func(personalization.CatalogAction) personalization.CatalogResult
 	NativeProviders          func(modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult
 	ReviewRequestAccess      func(worksession.Request, []string) (RequestAccessReview, error)
 	CaptureConversationInput func(ConversationInput) (ConversationInput, error)
@@ -403,6 +405,8 @@ type Model struct {
 	planResult                *TaskPlanResult
 	requestRecoveryResult     *RequestRecoveryResult
 	catalog                   *conversationCatalog
+	personalMemoryPending     string
+	personalMemoryResult      *personalization.CatalogResult
 	nativeProviderPending     string
 	nativeProviderResult      *modelcatalog.NativeProviderResult
 	nativeWorkspacePending    string
@@ -627,7 +631,7 @@ func New(config Config) Model {
 			model.bridgeNotice = "Couldn't open your main conversation: " + err.Error()
 		} else if config.StartConversationID == "" && config.GoalID == "" {
 			model.primary = true
-			model.title = "Gator"
+			model.title = "Hot Cross Buns"
 			config.StartConversationID = id
 		} else {
 			model.primary = id != "" && config.StartConversationID == id && config.GoalID == ""

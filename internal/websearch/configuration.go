@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
 )
 
 type Provider struct{ ID, Label, Environment, Documentation string }
@@ -52,7 +52,7 @@ func (r Resolved) Fingerprint() string {
 }
 
 func Environment(getenv func(string) string) tools.HTTPFetchOptions {
-	return tools.HTTPFetchOptions{SearchProvider: strings.TrimSpace(getenv("GATOR_WEB_SEARCH_PROVIDER")), TinyfishSearchAPIKey: strings.TrimSpace(getenv("TINYFISH_API_KEY")), ExaSearchAPIKey: strings.TrimSpace(getenv("EXA_API_KEY")), TavilySearchAPIKey: strings.TrimSpace(getenv("TAVILY_API_KEY")), BraveSearchAPIKey: strings.TrimSpace(getenv("BRAVE_SEARCH_API_KEY"))}
+	return tools.HTTPFetchOptions{SearchProvider: strings.TrimSpace(getenv("HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER")), TinyfishSearchAPIKey: strings.TrimSpace(getenv("TINYFISH_API_KEY")), ExaSearchAPIKey: strings.TrimSpace(getenv("EXA_API_KEY")), TavilySearchAPIKey: strings.TrimSpace(getenv("TAVILY_API_KEY")), BraveSearchAPIKey: strings.TrimSpace(getenv("BRAVE_SEARCH_API_KEY"))}
 }
 
 func selectedOptions(provider, key string) tools.HTTPFetchOptions {

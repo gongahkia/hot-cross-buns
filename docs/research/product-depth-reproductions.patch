@@ -9,9 +9,9 @@
 +	"path/filepath"
 +	"testing"
 +
-+	"github.com/gongahkia/gator/internal/action"
-+	"github.com/gongahkia/gator/internal/agent"
-+	"github.com/gongahkia/gator/internal/artifact"
++	"github.com/gongahkia/hot-cross-buns/internal/action"
++	"github.com/gongahkia/hot-cross-buns/internal/agent"
++	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 +)
 +
 +type auditRecordingModel struct{ requests []agent.TurnRequest }
@@ -115,23 +115,23 @@
 +
 +func TestAuditSnapshotOmitsCodeConfiguration(t *testing.T) {
 +	source, state := t.TempDir(), t.TempDir()
-+	if err := os.Mkdir(filepath.Join(source, ".gator"), 0700); err != nil {
++	if err := os.Mkdir(filepath.Join(source, ".hot-cross-buns"), 0700); err != nil {
 +		t.Fatal(err)
 +	}
-+	if err := os.WriteFile(filepath.Join(source, ".gator", "agents.json"), []byte(`{"version":1,"profiles":[]}`), 0600); err != nil {
++	if err := os.WriteFile(filepath.Join(source, ".hot-cross-buns", "agents.json"), []byte(`{"version":1,"profiles":[]}`), 0600); err != nil {
 +		t.Fatal(err)
 +	}
 +	x, err := Create(source, state, Options{})
 +	if err != nil {
 +		t.Fatal(err)
 +	}
-+	if _, err := os.Stat(filepath.Join(x.Materialized, ".gator", "agents.json")); !os.IsNotExist(err) {
++	if _, err := os.Stat(filepath.Join(x.Materialized, ".hot-cross-buns", "agents.json")); !os.IsNotExist(err) {
 +		t.Fatalf("expected missing project configuration: %v", err)
 +	}
-+	t.Log("reproduced: source snapshots exclude .gator project configuration")
++	t.Log("reproduced: source snapshots exclude .hot-cross-buns project configuration")
 +}
 --- /dev/null
-+++ b/cmd/gator/product_audit_test.go
++++ b/cmd/hot-cross-buns/product_audit_test.go
 @@ -0,0 +1,29 @@
 +package main
 +
@@ -139,7 +139,7 @@
 +	"context"
 +	"testing"
 +
-+	"github.com/gongahkia/gator/internal/agent"
++	"github.com/gongahkia/hot-cross-buns/internal/agent"
 +)
 +
 +type auditStreamingModel struct{}

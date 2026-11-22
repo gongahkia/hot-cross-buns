@@ -1,6 +1,6 @@
 {
-  "root": "/tmp/gator-native-test-presence-r2-cadence-9rx1pb88",
-  "runtime": "/tmp/Gator-Native-P04E1R2-Diagnostic.app/Contents/Resources/gator-runtime",
+  "root": "/tmp/hot-cross-buns-native-test-presence-r2-cadence-9rx1pb88",
+  "runtime": "/tmp/HotCrossBuns-Native-P04E1R2-Diagnostic.app/Contents/Resources/hot-cross-buns-runtime",
   "fixtureSetup": "explicit submit of inert Review mascot; no decision command",
   "states": [
     {

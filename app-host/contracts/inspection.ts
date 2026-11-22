@@ -2,7 +2,7 @@
 export type OwnedWorkInspection = {
   controls?: WorkControlOffer[];
   target: {
-    binding: { id: string; backend: "gator_work"; owner: string; generation: string; incarnation?: string };
+    binding: { id: string; backend: "hot_cross_buns_work"; owner: string; generation: string; incarnation?: string };
     label: string; capabilities: ["inspect"]; available: true;
   };
   run_id: string; conversation_id?: string; status: "running";

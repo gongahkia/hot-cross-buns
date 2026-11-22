@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 func TestBrowserGrantRequiresReviewAndIsConsumedByOneTask(t *testing.T) {

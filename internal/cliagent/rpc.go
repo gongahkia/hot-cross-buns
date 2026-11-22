@@ -115,7 +115,7 @@ func (w *rpcWire) Call(ctx context.Context, method string, params map[string]any
 		return nil, errors.New("too many pending CLI requests")
 	}
 	w.next++
-	id := "gator-" + strconv.FormatUint(w.next, 10)
+	id := "hot-cross-buns-" + strconv.FormatUint(w.next, 10)
 	reply := make(chan rpcReply, 1)
 	w.pending[id] = reply
 	w.mu.Unlock()

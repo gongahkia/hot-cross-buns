@@ -2,85 +2,85 @@
 Building for debugging...
 [0/8] Write sources
 [2/8] Write swift-version--58304C5D6DBC2206.txt
-[4/27] Compiling GatorCore NativeRecovery.swift
-[5/27] Compiling GatorCore NativeRecoveryPreparation.swift
-[6/29] Compiling GatorCore NativeTaskReview.swift
-[7/29] Compiling GatorCore NativeTranscriptSearch.swift
-[8/29] Compiling GatorCore NativeDraftStore.swift
-[9/29] Compiling GatorCore NativeMessageContent.swift
-[10/29] Compiling GatorCore NativePlanExecution.swift
-[11/29] Compiling GatorCore NativeCatalogProtocol.swift
-[12/29] Compiling GatorCore NativeConversationCatalog.swift
-[13/29] Compiling GatorCore NativeDraftAttachments.swift
-[14/29] Compiling GatorCore NativeUploadStore.swift
-[15/29] Compiling GatorCore NativeWorkspaceSelection.swift
-[16/29] Compiling GatorCore NativeProviderProtocol.swift
-[17/29] Compiling GatorCore NativeProviderSetup.swift
-[18/29] Compiling GatorCore GoBridgeConnection.swift
-[19/29] Compiling GatorCore ManagedSessionCoordinator.swift
-[20/29] Compiling GatorCore ManagedSessionProtocol.swift
-[21/29] Emitting module GatorCore
-[22/29] Compiling GatorCore BridgePipeIO.swift
-[23/29] Compiling GatorCore BridgeProtocol.swift
-[24/29] Compiling GatorCore GatorApplicationState.swift
-[25/95] Compiling GatorMac NativeMascotPreferences.swift
-[26/95] Compiling GatorMac NativeMascotView.swift
-[27/95] Compiling GatorMac NativeMessageBody.swift
-[28/95] Compiling GatorMac NativeProviderSecretEntry.swift
-[29/99] Compiling GatorMac NativeAcceptanceDiagnostics.swift
-[30/99] Compiling GatorMac NativeAccessibilityStatus.swift
-[31/99] Compiling GatorMac NativeAttachmentActions.swift
-[32/99] Compiling GatorMac NativeComposer.swift
-[33/99] Compiling GatorMac NativeComposerPresentation.swift
-[34/99] Compiling GatorMac NativeReadingPositions.swift
-[35/99] Compiling GatorMac NativeStatusMessage.swift
-[36/99] Compiling GatorMac NativeTranscriptFind.swift
-[37/99] Compiling GatorMac NativeWindowConfiguration.swift
-[38/99] Compiling GatorMac NativeDesktopPet.swift
-[39/99] Compiling GatorMac NativeDropInput.swift
-[40/99] Compiling GatorMac NativeErrorDisclosure.swift
-[41/99] Compiling GatorMac NativeMascotModel.swift
-[42/99] Compiling GatorMac NativeMascotPlayback.swift
-[43/99] Compiling GatorMac NativeWorkspacePicker.swift
-[44/99] Compiling GatorMac NotchQuickAccess.swift
-[45/99] Compiling GatorMac PlanReviewContent.swift
-[46/99] Compiling GatorMac ProviderSetupView.swift
-[47/99] Emitting module GatorMac
-[48/99] Compiling GatorMac AppDelegate.swift
-[49/99] Compiling GatorMac ApprovalReviewView.swift
-[50/99] Compiling GatorMac AttachmentSelectionView.swift
-[51/99] Compiling GatorMac ComposerView.swift
-[52/99] Compiling GatorMac ConversationCatalogView.swift
-[72/103] Compiling GatorMac MenuBarVisibilityToggle.swift
-[76/103] Compiling GatorMac ConversationView.swift
-[77/103] Compiling GatorMac ExactDecisionButton.swift
-[78/103] Compiling GatorMac ExactReviewContent.swift
-[79/103] Compiling GatorMac GatorApp.swift
-[80/103] Emitting module GatorCoreTests
-[86/103] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
-[87/103] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
-[88/103] Compiling GatorCoreTests RecoveryPreparationTests.swift
-[89/103] Compiling GatorCoreTests resource_bundle_accessor.swift
+[4/27] Compiling HotCrossBunsCore NativeRecovery.swift
+[5/27] Compiling HotCrossBunsCore NativeRecoveryPreparation.swift
+[6/29] Compiling HotCrossBunsCore NativeTaskReview.swift
+[7/29] Compiling HotCrossBunsCore NativeTranscriptSearch.swift
+[8/29] Compiling HotCrossBunsCore NativeDraftStore.swift
+[9/29] Compiling HotCrossBunsCore NativeMessageContent.swift
+[10/29] Compiling HotCrossBunsCore NativePlanExecution.swift
+[11/29] Compiling HotCrossBunsCore NativeCatalogProtocol.swift
+[12/29] Compiling HotCrossBunsCore NativeConversationCatalog.swift
+[13/29] Compiling HotCrossBunsCore NativeDraftAttachments.swift
+[14/29] Compiling HotCrossBunsCore NativeUploadStore.swift
+[15/29] Compiling HotCrossBunsCore NativeWorkspaceSelection.swift
+[16/29] Compiling HotCrossBunsCore NativeProviderProtocol.swift
+[17/29] Compiling HotCrossBunsCore NativeProviderSetup.swift
+[18/29] Compiling HotCrossBunsCore GoBridgeConnection.swift
+[19/29] Compiling HotCrossBunsCore ManagedSessionCoordinator.swift
+[20/29] Compiling HotCrossBunsCore ManagedSessionProtocol.swift
+[21/29] Emitting module HotCrossBunsCore
+[22/29] Compiling HotCrossBunsCore BridgePipeIO.swift
+[23/29] Compiling HotCrossBunsCore BridgeProtocol.swift
+[24/29] Compiling HotCrossBunsCore HotCrossBunsApplicationState.swift
+[25/95] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[26/95] Compiling HotCrossBunsMac NativeMascotView.swift
+[27/95] Compiling HotCrossBunsMac NativeMessageBody.swift
+[28/95] Compiling HotCrossBunsMac NativeProviderSecretEntry.swift
+[29/99] Compiling HotCrossBunsMac NativeAcceptanceDiagnostics.swift
+[30/99] Compiling HotCrossBunsMac NativeAccessibilityStatus.swift
+[31/99] Compiling HotCrossBunsMac NativeAttachmentActions.swift
+[32/99] Compiling HotCrossBunsMac NativeComposer.swift
+[33/99] Compiling HotCrossBunsMac NativeComposerPresentation.swift
+[34/99] Compiling HotCrossBunsMac NativeReadingPositions.swift
+[35/99] Compiling HotCrossBunsMac NativeStatusMessage.swift
+[36/99] Compiling HotCrossBunsMac NativeTranscriptFind.swift
+[37/99] Compiling HotCrossBunsMac NativeWindowConfiguration.swift
+[38/99] Compiling HotCrossBunsMac NativeDesktopPet.swift
+[39/99] Compiling HotCrossBunsMac NativeDropInput.swift
+[40/99] Compiling HotCrossBunsMac NativeErrorDisclosure.swift
+[41/99] Compiling HotCrossBunsMac NativeMascotModel.swift
+[42/99] Compiling HotCrossBunsMac NativeMascotPlayback.swift
+[43/99] Compiling HotCrossBunsMac NativeWorkspacePicker.swift
+[44/99] Compiling HotCrossBunsMac NotchQuickAccess.swift
+[45/99] Compiling HotCrossBunsMac PlanReviewContent.swift
+[46/99] Compiling HotCrossBunsMac ProviderSetupView.swift
+[47/99] Emitting module HotCrossBunsMac
+[48/99] Compiling HotCrossBunsMac AppDelegate.swift
+[49/99] Compiling HotCrossBunsMac ApprovalReviewView.swift
+[50/99] Compiling HotCrossBunsMac AttachmentSelectionView.swift
+[51/99] Compiling HotCrossBunsMac ComposerView.swift
+[52/99] Compiling HotCrossBunsMac ConversationCatalogView.swift
+[72/103] Compiling HotCrossBunsMac MenuBarVisibilityToggle.swift
+[76/103] Compiling HotCrossBunsMac ConversationView.swift
+[77/103] Compiling HotCrossBunsMac ExactDecisionButton.swift
+[78/103] Compiling HotCrossBunsMac ExactReviewContent.swift
+[79/103] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[80/103] Emitting module HotCrossBunsCoreTests
+[86/103] Compiling HotCrossBunsCoreTests PresenceApprovalClosureTests.swift
+[87/103] Compiling HotCrossBunsCoreTests RecoveryPreparationIntegrationTests.swift
+[88/103] Compiling HotCrossBunsCoreTests RecoveryPreparationTests.swift
+[89/103] Compiling HotCrossBunsCoreTests resource_bundle_accessor.swift
 [98/103] Write Objects.LinkFileList
-[99/103] Linking GatorMac
-[100/103] Applying GatorMac
-[102/111] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[103/111] Compiling GatorMacTests NativeUIUXRemediationTests.swift
-[104/111] Emitting module GatorMacTests
-[105/111] Compiling GatorMacTests NativeWorkspacePickerTests.swift
-[106/112] Compiling GatorMacTests NotchGeometryTests.swift
-[107/112] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[108/112] Compiling GatorMacTests NativeDesktopPetTests.swift
-[109/112] Compiling GatorMacTests NativeInputTests.swift
-[110/112] Compiling GatorMacTests NativeMascotTests.swift
-[111/114] Emitting module GatorNativePackageTests
-[112/114] Compiling GatorNativePackageTests runner.swift
+[99/103] Linking HotCrossBunsMac
+[100/103] Applying HotCrossBunsMac
+[102/111] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[103/111] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
+[104/111] Emitting module HotCrossBunsMacTests
+[105/111] Compiling HotCrossBunsMacTests NativeWorkspacePickerTests.swift
+[106/112] Compiling HotCrossBunsMacTests NotchGeometryTests.swift
+[107/112] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[108/112] Compiling HotCrossBunsMacTests NativeDesktopPetTests.swift
+[109/112] Compiling HotCrossBunsMacTests NativeInputTests.swift
+[110/112] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[111/114] Emitting module HotCrossBunsNativePackageTests
+[112/114] Compiling HotCrossBunsNativePackageTests runner.swift
 [112/114] Write Objects.LinkFileList
-[113/114] Linking GatorNativePackageTests
+[113/114] Linking HotCrossBunsNativePackageTests
 Build complete! (15.82s)
 Test Suite 'Selected tests' started at 2026-11-20 14:27:09.604.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 14:27:09.605.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 14:27:09.605.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 14:27:09.605.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 14:27:09.605.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 14:27:09.605.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

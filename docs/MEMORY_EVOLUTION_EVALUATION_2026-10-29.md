@@ -6,7 +6,7 @@ now pass their focused tests; the fresh capability count is 15 supported / 7 gap
 The original findings below remain the baseline, not a claim that later fixes
 were present during that evaluation.
 
-**Verdict: useful foundations, but not yet dependable evolving memory.** Gator
+**Verdict: useful foundations, but not yet dependable evolving memory.** Hot Cross Buns
 can save, recall and correct information. It does not yet reliably reconcile
 meaning across labels, track repeated confirmation, reassess aging chat facts,
 or turn accumulated operational evidence into proposed improvements.
@@ -28,8 +28,8 @@ No production memory behavior was changed during this evaluation.
 
 Implementation anchors: `internal/workrun/prompt.go` and `executor.go`,
 `internal/tools/chat_memory.go`, `internal/memory/chat.go` and `store.go`,
-`cmd/gator/work_service.go`, `internal/learning/observation.go` and `store.go`,
-and `cmd/gator/command_work_feedback.go`.
+`cmd/hot-cross-buns/work_service.go`, `internal/learning/observation.go` and `store.go`,
+and `cmd/hot-cross-buns/command_work_feedback.go`.
 
 ## Observed longitudinal gaps
 
@@ -42,7 +42,7 @@ score; the cases have unequal importance and are not a representative user sampl
 1. **Reconfirmation is lost.** A preference aged one year, followed by four newer
    preferences, is repeated verbatim in another chat. Its timestamp and original
    chat provenance remain unchanged; it stays outside the four-item profile.
-   It remains saved and may be retrieved by query. Gator lacks a separate
+   It remains saved and may be retrieved by query. Hot Cross Buns lacks a separate
    last-confirmed/evidence trail for this case.
 2. **Contradictions can coexist under aliases.** A detailed-replies preference and
    its short-replies opposite save under different subject labels without a
@@ -107,7 +107,7 @@ retire**. More stored entries alone do not establish better memory.
 | P0 | Host save screening, alias-aware conflicts/suppression, durable creation and visible corrupt-record recovery | Incorrect or unwanted memory must not spread into future personalization. |
 | P1 | Last-confirmed metadata, bounded evidence history, stronger concurrent learning edits, safe legacy recall repair | Establish an auditable evolving record before adding more autonomous behavior. |
 | P2 | Bounded maintenance and evidence-based candidate generation | Repeated corrections/failures and stale facts can lead to useful proposals without silently rewriting identity. |
-| P3 | Unified “What Gator knows about me” view and longitudinal live-model evaluation | Make the system inspectable and measure whether it actually helps across time. |
+| P3 | Unified “What Hot Cross Buns knows about me” view and longitudinal live-model evaluation | Make the system inspectable and measure whether it actually helps across time. |
 
 This extends the existing request for a personal summary; it does not replace the
 queued reminders/scheduled-work features or close the ongoing broader goal.
@@ -128,7 +128,7 @@ queued reminders/scheduled-work features or close the ongoing broader goal.
   profiles are removed when the probe exits.
 
 Repeat commands and the retained diagnostic baseline are in the probe README.
-Local logs are under ignored `.gator/native-tools/memory-evolution-*`; the existing
+Local logs are under ignored `.hot-cross-buns/native-tools/memory-evolution-*`; the existing
 learning evaluator's full report is in `learning-evolution-eval/` beside them.
 
 The next quality evaluation should simulate days/weeks of ordinary interaction:

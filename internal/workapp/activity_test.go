@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
 )
 
 func TestLiveActivityMovesToResponseAndRestores(t *testing.T) {
@@ -24,7 +24,7 @@ func TestLiveActivityMovesToResponseAndRestores(t *testing.T) {
 	if state.Activity != nil || state.Messages[0].Activity == nil || state.Messages[0].Activity.State != "completed" {
 		t.Fatal("completed activity was lost")
 	}
-	m.applyConversationState("reopened", ConversationState{Messages: []TranscriptMessage{{Role: "Gator", Text: "The answer", Activity: state.Messages[0].Activity}}})
+	m.applyConversationState("reopened", ConversationState{Messages: []TranscriptMessage{{Role: "Hot Cross Buns", Text: "The answer", Activity: state.Messages[0].Activity}}})
 	restored := m.BridgeState().Messages[0].Activity
 	if restored.Entries[0].Text != "Checking notes" || restored.FinishedAt == nil {
 		t.Fatal("restored activity was lost")

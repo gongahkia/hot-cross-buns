@@ -9,11 +9,11 @@ import { join, resolve } from 'node:path';
 import { createCompanion } from './server.mjs';
 
 test('real Go check health is conversation-scoped, reports offline/stale states and survives restart without execution', { timeout: 120000 }, async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-companion-health-'));
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-companion-health-'));
   const workspace = join(root, 'workspace'), stateDir = join(root, 'state'), configDir = join(root, 'config');
   const tokenFile = join(root, 'owner.token'), token = 'a'.repeat(64);
-  const binary = process.env.GATOR_TEST_BINARY ? resolve(process.env.GATOR_TEST_BINARY) : join(root, process.platform === 'win32' ? 'gator.exe' : 'gator');
-  const env = { ...process.env, GATOR_STATE_DIR: stateDir, GATOR_CONFIG_DIR: configDir, GATOR_INTERNAL_COMMANDS: '1' };
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY ? resolve(process.env.HOT_CROSS_BUNS_TEST_BINARY) : join(root, process.platform === 'win32' ? 'hot-cross-buns.exe' : 'hot-cross-buns');
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: stateDir, HOT_CROSS_BUNS_CONFIG_DIR: configDir, HOT_CROSS_BUNS_INTERNAL_COMMANDS: '1' };
   let companion, base, requests = 0;
   const model = createServer((req, res) => { requests++; req.resume(); res.writeHead(500); res.end('This read-only fixture must not call a model.'); });
   const command = (...args) => execFileSync(binary, args, { env, cwd: workspace, encoding: 'utf8', timeout: 20000, stdio: 'pipe' });
@@ -34,11 +34,11 @@ test('real Go check health is conversation-scoped, reports offline/stale states 
     base = `http://127.0.0.1:${(await companion.listen()).port}`;
   }
   try {
-    await mkdir(workspace); await mkdir(join(configDir, 'gator'), { recursive: true });
+    await mkdir(workspace); await mkdir(join(configDir, 'hot-cross-buns'), { recursive: true });
     await writeFile(tokenFile, token + '\n', { mode: 0o600 });
     await new Promise(resolve => model.listen(0, '127.0.0.1', resolve));
-    await writeFile(join(configDir, 'gator/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${model.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }));
-    if (!process.env.GATOR_TEST_BINARY) execFileSync('go', ['build', '-o', binary, './cmd/gator'], { timeout: 90000 });
+    await writeFile(join(configDir, 'hot-cross-buns/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${model.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }));
+    if (!process.env.HOT_CROSS_BUNS_TEST_BINARY) execFileSync('go', ['build', '-o', binary, './cmd/hot-cross-buns'], { timeout: 90000 });
     await start();
     const ids = [];
     for (let index = 0; index < 2; index++) {
@@ -47,7 +47,7 @@ test('real Go check health is conversation-scoped, reports offline/stale states 
     }
     const added = command('job', 'add', 'Health fixture', '--schedule', '*/15 * * * *', '--timezone', 'UTC', '--conversation', ids[0], '--mode', 'inspect', '--', 'Check the fixture without sending anything.');
     const id = added.match(/Added job (\S+)/)?.[1]; assert.ok(id, added);
-    const jobs = join(stateDir, 'gator/jobs'), definitionPath = join(jobs, 'definitions', id + '.json'), now = Date.now();
+    const jobs = join(stateDir, 'hot-cross-buns/jobs'), definitionPath = join(jobs, 'definitions', id + '.json'), now = Date.now();
     const definition = JSON.parse(await readFile(definitionPath, 'utf8'));
     await writeFile(definitionPath, JSON.stringify({ ...definition, created_at: new Date(now - 7200000).toISOString() }));
     const availability = JSON.stringify({ LastSeen: new Date(now - 1200000).toISOString(), Gaps: [{ From: new Date(now - 3600000).toISOString(), To: new Date(now - 1200000).toISOString() }] });

@@ -1,6 +1,6 @@
 {
-  "profile": "/tmp/gator-pet-b2-profile-3f5yg3vp",
-  "testBundleID": "dev.gator.pet.b2.fixture",
+  "profile": "/tmp/hot-cross-buns-pet-b2-profile-3f5yg3vp",
+  "testBundleID": "dev.hot-cross-buns.pet.b2.fixture",
   "firstPID": 74984,
   "relaunchPID": 76896,
   "menuTuckObserved": true,
@@ -21,10 +21,10 @@
   "lastMenuTuckWithChatClosed": true,
   "quitTerminated": true,
   "preferences": {
-    "gator.desktopPet.shown": "0",
-    "gator.mascot.shown": "0",
-    "gator.mascot.style": "classic",
-    "gator.mascot.animated": "0"
+    "hot-cross-buns.desktopPet.shown": "0",
+    "hot-cross-buns.mascot.shown": "0",
+    "hot-cross-buns.mascot.style": "classic",
+    "hot-cross-buns.mascot.animated": "0"
   },
   "workHistoryFiles": 0,
   "requestArchives": 0,

@@ -14,13 +14,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
 	maxFileBytes     = 64 * 1024
 	maxCombinedBytes = 256 * 1024
-	rulesPath        = ".gator/rules.json"
+	rulesPath        = ".hot-cross-buns/rules.json"
 )
 
 // Set is the resolved, ordered guidance supplied to one run.
@@ -32,7 +32,7 @@ type Set struct {
 
 // Options controls the project guidance included in one run.
 // IgnoredPaths are repository-relative paths omitted from prompt context before
-// Gator opens them.
+// Hot Cross Buns opens them.
 type Options struct {
 	IgnoredPaths []string
 }
@@ -90,7 +90,7 @@ const (
 )
 
 // Load collects root guidance, directory-scoped AGENTS files for the requested
-// paths, and matching declarative .gator/rules.json rules. Earlier layers are
+// paths, and matching declarative .hot-cross-buns/rules.json rules. Earlier layers are
 // shown first; more-specific layers therefore appear later and can refine them.
 func Load(repository string, scopes []string) (Set, error) {
 	return LoadWithOptions(repository, scopes, Options{})
@@ -165,7 +165,7 @@ func LoadWithOptions(repository string, scopes []string, options Options) (Set, 
 	if err := appendPreferredFile("AGENTS.override.md", "AGENTS.md"); err != nil {
 		return Set{}, err
 	}
-	if err := appendFile(".gator/AGENTS.md"); err != nil {
+	if err := appendFile(".hot-cross-buns/AGENTS.md"); err != nil {
 		return Set{}, err
 	}
 	for _, scope := range normalized {
@@ -232,7 +232,7 @@ func LoadWithProfileOptions(repository string, scopes []string, name string, opt
 			return Set{}, err
 		}
 		files := append([]string(nil), set.Files...)
-		files = append(files, ".gator/agents.json")
+		files = append(files, ".hot-cross-buns/agents.json")
 		if profileFile != "" {
 			files = append(files, profileFile)
 		}
@@ -310,7 +310,7 @@ func LoadRoles(repository string) ([]Role, error) {
 }
 
 func loadProfilesDocument(root workspace.Root) (profilesDocument, error) {
-	contents, err := root.ReadRegularFile(".gator/agents.json", maxFileBytes)
+	contents, err := root.ReadRegularFile(".hot-cross-buns/agents.json", maxFileBytes)
 	if err != nil {
 		if isMissingFileError(err) {
 			return profilesDocument{}, fs.ErrNotExist
@@ -389,8 +389,8 @@ func loadAgentInstructions(root workspace.Root, name, inline, file, kind string)
 	}
 	path := filepath.ToSlash(strings.TrimSpace(file))
 	path = pathpkgClean(path)
-	if !strings.HasPrefix(path, ".gator/") {
-		return "", "", fmt.Errorf("agent %s %q file must stay below .gator", kind, name)
+	if !strings.HasPrefix(path, ".hot-cross-buns/") {
+		return "", "", fmt.Errorf("agent %s %q file must stay below .hot-cross-buns", kind, name)
 	}
 	contents, err := root.ReadRegularFile(filepath.FromSlash(path), maxFileBytes)
 	if err != nil {
@@ -450,7 +450,7 @@ func normalizeIgnoredPaths(values []string) (map[string]struct{}, error) {
 }
 
 func externalInstructionSymlinkError(relative string) error {
-	return fmt.Errorf("project instruction %q resolves outside the selected workspace through a symlink; Gator will not capture external files as agent context. In the Work TUI, run /source ignore %s to skip it for this conversation, or replace it with a regular file inside the workspace or remove the symlink", relative, relative)
+	return fmt.Errorf("project instruction %q resolves outside the selected workspace through a symlink; Hot Cross Buns will not capture external files as agent context. In the Work TUI, run /source ignore %s to skip it for this conversation, or replace it with a regular file inside the workspace or remove the symlink", relative, relative)
 }
 
 func normalizeScopes(scopes []string) ([]string, error) {
@@ -561,8 +561,8 @@ func loadRules(root workspace.Root, scopes []string, ignored map[string]struct{}
 		if rule.File != "" {
 			file := filepath.ToSlash(strings.TrimSpace(rule.File))
 			cleanFile := path.Clean(file)
-			if !strings.HasPrefix(cleanFile, ".gator/") {
-				return nil, nil, fmt.Errorf("project rule %d file must stay below .gator", index+1)
+			if !strings.HasPrefix(cleanFile, ".hot-cross-buns/") {
+				return nil, nil, fmt.Errorf("project rule %d file must stay below .hot-cross-buns", index+1)
 			}
 			file = cleanFile
 			if _, skip := ignored[file]; skip {

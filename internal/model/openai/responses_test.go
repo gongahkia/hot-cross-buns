@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/telemetry"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
 )
 
 func TestResponsesCompleteConvertsToolCall(t *testing.T) {

@@ -21,6 +21,20 @@ const setup = () => {
   return new Sessions(request => new Worker(request.conversation_id || `chat-${++count}`));
 };
 
+test('catalog selections are verified before focus and a changed destination restores the original chat', async () => {
+  const original = new Worker('original'), destination = new Worker('selected');
+  let reject = true, verified;
+  destination.catalog = async action => { verified = action; return reject ? { error: 'Chat metadata changed.' } : {}; };
+  const sessions = new Sessions(request => request.conversation_id === 'selected' ? destination : original);
+  await sessions.open({ conversation_id: 'original' });
+  try {
+    await assert.rejects(sessions.open({ conversation_id: 'selected', catalog_version: 'reviewed' }), /metadata changed/);
+    assert.equal(sessions.current, original);
+    assert.equal(destination.focuses.includes(true), false);
+    assert.equal(verified.version, 'reviewed');
+  } finally { await sessions.stop(); }
+});
+
 class DialogueWorker extends Worker {
   configured = [];
   bootstraps = [];

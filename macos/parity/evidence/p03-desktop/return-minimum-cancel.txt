@@ -6,18 +6,18 @@ press=0
 ready=true
 ('focus', 'open-panel')
 activated=Optional(true) raised=0 main=0 focus=0 ready=true
-controller=25708 frontName=Gator frontBundle=dev.gator.native.p03.acceptance.fixed front=23375 target=23375 window=open-panel focused=AXList::
+controller=25708 frontName=Hot Cross Buns frontBundle=dev.hot-cross-buns.native.p03.acceptance.fixed front=23375 target=23375 window=open-panel focused=AXList::
 ('escape-key', 'open-panel')
 escape_dismissed=true
-controller=25709 frontName=MarkdownQualificationProbe frontBundle=net.java.openjdk.java front=25710 target=23375 window=conversation focused=AXTextArea:Message Gator:gator.composer.text
+controller=25709 frontName=MarkdownQualificationProbe frontBundle=net.java.openjdk.java front=25710 target=23375 window=conversation focused=AXTextArea:Message Hot Cross Buns:hot-cross-buns.composer.text
 ('state',)
-controller=25713 frontName=MarkdownQualificationProbe frontBundle=net.java.openjdk.java front=25710 target=23375 window=conversation focused=AXTextArea:Message Gator:gator.composer.text
-('inspect', 'conversation', 'gator.composer.text')
-role=AXTextArea title= desc=Message Gator id=gator.composer.text focused=Optional(1) enabled=nil pos=(349.0, 721.0) size=(772.0, 76.0) value=B desktop draft remains with B
+controller=25713 frontName=MarkdownQualificationProbe frontBundle=net.java.openjdk.java front=25710 target=23375 window=conversation focused=AXTextArea:Message Hot Cross Buns:hot-cross-buns.composer.text
+('inspect', 'conversation', 'hot-cross-buns.composer.text')
+role=AXTextArea title= desc=Message Hot Cross Buns id=hot-cross-buns.composer.text focused=Optional(1) enabled=nil pos=(349.0, 721.0) size=(772.0, 76.0) value=B desktop draft remains with B
 ('resize', 'conversation', '540', '480')
 resize=0
 ('frames',)
-window=conversation title=Gator – New chat pos=(325.0, 125.0) size=(540.0, 532.0) main=Optional(1) focused=Optional(0)
+window=conversation title=Hot Cross Buns – New chat pos=(325.0, 125.0) size=(540.0, 532.0) main=Optional(1) focused=Optional(0)
 captureID=32618 bounds={
     Height = 532;
     Width = 540;
@@ -26,9 +26,9 @@ captureID=32618 bounds={
 }
 ('inspect', 'conversation', 'Choose Workspace…')
 role=AXButton title= desc=Choose Workspace… id=folder focused=Optional(0) enabled=Optional(1) pos=(767.0, 125.0) size=(47.0, 52.0) value=
-('inspect', 'conversation', 'gator.composer.text')
-role=AXTextArea title= desc=Message Gator id=gator.composer.text focused=Optional(1) enabled=nil pos=(349.0, 513.0) size=(492.0, 76.0) value=B desktop draft remains with B
+('inspect', 'conversation', 'hot-cross-buns.composer.text')
+role=AXTextArea title= desc=Message Hot Cross Buns id=hot-cross-buns.composer.text focused=Optional(1) enabled=nil pos=(349.0, 513.0) size=(492.0, 76.0) value=B desktop draft remains with B
 ('press', 'menu', 'Conversation')
 press=0
-('press', 'menu', 'gator.recent.work-20261118T062839-f28f8059deef77fe')
+('press', 'menu', 'hot-cross-buns.recent.work-20261118T062839-f28f8059deef77fe')
 missing

@@ -4,8 +4,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 )
 
 func TestConflictSourcesRequireCurrentScopedExactEvidence(t *testing.T) {

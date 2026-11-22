@@ -2,9 +2,9 @@
 import json,pathlib,subprocess,time,os,sys
 import datetime
 # a rerun must never overwrite the original acceptance evidence.
-run_directory=pathlib.Path(os.environ.get("GATOR_PRESENCE_EVIDENCE_DIRECTORY", "macos/presence/evidence/p04e-1r/desktop-run-"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")+"-"+str(os.getpid())))
+run_directory=pathlib.Path(os.environ.get("HOT_CROSS_BUNS_PRESENCE_EVIDENCE_DIRECTORY", "macos/presence/evidence/p04e-1r/desktop-run-"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")+"-"+str(os.getpid())))
 run_directory.mkdir(parents=True,exist_ok=False)
-os.environ["GATOR_PRESENCE_EVIDENCE_DIRECTORY"]=str(run_directory.resolve())
+os.environ["HOT_CROSS_BUNS_PRESENCE_EVIDENCE_DIRECTORY"]=str(run_directory.resolve())
 import Driver as d
 settings='com_apple_SwiftUI_Settings_window'
 phases=[]
@@ -16,7 +16,7 @@ def open_settings():
     d.act('press','menu','Conversation','conversation');d.act('press','menu','Agent Presence…','conversation')
     d.wait(lambda:any(w['id']==settings for w in d.state()['windows']))
 def choose(mode):
-    d.act('press',settings,'gator.presence.mode');d.act('press',settings,mode)
+    d.act('press',settings,'hot-cross-buns.presence.mode');d.act('press',settings,mode)
 def quit():
     before=d.durable();d.act('quit');d.wait(lambda:any(w.get('description')=='alert' for w in d.state()['windows']))
     alert=next(w['id'] for w in d.state()['windows'] if w.get('description')=='alert')
@@ -40,19 +40,19 @@ def quit():
 try:
     for number in range(5,15):
         mode=['off','emoji','reactions'][number%3]
-        d.new(number,'/tmp/Gator-Native-P04E1R-Verified.app',mode);phase('idle');time.sleep(1)
+        d.new(number,'/tmp/HotCrossBuns-Native-P04E1R-Verified.app',mode);phase('idle');time.sleep(1)
         d.prepare();phase('pending review')
         record=None
         if number==5:
-            record=subprocess.Popen(['/tmp/gator-presence-r1-record',str(d.proc.pid),str(d.EVIDENCE/'settings-review.mp4'),'22'],stdout=open(d.EVIDENCE/'recording.log','w'),stderr=subprocess.STDOUT)
+            record=subprocess.Popen(['/tmp/hot-cross-buns-presence-r1-record',str(d.proc.pid),str(d.EVIDENCE/'settings-review.mp4'),'22'],stdout=open(d.EVIDENCE/'recording.log','w'),stderr=subprocess.STDOUT)
             d.wait(lambda:'recording started' in (d.EVIDENCE/'recording.log').read_text(),6)
         open_settings();phase('settings open')
         for appearance in ['Emoji only','Emoji + GIF reactions','Off','Emoji + GIF reactions']:choose(appearance)
-        for target in ['gator.mascot.animated','gator.desktopPet.shown','gator.mascot.shown']:d.act('press',settings,target)
+        for target in ['hot-cross-buns.mascot.animated','hot-cross-buns.desktopPet.shown','hot-cross-buns.mascot.shown']:d.act('press',settings,target)
         phase('desktop enabled; chat/animation disabled');d.act('close',settings);time.sleep(1)
         phase('settings closed with pending review');open_settings()
-        d.act('press',settings,'gator.desktopPet.tuck')
-        for target in ['gator.mascot.shown','gator.mascot.animated']:d.act('press',settings,target)
+        d.act('press',settings,'hot-cross-buns.desktopPet.tuck')
+        for target in ['hot-cross-buns.mascot.shown','hot-cross-buns.mascot.animated']:d.act('press',settings,target)
         d.act('close',settings);phase('tucked away; settings closed')
         d.act('press',target='Back to Conversation');d.act('press',target='An action needs your review')
         phase('review reopened')
@@ -60,7 +60,7 @@ try:
             record.wait(timeout=25);assert record.returncode==0
         # close/reopen the conversation while Settings provides the verified key window.
         open_settings();d.act('close','conversation',expected=settings)
-        d.act('press','menu','Window',settings);d.act('press','menu','Gator',settings)
+        d.act('press','menu','Window',settings);d.act('press','menu','Hot Cross Buns',settings)
         d.act('focus',settings);d.act('close',settings);d.act('focus');phase('main window reopened')
         time.sleep(2);phase('settled before quit');quit()
     (d.EVIDENCE/'batch-result.json').write_text(json.dumps({'completed':10,'controllerPID':d.controller.pid,'inputAudit':str(d.audit),'productionChanged':False},indent=2))

@@ -1,5 +1,5 @@
 
-> @gator/application-host@0.1.0 test
+> @hot-cross-buns/application-host@0.1.0 test
 > node --test tests/*.test.mjs
 
 TAP version 13
@@ -192,17 +192,17 @@ ok 37 - spoken output stops on chat switch, preference disable and explicit play
 not ok 38 - PDF preview renders actual distinct page images and rejects nonexistent pages
   ---
   duration_ms: 44.197666
-  location: '/Users/gongahkia/Desktop/coding/projects/gator/app-host/tests/native.test.mjs:138:1'
+  location: '/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/tests/native.test.mjs:138:1'
   failureType: 'testCodeFailure'
   error: 'Promise.withResolvers is not a function'
   code: 'ERR_TEST_FAILURE'
   name: 'TypeError'
   stack: |-
-    <instance_members_initializer> (file:///Users/gongahkia/Desktop/coding/projects/gator/app-host/node_modules/pdfjs-dist/legacy/build/pdf.mjs:21892:25)
-    new PDFDocumentLoadingTask (file:///Users/gongahkia/Desktop/coding/projects/gator/app-host/node_modules/pdfjs-dist/legacy/build/pdf.mjs:21890:1)
-    getDocument (file:///Users/gongahkia/Desktop/coding/projects/gator/app-host/node_modules/pdfjs-dist/legacy/build/pdf.mjs:21745:16)
-    renderPDF (file:///Users/gongahkia/Desktop/coding/projects/gator/app-host/src/pdf.mjs:13:19)
-    async TestContext.<anonymous> (file:///Users/gongahkia/Desktop/coding/projects/gator/app-host/tests/native.test.mjs:140:17)
+    <instance_members_initializer> (file:///Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/node_modules/pdfjs-dist/legacy/build/pdf.mjs:21892:25)
+    new PDFDocumentLoadingTask (file:///Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/node_modules/pdfjs-dist/legacy/build/pdf.mjs:21890:1)
+    getDocument (file:///Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/node_modules/pdfjs-dist/legacy/build/pdf.mjs:21745:16)
+    renderPDF (file:///Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/src/pdf.mjs:13:19)
+    async TestContext.<anonymous> (file:///Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/tests/native.test.mjs:140:17)
     async Test.run (node:internal/test_runner/test:797:9)
     async Test.processPendingSubtests (node:internal/test_runner/test:526:7)
   ...

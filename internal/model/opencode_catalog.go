@@ -87,7 +87,7 @@ func openCodeModelProtocol(provider Provider, model string) (openCodeProtocol, b
 
 // CuratedModels returns the checked-in, selectable model IDs for a provider.
 // For OpenCode gateways the list is the complete embedded upstream catalog;
-// for other providers it contains only Gator's stable default. Callers must
+// for other providers it contains only Hot Cross Buns's stable default. Callers must
 // still allow an explicit custom model ID for account-specific deployments.
 func CuratedModels(provider Provider) []string {
 	defaultModel := DefaultModel(provider)

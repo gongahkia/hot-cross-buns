@@ -21,7 +21,7 @@ flowchart TD
   Go --> Retained[Retained Go request/dialogue input evidence]
 ```
 
-Native staging lives at `<GATOR_STATE_DIR-or-XDG_STATE_HOME-or-HOME/.local/state>/gator/native-uploads/<32 lowercase hexadecimal characters>/<filename>`. The resolved absolute root is passed as `GATOR_DESKTOP_UPLOAD_DIR` to **every** managed Go owner and replacement transport. No original source path is sent in a bridge frame or persisted as attachment authority.
+Native staging lives at `<HOT_CROSS_BUNS_STATE_DIR-or-XDG_STATE_HOME-or-HOME/.local/state>/hot-cross-buns/native-uploads/<32 lowercase hexadecimal characters>/<filename>`. The resolved absolute root is passed as `HOT_CROSS_BUNS_DESKTOP_UPLOAD_DIR` to **every** managed Go owner and replacement transport. No original source path is sent in a bridge frame or persisted as attachment authority.
 
 This deliberately uses a native-only root. The existing JS upload janitor scans Go retention plus its own draft namespace, not native drafts; sharing its root could prune an old unsent native attachment. Native staging uses the existing Go upload layout and loader, with no second processing engine. No native pruning is implemented. Removing a chip only removes its current draft reference. Copies potentially owned by pending, queued, running, interrupted, recovery or retained dialogue work remain on disk.
 
@@ -31,23 +31,23 @@ Native and terminal upload roots are isolated. Cross-host replay of historical u
 
 | File | Responsibility |
 | --- | --- |
-| `Sources/GatorCore/NativeUploadStore.swift` | Random opaque IDs, strict extension/name/count/size rules, descriptor-relative private storage, bounded immutable copies, digest validation, image normalization and thumbnails. |
-| `Sources/GatorCore/NativeDraftAttachments.swift` | Context/generation-bound import identity and deterministic explicit clipboard policy. |
-| `Sources/GatorCore/NativeDraftStore.swift` | Optional staged metadata/reply/owner fields, version 7 archive, old-version reads, pinned attachment drafts and exact pending identities. |
-| `Sources/GatorCore/GatorApplicationState.swift` | Import/remove/availability services; immutable submission capture; actual Go result handling; workspace-to-durable conversation draft promotion and uncertain first-admission restoration. |
-| `Sources/GatorCore/ManagedSessionCoordinator.swift` | One shared upload actor, safe initial workspace ownership, durable selection after Go assigns identity, imports excluded from owner eviction. |
-| `Sources/GatorCore/GoBridgeConnection.swift` | Host-owned upload environment propagated to each real subprocess. |
-| `Sources/GatorCore/BridgeProtocol.swift` | Ordered opaque file IDs and optional reply in typed `upload_submit`; public dialogue input labels; timestamp ordering by actual instants. Raw approval message indexes remain unchanged. |
-| `Sources/GatorMac/NativeAttachmentActions.swift` | Multi-file NSOpenPanel, security-scoped imports through the store, file URL item providers, explicit NSPasteboard image access and focus restoration. |
-| `Sources/GatorMac/AttachmentSelectionView.swift` | Bounded scrollable selection, staged thumbnails, literal wrapping filenames, sizes and accessible remove controls. |
-| `Sources/GatorMac/ComposerView.swift` | Functional picker/image controls, native paste responder, text-view and surrounding drop targets, import/error feedback. Existing multiline/marked-text send safeguards remain. |
-| `Sources/GatorMac/ConversationView.swift` | Retained public input labels and captured request attachment/admission details. |
-| `Tests/GatorCoreTests/NativeUploadStoreTests.swift` | Security, immutable bytes, permissions, limits, atomicity, invalid images and paste policy. |
-| `Tests/GatorCoreTests/NativeAttachmentDraftTests.swift` | Per-owner drafts, shared surfaces, restarts, late results, missing bytes, first-conversation promotion, corrupt archives and timezone regression. |
-| `Tests/GatorCoreTests/NativeAttachmentIntegrationTests.swift` | Real Go document/image delivery, files-only canonical behavior and dialogue/delegated input retention during held work, including restart. |
-| `Tests/GatorCoreTests/NativeAttachmentDisconnectTests.swift` | Real Go admission with deliberately withheld upload result; process interruption and restart preserve exact request/files without replay. |
-| `Tests/GatorCoreTests/Fixtures/attachment-provider.mjs` | Disposable loopback Chat Completions provider, recorded input bodies, held work, reply/task routing. No connector credentials or external effect endpoint. |
-| `Tests/GatorCoreTests/ManagedSessionTests.swift` | Existing submission enum pattern updated for optional attachment/reply fields; assertions retained. |
+| `Sources/HotCrossBunsCore/NativeUploadStore.swift` | Random opaque IDs, strict extension/name/count/size rules, descriptor-relative private storage, bounded immutable copies, digest validation, image normalization and thumbnails. |
+| `Sources/HotCrossBunsCore/NativeDraftAttachments.swift` | Context/generation-bound import identity and deterministic explicit clipboard policy. |
+| `Sources/HotCrossBunsCore/NativeDraftStore.swift` | Optional staged metadata/reply/owner fields, version 7 archive, old-version reads, pinned attachment drafts and exact pending identities. |
+| `Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift` | Import/remove/availability services; immutable submission capture; actual Go result handling; workspace-to-durable conversation draft promotion and uncertain first-admission restoration. |
+| `Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift` | One shared upload actor, safe initial workspace ownership, durable selection after Go assigns identity, imports excluded from owner eviction. |
+| `Sources/HotCrossBunsCore/GoBridgeConnection.swift` | Host-owned upload environment propagated to each real subprocess. |
+| `Sources/HotCrossBunsCore/BridgeProtocol.swift` | Ordered opaque file IDs and optional reply in typed `upload_submit`; public dialogue input labels; timestamp ordering by actual instants. Raw approval message indexes remain unchanged. |
+| `Sources/HotCrossBunsMac/NativeAttachmentActions.swift` | Multi-file NSOpenPanel, security-scoped imports through the store, file URL item providers, explicit NSPasteboard image access and focus restoration. |
+| `Sources/HotCrossBunsMac/AttachmentSelectionView.swift` | Bounded scrollable selection, staged thumbnails, literal wrapping filenames, sizes and accessible remove controls. |
+| `Sources/HotCrossBunsMac/ComposerView.swift` | Functional picker/image controls, native paste responder, text-view and surrounding drop targets, import/error feedback. Existing multiline/marked-text send safeguards remain. |
+| `Sources/HotCrossBunsMac/ConversationView.swift` | Retained public input labels and captured request attachment/admission details. |
+| `Tests/HotCrossBunsCoreTests/NativeUploadStoreTests.swift` | Security, immutable bytes, permissions, limits, atomicity, invalid images and paste policy. |
+| `Tests/HotCrossBunsCoreTests/NativeAttachmentDraftTests.swift` | Per-owner drafts, shared surfaces, restarts, late results, missing bytes, first-conversation promotion, corrupt archives and timezone regression. |
+| `Tests/HotCrossBunsCoreTests/NativeAttachmentIntegrationTests.swift` | Real Go document/image delivery, files-only canonical behavior and dialogue/delegated input retention during held work, including restart. |
+| `Tests/HotCrossBunsCoreTests/NativeAttachmentDisconnectTests.swift` | Real Go admission with deliberately withheld upload result; process interruption and restart preserve exact request/files without replay. |
+| `Tests/HotCrossBunsCoreTests/Fixtures/attachment-provider.mjs` | Disposable loopback Chat Completions provider, recorded input bodies, held work, reply/task routing. No connector credentials or external effect endpoint. |
+| `Tests/HotCrossBunsCoreTests/ManagedSessionTests.swift` | Existing submission enum pattern updated for optional attachment/reply fields; assertions retained. |
 | `TRANCHE07-VERIFICATION.md` | This evidence ledger. |
 
 ## Protocol and security
@@ -74,18 +74,18 @@ Attachment-bearing drafts and pending contexts are not aged out after seven days
 Executed from repository root unless noted:
 
 ```sh
-go build -o /tmp/gator-native-runtime ./cmd/gator
-go test ./cmd/gator ./internal/workapp ./internal/attachment -count=1
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/attachment -count=1
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
 node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs \
   app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs \
   app-host/tests/policy.test.mjs app-host/tests/native.test.mjs
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test \
   app-host/tests/task-access.test.ts app-host/tests/access-rereview.test.ts \
   app-host/tests/preparation-recovery.test.ts
 # From ui/:
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload.ts \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test --preload ./scripts/preload.ts \
   tests/attachments.test.tsx tests/draft-synchronization.test.tsx \
   tests/conversation-during-work.test.tsx tests/approvals.test.tsx \
   tests/recovery.test.tsx tests/receipts.test.tsx
@@ -94,14 +94,14 @@ GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload
 | Check | Result / log |
 | --- | --- |
 | Go build | PASS. Actual executable used by native integration fixtures. |
-| Go bridge/workapp/attachments | PASS: cmd/gator 202.942 s, workapp 64.395 s, attachment 4.479 s. `/tmp/gator-native-t07-go-final.log`. |
-| Host regressions | 72 PASS, 0 failed/skipped, 9.942 s. `/tmp/gator-native-t07-host.log`. Includes retention and host immutable uploads/drafts. |
-| Host access/preparation integration | 21 PASS, 561 assertions, 0 failures, 116.03 s. `/tmp/gator-native-t07-host-integration.log`. |
-| Selected TUI regressions | 11 PASS, 1 SKIP, 0 failed, 313 assertions, 94.51 s. `/tmp/gator-native-t07-tui.log`. The existing Linux-only attachment test is intentionally skipped on macOS; not counted as native acceptance. |
-| Swift focused import suite | 5 test functions PASS, including seven parameterized rejection cases. `/tmp/gator-native-t07-upload-unit.log`. |
-| Swift full suite before final uncertainty test | 110 PASS, 62.184 s. `/tmp/gator-native-t07-swift-delivery.log`. |
-| Focused first-admission/lost-result regressions | 3 PASS, 2.593 s; includes unchanged older managed pending-state assertions. `/tmp/gator-native-t07-loss.log`. |
-| Final Swift full suite | **112 PASS**, 0 failed, 55.805 s. `/tmp/gator-native-t07-swift-final112.log`. All 96 earlier tests retained; 16 new test functions plus parameterized variants. |
+| Go bridge/workapp/attachments | PASS: cmd/hot-cross-buns 202.942 s, workapp 64.395 s, attachment 4.479 s. `/tmp/hot-cross-buns-native-t07-go-final.log`. |
+| Host regressions | 72 PASS, 0 failed/skipped, 9.942 s. `/tmp/hot-cross-buns-native-t07-host.log`. Includes retention and host immutable uploads/drafts. |
+| Host access/preparation integration | 21 PASS, 561 assertions, 0 failures, 116.03 s. `/tmp/hot-cross-buns-native-t07-host-integration.log`. |
+| Selected TUI regressions | 11 PASS, 1 SKIP, 0 failed, 313 assertions, 94.51 s. `/tmp/hot-cross-buns-native-t07-tui.log`. The existing Linux-only attachment test is intentionally skipped on macOS; not counted as native acceptance. |
+| Swift focused import suite | 5 test functions PASS, including seven parameterized rejection cases. `/tmp/hot-cross-buns-native-t07-upload-unit.log`. |
+| Swift full suite before final uncertainty test | 110 PASS, 62.184 s. `/tmp/hot-cross-buns-native-t07-swift-delivery.log`. |
+| Focused first-admission/lost-result regressions | 3 PASS, 2.593 s; includes unchanged older managed pending-state assertions. `/tmp/hot-cross-buns-native-t07-loss.log`. |
+| Final Swift full suite | **112 PASS**, 0 failed, 55.805 s. `/tmp/hot-cross-buns-native-t07-swift-final112.log`. All 96 earlier tests retained; 16 new test functions plus parameterized variants. |
 | Package | Development app contains native executable and real Go executable; Info.plist lint passes. Final packaging command/result recorded below. |
 
 Swift tests use explicit sequential execution. No parallel run was attempted in this tranche; the prior concurrent shutdown timing issue is not erased or claimed fixed. No timeout assertion was relaxed. Initial local Swift call-site/macro compilation errors were repaired before passing checks. SwiftPM occasionally waited for its scratch-path lock during packaging; the final build/test/package steps are serialized.
@@ -117,9 +117,9 @@ The provider fixture binds only `127.0.0.1`, requires a disposable control direc
 
 ## Launched native application evidence and limitations
 
-Actual app instances were launched with bundled runtime, disposable config/state/user-data/workspace and the same loopback fixture. The final repeat used `/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche07-ui-ak8ly9ao`. Evidence root:
+Actual app instances were launched with bundled runtime, disposable config/state/user-data/workspace and the same loopback fixture. The final repeat used `/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche07-ui-ak8ly9ao`. Evidence root:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche07-ui-8r0sbmws`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche07-ui-8r0sbmws`
 
 AX/CGEvent automation, archive inspection, provider trace and owned-window screenshots were used. These are actual native app tests; they are separate from the Swift test suite and from physical user acceptance.
 
@@ -167,9 +167,9 @@ Tranche 08 preparation: use this build and these exact operator gaps for the res
 ## Final artifact and launch
 
 ```sh
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Tranche07-Ready.app \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Tranche07-Ready.app \
   bash macos/scripts/build-dev-app.sh
-open /tmp/Gator-Native-Tranche07-Ready.app --args --open-window
+open /tmp/HotCrossBuns-Native-Tranche07-Ready.app --args --open-window
 ```
 
 The packager refuses an existing destination. Earlier T01–06 bundles remain intact; intermediate T07 bundles were moved to distinct `PreWorkspaceDrafts`/`PreTimestampOrder` paths before rebuilding. Final package evidence and executable hashes are appended below.
@@ -177,13 +177,13 @@ The packager refuses an existing destination. Earlier T01–06 bundles remain in
 
 ### Final recorded results
 
-- Explicit final Swift build: PASS, 10.69 s; `/tmp/gator-native-t07-build-final.log`.
-- Final full sequential Swift suite: **112 passed**, 0 failed, 55.805 s; `/tmp/gator-native-t07-swift-final112.log`. All 96 earlier tests plus 16 attachment/first-admission/ordering/lost-result cases remain. No parallel run or timeout relaxation was used.
-- Final packaging: PASS; `/tmp/gator-native-t07-package-final-ready.log`. Native minimum target macOS 15.0; `Contents/MacOS/GatorMac` and `Contents/Resources/gator-runtime` are executable, Info.plist valid. Final native executable SHA-256 `1502332e9da4753edfedd4a9f43d809e70d45cadd512457f3dcc4bacbdd70638`; bundled Go SHA-256 `20b2b29e1af913a7d92f72489aa3df6745110f4fce7f4c2311d1adef8a657442`.
-- Final native image/work journey PASS: `/tmp/gator-native-t07-native-final-journey.log`, final fixture root `final-native-journey.json`, `native-attachment-during-work.png`, `native-task-return.png`. The actual menu-bar/full-window, draft, ownership, dismissal and independent-completion checks passed.
-- Actual native uncertain admission/reconnect/guarded shutdown PASS: `/tmp/gator-native-t07-native-E.log`, final fixture `native-E.json` and `native-disconnect.ax.txt`. Only the fresh fourth owner's Go PID was interrupted. Other owners remained alive; explicit reconnect retained the same request/files with no new provider invocation; cancellation and confirmation of Quit were both exercised. A later native restart restored those same uncertain attachments without replay (`/tmp/gator-native-t07-native-drag.log`).
+- Explicit final Swift build: PASS, 10.69 s; `/tmp/hot-cross-buns-native-t07-build-final.log`.
+- Final full sequential Swift suite: **112 passed**, 0 failed, 55.805 s; `/tmp/hot-cross-buns-native-t07-swift-final112.log`. All 96 earlier tests plus 16 attachment/first-admission/ordering/lost-result cases remain. No parallel run or timeout relaxation was used.
+- Final packaging: PASS; `/tmp/hot-cross-buns-native-t07-package-final-ready.log`. Native minimum target macOS 15.0; `Contents/MacOS/HotCrossBunsMac` and `Contents/Resources/hot-cross-buns-runtime` are executable, Info.plist valid. Final native executable SHA-256 `1502332e9da4753edfedd4a9f43d809e70d45cadd512457f3dcc4bacbdd70638`; bundled Go SHA-256 `20b2b29e1af913a7d92f72489aa3df6745110f4fce7f4c2311d1adef8a657442`.
+- Final native image/work journey PASS: `/tmp/hot-cross-buns-native-t07-native-final-journey.log`, final fixture root `final-native-journey.json`, `native-attachment-during-work.png`, `native-task-return.png`. The actual menu-bar/full-window, draft, ownership, dismissal and independent-completion checks passed.
+- Actual native uncertain admission/reconnect/guarded shutdown PASS: `/tmp/hot-cross-buns-native-t07-native-E.log`, final fixture `native-E.json` and `native-disconnect.ax.txt`. Only the fresh fourth owner's Go PID was interrupted. Other owners remained alive; explicit reconnect retained the same request/files with no new provider invocation; cancellation and confirmation of Quit were both exercised. A later native restart restored those same uncertain attachments without replay (`/tmp/hot-cross-buns-native-t07-native-drag.log`).
 - Read-only input environment: ABC input source, secure event input false, AX trusted true, event-post and screen-capture preflights true. This did not establish successful synthetic Command-V/drag acceptance and is not physical IME/VoiceOver testing.
-- Earlier T01–06 bundles preserved. The preceding T07 artifact was also preserved as `/tmp/Gator-Native-Tranche07-PreAdmissionBinding.app` before the final rebuild.
+- Earlier T01–06 bundles preserved. The preceding T07 artifact was also preserved as `/tmp/HotCrossBuns-Native-Tranche07-PreAdmissionBinding.app` before the final rebuild.
 
 The remaining acceptance gap is native keyboard/drag and physical accessibility verification, not Go attachment delivery, durable ownership, admission or disconnect semantics. No live API keys, accounts, credential writes or real external effects were used. A configured production model can be tested next through explicit Send; model-specific image capabilities and actual usage must be verified separately.
 

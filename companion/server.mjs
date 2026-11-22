@@ -36,19 +36,19 @@ export function createCompanion({ binary, workspace, env, tokenFile, origin,
   controlWork = (mode, input) => callControl(binary, workspace, env, mode, input),
   queryExternal = async ({ actor, mode, target, generation }) => {
     try {
-      const {stdout}=await execute(binary,['companion-external',actor,mode,target,generation],{cwd:workspace,env:{...env,GATOR_COMPANION_EXTERNAL:'1'},timeout:20000,maxBuffer:64*1024,windowsHide:true});
+      const {stdout}=await execute(binary,['companion-external',actor,mode,target,generation],{cwd:workspace,env:{...env,HOT_CROSS_BUNS_COMPANION_EXTERNAL:'1'},timeout:20000,maxBuffer:64*1024,windowsHide:true});
       return JSON.parse(stdout);
     } catch {throw new Error('External inspection unavailable.');}
   },
   queryWork = async ({ actor, target, generation }) => {
     try {
-      const { stdout } = await execute(binary, ['companion-inspect', actor, target, generation], { cwd: workspace, env: { ...env, GATOR_COMPANION_INSPECT: '1' }, timeout: 20000, maxBuffer: 128 * 1024, windowsHide: true });
+      const { stdout } = await execute(binary, ['companion-inspect', actor, target, generation], { cwd: workspace, env: { ...env, HOT_CROSS_BUNS_COMPANION_INSPECT: '1' }, timeout: 20000, maxBuffer: 128 * 1024, windowsHide: true });
       return JSON.parse(stdout);
     } catch { throw Object.assign(new Error('Work inspection is unavailable.'), { code: 'INSPECTION_UNAVAILABLE' }); }
   },
   queryCatalog = async ({ query, scope, after }) => {
     try {
-      const { stdout } = await execute(binary, ['companion-catalog', query, scope, after], { cwd: workspace, env: { ...env, GATOR_COMPANION_CATALOG: '1' }, timeout: 20000, maxBuffer: 1024 * 1024, windowsHide: true });
+      const { stdout } = await execute(binary, ['companion-catalog', query, scope, after], { cwd: workspace, env: { ...env, HOT_CROSS_BUNS_COMPANION_CATALOG: '1' }, timeout: 20000, maxBuffer: 1024 * 1024, windowsHide: true });
       return JSON.parse(stdout);
     } catch {
       // execFile timeout errors can have a null code and embed the full command.
@@ -58,14 +58,14 @@ export function createCompanion({ binary, workspace, env, tokenFile, origin,
   },
   createChat = async requestID => {
     try {
-      const { stdout } = await execute(binary, ['companion-create-chat', requestID], { cwd: workspace, env: { ...env, GATOR_COMPANION_CREATE: '1' }, timeout: 20000, maxBuffer: 32768, windowsHide: true });
+      const { stdout } = await execute(binary, ['companion-create-chat', requestID], { cwd: workspace, env: { ...env, HOT_CROSS_BUNS_COMPANION_CREATE: '1' }, timeout: 20000, maxBuffer: 32768, windowsHide: true });
       return JSON.parse(stdout);
     } catch {
       throw Object.assign(new Error('Chat creation is unconfirmed. Retry the same request.'), { code: 'CREATION_UNCONFIRMED' });
     }
   },
   now = () => Date.now(),
-  spawnBackend = (id) => new Backend(binary, workspace, { ...env, GATOR_UI_SESSION_HOST: '1' }, ['ui-backend', id, '']) }) {
+  spawnBackend = (id) => new Backend(binary, workspace, { ...env, HOT_CROSS_BUNS_UI_SESSION_HOST: '1' }, ['ui-backend', id, '']) }) {
   if (origin && (new URL(origin).origin !== origin || new URL(origin).protocol !== 'https:')) throw new Error('The companion browser origin must be an exact HTTPS origin.');
   const workers = new Map();
   const recoveries = new Map();

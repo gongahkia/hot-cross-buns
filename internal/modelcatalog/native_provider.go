@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 // NativeProviderAction is finite host input. APIKey is save-only transient data,

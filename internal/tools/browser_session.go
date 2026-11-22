@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	gatorbrowser "github.com/gongahkia/gator/internal/browser"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	hotcrossbunsbrowser "github.com/gongahkia/hot-cross-buns/internal/browser"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 // single native run. A zero SessionID means no real browser tool is exposed.
 type BrowserSessionOptions struct {
 	SessionID  string
-	Controller gatorbrowser.Controller
+	Controller hotcrossbunsbrowser.Controller
 	Policy     CommandPolicy
 }
 
@@ -49,7 +49,7 @@ func BrowserSessionTools(options BrowserSessionOptions) []agent.Tool {
 
 type browserSessionTool struct {
 	sessionID  string
-	controller gatorbrowser.Controller
+	controller hotcrossbunsbrowser.Controller
 	policy     CommandPolicy
 }
 
@@ -77,7 +77,7 @@ func (tool browserTabsTool) Execute(ctx context.Context, raw json.RawMessage) (a
 		return agent.ToolResult{}, err
 	}
 	return browserSuccess(struct {
-		Tabs []gatorbrowser.Tab `json:"tabs"`
+		Tabs []hotcrossbunsbrowser.Tab `json:"tabs"`
 	}{Tabs: tabs})
 }
 
@@ -118,7 +118,7 @@ func (tool browserScreenshotTool) Execute(ctx context.Context, raw json.RawMessa
 		return agent.ToolResult{}, err
 	}
 	result, err := browserSuccess(struct {
-		Artifact gatorbrowser.Artifact `json:"artifact"`
+		Artifact hotcrossbunsbrowser.Artifact `json:"artifact"`
 	}{Artifact: capture.Artifact})
 	if err != nil {
 		return agent.ToolResult{}, err
@@ -149,7 +149,7 @@ func (tool browserNavigateTool) Execute(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
-	if !gatorbrowser.AllowsURL(session.Origins, arguments.URL) {
+	if !hotcrossbunsbrowser.AllowsURL(session.Origins, arguments.URL) {
 		return agent.ToolResult{}, errors.New("browser URL origin is not approved for this session; use the CLI or TUI to grant the exact origin")
 	}
 	if err := tool.approve(ctx, "navigate", arguments.TabID, boundedBrowserApprovalValue(arguments.URL)); err != nil {
@@ -284,7 +284,7 @@ func (tool browserDownloadTool) Execute(ctx context.Context, raw json.RawMessage
 		return agent.ToolResult{}, err
 	}
 	return browserSuccess(struct {
-		Artifact gatorbrowser.Artifact `json:"artifact"`
+		Artifact hotcrossbunsbrowser.Artifact `json:"artifact"`
 	}{Artifact: artifact})
 }
 

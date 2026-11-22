@@ -7,10 +7,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 type liveModel struct{ step int }

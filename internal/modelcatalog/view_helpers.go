@@ -9,7 +9,7 @@ func normalizeCatalogTheme(name string) string {
 	case "contrast", "mono", "light":
 		return strings.ToLower(strings.TrimSpace(name))
 	default:
-		return "gator"
+		return "hot-cross-buns"
 	}
 }
 
@@ -23,9 +23,9 @@ func (m Model) inlineWidth() int {
 func (m Model) modelCatalogConfirmationContent() (string, string, string) {
 	switch m.localModels.confirmation {
 	case localModelConfirmStart:
-		return "Start Ollama?", "Gator can start 'ollama serve' as a child of this TUI and stops it when Gator exits. You can instead start it yourself.", "Enter/y  Start with Gator (default)\nn/esc  I'll start it myself"
+		return "Start Ollama?", "Hot Cross Buns can start 'ollama serve' as a child of this TUI and stops it when Hot Cross Buns exits. You can instead start it yourself.", "Enter/y  Start with Hot Cross Buns (default)\nn/esc  I'll start it myself"
 	case localModelConfirmInstall:
-		return "Install Ollama?", "Ollama is not installed. Gator can show a reviewed official installation action before it runs anything.", "Enter/y  Review installation help (default)\nn/esc  I'll install it myself"
+		return "Install Ollama?", "Ollama is not installed. Hot Cross Buns can show a reviewed official installation action before it runs anything.", "Enter/y  Review installation help (default)\nn/esc  I'll install it myself"
 	case localModelConfirmRunInstallation:
 		if plan := m.localModels.installation; plan != nil {
 			detail := plan.Detail
@@ -34,7 +34,7 @@ func (m Model) modelCatalogConfirmationContent() (string, string, string) {
 			}
 			hint := "Review the exact official action before confirming it."
 			if plan.RequiresElevation {
-				hint += " Gator will request your system password in this terminal, then stream progress here."
+				hint += " Hot Cross Buns will request your system password in this terminal, then stream progress here."
 			}
 			return plan.Title, hint, wrapText(detail, m.inlineWidth())
 		}
@@ -49,12 +49,12 @@ func (m Model) modelCatalogConfirmationContent() (string, string, string) {
 	case localModelConfirmRemoveCredential:
 		if cloud, found := m.selectedCloudModel(); found {
 			status := m.storedCredential(cloud.provider)
-			detail := cloud.provider + " · stored " + status.Kind + "\nOnly Gator's private credential file is changed. Environment variables and one-run keys are unchanged."
-			return "Remove stored Gator credential?", "This does not revoke the upstream key and does not log you out of vendor CLIs.", detail
+			detail := cloud.provider + " · stored " + status.Kind + "\nOnly Hot Cross Buns's private credential file is changed. Environment variables and one-run keys are unchanged."
+			return "Remove stored Hot Cross Buns credential?", "This does not revoke the upstream key and does not log you out of vendor CLIs.", detail
 		}
 	case localModelConfirmRemoveCustom:
 		if cloud, found := m.selectedCloudModel(); found {
-			return "Remove custom provider?", "This deletes endpoint metadata from Gator config.json. The named API key environment variable is not changed or unset.", cloud.provider
+			return "Remove custom provider?", "This deletes endpoint metadata from Hot Cross Buns config.json. The named API key environment variable is not changed or unset.", cloud.provider
 		}
 	case localModelConfirmSaveCustom:
 		if m.localModels.pendingCustom != nil {
@@ -90,13 +90,13 @@ func (m Model) localDependencyHelpContent() (string, string, string) {
 		}
 	}
 	if plan, err := m.localInstallationPlan(); err == nil && plan.Command != "" {
-		lines = append(lines, "", "Available through Gator after review:", "  "+plan.Detail)
+		lines = append(lines, "", "Available through Hot Cross Buns after review:", "  "+plan.Detail)
 		if plan.DisplayCommand != "" {
 			lines = append(lines, "  "+plan.DisplayCommand)
 		}
-		return "Installation help", "Gator found a platform-specific official action. Press Enter to review it before anything runs.", wrapText(strings.Join(lines, "\n"), m.inlineWidth())
+		return "Installation help", "Hot Cross Buns found a platform-specific official action. Press Enter to review it before anything runs.", wrapText(strings.Join(lines, "\n"), m.inlineWidth())
 	}
-	return "Installation help", "Gator detected these prerequisites as missing. Use the official source shown here, install Ollama, then press r to refresh.", wrapText(strings.Join(lines, "\n"), m.inlineWidth())
+	return "Installation help", "Hot Cross Buns detected these prerequisites as missing. Use the official source shown here, install Ollama, then press r to refresh.", wrapText(strings.Join(lines, "\n"), m.inlineWidth())
 }
 
 func (m Model) localInstallationPlan() (LocalInstallationPlan, error) {

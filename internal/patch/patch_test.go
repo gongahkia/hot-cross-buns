@@ -39,11 +39,11 @@ func TestExportAndApplyTransfersTrackedAndUntrackedFiles(t *testing.T) {
 	assertFile(t, target, "nested/new feature.txt", "new file\n")
 }
 
-func TestPathsListsTrackedAndUntrackedChangesWithoutGatorMetadata(t *testing.T) {
+func TestPathsListsTrackedAndUntrackedChangesWithoutHotCrossBunsMetadata(t *testing.T) {
 	source, _ := pairedRepositories(t)
 	writeFile(t, source, "tracked.txt", "changed\n")
 	writeFile(t, source, "nested/new.txt", "new\n")
-	writeFile(t, source, ".gator/private.txt", "metadata\n")
+	writeFile(t, source, ".hot-cross-buns/private.txt", "metadata\n")
 	paths, err := Paths(context.Background(), source, "")
 	if err != nil {
 		t.Fatalf("list changed paths: %v", err)
@@ -103,15 +103,15 @@ func pairedRepositories(t *testing.T) (string, string) {
 		t.Fatal(err)
 	}
 	runGit(t, source, "init", "--quiet")
-	runGit(t, source, "config", "user.name", "Gator Test")
-	runGit(t, source, "config", "user.email", "gator@example.invalid")
+	runGit(t, source, "config", "user.name", "Hot Cross Buns Test")
+	runGit(t, source, "config", "user.email", "hot-cross-buns@example.invalid")
 	writeFile(t, source, "tracked.txt", "base\n")
 	runGit(t, source, "add", "tracked.txt")
 	runGit(t, source, "commit", "--quiet", "-m", "base")
 	target := filepath.Join(base, "target")
 	runGit(t, base, "clone", "--quiet", source, target)
-	runGit(t, target, "config", "user.name", "Gator Test")
-	runGit(t, target, "config", "user.email", "gator@example.invalid")
+	runGit(t, target, "config", "user.name", "Hot Cross Buns Test")
+	runGit(t, target, "config", "user.email", "hot-cross-buns@example.invalid")
 	return source, target
 }
 

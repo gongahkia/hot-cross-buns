@@ -15,8 +15,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const PDFMediaType = "application/pdf"
@@ -56,7 +56,7 @@ type Input struct {
 	Kind InputKind
 }
 
-// IsImage reports whether a path has one of Gator's supported visual-input
+// IsImage reports whether a path has one of Hot Cross Buns's supported visual-input
 // extensions. LoadImage verifies the actual media type before returning bytes.
 func IsImage(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
@@ -68,7 +68,7 @@ func IsImage(path string) bool {
 }
 
 // LoadImage resolves one repository-local visual attachment. Only PNG, JPEG,
-// and WebP are accepted because all Gator-native image adapters have a stable
+// and WebP are accepted because all Hot Cross Buns-native image adapters have a stable
 // encoding for those formats.
 func LoadImage(root workspace.Root, path string, maxBytes int) (agent.Image, error) {
 	if !IsImage(path) {

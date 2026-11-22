@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
 )
 
 // PlanInputChange retains the original immutable options and the exact additions

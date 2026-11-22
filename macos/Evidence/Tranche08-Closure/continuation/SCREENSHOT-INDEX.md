@@ -1,6 +1,6 @@
 # Tranche 08 closure screenshot index
 
-All UI captures are actual application windows or the Gator-only status-item crop. Images of the app icon are extracted from the final ICNS, not a UI screenshot. No private account or real credential is displayed. Earlier images remain unchanged. `screenshots/` below means this continuation directory; other paths are relative to `macos/`.
+All UI captures are actual application windows or the HotCrossBuns-only status-item crop. Images of the app icon are extracted from the final ICNS, not a UI screenshot. No private account or real credential is displayed. Earlier images remain unchanged. `screenshots/` below means this continuation directory; other paths are relative to `macos/`.
 
 | State | Capture | Evidence boundary |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ All UI captures are actual application windows or the Gator-only status-item cro
 | Recovery, full light | [full](screenshots/full-recovery-light.png) | Pre-icon; controlled HTTP503, retained evidence. |
 | Recovery at minimum full-window size | [top](screenshots/full-recovery-narrow-light.png), [bottom](screenshots/full-recovery-narrow-bottom-light.png) |540×480; expanded chat list consumes some space, review remains scrollable to lower evidence. |
 | Settled recovery, full/compact dark | [full](screenshots/final-full-recovery-dark.png), [compact](screenshots/final-compact-recovery-dark.png) | Exact acceptance binary, retained failed revision after restart. |
-| Alligator status item | [menu bar](screenshots/final-menu-bar-icon.png) | Actual18pt template PNG, cropped to Gator status item. |
+| Alligator status item | [menu bar](screenshots/final-menu-bar-icon.png) | Actual18pt template PNG, cropped to Hot Cross Buns status item. |
 | Alligator app icon | [app icon](screenshots/final-app-icon.png) | Extracted256px representation from final bundled ICNS. |
 
 Excluded: [unsettled compact recovery](screenshots/excluded-compact-recovery-unsettled-light.png) is a blank transient frame, not successful recovery evidence. The prior closure `full-recovery-narrow-light.png` actually shows conversation content; prior `compact-recovery-light.png` also does not establish recovery inspection. Filenames were not treated as proof. A settled final compact recapture shows recovery content; no production fix or conclusive cause is claimed for the transient.

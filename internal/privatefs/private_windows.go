@@ -12,7 +12,7 @@ import (
 
 // Protect replaces inherited access with an inheritable DACL for this user,
 // SYSTEM, and administrators. Never apply it to a selected workspace or a
-// shared parent; only Gator-owned directories and files belong here.
+// shared parent; only Hot Cross Buns-owned directories and files belong here.
 func Protect(path string) error {
 	info, err := os.Lstat(path)
 	if err != nil {

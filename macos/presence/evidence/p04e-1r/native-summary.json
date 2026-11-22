@@ -33,7 +33,7 @@
       "approvalCommands": [],
       "durableInteractions": [
         {
-          "path": "/tmp/gator-native-test-presence-r1-kvar8v5g/state/gator/interactions/work-20261120T041400-9c5ae3d732fd/1.json",
+          "path": "/tmp/hot-cross-buns-native-test-presence-r1-kvar8v5g/state/hot-cross-buns/interactions/work-20261120T041400-9c5ae3d732fd/1.json",
           "status": "pending",
           "approved": null,
           "SHA256": "4fe65970e8c5e4149a5752d79657f33f081ed3c0f3d8b144db71f064c65151c3"
@@ -42,7 +42,7 @@
       "GoLaunches": [
         {
           "direction": "launch",
-          "runtime": "/tmp/gator-native-test-presence-r1-kvar8v5g/PresenceClosure.app/Contents/Resources/gator-runtime",
+          "runtime": "/tmp/hot-cross-buns-native-test-presence-r1-kvar8v5g/PresenceClosure.app/Contents/Resources/hot-cross-buns-runtime",
           "pid": 24392,
           "requestedConversation": "work-20261120T041400-6f7452c169a2b94f",
           "epoch": 1795148040.601129,
@@ -50,7 +50,7 @@
         },
         {
           "direction": "launch",
-          "runtime": "/tmp/gator-native-test-presence-r1-kvar8v5g/PresenceClosure.app/Contents/Resources/gator-runtime",
+          "runtime": "/tmp/hot-cross-buns-native-test-presence-r1-kvar8v5g/PresenceClosure.app/Contents/Resources/hot-cross-buns-runtime",
           "pid": 24372,
           "requestedConversation": "work-20261120T041348-e42b14c797c90d4e",
           "epoch": 1795148030.0791209,
@@ -86,7 +86,7 @@
       "approvalCommands": [],
       "durableInteractions": [
         {
-          "path": "/tmp/gator-native-test-presence-r1-e9fslnpp/state/gator/interactions/work-20261120T041440-12412f154482/1.json",
+          "path": "/tmp/hot-cross-buns-native-test-presence-r1-e9fslnpp/state/hot-cross-buns/interactions/work-20261120T041440-12412f154482/1.json",
           "status": "pending",
           "approved": null,
           "SHA256": "4fe65970e8c5e4149a5752d79657f33f081ed3c0f3d8b144db71f064c65151c3"
@@ -95,7 +95,7 @@
       "GoLaunches": [
         {
           "direction": "launch",
-          "runtime": "/tmp/gator-native-test-presence-r1-e9fslnpp/PresenceClosure.app/Contents/Resources/gator-runtime",
+          "runtime": "/tmp/hot-cross-buns-native-test-presence-r1-e9fslnpp/PresenceClosure.app/Contents/Resources/hot-cross-buns-runtime",
           "pid": 24491,
           "requestedConversation": "work-20261120T041440-8f944745bcba4cc8",
           "epoch": 1795148080.575032,
@@ -103,7 +103,7 @@
         },
         {
           "direction": "launch",
-          "runtime": "/tmp/gator-native-test-presence-r1-e9fslnpp/PresenceClosure.app/Contents/Resources/gator-runtime",
+          "runtime": "/tmp/hot-cross-buns-native-test-presence-r1-e9fslnpp/PresenceClosure.app/Contents/Resources/hot-cross-buns-runtime",
           "pid": 24461,
           "requestedConversation": "work-20261120T041432-918175bfa607c627",
           "epoch": 1795148074.432106,
@@ -139,7 +139,7 @@
       "approvalCommands": [],
       "durableInteractions": [
         {
-          "path": "/tmp/gator-native-test-presence-r1-_fos4djn/state/gator/interactions/work-20261120T053257-b679b466a289/1.json",
+          "path": "/tmp/hot-cross-buns-native-test-presence-r1-_fos4djn/state/hot-cross-buns/interactions/work-20261120T053257-b679b466a289/1.json",
           "status": "pending",
           "approved": null,
           "SHA256": "4fe65970e8c5e4149a5752d79657f33f081ed3c0f3d8b144db71f064c65151c3"
@@ -148,7 +148,7 @@
       "GoLaunches": [
         {
           "direction": "launch",
-          "runtime": "/tmp/gator-native-test-presence-r1-_fos4djn/PresenceClosure.app/Contents/Resources/gator-runtime",
+          "runtime": "/tmp/hot-cross-buns-native-test-presence-r1-_fos4djn/PresenceClosure.app/Contents/Resources/hot-cross-buns-runtime",
           "pid": 25308,
           "requestedConversation": "work-20261120T053252-dde9bf3c1a74b705",
           "epoch": 1795152775.5639338,
@@ -156,7 +156,7 @@
         },
         {
           "direction": "launch",
-          "runtime": "/tmp/gator-native-test-presence-r1-_fos4djn/PresenceClosure.app/Contents/Resources/gator-runtime",
+          "runtime": "/tmp/hot-cross-buns-native-test-presence-r1-_fos4djn/PresenceClosure.app/Contents/Resources/hot-cross-buns-runtime",
           "pid": 25314,
           "requestedConversation": "work-20261120T053257-b72e5518f9c76e9e",
           "epoch": 1795152777.64951,

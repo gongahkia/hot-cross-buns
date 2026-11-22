@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
 )
 
 func TestLateRefreshCannotUndoDisconnect(t *testing.T) {

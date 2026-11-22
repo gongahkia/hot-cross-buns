@@ -10,7 +10,7 @@ private final class WeakProbe {
     let kind:String
     init(_ value:AnyObject?,_ kind:String){self.value=value;self.kind=kind}
 }
-@objc(GatorPetLabApplication) @MainActor final class PetLabApplication:NSApplication {
+@objc(HotCrossBunsPetLabApplication) @MainActor final class PetLabApplication:NSApplication {
     var nativeEventCompleted:(()->Void)?
     override func sendEvent(_ event:NSEvent){
         super.sendEvent(event)
@@ -54,8 +54,8 @@ private final class WeakProbe {
     func arg(_ key:String)->String?{let a=CommandLine.arguments;guard let i=a.firstIndex(of:key),i+1<a.count else{return nil};return a[i+1]}
     func applicationDidFinishLaunching(_ notification:Notification){
         do{
-            output=URL(fileURLWithPath:arg("--output") ?? "/tmp/gator-pet-b1-interactive")
-            guard output.path.hasPrefix("/tmp/gator-") || output.path.hasPrefix("/private/tmp/gator-") else{throw CocoaError(.fileWriteNoPermission)}
+            output=URL(fileURLWithPath:arg("--output") ?? "/tmp/hot-cross-buns-pet-b1-interactive")
+            guard output.path.hasPrefix("/tmp/hot-cross-buns-") || output.path.hasPrefix("/private/tmp/hot-cross-buns-") else{throw CocoaError(.fileWriteNoPermission)}
             try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
             let samples=output.appendingPathComponent("samples.ndjson");FileManager.default.createFile(atPath:samples.path,contents:nil);stream=try FileHandle(forWritingTo:samples)
             peerPID=arg("--peer-pid").flatMap(Int32.init)
@@ -92,7 +92,7 @@ private final class WeakProbe {
     func popup(_ values:[String],_ id:String)->NSPopUpButton{let b=NSPopUpButton();b.addItems(withTitles:values);b.target=self;b.action=#selector(change);b.setAccessibilityIdentifier(id);return b}
     func buildControls(){
         control=NSWindow(contentRect:CGRect(x:0,y:0,width:780,height:540),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
-        control.title="Gator Desktop Pet Lab";control.identifier=NSUserInterfaceItemIdentifier("controls");control.isReleasedWhenClosed=false;control.delegate=self
+        control.title="Hot Cross Buns Desktop Pet Lab";control.identifier=NSUserInterfaceItemIdentifier("controls");control.isReleasedWhenClosed=false;control.delegate=self
         let stack=NSStackView();stack.orientation = .vertical;stack.spacing=14;stack.edgeInsets=NSEdgeInsets(top:20,left:20,bottom:20,right:20)
         stack.addArrangedSubview(NSTextField(labelWithString:"ISOLATED PROTOTYPE · fixture signals only · no Go process or execution authority"))
         desktopCheck=check("Show Desktop Pet","lab.desktop");chatCheck=check("Show in-chat fixture","lab.inchat");animateCheck=check("Animate","lab.animate");reduceCheck=check("Simulate Reduce Motion","lab.reduce");sleepCheck=check("Simulate sleeping display","lab.sleep")
@@ -111,7 +111,7 @@ private final class WeakProbe {
     func menuItem(_ title:String,_ selector:Selector,_ key:String="")->NSMenuItem{let item=NSMenuItem(title:title,action:selector,keyEquivalent:key);item.target=self;return item}
     func buildMenus(){
         let menu=NSMenu(),appItem=NSMenuItem(),appMenu=NSMenu();appMenu.addItem(menuItem("Show Controls",#selector(openControls),"0"));appMenu.addItem(menuItem("Tuck Away Desktop Pet",#selector(tuck),"H"));appMenu.addItem(menuItem("Quit Pet Lab",#selector(quit),"q"));appItem.submenu=appMenu;menu.addItem(appItem);NSApp.mainMenu=menu
-        let item=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength);item.button?.image=NSImage(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("GatorMenuBar.png"));item.button?.image?.size=NSSize(width:18,height:18);item.button?.image?.isTemplate=true;item.button?.setAccessibilityLabel("Gator pet lab controls")
+        let item=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength);item.button?.image=NSImage(contentsOf:Bundle.main.resourceURL!.appendingPathComponent("HotCrossBunsMenuBar.png"));item.button?.image?.size=NSSize(width:18,height:18);item.button?.image?.isTemplate=true;item.button?.setAccessibilityLabel("Hot Cross Buns pet lab controls")
         let controls=NSMenu();controls.addItem(menuItem("Show Controls",#selector(openControls)));controls.addItem(menuItem("Enable Desktop Pet",#selector(enable)));controls.addItem(menuItem("Tuck Away Desktop Pet",#selector(tuck)));controls.addItem(menuItem("Quit Pet Lab",#selector(quit)));item.menu=controls;statusItem=item
     }
     func installObservers(){
@@ -181,7 +181,7 @@ private final class WeakProbe {
     func runTrial() async throws{
         if CommandLine.arguments.contains("--lifetime-only"){
             policy.inChat=false;apply()
-            if let peerPID,let app=NSRunningApplication(processIdentifier:peerPID),app.bundleIdentifier=="dev.gator.pet.focus-fixture"{app.activate(options:[.activateAllWindows])}
+            if let peerPID,let app=NSRunningApplication(processIdentifier:peerPID),app.bundleIdentifier=="dev.hot-cross-buns.pet.focus-fixture"{app.activate(options:[.activateAllWindows])}
             enable();await pet?.canvas?.player.settled();try await lifetimeCycles();return
         }
         policy.inChat=false;policy.enabled=false;syncControls();apply();try await samplePhase("hidden-host-baseline",12)
@@ -199,7 +199,7 @@ private final class WeakProbe {
         try verify(pet?.canvas?.player.animationStarts==starts && !policy.enabled,"signals cannot wake tucked pet")
         enable();policy.reduceMotion=false;policy.inChat=true;apply();try await samplePhase("pet-and-inchat",10,pulses:true)
         policy.inChat=false;apply()
-        if let peerPID,let app=NSRunningApplication(processIdentifier:peerPID),app.bundleIdentifier=="dev.gator.pet.focus-fixture"{
+        if let peerPID,let app=NSRunningApplication(processIdentifier:peerPID),app.bundleIdentifier=="dev.hot-cross-buns.pet.focus-fixture"{
             app.activate(options:[.activateAllWindows]);try await samplePhase("inactive-pet",8,pulses:true)
             try verify(!NSApp.isActive && pet?.panel?.isKeyWindow==false,"pet never activates on animation")
         }

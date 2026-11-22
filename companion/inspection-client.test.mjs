@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCompanion } from './server.mjs';
 
-const { chromium } = await import(process.env.GATOR_PLAYWRIGHT_MODULE || './node_modules/playwright/index.mjs');
+const { chromium } = await import(process.env.HOT_CROSS_BUNS_PLAYWRIGHT_MODULE || './node_modules/playwright/index.mjs');
 const fixture = (digit, chat) => {
   const date = '2026-10-31T03:00:00Z';
-  return { target: { binding: { id: 'target-' + digit.repeat(32), backend: 'gator_work', owner: 'owner-' + digit, generation: digit.repeat(32), incarnation: digit.repeat(32) }, label: 'Work <img src=x onerror="window.injected=true"> ' + digit, capabilities: ['inspect'], available: true }, run_id: 'run-' + digit, conversation_id: chat, status: 'running', started_at: date, observed_at: date, updated_at: date, progress: ['<script>window.injected=true</script>'], specialists: [{ id: 'subagent-1', role: 'cli_codex', status: 'running', native_status: 'awaiting_input', pending_question: true }], pending_approvals: 1, limitations: ['No terminal transcript.'] };
+  return { target: { binding: { id: 'target-' + digit.repeat(32), backend: 'hot_cross_buns_work', owner: 'owner-' + digit, generation: digit.repeat(32), incarnation: digit.repeat(32) }, label: 'Work <img src=x onerror="window.injected=true"> ' + digit, capabilities: ['inspect'], available: true }, run_id: 'run-' + digit, conversation_id: chat, status: 'running', started_at: date, observed_at: date, updated_at: date, progress: ['<script>window.injected=true</script>'], specialists: [{ id: 'subagent-1', role: 'cli_codex', status: 'running', native_status: 'awaiting_input', pending_question: true }], pending_approvals: 1, limitations: ['No terminal transcript.'] };
 };
 
 test('phone work view renders untrusted progress as text, handles selection races and clears revoked/offline state', { timeout: 90000 }, async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-work-browser-')), tokenFile = join(root, 'owner.token'), token = 'a'.repeat(64);
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-work-browser-')), tokenFile = join(root, 'owner.token'), token = 'a'.repeat(64);
   let browser, companion, release, held = false, hold = false, reads = 0;
   const a = fixture('a', 'chat-a'), b = fixture('b', 'chat-b');
   try {

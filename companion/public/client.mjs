@@ -7,9 +7,9 @@ let updatesKey = '', updateIssue = '';
 let checksKey = '', checksFresh = false;
 let browsing = false, catalogQuery = { query: '', scope: 'active', after: '' }, anchors = [], nextPage = '';
 let creationPending = null, creationIssue = '', newChatSource = '';
-const creationKey = 'gator.companion.creation.v1';
+const creationKey = 'hot-cross-buns.companion.creation.v1';
 const dialog = $('approval-dialog');
-const draftKey = id => `gator.companion.draft.v1:${id}`;
+const draftKey = id => `hot-cross-buns.companion.draft.v1:${id}`;
 const report = message => { $('error').textContent = message; $('error').hidden = !message; };
 const node = (tag, text, className) => { const element = document.createElement(tag); element.textContent = text; if (className) element.className = className; return element; };
 const hostSetup = () => state?.panel || state?.external || state?.pending_connection;
@@ -77,7 +77,7 @@ async function request(owner, frame) {
     throw error;
   }
   if (result.conversation_id !== owner.id || result.state?.conversation_id !== owner.id) throw new Error('The host returned a different conversation.');
-  if (result.disconnected) throw new Error('The host process stopped. Open Gator on the host to review recovery.');
+  if (result.disconnected) throw new Error('The host process stopped. Open Hot Cross Buns on the host to review recovery.');
   return result.state;
 }
 function render(next) {
@@ -89,14 +89,14 @@ function render(next) {
   $('connected-chat').hidden = false; $('connected-chat').textContent = `Conversation: ${session.id}`;
   $('chat').hidden = false; $('chat-title').textContent = state.title || session.id;
   $('host-status').textContent = state.running ? 'Working on the host…' : state.pending_approval ? 'Waiting for your decision' : 'Ready for messages';
-  $('host-notice').textContent = hostSetup() ? 'Finish setup or the open panel in Gator on the host before sending another action.' : state.pending_approval && !currentApproval() ? 'The current approval preview is unavailable. Review this action in Gator on the host.' : state.notice || state.requests_issue || '';
+  $('host-notice').textContent = hostSetup() ? 'Finish setup or the open panel in Hot Cross Buns on the host before sending another action.' : state.pending_approval && !currentApproval() ? 'The current approval preview is unavailable. Review this action in Hot Cross Buns on the host.' : state.notice || state.requests_issue || '';
   $('host-notice').hidden = !$('host-notice').textContent;
   const messages = state.messages || [], nextTranscript = JSON.stringify(messages);
   if (nextTranscript !== transcriptKey) {
     transcriptKey = nextTranscript;
     $('messages').replaceChildren(...messages.map(message => {
       const article = node('article', '');
-      article.append(node('h3', message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Gator' : message.role), node('p', message.text || '', 'message-text'));
+      article.append(node('h3', message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Hot Cross Buns' : message.role), node('p', message.text || '', 'message-text'));
       for (const [label, value] of [['Result details', message.result], ['Files and action receipts', message.bundle]]) if (value) {
         const details = node('details', ''); details.append(node('summary', label), node('pre', JSON.stringify(value, null, 2))); article.append(details);
       }

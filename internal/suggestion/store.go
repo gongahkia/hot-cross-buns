@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,8 +19,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/reconciliation"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/reconciliation"
 	"github.com/robfig/cron/v3"
 )
 
@@ -62,7 +62,7 @@ func Open(stateDir string) (Store, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("suggestion state directory is required")
 	}
-	root := filepath.Join(stateDir, "gator", "suggestions")
+	root := filepath.Join(stateDir, "hot-cross-buns", "suggestions")
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return Store{}, err
 	}

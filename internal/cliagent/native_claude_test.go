@@ -129,7 +129,7 @@ func TestClaudeProcessResumesRetainedPrivateSession(t *testing.T) {
 			t.Fatal(value, err)
 		}
 		if request.SessionID != "" && value.SessionID != request.SessionID {
-			t.Fatal("changed Gator session")
+			t.Fatal("changed Hot Cross Buns session")
 		}
 		request.SessionID = value.SessionID
 	}

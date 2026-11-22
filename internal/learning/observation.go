@@ -277,7 +277,7 @@ func (s Store) observationPath(id string) string {
 }
 
 func (s Store) observationReference(id string) string {
-	return filepath.ToSlash(filepath.Join("gator", "observations", id+".json"))
+	return filepath.ToSlash(filepath.Join("hot-cross-buns", "observations", id+".json"))
 }
 
 func validateObservation(observation Observation) error {

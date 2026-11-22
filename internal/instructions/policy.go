@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 // Profile is a developer-selected specialization. Policy, when present, can
@@ -16,7 +16,7 @@ type Profile struct {
 	Policy      ProfilePolicy
 }
 
-// ProfilePolicy is the optional restrictive overlay from .gator/agents.json.
+// ProfilePolicy is the optional restrictive overlay from .hot-cross-buns/agents.json.
 // Unknown fields are rejected at decode time. Every axis is a meet: the
 // profile may force a stricter value or omit capability families, never grant.
 type ProfilePolicy struct {

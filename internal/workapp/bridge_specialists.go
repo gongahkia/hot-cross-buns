@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 // This projection deliberately excludes worker prompts, source captures,

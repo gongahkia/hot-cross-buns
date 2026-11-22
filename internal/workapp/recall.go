@@ -6,7 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 type recallStatusDone struct {
@@ -153,16 +153,16 @@ func (m Model) startRecallInstall() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) recallPanel() uisnapshot.Panel {
-	p := uisnapshot.Panel{Kind: "memory", Title: "Memory & privacy", Notice: m.sectionNotice, Subtitle: "Choose how Gator finds saved knowledge. You control what is stored and supplied."}
+	p := uisnapshot.Panel{Kind: "memory", Title: "Memory & privacy", Notice: m.sectionNotice, Subtitle: "Choose how Hot Cross Buns finds saved knowledge. You control what is stored and supplied."}
 	if m.recallConfirm != "" {
 		p.Kind, p.Title = "confirmation", "Review memory setup"
 		lines := []string{}
 		if m.recallConfirm == "install" {
 			lines = []string{"Download embeddinggemma:latest from Ollama's model library (about 622 MB).", "Ollama must be installed and running on this computer.", "Enhanced recall runs locally. Esc can cancel the download; basic word matching stays available.", "This does not change the selected chat model or where that model processes supplied context."}
 		} else if m.recallConfirm == "ollama" {
-			lines = []string{"Use local Ollama for enhanced retrieval when available, with basic word matching as fallback.", "Saved knowledge remains in local Gator storage. Selected context still goes to your configured chat model."}
+			lines = []string{"Use local Ollama for enhanced retrieval when available, with basic word matching as fallback.", "Saved knowledge remains in local Hot Cross Buns storage. Selected context still goes to your configured chat model."}
 		} else {
-			lines = []string{fmt.Sprintf("Use %s for enhanced retrieval.", m.recallConfirm), "This uploads eligible saved memory and note text, plus search queries, to that embedding provider.", "A separate API key is required. Local Gator storage remains on this computer.", "Chat processing uses the model chosen in /model and may use a different provider."}
+			lines = []string{fmt.Sprintf("Use %s for enhanced retrieval.", m.recallConfirm), "This uploads eligible saved memory and note text, plus search queries, to that embedding provider.", "A separate API key is required. Local Hot Cross Buns storage remains on this computer.", "Chat processing uses the model chosen in /model and may use a different provider."}
 		}
 		p.Blocks = []uisnapshot.Block{{Title: "Data and processing", Lines: lines}}
 		label := map[string]string{"install": "download local recall model", "ollama": "use local recall", "openai": "use OpenAI retrieval", "gemini": "use Gemini retrieval"}[m.recallConfirm]
@@ -171,7 +171,7 @@ func (m Model) recallPanel() uisnapshot.Panel {
 	}
 	p.Blocks = []uisnapshot.Block{
 		{Title: "Recall readiness", Lines: []string{valueOrNone(m.recall.State), m.recall.Detail}},
-		{Title: "Storage", Collapsible: true, Lines: []string{valueOrDefault(m.recall.Storage, "Memories, notes, transcripts, and Work records are stored in your private Gator state directory on this computer.")}},
+		{Title: "Storage", Collapsible: true, Lines: []string{valueOrDefault(m.recall.Storage, "Memories, notes, transcripts, and Work records are stored in your private Hot Cross Buns state directory on this computer.")}},
 		{Title: "Retrieval", Collapsible: true, Lines: []string{valueOrDefault(m.recall.Retrieval, "Basic word matching works without a model download. Enhanced recall uses local embeddings or your separately selected cloud provider.")}},
 		{Title: "Chat processing", Collapsible: true, Lines: []string{valueOrDefault(m.recall.Chat, "Selected saved context and task sources are supplied to the model chosen in /model. A cloud chat model processes that context remotely even when storage and retrieval are local.")}},
 		{Title: "Across chats", Lines: []string{"Personal memories are shared by chats in this local profile. New chat starts a fresh working context; it keeps your saved memory.", "Useful stable facts and preferences can be saved from your own statements, with their source chat. One-off task details and file/tool instructions are not personal memories.", "Turning chat learning off stops automatic saves. Existing memories remain available; explicit remember/forget requests still work. Earlier-chat retrieval separately controls whether new requests can search other conversations. Turning it off keeps this conversation and saved memories available. Devices do not sync automatically."}},
@@ -195,7 +195,7 @@ func (m Model) recallPanel() uisnapshot.Panel {
 	p.Summary = []uisnapshot.Field{{Label: "Recall readiness", Value: valueOrDefault(m.recall.State, fallback)}, {Label: "Learn from chats", Value: learning}, {Label: "Refer to earlier chats", Value: history}}
 	p.Blocks[0].Lines = []string{m.recall.Detail}
 	if len(m.recall.PersonalSummary) != 0 {
-		p.Blocks = append(p.Blocks, uisnapshot.Block{Title: "What Gator knows about you", Collapsible: true, Lines: append(append([]string{}, m.recall.PersonalSummary...), "Press K to inspect, correct or forget saved knowledge; R rebuilds this summary.")})
+		p.Blocks = append(p.Blocks, uisnapshot.Block{Title: "What Hot Cross Buns knows about you", Collapsible: true, Lines: append(append([]string{}, m.recall.PersonalSummary...), "Press K to inspect, correct or forget saved knowledge; R rebuilds this summary.")})
 	}
 	if m.recallBusy {
 		p.Hints = []uisnapshot.Hint{{Shortcut: "Esc", Action: "cancel download"}}

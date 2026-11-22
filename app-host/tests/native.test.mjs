@@ -112,9 +112,9 @@ test("dictation captures the provider route and cannot deliver into another conv
 test("spoken output ignores retained history, speaks only new replies and aborts on close", async () => {
   const application = new App(); const spoken = []; let aborted = false;
   const session = new VoiceSession(application, { playback: async (text, _preferences, signal) => { spoken.push(text); signal.addEventListener("abort", () => { aborted = true; }); } });
-  application.state.messages = [{ role: "Gator", text: "Historical reply" }]; application.emit("change");
+  application.state.messages = [{ role: "Hot Cross Buns", text: "Historical reply" }]; application.emit("change");
   assert.deepEqual(spoken, []);
-  application.state.messages.push({ role: "You", text: "A new request" }, { role: "Gator", text: "New reply" }); application.emit("change");
+  application.state.messages.push({ role: "You", text: "A new request" }, { role: "Hot Cross Buns", text: "New reply" }); application.emit("change");
   assert.deepEqual(spoken, ["New reply"]);
   session.close(); assert.equal(aborted, true);
 });
@@ -123,14 +123,14 @@ test("spoken output stops on chat switch, preference disable and explicit playba
   const application = new App(), signals = [];
   const session = new VoiceSession(application, { playback: async (_text, _preferences, signal) => { signals.push(signal); await new Promise(resolve => signal.addEventListener("abort", resolve, { once: true })); } });
   try {
-    application.emit("change"); application.state.messages.push({ role: "Gator", text: "New spoken reply" }); application.emit("change");
+    application.emit("change"); application.state.messages.push({ role: "Hot Cross Buns", text: "New spoken reply" }); application.emit("change");
     assert.equal(session.playing, true);
-    application.context = "conversation:b"; application.state.messages = [{ role: "Gator", text: "Other retained history" }]; application.emit("change");
+    application.context = "conversation:b"; application.state.messages = [{ role: "Hot Cross Buns", text: "Other retained history" }]; application.emit("change");
     assert.equal(signals[0].aborted, true); assert.equal(session.playing, false); assert.equal(signals.length, 1);
-    application.state.messages.push({ role: "Gator", text: "Other new reply" }); application.emit("change");
+    application.state.messages.push({ role: "Hot Cross Buns", text: "Other new reply" }); application.emit("change");
     application.state.desktop.voice.spoken_replies = false; application.emit("change");
     assert.equal(signals[1].aborted, true); assert.equal(session.playing, false);
-    application.state.desktop.voice.spoken_replies = true; application.state.messages.push({ role: "Gator", text: "Explicitly cancellable reply" }); application.emit("change");
+    application.state.desktop.voice.spoken_replies = true; application.state.messages.push({ role: "Hot Cross Buns", text: "Explicitly cancellable reply" }); application.emit("change");
     session.stopPlayback(); assert.equal(signals[2].aborted, true); assert.equal(session.playing, false);
   } finally { session.close(); }
 });

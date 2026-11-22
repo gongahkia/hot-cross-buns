@@ -1,10 +1,10 @@
-AXApplication | Gator |  |  | 
+AXApplication | Hot Cross Buns |  |  |
  AXStaticText |  |  | 🐊 | 
  AXMenuBar |  |  |  | 
  [system-wide Apple menu omitted]
-  AXMenuBarItem | Gator |  |  | 
+  AXMenuBarItem | Hot Cross Buns |  |  |
    AXMenu |  |  |  | 
-    AXMenuItem | About Gator |  |  | orderFrontStandardAboutPanel:
+    AXMenuItem | About Hot Cross Buns |  |  | orderFrontStandardAboutPanel:
     AXMenuItem |  |  |  | 
     AXMenuItem | Settings… |  |  | menuAction:
     AXMenuItem |  |  |  | 
@@ -20,11 +20,11 @@ AXApplication | Gator |  |  |
       AXMenuItem | Toggle Instruments Recording |  |  | _processRequest:
       AXMenuItem | Services Settings… |  |  | _configureServicesMenu:
     AXMenuItem |  |  |  | 
-    AXMenuItem | Hide Gator |  |  | hide:
+    AXMenuItem | Hide Hot Cross Buns |  |  | hide:
     AXMenuItem | Hide Others |  |  | hideOtherApplications:
     AXMenuItem | Show All |  |  | unhideAllApplications:
     AXMenuItem |  |  |  | 
-    AXMenuItem | Quit Gator |  |  | menuAction:
+    AXMenuItem | Quit Hot Cross Buns |  |  | menuAction:
   AXMenuBarItem | File |  |  | 
    AXMenu |  |  |  | 
     AXMenuItem | New Conversation |  |  | menuAction:
@@ -81,7 +81,7 @@ AXApplication | Gator |  |  |
       AXMenuItem | Retained topic 0002 · Idle |  |  | menuAction:
       AXMenuItem | Retained topic 0001 |  |  | menuAction:
       AXMenuItem |  |  |  | 
-      AXMenuItem | Recent conversations reported by Gator |  |  | 
+      AXMenuItem | Recent conversations reported by Hot Cross Buns |  |  |
     AXMenuItem | Show Menu Bar Icon |  |  | menuAction:
     AXMenuItem | Agent Presence… |  |  | menuAction:
     AXMenuItem | Show Desktop Presence |  |  | menuAction:
@@ -129,7 +129,7 @@ AXApplication | Gator |  |  |
     AXMenuItem |  |  |  | 
     AXMenuItem | Remove Window from Set |  |  | _removeWindowFromStageManagerSet:
     AXMenuItem |  |  |  | 
-    AXMenuItem | Gator |  |  | menuAction:
+    AXMenuItem | Hot Cross Buns |  |  | menuAction:
     AXMenuItem | Models and Providers |  |  | menuAction:
     AXMenuItem | All Conversations |  |  | menuAction:
     AXMenuItem |  |  |  | 
@@ -137,6 +137,6 @@ AXApplication | Gator |  |  |
     AXMenuItem | Arrange in Front |  |  | alternateArrangeInFront:
   AXMenuBarItem | Help |  |  | 
    AXMenu |  |  |  | 
-    AXMenuItem | Gator Help |  |  | showHelp:
+    AXMenuItem | Hot Cross Buns Help |  |  | showHelp:
  AXMenuBar |  |  |  | 
-  AXMenuBarItem | Gator, Ready |  |  | 
+  AXMenuBarItem | Hot Cross Buns, Ready |  |  |

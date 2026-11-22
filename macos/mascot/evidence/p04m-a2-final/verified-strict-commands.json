@@ -3,7 +3,7 @@
     "group": "reproduction",
     "pose": "neutral",
     "command": [
-      "/tmp/gator-final-strict-images",
+      "/tmp/hot-cross-buns-final-strict-images",
       "macos/mascot/evidence/p04m-a2-gate2/final-v10/direct96/neutral-direct96.png",
       "macos/mascot/evidence/p04m-a2-gate2/final-v10/native96/neutral-native96.png"
     ],
@@ -13,7 +13,7 @@
     "group": "reproduction",
     "pose": "articulated",
     "command": [
-      "/tmp/gator-final-strict-images",
+      "/tmp/hot-cross-buns-final-strict-images",
       "macos/mascot/evidence/p04m-a2-gate2/final-v10/direct96/articulated-direct96.png",
       "macos/mascot/evidence/p04m-a2-gate2/final-v10/native96/articulated-native96.png"
     ],
@@ -23,7 +23,7 @@
     "group": "corrected",
     "pose": "neutral",
     "command": [
-      "/tmp/gator-final-strict-images",
+      "/tmp/hot-cross-buns-final-strict-images",
       "macos/mascot/evidence/p04m-a2-final/images-final/usd-neutral-0.png",
       "macos/mascot/evidence/p04m-a2-final/images-final/native-neutral-0.png"
     ],
@@ -33,7 +33,7 @@
     "group": "corrected",
     "pose": "articulated",
     "command": [
-      "/tmp/gator-final-strict-images",
+      "/tmp/hot-cross-buns-final-strict-images",
       "macos/mascot/evidence/p04m-a2-final/images-final/usd-articulated-0.png",
       "macos/mascot/evidence/p04m-a2-final/images-final/native-articulated-0.png"
     ],

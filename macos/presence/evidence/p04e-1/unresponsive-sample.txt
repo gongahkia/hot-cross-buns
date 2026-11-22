@@ -1,8 +1,8 @@
-Analysis of sampling GatorMac (pid 12492) every 1 millisecond
-Process:         GatorMac [12492]
-Path:            /private/tmp/*/PresenceCheck.app/Contents/MacOS/GatorMac
+Analysis of sampling HotCrossBunsMac (pid 12492) every 1 millisecond
+Process:         HotCrossBunsMac [12492]
+Path:            /private/tmp/*/PresenceCheck.app/Contents/MacOS/HotCrossBunsMac
 Load Address:    0x10060c000
-Identifier:      dev.gator.presence.finalcheck
+Identifier:      dev.hot-cross-buns.presence.finalcheck
 Version:         0.1.0 (1)
 Code Type:       ARM64
 Platform:        macOS
@@ -23,8 +23,8 @@ Idle exit:                  untracked
 Call graph:
     1505 Thread_8144908   DispatchQueue_1: com.apple.main-thread  (serial)
     + 1505 start  (in dyld) + 6992  [0x18a5ffe00]
-    +   1505 GatorMac_main  (in GatorMac) + 12  [0x1008e7e60]  GatorApp.swift:0
-    +     1505 static GatorApp.$main()  (in GatorMac) + 40  [0x1008e4314]  /<compiler-generated>:0
+    +   1505 HotCrossBunsMac_main  (in HotCrossBunsMac) + 12  [0x1008e7e60]  HotCrossBunsApp.swift:0
+    +     1505 static HotCrossBunsApp.$main()  (in HotCrossBunsMac) + 40  [0x1008e4314]  /<compiler-generated>:0
     +       1505 static App.main()  (in SwiftUI) + 224  [0x1bfea7344]
     +         1505 runApp<A>(_:)  (in SwiftUI) + 104  [0x1bfbdb4a4]
     +           1505 specialized runApp(_:)  (in SwiftUI) + 140  [0x1bf82547c]
@@ -1747,10 +1747,10 @@ Call graph:
     +                                       !               :       | + ! : | + !       : |     + !   : | +   !     3 (anonymous namespace)::FunctionCacheEntry::matchesKey((anonymous namespace)::FunctionCacheEntry::Key const&) const  (in libswiftCore.dylib) + 0,112,...  [0x19e10ce40,0x19e10ceb0,...]
     +                                       !               :       | + ! : | + !       : |     + !   : | +   2 KeyPath._projectReadOnly(from:)  (in libswiftCore.dylib) + 556  [0x19e0af76c]
     +                                       !               :       | + ! : | + !       : |     + !   : | +   ! 2 key path getter for Identifiable.id : <A, B, C>A.Element  (in SwiftUICore) + 92  [0x2382644e0]
-    +                                       !               :       | + ! : | + !       : |     + !   : | +   !   1 protocol witness for Identifiable.id.getter in conformance BridgeMessage  (in GatorMac) + 44  [0x100613cec]  /<compiler-generated>:0
+    +                                       !               :       | + ! : | + !       : |     + !   : | +   !   1 protocol witness for Identifiable.id.getter in conformance BridgeMessage  (in HotCrossBunsMac) + 44  [0x100613cec]  /<compiler-generated>:0
     +                                       !               :       | + ! : | + !       : |     + !   : | +   !   : 1 _platform_memmove  (in libsystem_platform.dylib) + 0  [0x18a9c7360]
-    +                                       !               :       | + ! : | + !       : |     + !   : | +   !   1 protocol witness for Identifiable.id.getter in conformance BridgeMessage  (in GatorMac) + 48  [0x100613cf0]  /<compiler-generated>:0
-    +                                       !               :       | + ! : | + !       : |     + !   : | +   !     1 BridgeMessage.id.getter  (in GatorMac) + 32  [0x100612f2c]  /<compiler-generated>:0
+    +                                       !               :       | + ! : | + !       : |     + !   : | +   !   1 protocol witness for Identifiable.id.getter in conformance BridgeMessage  (in HotCrossBunsMac) + 48  [0x100613cf0]  /<compiler-generated>:0
+    +                                       !               :       | + ! : | + !       : |     + !   : | +   !     1 BridgeMessage.id.getter  (in HotCrossBunsMac) + 32  [0x100612f2c]  /<compiler-generated>:0
     +                                       !               :       | + ! : | + !       : |     + !   : | +   !       1 swift_bridgeObjectRetain  (in libswiftCore.dylib) + 8  [0x19e083360]
     +                                       !               :       | + ! : | + !       : |     + !   : | +   1 KeyPath._projectReadOnly(from:)  (in libswiftCore.dylib) + 264  [0x19e0af648]
     +                                       !               :       | + ! : | + !       : |     + !   : | +   ! 1 RawKeyPathComponent.value.getter  (in libswiftCore.dylib) + 424  [0x19e30cdf0]
@@ -1763,9 +1763,9 @@ Call graph:
     +                                       !               :       | + ! : | + !       : |     + !   : | 2 ForEach.IDGenerator.makeID(data:index:offset:)  (in SwiftUICore) + 296  [0x238262fe0]
     +                                       !               :       | + ! : | + !       : |     + !   : | + 2 protocol witness for Collection.subscript.read in conformance _ArrayBuffer<A>  (in libswiftCore.dylib) + 40  [0x19e45c29c]
     +                                       !               :       | + ! : | + !       : |     + !   : | +   1 Array.subscript.read  (in libswiftCore.dylib) + 44  [0x19e1c5638]
-    +                                       !               :       | + ! : | + !       : |     + !   : | +   ! 1 destroy for BridgeMessage  (in GatorMac) + 48  [0x10062541c]  /<compiler-generated>:0
-    +                                       !               :       | + ! : | + !       : |     + !   : | +   !   1 outlined consume of JSONValue  (in GatorMac) + 84  [0x10061087c]  /<compiler-generated>:0
-    +                                       !               :       | + ! : | + !       : |     + !   : | +   !     1 DYLD-STUB$$swift_bridgeObjectRelease  (in GatorMac) + 4  [0x100a08de0]
+    +                                       !               :       | + ! : | + !       : |     + !   : | +   ! 1 destroy for BridgeMessage  (in HotCrossBunsMac) + 48  [0x10062541c]  /<compiler-generated>:0
+    +                                       !               :       | + ! : | + !       : |     + !   : | +   !   1 outlined consume of JSONValue  (in HotCrossBunsMac) + 84  [0x10061087c]  /<compiler-generated>:0
+    +                                       !               :       | + ! : | + !       : |     + !   : | +   !     1 DYLD-STUB$$swift_bridgeObjectRelease  (in HotCrossBunsMac) + 4  [0x100a08de0]
     +                                       !               :       | + ! : | + !       : |     + !   : | +   1 _free  (in libsystem_malloc.dylib) + 76  [0x18a7eac98]
     +                                       !               :       | + ! : | + !       : |     + !   : | 1 ForEach.IDGenerator.makeID(data:index:offset:)  (in SwiftUICore) + 188  [0x238262f74]
     +                                       !               :       | + ! : | + !       : |     + !   : 3 ForEachState.item(at:offset:)  (in SwiftUICore) + 1524  [0x23826993c]
@@ -2769,8 +2769,8 @@ Call graph:
     +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | + ! 2 _platform_memset  (in libsystem_platform.dylib) + 180,208  [0x18a9c7144,0x18a9c7160]
     +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | + 1 protocol witness for Collection.subscript.read in conformance _ArrayBuffer<A>  (in libswiftCore.dylib) + 40  [0x19e45c29c]
     +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | +   1 Array.subscript.read  (in libswiftCore.dylib) + 44  [0x19e1c5638]
-    +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | +     1 destroy for BridgeMessage  (in GatorMac) + 48  [0x10062541c]  /<compiler-generated>:0
-    +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | +       1 outlined consume of JSONValue  (in GatorMac) + 20  [0x10061083c]  /<compiler-generated>:0
+    +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | +     1 destroy for BridgeMessage  (in HotCrossBunsMac) + 48  [0x10062541c]  /<compiler-generated>:0
+    +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | +       1 outlined consume of JSONValue  (in HotCrossBunsMac) + 20  [0x10061083c]  /<compiler-generated>:0
     +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | 2 ForEach.IDGenerator.makeID(data:index:offset:)  (in SwiftUICore) + 312  [0x238262ff0]
     +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | + 2 swift_getAtKeyPath  (in libswiftCore.dylib) + 24  [0x19e0af534]
     +                                       !               :       | + ! : |             +   !   :     |         +                                                                 !   : |   +         !   : | +   1 KeyPath._projectReadOnly(from:)  (in libswiftCore.dylib) + 256  [0x19e0af640]
@@ -4498,8 +4498,8 @@ Call graph:
     +         1421 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           1421 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             1421 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               1421 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 1421 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               1421 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 1421 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   1421 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     1377 Thread_8149688   DispatchQueue_10: com.apple.root.utility-qos  (concurrent)
     + 1377 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4509,8 +4509,8 @@ Call graph:
     +         1377 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           1377 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             1377 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               1377 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 1377 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               1377 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 1377 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   1377 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     1280 Thread_8149888   DispatchQueue_10: com.apple.root.utility-qos  (concurrent)
     + 1280 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4520,10 +4520,10 @@ Call graph:
     +         1280 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           1280 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             1280 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               1280 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 1278 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               1280 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 1278 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                 ! 1278 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
-    +                 2 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 524  [0x10060eb04]  BridgePipeIO.swift:26
+    +                 2 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 524  [0x10060eb04]  BridgePipeIO.swift:26
     +                   2 CheckedContinuation.resume(returning:)  (in libswift_Concurrency.dylib) + 204  [0x28f407bf4]
     +                     2 UnsafeContinuation.resume(returning:)  (in libswift_Concurrency.dylib) + 216  [0x28f3f7438]
     +                       1 swift_continuation_throwingResumeImpl(swift::AsyncTask*)  (in libswift_Concurrency.dylib) + 160  [0x28f3cf244]
@@ -4544,8 +4544,8 @@ Call graph:
     +         1157 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           1157 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             1157 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               1157 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 1157 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               1157 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 1157 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   1157 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     1094 Thread_8151198   DispatchQueue_10: com.apple.root.utility-qos  (concurrent)
     + 1094 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4555,8 +4555,8 @@ Call graph:
     +         1094 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           1094 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             1094 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               1094 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 1094 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               1094 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 1094 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   1094 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     1066 Thread_8150155   DispatchQueue_10: com.apple.root.utility-qos  (concurrent)
     + 1066 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4566,8 +4566,8 @@ Call graph:
     +         1066 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           1066 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             1066 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               1066 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 1066 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               1066 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 1066 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   1066 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     972 Thread_8150157   DispatchQueue_10: com.apple.root.utility-qos  (concurrent)
     + 972 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4577,8 +4577,8 @@ Call graph:
     +         972 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           972 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             972 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               972 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 972 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               972 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 972 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   972 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     843 Thread_8150298
     + 843 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4592,8 +4592,8 @@ Call graph:
     +         662 <deduplicated_symbol>  (in libdispatch.dylib) + 28  [0x18a839d6c]
     +           662 _dispatch_client_callout  (in libdispatch.dylib) + 16  [0x18a81c4b0]
     +             662 _dispatch_call_block_and_release  (in libdispatch.dylib) + 32  [0x18a802a28]
-    +               662 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
-    +                 662 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+    +               662 thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+    +                 662 closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
     +                   662 poll  (in libsystem_kernel.dylib) + 8  [0x18a9826f8]
     533 Thread_8150157
     + 533 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18a9b8c10]
@@ -4717,13 +4717,13 @@ Total number in stack (recursive counted multiple, when >=5):
         8       _platform_memset  (in libsystem_platform.dylib) + 0  [0x18a9c7090]
         8       _pthread_wqthread  (in libsystem_pthread.dylib) + 232  [0x18a9b9e84]
         8       _xzm_xzone_malloc  (in libsystem_malloc.dylib) + 0  [0x18a7da8c0]
-        8       closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in GatorMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
+        8       closure #1 in closure #1 in static BridgePipeIO.read(_:cancellation:)  (in HotCrossBunsMac) + 280  [0x10060ea10]  BridgePipeIO.swift:24
         8       poll  (in libsystem_kernel.dylib) + 0  [0x18a9826f0]
         8       protocol witness for UnaryLayout.sizeThatFits(in:context:child:) in conformance _FlexFrameLayout  (in SwiftUICore) + 60  [0x237e8e570]
         8       swift::ConcurrentReadableHashMap<swift::HashMapElementWrapper<swift::GenericCacheEntry>, swift::Mutex>::find<swift::MetadataCacheKey>(swift::MetadataCacheKey const&, swift::ConcurrentReadableHashMap<swift::HashMapElementWrapper<swift::GenericCacheEntry>, swift::Mutex>::IndexStorage, unsigned long, swift::HashMapElementWrapper<swift::GenericCacheEntry>*)  (in libswiftCore.dylib) + 264  [0x19e103fa8]
         8       swift_dynamicCast  (in libswiftCore.dylib) + 96  [0x19e0846cc]
         8       swift_isUniquelyReferenced_nonNull_native  (in libswiftCore.dylib) + 0  [0x19e084444]
-        8       thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in GatorMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
+        8       thunk for @escaping @callee_guaranteed @Sendable () -> ()  (in HotCrossBunsMac) + 48  [0x10060f0cc]  /<compiler-generated>:0
         7       BufferedElement.forEach(inverted:stop:_:)  (in SwiftUICore) + 168  [0x2382d46dc]
         7       LayoutEngine.lengthThatFits(_:in:)  (in SwiftUICore) + 88  [0x2380cd45c]
         7       LayoutEngineBox.lengthThatFits(_:in:)  (in SwiftUICore) + 144  [0x2380cf488]
@@ -4819,7 +4819,7 @@ Sort by top of stack, same collapsed (when >= 5):
         swift::runtime::SwiftTLSContext::get()  (in libswiftCore.dylib)        5
 
 Binary Images:
-       0x10060c000 -        0x100a810a3 +dev.gator.presence.finalcheck (0.1.0 - 1) <0EEC4639-8006-34E8-A7E9-E85C8D662D34> /tmp/*/PresenceCheck.app/Contents/MacOS/GatorMac
+       0x10060c000 -        0x100a810a3 +dev.hot-cross-buns.presence.finalcheck (0.1.0 - 1) <0EEC4639-8006-34E8-A7E9-E85C8D662D34> /tmp/*/PresenceCheck.app/Contents/MacOS/HotCrossBunsMac
        0x101414000 -        0x10141c03f  libobjc-trampolines.dylib (951.7) <CA58AA96-B997-3A6D-9132-19D49BE4B3E9> /usr/lib/libobjc-trampolines.dylib
        0x115bb8000 -        0x11642c1ff  com.apple.AGXMetalG15G-C0 (351.2 - 351.2) <8AA82648-7FB1-3827-86DE-2F143D411C2B> /System/Library/Extensions/AGXMetalG15G_C0.bundle/Contents/MacOS/AGXMetalG15G_C0
        0x18a558000 -        0x18a5aab4b  libobjc.A.dylib (951.7) <FF1D8AE4-ABEF-35F1-A30A-1183B9CB414F> /usr/lib/libobjc.A.dylib

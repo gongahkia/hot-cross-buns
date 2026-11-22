@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestHostedSpecialistPreservesResultEvidence(t *testing.T) {

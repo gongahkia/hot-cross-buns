@@ -8,20 +8,20 @@ import { terminalScript, windowsTerminalScript } from "../src/terminal.mjs";
 import { powershellPath, windowsArguments, runtimeName, stateDirectory, backendStateDirectory } from "../src/platform.mjs";
 
 test("native journal and maintenance roots follow relative Unix profiles without relocating host inputs",()=>{
-  const workspace=join(tmpdir(),"gator-workspace");
-  for(const key of ["GATOR_STATE_DIR","XDG_STATE_HOME"]){
+  const workspace=join(tmpdir(),"hot-cross-buns-workspace");
+  for(const key of ["HOT_CROSS_BUNS_STATE_DIR","XDG_STATE_HOME"]){
     const env={[key]:"relative-profile"};
     assert.equal(backendStateDirectory(env,workspace,"darwin"),join(workspace,"relative-profile"));
     assert.equal(backendStateDirectory(env,workspace,"linux"),join(workspace,"relative-profile"));
     assert.equal(stateDirectory(env,"darwin"),resolve("relative-profile"));
     assert.equal(backendStateDirectory(env,workspace,"win32"),stateDirectory(env,"win32"));
   }
-  const env={GATOR_STATE_DIR:join(tmpdir(),"absolute-profile")};
+  const env={HOT_CROSS_BUNS_STATE_DIR:join(tmpdir(),"absolute-profile")};
   assert.equal(backendStateDirectory(env,workspace,"darwin"),stateDirectory(env,"darwin"));
 });
 
 test("terminal handoff preserves literal arguments and records success or an early failure", { skip: process.platform === "win32" }, async () => {
-  const directory = await mkdtemp(join(tmpdir(), "gator terminal 'test-"));
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns terminal 'test-"));
   const script = join(directory, "action.command");
   const result = join(directory, "result file");
   const marker = join(directory, "must-not-exist");
@@ -39,24 +39,24 @@ test("terminal handoff preserves literal arguments and records success or an ear
 });
 
 test("runtime naming and Windows native argument quoting are platform-aware", () => {
-  assert.equal(runtimeName("win32"), "gator-runtime.exe");
-  assert.equal(runtimeName("windows"), "gator-runtime.exe");
-  assert.equal(runtimeName("darwin"), "gator-runtime");
+  assert.equal(runtimeName("win32"), "hot-cross-buns-runtime.exe");
+  assert.equal(runtimeName("windows"), "hot-cross-buns-runtime.exe");
+  assert.equal(runtimeName("darwin"), "hot-cross-buns-runtime");
   assert.equal(windowsArguments(["", 'a"b', "C:\\folder\\", "a b", "$(literal)"]), '"" "a\\"b" "C:\\folder\\\\" "a b" "$(literal)"');
-  assert.equal(stateDirectory({ LOCALAPPDATA: join(tmpdir(), "local") }, "win32"), join(tmpdir(), "local", "Gator", "state"));
-  assert.equal(stateDirectory({ GATOR_STATE_DIR: join(tmpdir(), "override"), LOCALAPPDATA: "ignored" }, "win32"), join(tmpdir(), "override"));
+  assert.equal(stateDirectory({ LOCALAPPDATA: join(tmpdir(), "local") }, "win32"), join(tmpdir(), "local", "Hot Cross Buns", "state"));
+  assert.equal(stateDirectory({ HOT_CROSS_BUNS_STATE_DIR: join(tmpdir(), "override"), LOCALAPPDATA: "ignored" }, "win32"), join(tmpdir(), "override"));
 });
 
 test("Windows handoff executes native argv literally and retains exit status", { skip: process.platform !== "win32" }, async () => {
-  const directory = await mkdtemp(join(tmpdir(), "gator ' Windows 🐊 "));
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns ' Windows 🐊 "));
   const result = join(directory, "result");
   const recorded = join(directory, "argv.json");
   const marker = join(directory, "must-not-exist");
   const literal = ["", "C:\\a path\\", 'embedded "quotes"', "'single'", "🐊", "line\nbreak", `$(New-Item '${marker}')`, "%PATH% & | > ^ `"];
-  const code = "require('node:fs').writeFileSync(process.argv[1], JSON.stringify({args: process.argv.slice(2), config: process.env.GATOR_CONFIG_DIR, internal: process.env.GATOR_INTERNAL_COMMANDS, ignored: process.env.GATOR_UNTRUSTED_HANDOFF_ENV}));process.exit(7)";
+  const code = "require('node:fs').writeFileSync(process.argv[1], JSON.stringify({args: process.argv.slice(2), config: process.env.HOT_CROSS_BUNS_CONFIG_DIR, internal: process.env.HOT_CROSS_BUNS_INTERNAL_COMMANDS, ignored: process.env.HOT_CROSS_BUNS_UNTRUSTED_HANDOFF_ENV}));process.exit(7)";
   const run = (job) => execFileSync(powershellPath(), ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(windowsTerminalScript(job, result), "utf16le").toString("base64")], { windowsHide: true, stdio: "ignore" });
   try {
-    assert.throws(() => run({ program: process.execPath, args: ["-e", code, recorded, ...literal], dir: directory, env: [`GATOR_CONFIG_DIR=${directory}`, "GATOR_UNTRUSTED_HANDOFF_ENV=bad"] }));
+    assert.throws(() => run({ program: process.execPath, args: ["-e", code, recorded, ...literal], dir: directory, env: [`HOT_CROSS_BUNS_CONFIG_DIR=${directory}`, "HOT_CROSS_BUNS_UNTRUSTED_HANDOFF_ENV=bad"] }));
     assert.equal(await readFile(result, "utf8"), "7");
     const data = JSON.parse(await readFile(recorded, "utf8"));
     assert.deepEqual(data.args, literal);

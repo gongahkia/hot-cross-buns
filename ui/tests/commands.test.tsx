@@ -4,13 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 test("commands have nested menus and composer completion never sends on paste or Tab", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-command-menus-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
-  host.current.messages = [{ role: "Gator", text: "Ready for menu navigation." }]
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-command-menus-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
+  host.current.messages = [{ role: "Hot Cross Buns", text: "Ready for menu navigation." }]
   host.current.commands = [
     { name: "activity", description: "Show checks and work for this goal", needs_input: false, advanced: false },
     { name: "mode", description: "Choose work permissions", needs_input: true, advanced: false },
@@ -18,7 +18,7 @@ test("commands have nested menus and composer completion never sends on paste or
     { name: "theme", description: "Choose a color theme", needs_input: true, advanced: false },
     { name: "status", description: "Inspect current work", needs_input: false, advanced: false },
   ]
-  const client = new GatorClient(host)
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 100, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   try {
@@ -26,7 +26,7 @@ test("commands have nested menus and composer completion never sends on paste or
     setup.mockInput.pressKey("p", { ctrl: true }); await flush()
     expect(setup.captureCharFrame()).toContain("FOLLOWING"); expect(setup.captureCharFrame()).not.toContain("/mode")
     await setup.mockInput.typeText("Settings"); await flush(); setup.mockInput.pressEnter(); await flush()
-    expect(setup.captureCharFrame()).toContain("GATOR › SETTINGS"); expect(setup.captureCharFrame()).toContain("CHOOSE A COLOR THEME")
+    expect(setup.captureCharFrame()).toContain("HOT CROSS BUNS › SETTINGS"); expect(setup.captureCharFrame()).toContain("CHOOSE A COLOR THEME")
     expect(setup.captureCharFrame()).not.toContain("/theme")
     setup.mockInput.pressEscape(); await flush(); expect(setup.captureCharFrame()).toContain("OPEN MENU")
     setup.mockInput.pressEscape(); await flush(); expect(client.draft.text).toBe("Keep this draft")
@@ -66,8 +66,8 @@ test("commands have nested menus and composer completion never sends on paste or
 
 
 test("root command search finds backend names, descriptions and aliases and uses scoped choices", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-global-commands-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-global-commands-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   host.current.commands = [
     { name: "mode", description: "Choose work permissions", needs_input: true, advanced: false },
     { name: "source ignore", description: "Ignore a project instruction", needs_input: true, advanced: true },
@@ -79,7 +79,7 @@ test("root command search finds backend names, descriptions and aliases and uses
   try {
     await client.start(); await client.edit("Keep original draft")
     await search("Files"); setup.mockInput.pressEnter(); await flush()
-    expect(setup.captureCharFrame()).toContain("GATOR › FILES")
+    expect(setup.captureCharFrame()).toContain("HOT CROSS BUNS › FILES")
     expect(setup.captureCharFrame()).not.toContain("Advanced /artifact")
     setup.mockInput.pressEscape(); await flush(); setup.mockInput.pressEscape(); await flush()
     for (const query of ["Choose work permissions", "mode", "read only"]) {

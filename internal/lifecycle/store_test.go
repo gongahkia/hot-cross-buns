@@ -10,19 +10,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/state"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func writeFixture(t *testing.T, root, path, text string) {
 	t.Helper()
-	p := filepath.Join(root, "gator", path)
+	p := filepath.Join(root, "hot-cross-buns", path)
 	if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestBackupRejectsOversizedFilesAndCorruptArchive(t *testing.T) {
 	root := t.TempDir()
 	s, _ := Open(root)
 	writeFixture(t, root, "memory/large.json", "")
-	f, err := os.OpenFile(filepath.Join(root, "gator/memory/large.json"), os.O_WRONLY, 0600)
+	f, err := os.OpenFile(filepath.Join(root, "hot-cross-buns/memory/large.json"), os.O_WRONLY, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,12 +90,12 @@ func TestReviewRejectsChangedContentAndPreservesOriginals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = os.Stat(filepath.Join(root, "gator/memory/item.json")); err != nil {
+	if _, err = os.Stat(filepath.Join(root, "hot-cross-buns/memory/item.json")); err != nil {
 		t.Fatal("preview deleted data")
 	}
-	info, _ := os.Stat(filepath.Join(root, "gator/memory/item.json"))
+	info, _ := os.Stat(filepath.Join(root, "hot-cross-buns/memory/item.json"))
 	writeFixture(t, root, "memory/item.json", `{"text":"other"}`)
-	_ = os.Chtimes(filepath.Join(root, "gator/memory/item.json"), info.ModTime(), info.ModTime())
+	_ = os.Chtimes(filepath.Join(root, "hot-cross-buns/memory/item.json"), info.ModTime(), info.ModTime())
 	if _, err = s.Apply(context.Background(), p.ID); err == nil {
 		t.Fatal("changed content was deleted using a stale review")
 	}
@@ -123,7 +123,7 @@ func TestMaintenanceRefusesActiveWorkAndDoesNotFollowLinks(t *testing.T) {
 	}
 	release()
 	outside := t.TempDir()
-	if err = os.Symlink(outside, filepath.Join(root, "gator/memory/link")); err != nil {
+	if err = os.Symlink(outside, filepath.Join(root, "hot-cross-buns/memory/link")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.PreviewDelete(context.Background(), "all"); err == nil {
@@ -133,7 +133,7 @@ func TestMaintenanceRefusesActiveWorkAndDoesNotFollowLinks(t *testing.T) {
 
 func TestDataRootSymlinkCannotCreateControlFilesOutsideState(t *testing.T) {
 	root, outside := t.TempDir(), t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(root, "gator")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(root, "hot-cross-buns")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Open(root); err == nil {
@@ -154,7 +154,7 @@ func TestPrivateBackupVerifiesAndExcludesCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Files) != 1 || m.Files["gator/auth.json"] != "" || m.Files["gator/jobs/supervisor.token"] != "" {
+	if len(m.Files) != 1 || m.Files["hot-cross-buns/auth.json"] != "" || m.Files["hot-cross-buns/jobs/supervisor.token"] != "" {
 		t.Fatalf("unexpected archive scope: %#v", m.Files)
 	}
 	verified, err := VerifyBackup(context.Background(), output)
@@ -174,7 +174,7 @@ func TestPrivateBackupVerifiesAndExcludesCredentials(t *testing.T) {
 	if _, err = s.Apply(context.Background(), p.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = os.Stat(filepath.Join(root, "gator/auth.json")); err != nil {
+	if _, err = os.Stat(filepath.Join(root, "hot-cross-buns/auth.json")); err != nil {
 		t.Fatal("content deletion removed credentials")
 	}
 	if _, err = VerifyBackup(context.Background(), output); err != nil {
@@ -302,10 +302,10 @@ func TestFileVersionsFollowBackupAndExplicitHistoryDeletion(t *testing.T) {
 	if _, err := s.Apply(context.Background(), plan.ID); err != nil {
 		t.Fatal(err)
 	}
-	if entries, err := os.ReadDir(filepath.Join(root, "gator/files")); err != nil || len(entries) != 0 {
+	if entries, err := os.ReadDir(filepath.Join(root, "hot-cross-buns/files")); err != nil || len(entries) != 0 {
 		t.Fatal("history deletion retained private working files", err)
 	}
-	if entries, err := os.ReadDir(filepath.Join(root, "gator/cache")); err != nil || len(entries) != 0 {
+	if entries, err := os.ReadDir(filepath.Join(root, "hot-cross-buns/cache")); err != nil || len(entries) != 0 {
 		t.Fatal("history deletion retained searchable excerpts", entries, err)
 	}
 }
@@ -330,7 +330,7 @@ func TestRetentionPreservesSelectedUnsentChatAndBackupMemorySuppression(t *testi
 	if _, err := Maintain(context.Background(), root, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "gator/cache/conversations-v1.sqlite")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(root, "hot-cross-buns/cache/conversations-v1.sqlite")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("retention kept expired excerpts", err)
 	}
 	if _, err := sessions.Load(active.ID); err != nil {

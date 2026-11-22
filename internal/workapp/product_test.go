@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/followup"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/followup"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 )
 
 func productKey(m Model, key tea.KeyMsg) (Model, tea.Cmd) {

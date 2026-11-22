@@ -100,7 +100,7 @@ func TestPanelUsesWorkVisualLanguage(t *testing.T) {
 			t.Fatalf("work-native model panel omitted %q:\n%s", required, plain)
 		}
 	}
-	for _, legacy := range []string{"🐊 Gator  models · gator", "Tab: Cloud / Local", "Readiness is credential/configuration state only", "sign in"} {
+	for _, legacy := range []string{"🐊 Hot Cross Buns  models · hot-cross-buns", "Tab: Cloud / Local", "Readiness is credential/configuration state only", "sign in"} {
 		if strings.Contains(plain, legacy) {
 			t.Fatalf("model panel retained legacy chrome %q:\n%s", legacy, plain)
 		}

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/terminal"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/terminal"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestReadFileReturnsBoundedRange(t *testing.T) {
@@ -153,8 +153,8 @@ func TestRunCommandAllowOnceThenAlways(t *testing.T) {
 
 func TestRunCommandShellFormUsesEffectiveArgv(t *testing.T) {
 	root := testWorkspace(t)
-	result := executeTool(t, RunCommand{Root: root, Policy: CommandPolicy{Approve: allowOnce}}, `{"command":"echo gator-shell"}`)
-	if !strings.Contains(result, "gator-shell") || !strings.Contains(result, `"exit_code":0`) {
+	result := executeTool(t, RunCommand{Root: root, Policy: CommandPolicy{Approve: allowOnce}}, `{"command":"echo hot-cross-buns-shell"}`)
+	if !strings.Contains(result, "hot-cross-buns-shell") || !strings.Contains(result, `"exit_code":0`) {
 		t.Fatalf("shell command result = %s", result)
 	}
 }

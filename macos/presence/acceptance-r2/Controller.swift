@@ -24,7 +24,7 @@ private final class InputAudit {
 }
 private func startInputAudit() {
  Thread {
-  guard let path=ProcessInfo.processInfo.environment["GATOR_PRESENCE_INPUT_AUDIT"] else { return }
+  guard let path=ProcessInfo.processInfo.environment["HOT_CROSS_BUNS_PRESENCE_INPUT_AUDIT"] else { return }
   let audit=InputAudit(path)
   guard CGPreflightListenEventAccess() else { audit.record(["available":false,"reason":"listen permission unavailable; no prompt"]);return }
   let types:[CGEventType] = [.keyDown,.keyUp,.leftMouseDown,.leftMouseUp,.rightMouseDown,.rightMouseUp,.scrollWheel]
@@ -52,11 +52,11 @@ private func startInputAudit() {
     let pid=Int32(request["pid"] as! Int), action=request["action"] as! String
     let manifestURL=URL(fileURLWithPath:request["manifest"] as! String).resolvingSymlinksInPath()
     let manifest=try JSONSerialization.jsonObject(with:Data(contentsOf:manifestURL)) as! [String:Any]
-    let expectedPath=URL(fileURLWithPath:manifest["app"] as! String).appendingPathComponent("Contents/MacOS/GatorMac").resolvingSymlinksInPath().path
+    let expectedPath=URL(fileURLWithPath:manifest["app"] as! String).appendingPathComponent("Contents/MacOS/HotCrossBunsMac").resolvingSymlinksInPath().path
     guard manifest["pid"] as? Int == Int(pid), let running=NSRunningApplication(processIdentifier:pid),
           running.bundleIdentifier==manifest["bundle"] as? String,
-          running.bundleIdentifier?.hasPrefix("dev.gator.presence.r2.")==true,
-          manifestURL.path.hasPrefix(URL(fileURLWithPath:"/tmp/gator-native-test-presence-r2-").resolvingSymlinksInPath().path),
+          running.bundleIdentifier?.hasPrefix("dev.hot-cross-buns.presence.r2.")==true,
+          manifestURL.path.hasPrefix(URL(fileURLWithPath:"/tmp/hot-cross-buns-native-test-presence-r2-").resolvingSymlinksInPath().path),
           URL(fileURLWithPath:manifest["app"] as! String).deletingLastPathComponent().resolvingSymlinksInPath().path==manifestURL.deletingLastPathComponent().path,
           running.executableURL?.resolvingSymlinksInPath().path==expectedPath else { throw Failure("refuse nonfixture: PID/bundle/executable mismatch; actualBundle=\(NSRunningApplication(processIdentifier:pid)?.bundleIdentifier ?? "nil") actualExecutable=\(NSRunningApplication(processIdentifier:pid)?.executableURL?.path ?? "nil") expectedExecutable=\(expectedPath) manifest=\(manifestURL.path)") }
     let digest=manifest["binarySHA256"] as! String
@@ -96,7 +96,7 @@ private func startInputAudit() {
      guard let expected=request["expectedFocus"] as? [String:String], expected==summary(element(app,"AXFocusedUIElement")) else { throw Failure("focus changed; abort input") }
      if action=="press" {
       let target=request["target"] as! String
-      let allowed:[String] = ["Open Original Task","Review Pending Action","An action needs your review","Back to Conversation","Agent Presence…","Settings…","Conversation","Window","Gator","gator.presence.mode","Emoji only","Emoji + GIF reactions","Off","gator.mascot.animated","gator.mascot.shown","gator.desktopPet.shown","gator.desktopPet.tuck","Quit and Keep Retained Work"]
+      let allowed:[String] = ["Open Original Task","Review Pending Action","An action needs your review","Back to Conversation","Agent Presence…","Settings…","Conversation","Window","Hot Cross Buns","hot-cross-buns.presence.mode","Emoji only","Emoji + GIF reactions","Off","hot-cross-buns.mascot.animated","hot-cross-buns.mascot.shown","hot-cross-buns.desktopPet.shown","hot-cross-buns.desktopPet.tuck","Quit and Keep Retained Work"]
       let setupSend=target=="Send message" && request["positiveCase"] as? String=="create-inert-review" && !fixtureSubmitted.contains(pid)
       guard allowed.contains(target) || setupSend else { throw Failure("target not in nondecision allowlist") }
       let scope=name=="menu" ? element(app,"AXMenuBar") : window(name)
@@ -111,7 +111,7 @@ private func startInputAudit() {
       guard candidates.count==1,let targetElement=candidates.first else { throw Failure("target missing or ambiguous: \(target), \(wantedRole), count \(candidates.count)") }
       guard attr(targetElement,"AXEnabled") as? Bool != false else { throw Failure("disabled control") }
       if setupSend {
-       guard let field=find(scope,"gator.composer.text"),string(field,"AXValue")=="Review mascot" else { throw Failure("fixture draft mismatch") }
+       guard let field=find(scope,"hot-cross-buns.composer.text"),string(field,"AXValue")=="Review mascot" else { throw Failure("fixture draft mismatch") }
        fixtureSubmitted.insert(pid)
       }
       result["target"]=summary(targetElement);let code=AXUIElementPerformAction(targetElement,"AXPress" as CFString);guard code == .success else { throw Failure("AXPress \(code.rawValue)") }

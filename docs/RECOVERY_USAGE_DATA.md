@@ -1,6 +1,6 @@
 # Recovery, shared usage, and private data
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 These controls use the existing Claude Code Kit terminal pickers, forms, and
 confirmation screens. Open them from chat or the command palette. Tab moves
@@ -20,7 +20,7 @@ attempts, selected connector credentials, and suggested recovery action.
   shared usage limits still apply.
 - Start the local supervisor, or review enabling/disabling its per-user
   start-at-login service. Service commands use this profile's state directory
-  and configured Gator settings. Another profile's service is not offered for
+  and configured Hot Cross Buns settings. Another profile's service is not offered for
   removal or replacement. Reinstall after moving the executable.
 - Inspect heartbeat gaps and recent attempts. A gap establishes that continuous
   monitoring was not confirmed. A catch-up check reads current sources; it
@@ -32,7 +32,7 @@ check are separate facts.
 
 ## Shared usage: /usage
 
-Every process using the same GATOR_STATE_DIR shares one private, locked ledger.
+Every process using the same HOT_CROSS_BUNS_STATE_DIR shares one private, locked ledger.
 Foreground chat, ambiguous-request routing, background Work, internal Code
 work, embedding requests, failures, and retries use that ledger. Gemini
 embeddings are counted per input because the adapter makes one HTTP request for
@@ -59,10 +59,10 @@ deletion so deletion cannot reset a shared daily allowance.
 CLI equivalents:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator usage status
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator usage limits --requests 100 --tokens 1000000 --concurrent 2
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator usage pause
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator usage resume
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns usage status
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns usage limits --requests 100 --tokens 1000000 --concurrent 2
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns usage pause
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns usage resume
 ```
 
 ## Private data: /data
@@ -104,7 +104,7 @@ Backups are unencrypted tar.gz archives with a checksummed manifest and private
 file permissions. They include retained source snapshots, drafts, transcripts,
 and selected connected data. Credentials, provider settings, browser profiles,
 runtime access tokens/leases, rebuildable retrieval indexes, and usage counters
-are excluded. Choose a new destination outside Gator's private data directory;
+are excluded. Choose a new destination outside Hot Cross Buns's private data directory;
 an existing archive is never overwritten. Export and verification enforce
 1 GiB per file and 10 GiB total limits, including a bounded manifest.
 
@@ -117,14 +117,14 @@ The archive retains content rather than credentials or installation settings.
 CLI equivalents:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data status
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data retention --history-days 90 --knowledge-days 0 --snapshot-days 30
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data status
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data retention --history-days 90 --knowledge-days 0 --snapshot-days 30
 # Review the printed policy before repeating with --yes.
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data cleanup
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data preview history
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data apply REVIEW_ID --yes
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data export /private/path/new-backup.tar.gz
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data verify /private/path/new-backup.tar.gz
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data cleanup
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data preview history
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data apply REVIEW_ID --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data export /private/path/new-backup.tar.gz
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data verify /private/path/new-backup.tar.gz
 ```
 
 ## Verification boundaries

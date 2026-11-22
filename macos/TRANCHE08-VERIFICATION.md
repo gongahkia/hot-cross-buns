@@ -25,28 +25,28 @@ This inventory includes Tranche08 edits already captured by the external commit,
 
 | File under `macos/` | Responsibility/change |
 | --- | --- |
-| `Sources/GatorCore/GoBridgeConnection.swift` | Removes a sampled Foundation synchronous exit-wait hang; asynchronously confirms termination after existing escalation. |
-| `Sources/GatorCore/BridgeProtocol.swift` | Fast transcript projection; preserves raw indexes/UTC-offset ordering and complete snapshots. |
-| `Sources/GatorCore/GatorApplicationState.swift` | Reuses decoded messages; fresh managed profile requests existing Go `new` boot mode before editing; legacy drafts/uncertainty restore unchanged. |
-| `Sources/GatorCore/NativeMessageContent.swift` | Bounded native Markdown blocks; no executable authority or structured-review parsing. |
-| `Sources/GatorCore/NativeUploadStore.swift` | Distinct backend-compatible names for repeated pasted images; existing private immutable copies and validation preserved. |
-| `Sources/GatorMac/ConversationView.swift` | Native toolbar/subtitle, welcome, readable messages, grouped menus, bounded notices, full errors and concise public activity. |
-| `Sources/GatorMac/ComposerView.swift` | Restrained semantic editor surface, balanced dimensions; editor lifetime keyed by conversation/generation. |
-| `Sources/GatorMac/NativeComposer.swift` | Extracted AppKit editor; native paste, bounded plain text, Tab traversal, composition guards, compact Escape and focus lifetime. Opt-in DEBUG tracing records only fixed input metadata. |
-| `Sources/GatorMac/NativeDropInput.swift` | Typed file URL/legacy file-list extraction; rejects textual paths/web URLs. |
-| `Sources/GatorMac/NativeAttachmentActions.swift` | Existing picker/staging pipeline uses typed clipboard file detection and safe diagnostic metadata. |
-| `Sources/GatorMac/AttachmentSelectionView.swift` | Count-bounded scrolling attachment region. |
-| `Sources/GatorMac/NativeMessageBody.swift` | Selectable native prose/headings/lists/fenced code. Exact reviews and user commands stay literal. |
-| `Sources/GatorMac/NativeErrorDisclosure.swift` | Summary plus complete selectable error. |
-| `Sources/GatorMac/NativeWindowConfiguration.swift` | Adaptive accent, weak presentation references, preserves SwiftUI scene identity; process-only DEBUG appearance is idempotent. |
-| `Sources/GatorMac/GatorApp.swift`, `AppDelegate.swift` | Standard full-window toolbar/edit commands, activation policy and existing guarded lifecycle integration. |
-| `Sources/GatorMac/TaskInspectorView.swift`, `ApprovalReviewView.swift` | Flatter semantic review sections, less repetition, compact explicit decision layout; authority checks unchanged. |
+| `Sources/HotCrossBunsCore/GoBridgeConnection.swift` | Removes a sampled Foundation synchronous exit-wait hang; asynchronously confirms termination after existing escalation. |
+| `Sources/HotCrossBunsCore/BridgeProtocol.swift` | Fast transcript projection; preserves raw indexes/UTC-offset ordering and complete snapshots. |
+| `Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift` | Reuses decoded messages; fresh managed profile requests existing Go `new` boot mode before editing; legacy drafts/uncertainty restore unchanged. |
+| `Sources/HotCrossBunsCore/NativeMessageContent.swift` | Bounded native Markdown blocks; no executable authority or structured-review parsing. |
+| `Sources/HotCrossBunsCore/NativeUploadStore.swift` | Distinct backend-compatible names for repeated pasted images; existing private immutable copies and validation preserved. |
+| `Sources/HotCrossBunsMac/ConversationView.swift` | Native toolbar/subtitle, welcome, readable messages, grouped menus, bounded notices, full errors and concise public activity. |
+| `Sources/HotCrossBunsMac/ComposerView.swift` | Restrained semantic editor surface, balanced dimensions; editor lifetime keyed by conversation/generation. |
+| `Sources/HotCrossBunsMac/NativeComposer.swift` | Extracted AppKit editor; native paste, bounded plain text, Tab traversal, composition guards, compact Escape and focus lifetime. Opt-in DEBUG tracing records only fixed input metadata. |
+| `Sources/HotCrossBunsMac/NativeDropInput.swift` | Typed file URL/legacy file-list extraction; rejects textual paths/web URLs. |
+| `Sources/HotCrossBunsMac/NativeAttachmentActions.swift` | Existing picker/staging pipeline uses typed clipboard file detection and safe diagnostic metadata. |
+| `Sources/HotCrossBunsMac/AttachmentSelectionView.swift` | Count-bounded scrolling attachment region. |
+| `Sources/HotCrossBunsMac/NativeMessageBody.swift` | Selectable native prose/headings/lists/fenced code. Exact reviews and user commands stay literal. |
+| `Sources/HotCrossBunsMac/NativeErrorDisclosure.swift` | Summary plus complete selectable error. |
+| `Sources/HotCrossBunsMac/NativeWindowConfiguration.swift` | Adaptive accent, weak presentation references, preserves SwiftUI scene identity; process-only DEBUG appearance is idempotent. |
+| `Sources/HotCrossBunsMac/HotCrossBunsApp.swift`, `AppDelegate.swift` | Standard full-window toolbar/edit commands, activation policy and existing guarded lifecycle integration. |
+| `Sources/HotCrossBunsMac/TaskInspectorView.swift`, `ApprovalReviewView.swift` | Flatter semantic review sections, less repetition, compact explicit decision layout; authority checks unchanged. |
 | `Resources/Info.plist`, `scripts/build-dev-app.sh`, `scripts/make-app-icon.swift` | Native ICNS generation and bundle metadata; bundled Go runtime and existing terminal packaging preserved. |
 | `Package.swift` | Native AppKit component test target without launching the application. |
-| `Tests/GatorCoreTests/NativeMessageContentTests.swift`, `NativePerformanceTests.swift` | Markdown fidelity, JSON/transcript/startup/idle-owner/thumbnail measurements. |
-| `Tests/GatorCoreTests/NativeAttachmentIntegrationTests.swift`, `NativeUploadStoreTests.swift`, `GoIntegrationTests.swift` | Actual Go fresh idle identity and multi-image admission; unique pasted input names. |
-| `Tests/GatorMacTests/NativeInputTests.swift` | Native shortcut/text paste, marked text, file pasteboard types, keyboard loop, contrast, editor ownership and window identity. |
-| `Tests/GatorCoreTests/Fixtures/audit-provider.mjs`, `Fixtures/native-history/main.go` | Loopback-only visual fixture and bounded synthetic retained history via the existing Go store API. No credentials/external service. |
+| `Tests/HotCrossBunsCoreTests/NativeMessageContentTests.swift`, `NativePerformanceTests.swift` | Markdown fidelity, JSON/transcript/startup/idle-owner/thumbnail measurements. |
+| `Tests/HotCrossBunsCoreTests/NativeAttachmentIntegrationTests.swift`, `NativeUploadStoreTests.swift`, `GoIntegrationTests.swift` | Actual Go fresh idle identity and multi-image admission; unique pasted input names. |
+| `Tests/HotCrossBunsMacTests/NativeInputTests.swift` | Native shortcut/text paste, marked text, file pasteboard types, keyboard loop, contrast, editor ownership and window identity. |
+| `Tests/HotCrossBunsCoreTests/Fixtures/audit-provider.mjs`, `Fixtures/native-history/main.go` | Loopback-only visual fixture and bounded synthetic retained history via the existing Go store API. No credentials/external service. |
 | `TRANCHE08-UIUX-AUDIT.md`, this report, `Evidence/Tranche08/` | Before/after findings, reproducible logs, actual screenshots and explicit acceptance limits. |
 
 ## Protocol and security preservation
@@ -60,22 +60,22 @@ Pasted images keep distinct opaque IDs and immutable copied bytes; only collidin
 All routine regressions ran headlessly. Swift uses `--no-parallel`; no timeout assertion was weakened and no parallel run was substituted.
 
 ```sh
-go build -o /tmp/gator-native-runtime ./cmd/gator
-go test ./cmd/gator ./internal/workapp ./internal/attachment -count=1
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/attachment -count=1
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
 node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs \
   app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs \
   app-host/tests/policy.test.mjs app-host/tests/native.test.mjs
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test \
   app-host/tests/task-access.test.ts app-host/tests/access-rereview.test.ts \
   app-host/tests/preparation-recovery.test.ts
 # From ui/:
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload.ts \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test --preload ./scripts/preload.ts \
   tests/attachments.test.tsx tests/draft-synchronization.test.tsx \
   tests/conversation-during-work.test.tsx tests/approvals.test.tsx \
   tests/recovery.test.tsx tests/receipts.test.tsx
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload.ts \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test --preload ./scripts/preload.ts \
   tests/plan-corrections.test.tsx tests/request-recovery-controls.test.tsx \
   tests/approval-review.test.tsx
 ```
@@ -83,7 +83,7 @@ GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload
 | Suite | Result and evidence |
 | --- | --- |
 | Go build | PASS; actual executable used by controlled native integration. |
-| Go packages | 3 PASS: cmd/gator 165.906s, workapp 45.374s, attachment 0.566s. `headless/go.log`. |
+| Go packages | 3 PASS: cmd/hot-cross-buns 165.906s, workapp 45.374s, attachment 0.566s. `headless/go.log`. |
 | Host Node regressions | 72 PASS, zero failures/skips, 8.626s. `headless/host.log`. |
 | Host access/preparation integration | 21 PASS, 561 assertions, 68.52s. `headless/host-integration.log`. |
 | Selected TUI baseline | 11 PASS, one existing Linux-only platform SKIP, 313 assertions, 63.91s. `headless/tui.log`. |
@@ -121,7 +121,7 @@ No real email/write was executed. The audit provider's external-effect trace rem
 An initial isolated-state attempt could not find the existing authentication store and stopped before inference. The one authoritative bounded call then used the existing Go credential store, an empty disposable source, inspect mode, external actions forbidden, one model request, one step, 1,024-token limit and 45-second timeout:
 
 ```sh
-/tmp/gator-native-runtime work --source <empty-disposable-directory> \
+/tmp/hot-cross-buns-native-runtime work --source <empty-disposable-directory> \
   --mode inspect --actions forbid --max-steps 1 --max-model-requests 1 \
   --max-tokens 1024 --timeout-seconds 45 --json \
   'Reply with one short sentence confirming this test message was received. Do not call tools or perform any other action.'
@@ -182,18 +182,18 @@ Operator checklist:
 Packaging command:
 
 ```sh
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Tranche08-ReleaseCheck.app \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Tranche08-ReleaseCheck.app \
   bash macos/scripts/build-dev-app.sh
 # Preserve the earlier T08 iteration, then place the newly packaged app at:
-# /tmp/Gator-Native-Tranche08-Final.app
+# /tmp/HotCrossBuns-Native-Tranche08-Final.app
 ```
 
-The script builds Swift, generates native ICNS, builds Go with `-trimpath`, validates Info.plist, and refuses to overwrite an existing destination. T01–T07 bundles remain intact. Final bundle inventory is exactly native executable, Go executable, ICNS and Info.plist; no auth/config/credential file is copied. `otool -L` reports system frameworks/Swift libraries, no repository absolute dependency. Metadata declares Gator/dev.gator.native/productivity/macOS15.0. Signing/notarization is deferred. Final packaging PASS; `headless/package-release-check.log`. Native executable SHA256 `1b56751ef4f2939a9ffbaae1821cfb938f297fe8f00b5fc500b51eb0a6fd76fd`; Go runtime SHA256 `01ec6d5ed8f6124b55fb0fc4e8d5c0d2dd66fc692bbe5dbee45398b2742b2278`. The packaged native binary matches the final Swift build. Actual final-binary launch/connection, restored dropped files and two distinct Command-V image selections were observed. Idle native Quit was separately confirmed; active-work manual Quit remains bounded by core integration evidence.
+The script builds Swift, generates native ICNS, builds Go with `-trimpath`, validates Info.plist, and refuses to overwrite an existing destination. T01–T07 bundles remain intact. Final bundle inventory is exactly native executable, Go executable, ICNS and Info.plist; no auth/config/credential file is copied. `otool -L` reports system frameworks/Swift libraries, no repository absolute dependency. Metadata declares Hot Cross Buns/dev.hot-cross-buns.native/productivity/macOS15.0. Signing/notarization is deferred. Final packaging PASS; `headless/package-release-check.log`. Native executable SHA256 `1b56751ef4f2939a9ffbaae1821cfb938f297fe8f00b5fc500b51eb0a6fd76fd`; Go runtime SHA256 `01ec6d5ed8f6124b55fb0fc4e8d5c0d2dd66fc692bbe5dbee45398b2742b2278`. The packaged native binary matches the final Swift build. Actual final-binary launch/connection, restored dropped files and two distinct Command-V image selections were observed. Idle native Quit was separately confirmed; active-work manual Quit remains bounded by core integration evidence.
 
 Launch:
 
 ```sh
-open /tmp/Gator-Native-Tranche08-Final.app --args --open-window
+open /tmp/HotCrossBuns-Native-Tranche08-Final.app --args --open-window
 ```
 
 The menu-bar remains available; full window and compact chat share the coordinator. Closing a presentation is not an execution cancellation. Guarded Quit, draft persistence and subprocess cleanup are integration-tested; complete manual multi-owner shutdown remains partially verified. This is an unsigned local development bundle, not a signed/notarized distribution.
@@ -236,12 +236,12 @@ No known P0 or authorization bypass was found. The reproduced pasted-image defec
 
 ## Shutdown regression investigation and remediation
 
-The activation follow-up full run stalled during real Go interrupted-plan cleanup (stdio buffering left the last visible line earlier in the suite). `sample` of the owned runner showed `realGoInterruptedPlanRestoresOriginalIdentityWithoutReplay → NativePlanFixture.close → ManagedSessionCoordinator.shutdown → GatorApplicationState.shutdown → GoBridgeConnection.shutdown → Process.waitUntilExit`. This is a reproducible native lifecycle defect, not a reason to extend a test timeout. The stalled controlled runner and its two remaining fixture children were stopped; the original partial log/sample are retained.
+The activation follow-up full run stalled during real Go interrupted-plan cleanup (stdio buffering left the last visible line earlier in the suite). `sample` of the owned runner showed `realGoInterruptedPlanRestoresOriginalIdentityWithoutReplay → NativePlanFixture.close → ManagedSessionCoordinator.shutdown → HotCrossBunsApplicationState.shutdown → GoBridgeConnection.shutdown → Process.waitUntilExit`. This is a reproducible native lifecycle defect, not a reason to extend a test timeout. The stalled controlled runner and its two remaining fixture children were stopped; the original partial log/sample are retained.
 
 Removed the redundant synchronous Foundation exit wait, preserving graceful exit/SIGTERM/SIGKILL escalation and asynchronous confirmation. Added an externally killed owner regression. Focused command:
 
 ```sh
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   --filter 'shutdownOfExternallyKilledOwner|shutdownEscalatesEvenWhenAFullInputPipeBlocksWrites|realGoInterruptedPlanRestoresOriginalIdentityWithoutReplay'
 ```
 
@@ -271,12 +271,12 @@ Native additions: actual partial Responses deltas in both surfaces, exact-action
 
 Performance medians:2,000-row decode20.595ms/projection0.853ms (7 samples, M3); streaming framing/state replacement6.748ms/snapshot (5×30 snapshots/500 retained rows); four sequential Go-owner connects median71.282ms;12 bounded PNG thumbnails67.732ms (one batch). One process-cold final-app launch reached an accessible connected window in1,230.597ms including AX polling. Native sampled CPU12.8→0.3→0.0% with138,080KiB RSS; first sample includes recent interaction. These are bounded measurements, not a global rendering speedup, sustained energy test or cache-cold result.
 
-Historical Gemini401 was not retried. Following the user's new authorization, one real OpenAI request used the repo `.env` privately via Gator's existing adapter with a512-output-token HTTP cap,45s timeout and one-request limit. It returned HTTP401; no output/usage, retry, secret logging or credential/default changes. Successful real-provider inference remains blocked. See sanitized `openai-env-smoke.json` and the exact repair paths in the closure report.
+Historical Gemini401 was not retried. Following the user's new authorization, one real OpenAI request used the repo `.env` privately via Hot Cross Buns's existing adapter with a512-output-token HTTP cap,45s timeout and one-request limit. It returned HTTP401; no output/usage, retry, secret logging or credential/default changes. Successful real-provider inference remains blocked. See sanitized `openai-env-smoke.json` and the exact repair paths in the closure report.
 
-Final app: `/tmp/Gator-Native-Tranche08-Acceptance.app`, native arm64 and real bundled Go verified, with new user-requested original alligator PNG/ICNS. The earlier `/tmp/Gator-Native-Tranche08-Final.app` was absent on this host and was not overwritten. Local development bundle PASS; physical accessibility PARTIAL; real inference FAIL/configuration blocker; signing/notarization DEFERRED. No commit or Tranche09.
+Final app: `/tmp/HotCrossBuns-Native-Tranche08-Acceptance.app`, native arm64 and real bundled Go verified, with new user-requested original alligator PNG/ICNS. The earlier `/tmp/HotCrossBuns-Native-Tranche08-Final.app` was absent on this host and was not overwritten. Local development bundle PASS; physical accessibility PARTIAL; real inference FAIL/configuration blocker; signing/notarization DEFERRED. No commit or Tranche09.
 
 ### Provider and notch continuation — 2026-11-17
 
-Following explicit additional user requests, diagnostics now cover all38 direct provider IDs, custom/managed-local models and host-known Codex/Claude/Pi CLI failures. Pi1.5.2 and OpenCode2.3.0 are installed under fnm Node26.7.0; saved credentials/defaults were not changed. Real Chat Completions output passed via Gator's adapter, standalone Pi, sandboxed Gator Pi and standalone OpenCode. Responses still returned401; no automatic fallback or repeated retry of that route. Full details, original failures and bounded usage are in [PROVIDER-DIAGNOSTICS.md](PROVIDER-DIAGNOSTICS.md).
+Following explicit additional user requests, diagnostics now cover all38 direct provider IDs, custom/managed-local models and host-known Codex/Claude/Pi CLI failures. Pi1.5.2 and OpenCode2.3.0 are installed under fnm Node26.7.0; saved credentials/defaults were not changed. Real Chat Completions output passed via Hot Cross Buns's adapter, standalone Pi, sandboxed Hot Cross Buns Pi and standalone OpenCode. Responses still returned401; no automatic fallback or repeated retry of that route. Full details, original failures and bounded usage are in [PROVIDER-DIAGNOSTICS.md](PROVIDER-DIAGNOSTICS.md).
 
-Final relevant Go regression:15 packages PASS; required Go build PASS. Swift build PASS;132 tests PASS /37.262s after the final native keyboard-focus correction. Custom/local and trace tests additionally passed cmd/gator +telemetry. Host16 PASS; recovery integration9 PASS; selected TUI2 PASS +1 existing platform skip. Real final-binary notch keyboard/hover/draft/window journeys are scoped in [MENUBAR-NOTCH-VERIFICATION.md](MENUBAR-NOTCH-VERIFICATION.md). Exact-action routing through the notch and physical accessibility variants remain unverified. Bundle/native/Go/hash/credential checks passed for `/tmp/Gator-Native-Tranche08-Enhanced-Final.app`; earlier bundles/evidence are preserved. Distribution remains deferred. No Tranche09 or agent-created commit.
+Final relevant Go regression:15 packages PASS; required Go build PASS. Swift build PASS;132 tests PASS /37.262s after the final native keyboard-focus correction. Custom/local and trace tests additionally passed cmd/hot-cross-buns +telemetry. Host16 PASS; recovery integration9 PASS; selected TUI2 PASS +1 existing platform skip. Real final-binary notch keyboard/hover/draft/window journeys are scoped in [MENUBAR-NOTCH-VERIFICATION.md](MENUBAR-NOTCH-VERIFICATION.md). Exact-action routing through the notch and physical accessibility variants remain unverified. Bundle/native/Go/hash/credential checks passed for `/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app`; earlier bundles/evidence are preserved. Distribution remains deferred. No Tranche09 or agent-created commit.

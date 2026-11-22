@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from 'node:crypto';
 
 // A process owns a chat's execution. Changing the visible chat never moves its
 // operation, approval token, queue or event stream into a different process.
@@ -132,7 +133,7 @@ export class Sessions extends EventEmitter {
   }
   open(request = {}) {
     const operation = this.#transition.then(async () => {
-      if (this.#stopping) throw new Error("Gator is closing.");
+      if (this.#stopping) throw new Error("Hot Cross Buns is closing.");
       this.switching = true; this.issue = ""; this.emit("change");
       const previous = this.current;
       let next, created = false;
@@ -141,6 +142,10 @@ export class Sessions extends EventEmitter {
         next = [...this.workers].find(worker => !worker.closed && request.conversation_id && (request.goal ? worker.state?.goal_id === request.conversation_id : worker.state?.conversation_id === request.conversation_id));
         if (request.view === "/connections") next ??= [...this.workers].find(worker => !worker.closed && worker.state?.pending_connection);
         if (!next) { next = await this.#create(request); created = true; }
+        if (request.catalog_version) {
+          const result = await next.catalog({ action: 'verify', request_id: randomUUID(), id: request.conversation_id, version: request.catalog_version });
+          if (result.error) throw new Error(result.error);
+        }
         await next.focus(true);
         this.current = next;
         this.#unread.delete(next.state?.conversation_id);

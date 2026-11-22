@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/hostproc"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const maxPatchBytes = 512 * 1024

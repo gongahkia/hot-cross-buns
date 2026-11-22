@@ -1,21 +1,21 @@
 # Durable jobs design
 
 **Interface status:** The [terminal distribution](TERMINAL.md) exposes these
-retained command families as `gator job ...`. Source-checkout examples below use
+retained command families as `hot-cross-buns job ...`. Source-checkout examples below use
 the Go runtime's explicit internal opt-in; see [development instructions](DEVELOPMENT.md).
 
 ## Implemented boundary
 
-Gator does not turn the process-local terminal registry, TUI queue, or app
+Hot Cross Buns does not turn the process-local terminal registry, TUI queue, or app
 server into a scheduler. Those components own live resources in one process;
 they do not provide durable ownership, missed-run policy, or restart safety.
 
 Scheduled Work runs through a separate local supervisor backed by versioned job
 definitions and immutable attempt records. The user can start it in a foreground
-terminal with `gator job supervisor`. On macOS, `gator job launchagent install`
-installs an opt-in per-user service; on Linux, `gator job systemd install` installs
+terminal with `hot-cross-buns job supervisor`. On macOS, `hot-cross-buns job launchagent install`
+installs an opt-in per-user service; on Linux, `hot-cross-buns job systemd install` installs
 a per-user systemd service. Both keep the supervisor running while the
-host is on and the user manager is active. Gator does not stretch its process-local
+host is on and the user manager is active. Hot Cross Buns does not stretch its process-local
 TUI queue into a scheduler.
 
 This is a product boundary. The supervisor reconciles interrupted attempts and
@@ -77,7 +77,7 @@ using a Google OAuth connector store a SHA-256 pin of the Google account's
 OIDC subject after a live identity check. Reauthorization of the same account
 keeps the check valid; a different account stops it before connected reads.
 Older definitions retain their refresh-grant pins and still fail closed on
-grant changes. Secrets remain in Gator's credential store. A definition never embeds an API key,
+grant changes. Secrets remain in Hot Cross Buns's credential store. A definition never embeds an API key,
 bearer token, refresh token, or approval.
 
 Each invocation creates an immutable `intent.json` before model work starts,
@@ -111,10 +111,10 @@ unknown effects.
 
 ## State and ownership
 
-The supervisor owns a private subtree below Gator's state directory:
+The supervisor owns a private subtree below Hot Cross Buns's state directory:
 
 ```text
-gator/jobs/
+hot-cross-buns/jobs/
   definitions/<job-id>.json
   history/<job-id>/<execution-id>/intent.json
   history/<job-id>/<execution-id>/events.jsonl
@@ -137,8 +137,8 @@ with the app server, but it is a different lifecycle and state owner.
 
 ## Scheduling semantics
 
-`gator job add ... --change-only` and `gator goal schedule ID ... --change-only`
-opt into a local input gate. Before each scheduled run, Gator hashes the
+`hot-cross-buns job add ... --change-only` and `hot-cross-buns goal schedule ID ... --change-only`
+opt into a local input gate. Before each scheduled run, Hot Cross Buns hashes the
 selected regular files, goal context and plan, visible notes, enabled skills,
 and active memories. If they exactly match the most recent successful run
 under the same job policy, it records an `unchanged` attempt and skips the
@@ -151,7 +151,7 @@ total; an oversized or non-regular source fails the check rather than claiming
 that nothing changed. `.git` is excluded. Use ordinary cron jobs for checks
 whose result depends on time passing even when local inputs stay the same.
 
-`gator goal watch ID [--task TEXT] [--artifact venue-reply.md]` creates one
+`hot-cross-buns goal watch ID [--task TEXT] [--artifact venue-reply.md]` creates one
 active local watch for a goal. The supervisor polls its selected local files,
 saved context, and plan once per minute while running. A due plan step or
 `review-at` crossing also changes the watch input, even when files do not.
@@ -162,7 +162,7 @@ The watch resumes one missed check after a restart. Existing goal review
 reminders are owned by the watch while it is enabled, so one due review does
 not create a second inbox entry.
 
-`gator goal notifications ID` shows that goal's desktop delivery policy.
+`hot-cross-buns goal notifications ID` shows that goal's desktop delivery policy.
 `--desktop off` mutes desktop alerts for that goal, while `--quiet
 22:00-08:00 --timezone Asia/Singapore` suppresses them during local quiet
 hours. `--urgent-only on` sends desktop alerts only for failed jobs and goal
@@ -209,16 +209,16 @@ live evaluation; the host only verifies the gating and review boundary.
 Completed runs also retain a short final-response summary and an output
 digest. The inbox suppresses exact repeated results under the same job policy;
 it does not attempt semantic equivalence between different phrasings.
-Use `gator job inbox show ENTRY_ID` to inspect a retained result and
-`gator job inbox rate ENTRY_ID useful|noise|wrong|clear` to record or correct
-your judgment of a surfaced job alert. `gator job inbox report GOAL_ID` counts
-the shown job alerts and their ratings for one goal; `gator goal activity GOAL_ID`
+Use `hot-cross-buns job inbox show ENTRY_ID` to inspect a retained result and
+`hot-cross-buns job inbox rate ENTRY_ID useful|noise|wrong|clear` to record or correct
+your judgment of a surfaced job alert. `hot-cross-buns job inbox report GOAL_ID` counts
+the shown job alerts and their ratings for one goal; `hot-cross-buns goal activity GOAL_ID`
 shows the same count. Reading an alert does not rate it, and quiet checks do
 not create an inbox entry. These ratings describe only alerts that were shown;
 they cannot measure missed important changes or establish alert accuracy on
 their own.
 
-In interactive Gator, `ctrl+b` or `/inbox` opens a freshly loaded inbox panel.
+In interactive Hot Cross Buns, `ctrl+b` or `/inbox` opens a freshly loaded inbox panel.
 Each row shows its entry ID, read state, and rating. Press `esc` to return to
 chat, then use `/inbox show ENTRY_ID`, `/inbox read ENTRY_ID`, or
 `/inbox rate ENTRY_ID useful|noise|wrong|clear`. The panel refreshes when reopened
@@ -226,12 +226,12 @@ and after an inbox action, including actions through `/jobs inbox ...`.
 Urgent job alerts show an explicit marker in the CLI and terminal inbox; a
 user rating is independent of that model-assigned label.
 
-`gator job quiet-audit JOB_ID` lists the newest 50 completed goal-watch checks
+`hot-cross-buns job quiet-audit JOB_ID` lists the newest 50 completed goal-watch checks
 where the model explicitly chose quiet, along with their attempt IDs, retained
 connected-item change counts, summaries, and Work IDs. It counts every retained
 quiet decision, even when only 50 rows are displayed. After inspecting the
 underlying source and Work run, use
-`gator job quiet-audit JOB_ID ATTEMPT_ID missed --note 'reason'`
+`hot-cross-buns job quiet-audit JOB_ID ATTEMPT_ID missed --note 'reason'`
 to record a missed important change, or `... correct` to confirm that staying
 quiet was appropriate. `... clear` removes a previous judgment. The audit
 excludes unchanged-input skips, because no new model decision was made, and
@@ -261,7 +261,7 @@ To route a CLI-created check's updates to an existing chat, use the terminal
 launcher with that chat's exact ID:
 
 ```sh
-gator job add 'Weekly review' --conversation work-EXISTING_ID \
+hot-cross-buns job add 'Weekly review' --conversation work-EXISTING_ID \
   --schedule '0 9 * * 1' --timezone Asia/Singapore --mode inspect \
   -- 'Review this project and report changes needing attention'
 ```
@@ -269,7 +269,7 @@ gator job add 'Weekly review' --conversation work-EXISTING_ID \
 The chat must exist in the selected profile. Its folder becomes the default
 source; an explicit `--source` must identify that same directory. Later source
 edits must preserve this binding. Updates appear in the originating chat in
-Gator and the companion, with separate execution conversations for each run.
+Hot Cross Buns and the companion, with separate execution conversations for each run.
 Opening an execution conversation does not grant it the originating chat's
 follow-up controls. The command confirms the selected chat ID after saving.
 Without `--conversation`, jobs retain their existing host inbox behavior; the
@@ -278,33 +278,33 @@ does not start the supervisor, configure remote access or send a notification
 immediately. The configured execution host still needs to stay online.
 
 ```text
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job add NAME --schedule '0 9 * * 1' --timezone Asia/Singapore \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job add NAME --schedule '0 9 * * 1' --timezone Asia/Singapore \
   --source ./briefing --artifact brief.docx -- 'Prepare the weekly brief'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job list
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job show ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job edit ID --schedule '30 9 * * 1'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job enable|disable ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job run ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job history ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job supervisor [--notify=false]
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job status
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job stop
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job inbox [--unread]
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job inbox show ENTRY_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job inbox read ENTRY_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job inbox rate ENTRY_ID useful|noise|wrong|clear
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job inbox report GOAL_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job quiet-audit JOB_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job quiet-audit JOB_ID ATTEMPT_ID missed --note 'The deadline changed'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job quiet-audit JOB_ID ATTEMPT_ID correct
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job quiet-audit JOB_ID ATTEMPT_ID clear
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job remove ID --yes        # keeps immutable history by default
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job launchagent install    # macOS, opt-in per-user supervisor
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job launchagent status
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job launchagent remove --yes
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job systemd install        # Linux, opt-in per-user supervisor
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job systemd status
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator job systemd remove --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job list
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job show ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job edit ID --schedule '30 9 * * 1'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job enable|disable ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job run ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job history ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job supervisor [--notify=false]
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job status
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job stop
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job inbox [--unread]
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job inbox show ENTRY_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job inbox read ENTRY_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job inbox rate ENTRY_ID useful|noise|wrong|clear
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job inbox report GOAL_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job quiet-audit JOB_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job quiet-audit JOB_ID ATTEMPT_ID missed --note 'The deadline changed'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job quiet-audit JOB_ID ATTEMPT_ID correct
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job quiet-audit JOB_ID ATTEMPT_ID clear
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job remove ID --yes        # keeps immutable history by default
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job launchagent install    # macOS, opt-in per-user supervisor
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job launchagent status
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job launchagent remove --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job systemd install        # Linux, opt-in per-user supervisor
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job systemd status
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job systemd remove --yes
 ```
 
 Cron uses five fields and an explicit IANA timezone. `skip` is the default
@@ -317,7 +317,7 @@ connected mutation or publish operation.
 The supervisor runs in the foreground by default. The `launchagent` and
 `systemd` commands install or remove per-user services on macOS and Linux,
 respectively. Neither enables Linux lingering or runs while the machine is off.
-`gator job stop` verifies
+`hot-cross-buns job stop` verifies
 the private bearer token, literal loopback endpoint, PID, and instance nonce
 before requesting shutdown. Stop cancels the active Work context and joins its
 children. Startup reconciliation marks interrupted attempts for inspection; it

@@ -6,13 +6,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ClientProvider } from "../src/context/client"
 import { DataProvider, useData } from "../src/context/data"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 test("work snapshots update only changed fields and never mutate an open exact review", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-field-subscriptions-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
-  const client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-field-subscriptions-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
+  const client = new HotCrossBunsClient(host)
   let messageUpdates = 0, connectionUpdates = 0, statusUpdates = 0, contextUpdates = 0
   let read!: ReturnType<typeof useData>
   const Probe = () => {
@@ -26,7 +26,7 @@ test("work snapshots update only changed fields and never mutate an open exact r
   const setup = await testRender(() => <ClientProvider client={client}><DataProvider><Probe /></DataProvider></ClientProvider>, { width: 80, height: 24 })
   try {
     await client.start()
-    host.change({ ...host.current, running: true, status: "Working 0", messages: [{ role: "Gator", text: "The exact reviewed draft" }], pending_approval: { id: 1, token: "original-token", message_index: 0 } })
+    host.change({ ...host.current, running: true, status: "Working 0", messages: [{ role: "Hot Cross Buns", text: "The exact reviewed draft" }], pending_approval: { id: 1, token: "original-token", message_index: 0 } })
     await setup.flush()
     const capturedReview = read.state!.pending_approval!, capturedMessage = read.state!.messages[0]!
     const before = { messageUpdates, connectionUpdates, statusUpdates, contextUpdates }
@@ -39,7 +39,7 @@ test("work snapshots update only changed fields and never mutate an open exact r
     expect(read.state!.pending_approval).toBe(capturedReview)
     expect(read.state!.messages[0]).toBe(capturedMessage)
     expect(setup.captureCharFrame()).toContain("Working 40")
-    host.change({ ...host.current, messages: [{ role: "Gator", text: "A different proposed action" }], pending_approval: { id: 2, token: "replacement-token", message_index: 0 } })
+    host.change({ ...host.current, messages: [{ role: "Hot Cross Buns", text: "A different proposed action" }], pending_approval: { id: 2, token: "replacement-token", message_index: 0 } })
     await setup.flush()
     expect(read.state!.pending_approval).not.toBe(capturedReview)
     expect(capturedReview.id).toBe(1); expect(capturedReview.token).toBe("original-token")

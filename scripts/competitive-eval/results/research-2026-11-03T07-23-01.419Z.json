@@ -19,7 +19,7 @@
     "search_evidence"
   ],
   "Errors": null,
-  "Answer": "Yes. Go’s `net/http.Client` follows redirects by default. When `CheckRedirect` is `nil`, it uses the default policy and stops after 10 consecutive requests.\n\nTo stop following redirects, set `Client.CheckRedirect` to return `http.ErrUseLastResponse`:\n\n```go\nclient := \u0026http.Client{\n    CheckRedirect: func(req *http.Request, via []*http.Request) error {\n        return http.ErrUseLastResponse\n    },\n}\n```\n\nThis prevents the next redirect request and returns the latest response with its body still open and a `nil` error. Returning another error also stops the redirect, but that error is returned wrapped in `url.Error`, and the prior response body is closed.\n\nSource: [official Go `net/http` documentation](gator-evidence:evidence-0527c2fd3014b92337a85dee).",
+  "Answer": "Yes. Go’s `net/http.Client` follows redirects by default. When `CheckRedirect` is `nil`, it uses the default policy and stops after 10 consecutive requests.\n\nTo stop following redirects, set `Client.CheckRedirect` to return `http.ErrUseLastResponse`:\n\n```go\nclient := \u0026http.Client{\n    CheckRedirect: func(req *http.Request, via []*http.Request) error {\n        return http.ErrUseLastResponse\n    },\n}\n```\n\nThis prevents the next redirect request and returns the latest response with its body still open and a `nil` error. Returning another error also stops the redirect, but that error is returned wrapped in `url.Error`, and the prior response body is closed.\n\nSource: [official Go `net/http` documentation](hot-cross-buns-evidence:evidence-0527c2fd3014b92337a85dee).",
   "Error": "",
   "Evidence": [
     {

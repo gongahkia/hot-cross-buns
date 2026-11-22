@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 func TestWindowsBrowserEndpointRejectsNonLoopback(t *testing.T) {

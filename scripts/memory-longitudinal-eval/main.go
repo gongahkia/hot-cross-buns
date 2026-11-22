@@ -1,5 +1,5 @@
 // Opt-in live tests of the production memory/history tools with synthetic,
-// disposable state. No files or credentials from a real Gator profile are read.
+// disposable state. No files or credentials from a real Hot Cross Buns profile are read.
 package main
 
 import (
@@ -15,16 +15,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/model"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type historyCase struct {
@@ -140,7 +140,7 @@ func (e *evaluation) chat(ctx context.Context, name, message string, want int, c
 	profileText, _ := memory.RenderSelection(profile)
 	bounded, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	result, err := (agent.Runner{Model: e.backend, Tools: available}).Run(bounded, agent.RunOptions{System: "You are Gator. Respond concisely.\n" + workrun.MemoryPrompt(true, true) + "\nCurrent selected memory:\n" + profileText, Task: message, MaxSteps: 6, OnEvent: func(event agent.Event) {
+	result, err := (agent.Runner{Model: e.backend, Tools: available}).Run(bounded, agent.RunOptions{System: "You are Hot Cross Buns. Respond concisely.\n" + workrun.MemoryPrompt(true, true) + "\nCurrent selected memory:\n" + profileText, Task: message, MaxSteps: 6, OnEvent: func(event agent.Event) {
 		if event.Kind == agent.EventToolCalled && event.ToolCall != nil {
 			c.Calls = append(c.Calls, *event.ToolCall)
 		}
@@ -415,7 +415,7 @@ func run() (finalErr error) {
 	if err != nil {
 		return err
 	}
-	root, err := os.MkdirTemp("", "gator-longitudinal-eval-")
+	root, err := os.MkdirTemp("", "hot-cross-buns-longitudinal-eval-")
 	if err != nil {
 		return err
 	}

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
 )
 
 func TestInboxOpeningIsReadOnlyAndExplicitActionsUseCurrentView(t *testing.T) {

@@ -8,7 +8,7 @@
   "externalEffects": 0,
   "foregroundDraftPreserved": true,
   "unrelatedWorkContinuedUntilExplicitFixtureRelease": true,
-  "runtime": "/tmp/Gator-Native-Tranche08-Enhanced-Final.app/Contents/Resources/gator-runtime",
+  "runtime": "/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app/Contents/Resources/hot-cross-buns-runtime",
   "observation": "Transparent test-only stdin/stdout observer, no frame mutations; only hashes retained in evidence",
   "limits": [
     "Inert web_access approval declined; no send or external access was authorized.",

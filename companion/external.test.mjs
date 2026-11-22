@@ -11,7 +11,7 @@ import {validateExternal} from './external.mjs';
 const execute=promisify(execFile);
 export function fixture(d='a',snapshot=false){return {target:{binding:{id:'target-'+d.repeat(32),backend:'external_tmux',owner:'tmux-instance-'+d.repeat(32),generation:d.repeat(32),incarnation:d.repeat(64)},label:'Pane <img src=x onerror="window.injected=true"> '+d,capabilities:['inspect'],available:true},text:snapshot?'<script>window.injected=true</script> 猫':'',truncated:snapshot,stale:false,...(snapshot?{captured_at:'2026-10-31T03:00:00Z'}:{})};}
 test('external transport isolates native configuration, rejects mutations and revokes queued reads',{timeout:30000},async()=>{
- const root=await mkdtemp(join(tmpdir(),'gator-external-http-')),tokenFile=join(root,'token');let c,release,entered;
+ const root=await mkdtemp(join(tmpdir(),'hot-cross-buns-external-http-')),tokenFile=join(root,'token');let c,release,entered;
  try{
   await writeFile(tokenFile,'a'.repeat(64)+'\n',{mode:0o600});const phone=await addDevice(tokenFile,'Phone',join(root,'phone'));const token=(await readFile(join(root,'phone'),'utf8')).trim();
   let calls=0,hold=false; c=createCompanion({binary:'',workspace:root,tokenFile,spawnBackend(){throw new Error('External read created Work owner');},queryExternal:async({actor,mode,target,generation})=>{calls++;assert.match(actor,/^inspection-[a-f0-9]{64}$/);if(hold){entered?.();await new Promise(r=>release=r);}return {targets:[{...fixture('a',mode==='snapshot'),config:{socket:'/secret',token:'secret'}}]};}});
@@ -24,15 +24,15 @@ test('external transport isolates native configuration, rejects mutations and re
   hold=true;const gate=new Promise(r=>entered=r),first=fetch(base+path,{headers});await gate;const second=fetch(base+path,{headers});await new Promise(r=>setTimeout(r,30));await revokeDevice(tokenFile,phone.id);release();assert.equal((await first).status,401);assert.equal((await second).status,401);assert.equal(calls,3,'queued revoked read must not invoke backend');
  }finally{release?.();await c?.close();await rm(root,{recursive:true,force:true});}
 });
-test('external projection rejects wrong binding, oversized output and Work grants',()=>{const b=fixture('a',true).target.binding;for(const item of [{...fixture('a',true),text:'x'.repeat(16385)},{...fixture('b',true)},{...fixture('a',true),target:{...fixture().target,binding:{...b,backend:'gator_work'}}},{...fixture('a',true),target:{...fixture().target,capabilities:['inspect','text_input']}}])assert.throws(()=>validateExternal({targets:[item]},b.id,b.generation,true));});
+test('external projection rejects wrong binding, oversized output and Work grants',()=>{const b=fixture('a',true).target.binding;for(const item of [{...fixture('a',true),text:'x'.repeat(16385)},{...fixture('b',true)},{...fixture('a',true),target:{...fixture().target,binding:{...b,backend:'hot_cross_buns_work'}}},{...fixture('a',true),target:{...fixture().target,capabilities:['inspect','text_input']}}])assert.throws(()=>validateExternal({targets:[item]},b.id,b.generation,true));});
 
-test('real isolated tmux pane enrolls, receives device-specific Inspect, captures and invalidates reused IDs',{skip:process.env.GATOR_TMUX_LIVE!=='1'||process.platform==='win32',timeout:120000},async()=>{
+test('real isolated tmux pane enrolls, receives device-specific Inspect, captures and invalidates reused IDs',{skip:process.env.HOT_CROSS_BUNS_TMUX_LIVE!=='1'||process.platform==='win32',timeout:120000},async()=>{
  const root=await mkdtemp(join(tmpdir(),'gt3-http-')),socket=join(root,'socket'),binary=join(root,'runtime'),tokenFile=join(root,'token');let c;
- const mux=process.env.GATOR_TEST_TMUX||'/usr/local/bin/tmux';
- const env={...process.env,GATOR_STATE_DIR:join(root,'state'),GATOR_INTERNAL_COMMANDS:'1'};
+ const mux=process.env.HOT_CROSS_BUNS_TEST_TMUX||'/usr/local/bin/tmux';
+ const env={...process.env,HOT_CROSS_BUNS_STATE_DIR:join(root,'state'),HOT_CROSS_BUNS_INTERNAL_COMMANDS:'1'};
  const tmux=(...a)=>execute(mux,['-f','/dev/null','-S',socket,...a],{timeout:5000});
  try{
-  await execute('go',['build','-o',binary,'./cmd/gator'],{timeout:90000});
+  await execute('go',['build','-o',binary,'./cmd/hot-cross-buns'],{timeout:90000});
   await writeFile(tokenFile,'a'.repeat(64)+'\n',{mode:0o600});const phone=await addDevice(tokenFile,'Phone',join(root,'phone'));const token=(await readFile(join(root,'phone'),'utf8')).trim();
   const {stdout}=await tmux('new-session','-d','-s','fixture','-x','80','-y','24','cat');const pane=(await tmux('display-message','-p','#{pane_id}')).stdout.trim();
   const enrolled=JSON.parse((await execute(binary,['external-tmux','enroll','--reviewed-read-config',mux,socket,pane,'External fixture'],{env})).stdout);

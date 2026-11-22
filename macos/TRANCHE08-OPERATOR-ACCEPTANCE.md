@@ -1,6 +1,6 @@
 # Tranche 08 — operator acceptance
 
-Acceptance candidate: `/tmp/Gator-Native-Tranche08-Acceptance.app` (arm64 build on macOS26.5.2). Automated checks and current screenshot evidence are in `TRANCHE08-ACCEPTANCE-CLOSURE.md`. None of the physical rows below has been signed off by an operator.
+Acceptance candidate: `/tmp/HotCrossBuns-Native-Tranche08-Acceptance.app` (arm64 build on macOS26.5.2). Automated checks and current screenshot evidence are in `TRANCHE08-ACCEPTANCE-CLOSURE.md`. None of the physical rows below has been signed off by an operator.
 
 Record device/OS, app path, date and operator: ____________________
 Use a disposable profile with the closure loopback fixtures, or harmless local data. Never approve a real external send for this checklist. Do not enter keys into screenshots. Automated AX labels/marked-text API tests are supporting evidence, not spoken VoiceOver or physical IME acceptance.
@@ -28,12 +28,12 @@ Additional platform coverage: move the open compact/full views between Spaces an
 
 ## Conditional notch supplement
 
-Use `/tmp/Gator-Native-Tranche08-Enhanced-Final.app` on a Mac that reports a camera notch. Do not replace the earlier VoiceOver/IME/preference checks with this supplement.
+Use `/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app` on a Mac that reports a camera notch. Do not replace the earlier VoiceOver/IME/preference checks with this supplement.
 
 | Step | Expected result | PASS / FAIL / notes |
 | --- | --- | --- |
-| Hover the camera area while typing in another app, then leave | Gator's work glance opens/closes without keyboard focus leaving the other app. | ___ |
-| In Gator, press ⌘⇧G, then Tab and Shift-Tab | Dismiss and chat controls receive visible keyboard focus in order; VoiceOver announces purpose and status. | ___ |
+| Hover the camera area while typing in another app, then leave | Hot Cross Buns's work glance opens/closes without keyboard focus leaving the other app. | ___ |
+| In Hot Cross Buns, press ⌘⇧G, then Tab and Shift-Tab | Dismiss and chat controls receive visible keyboard focus in order; VoiceOver announces purpose and status. | ___ |
 | Press Escape with an unsent composer draft | Glance closes; original window/composer draft remains available. | ___ |
 | With a controlled pending action, choose its owning chat in the glance | Original owner and current exact review open; no approval or external effect occurs. | ___ |
 | Repeat with VoiceOver, Full Keyboard Access, Increase Contrast and Reduce Motion | Labels remain understandable, controls reachable, contrast readable and motion suppressed when requested. | ___ |
@@ -41,7 +41,7 @@ Use `/tmp/Gator-Native-Tranche08-Enhanced-Final.app` on a Mac that reports a cam
 
 ## Final local-development operator sign-off — 2026-11-17
 
-Current candidate: `/tmp/Gator-Native-Tranche08-Enhanced-Final.app`. Automated pending-approval/notch/keyboard evidence is now PASS; these **human** rows remain NOT TESTED. Device/OS: ______ Date/operator: ______. Use a disposable profile and the inert local fixture; decline every proposal. The operator chooses and restores OS settings/input sources. Do not use simulated events or AX labels as spoken VoiceOver/physical IME sign-off.
+Current candidate: `/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app`. Automated pending-approval/notch/keyboard evidence is now PASS; these **human** rows remain NOT TESTED. Device/OS: ______ Date/operator: ______. Use a disposable profile and the inert local fixture; decline every proposal. The operator chooses and restores OS settings/input sources. Do not use simulated events or AX labels as spoken VoiceOver/physical IME sign-off.
 
 | Check | Operator steps and expected result | PASS / FAIL / NOT TESTED; notes |
 | --- | --- | --- |

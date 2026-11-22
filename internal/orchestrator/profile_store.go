@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 var ErrAgentProfileChanged = errors.New("specialist definition changed; inspect it and try again")
@@ -26,7 +26,7 @@ func NewProfileStore(stateDir string) (ProfileStore, error) {
 		return ProfileStore{}, errors.New("specialist profile state directory is required")
 	}
 	root, err := filepath.Abs(stateDir)
-	return ProfileStore{directory: filepath.Join(root, "gator", "agent-profiles")}, err
+	return ProfileStore{directory: filepath.Join(root, "hot-cross-buns", "agent-profiles")}, err
 }
 
 func (s ProfileStore) read() ([]AgentDefinition, error) {

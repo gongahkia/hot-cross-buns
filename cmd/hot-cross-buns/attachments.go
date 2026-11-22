@@ -1,0 +1,97 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
+)
+
+func loadWorkPromptAttachments(source string, paths, uploads []string) ([]agent.Image, []agent.Attachment, error) {
+	images, documents, _, err := loadWorkPromptAttachmentSelection(source, paths, uploads)
+	return images, documents, err
+}
+
+func loadWorkPromptAttachmentSelection(source string, paths, uploads []string) ([]agent.Image, []agent.Attachment, []attachment.Original, error) {
+	var inputs []attachment.Input
+	for _, path := range paths {
+		kind := attachment.DocumentInput
+		if attachment.IsImage(path) {
+			kind = attachment.ImageInput
+		}
+		inputs = append(inputs, attachment.Input{Path: path, Kind: kind})
+	}
+	root, err := workspace.Open(source)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	visual, text, originals, err := attachment.LoadInputsWithOriginals(root, inputs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	addedImages, addedDocuments, addedOriginals, err := attachment.LoadUploadsWithOriginals(os.Getenv("HOT_CROSS_BUNS_DESKTOP_UPLOAD_DIR"), uploads)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	visual, text = append(visual, addedImages...), append(text, addedDocuments...)
+	originals = append(originals, addedOriginals...)
+	if err := attachment.ValidateLoaded(visual, text); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := attachment.ValidateOriginals(originals); err != nil {
+		return nil, nil, nil, err
+	}
+	return visual, text, originals, nil
+}
+
+// attachmentFlags accepts one explicit repository-relative path per flag.
+// Separate --image and --attach flags keep CLI consent and media handling
+// unambiguous without accepting arbitrary local paths.
+type attachmentFlags []string
+
+func (v *attachmentFlags) String() string {
+	return strings.Join(*v, ", ")
+}
+
+func (v *attachmentFlags) Set(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return errors.New("attachment path must not be empty")
+	}
+	*v = append(*v, value)
+	return nil
+}
+
+func loadPromptAttachments(repository string, imagePaths, documentPaths []string) ([]agent.Image, []agent.Attachment, error) {
+	root, err := workspace.Open(repository)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open repository for prompt attachments: %w", err)
+	}
+	inputs := make([]attachment.Input, 0, len(imagePaths)+len(documentPaths))
+	for _, path := range imagePaths {
+		inputs = append(inputs, attachment.Input{Path: path, Kind: attachment.ImageInput})
+	}
+	for _, path := range documentPaths {
+		inputs = append(inputs, attachment.Input{Path: path, Kind: attachment.DocumentInput})
+	}
+	return attachment.LoadInputs(root, inputs)
+}
+
+func writePromptAttachmentSummary(out io.Writer, images []agent.Image, attachments []agent.Attachment) error {
+	if len(images)+len(attachments) == 0 {
+		return nil
+	}
+	parts := make([]string, 0, len(images)+len(attachments))
+	for _, image := range images {
+		parts = append(parts, fmt.Sprintf("%s (%s, %d bytes)", image.Name, image.MediaType, len(image.Data)))
+	}
+	for _, attachment := range attachments {
+		parts = append(parts, fmt.Sprintf("%s (%s, %d bytes)", attachment.Name, attachment.MediaType, len(attachment.Data)))
+	}
+	_, err := fmt.Fprintf(out, "  attachments: %s\n", strings.Join(parts, "; "))
+	return err
+}

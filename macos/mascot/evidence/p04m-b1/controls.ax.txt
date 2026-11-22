@@ -1,4 +1,4 @@
-AXWindow | Gator Desktop Pet Lab |  |  | controls
+AXWindow | Hot Cross Buns Desktop Pet Lab |  |  | controls
  AXStaticText |  |  | ISOLATED PROTOTYPE · fixture signals only · no Go process or execution authority | 
  AXCheckBox | Show Desktop Pet |  |  | lab.desktop
  AXCheckBox | Show in-chat fixture |  |  | lab.inchat
@@ -24,4 +24,4 @@ AXWindow | Gator Desktop Pet Lab |  |  | controls
  AXButton |  |  |  | 
   AXGroup |  |  |  | 
  AXButton |  |  |  | 
- AXStaticText |  |  | Gator Desktop Pet Lab | 
+ AXStaticText |  |  | Hot Cross Buns Desktop Pet Lab |

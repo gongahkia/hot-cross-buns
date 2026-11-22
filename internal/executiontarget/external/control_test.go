@@ -2,9 +2,9 @@ package external
 
 import (
 	"context"
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/executiontarget/tmux"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget/tmux"
 	"os"
 	"path/filepath"
 	"strings"
@@ -164,7 +164,7 @@ func TestControlDenialsAndHistoryLoss(t *testing.T) {
 			case "scope":
 				a.Input = tmux.Input{Kind: "key", Key: "Enter"}
 			case "history":
-				os.RemoveAll(filepath.Join(s.stateDir, "gator", "external-actions"))
+				os.RemoveAll(filepath.Join(s.stateDir, "hot-cross-buns", "external-actions"))
 			case "identity":
 				n.n.PaneStart = "replaced"
 			}

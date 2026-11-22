@@ -5,14 +5,14 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 test("long transcript keeps its reading position through hubs and activity; search reveals the selected message", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-transcript-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
-  host.current = { ...state(), messages: Array.from({ length: 60 }, (_, n) => ({ role: "Gator", text: `Retained message ${n}: grounded answer`, created_at: `2026-10-26T00:${String(n).padStart(2, "0")}:00Z` })) }
-  const client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-transcript-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
+  host.current = { ...state(), messages: Array.from({ length: 60 }, (_, n) => ({ role: "Hot Cross Buns", text: `Retained message ${n}: grounded answer`, created_at: `2026-10-26T00:${String(n).padStart(2, "0")}:00Z` })) }
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const transcript = () => { const node = setup.renderer.root.findDescendantById("transcript"); if (!(node instanceof ScrollBoxRenderable)) throw new Error("Transcript not mounted"); return node }
@@ -32,7 +32,7 @@ test("long transcript keeps its reading position through hubs and activity; sear
     const position = transcript().scrollTop
     expect(position).toBeLessThan(latest)
     const readingNode = setup.renderer.root.findDescendantById("message-55")
-    host.change(JSON.parse(JSON.stringify({ ...host.current, messages: [...host.current.messages, { role: "Gator", text: "New activity while reading" }] }))); await flush()
+    host.change(JSON.parse(JSON.stringify({ ...host.current, messages: [...host.current.messages, { role: "Hot Cross Buns", text: "New activity while reading" }] }))); await flush()
     expect(setup.renderer.root.findDescendantById("message-55")).toBe(readingNode)
     expect(transcript().scrollTop).toBe(position)
     await client.navigate("/saved"); await flush(); expect(client.readingPositions.get("first")).toBe(position)

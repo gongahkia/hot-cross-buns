@@ -5,11 +5,11 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test(`Back restores filtered parent selection and draft at ${width}×${height}`,async()=>{
-  const root=await mkdtemp(join(tmpdir(),"gator-menu-back-")),host=new FixtureHost({binary:"/unused",workspace:root,userData:root,env:{GATOR_STATE_DIR:root}}),client=new GatorClient(host)
+  const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-menu-back-")),host=new FixtureHost({binary:"/unused",workspace:root,userData:root,env:{HOT_CROSS_BUNS_STATE_DIR:root}}),client=new HotCrossBunsClient(host)
   host.change({...state(),composer:{id:"a".repeat(64),effort:"standard",models:[{provider:"fixture",model:"model",label:"Fixture model"}]}})
   const setup=await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>undefined,write:async()=>{}}}/>,{width,height})
   const flush=async()=>{await setup.flush();await Bun.sleep(35);await setup.flush()}
@@ -32,7 +32,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test(`Back rest
 })
 
 for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test(`nested result Back restores reading position and survives changed rows at ${width}×${height}`,async()=>{
-  const root=await mkdtemp(join(tmpdir(),"gator-menu-results-")),host=new FixtureHost({binary:"/unused",workspace:root,userData:root,env:{GATOR_STATE_DIR:root}}),client=new GatorClient(host)
+  const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-menu-results-")),host=new FixtureHost({binary:"/unused",workspace:root,userData:root,env:{HOT_CROSS_BUNS_STATE_DIR:root}}),client=new HotCrossBunsClient(host)
   const bundle={Path:root,Status:"completed",RunID:"run-one",ManifestSHA256:"b".repeat(64),Candidates:null,Artifacts:Array.from({length:40},(_,i)=>({Path:`report-${String(i).padStart(2,"0")}.md`,MediaType:"text/markdown",SHA256:"a".repeat(64),Valid:true,Preview:`Retained preview ${i}`}))}
   host.change({...state(),work_details:{mode:"draft",attachments:[],connector_ids:[],latest_bundle:bundle}})
   const setup=await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>undefined,write:async()=>{}}}/>,{width,height})

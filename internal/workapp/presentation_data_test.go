@@ -45,11 +45,11 @@ func (m Model) snapshotText() string {
 	return strings.Join(parts, "\n")
 }
 
-func TestBridgeKeepsUserAndGatorTurnsDistinct(t *testing.T) {
+func TestBridgeKeepsUserAndHotCrossBunsTurnsDistinct(t *testing.T) {
 	model := New(Config{CurrentFolder: "/work"})
-	model.messages = []message{{role: "You", text: "Draft a brief"}, {role: "Gator", text: "Here is the brief."}}
+	model.messages = []message{{role: "You", text: "Draft a brief"}, {role: "Hot Cross Buns", text: "Here is the brief."}}
 	state := model.BridgeState()
-	if len(state.Messages) != 2 || state.Messages[0].Role != "You" || state.Messages[0].Text != "Draft a brief" || state.Messages[1].Role != "Gator" || state.Messages[1].Text != "Here is the brief." {
+	if len(state.Messages) != 2 || state.Messages[0].Role != "You" || state.Messages[0].Text != "Draft a brief" || state.Messages[1].Role != "Hot Cross Buns" || state.Messages[1].Text != "Here is the brief." {
 		t.Fatalf("bridge messages = %#v", state.Messages)
 	}
 }

@@ -3,11 +3,11 @@ package model
 import (
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model/anthropic"
-	"github.com/gongahkia/gator/internal/model/chatcompletions"
-	"github.com/gongahkia/gator/internal/model/gemini"
-	"github.com/gongahkia/gator/internal/model/openai"
-	"github.com/gongahkia/gator/internal/model/radius"
+	"github.com/gongahkia/hot-cross-buns/internal/model/anthropic"
+	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
+	"github.com/gongahkia/hot-cross-buns/internal/model/gemini"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/model/radius"
 )
 
 // New resolves one configured direct provider. It never launches a vendor CLI

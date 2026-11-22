@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/model/anthropic"
-	"github.com/gongahkia/gator/internal/model/chatcompletions"
-	"github.com/gongahkia/gator/internal/model/gemini"
-	"github.com/gongahkia/gator/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/model/anthropic"
+	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
+	"github.com/gongahkia/hot-cross-buns/internal/model/gemini"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
 )
 
 func TestNewBuildsCloudBackendsWithoutCrossProviderCredentials(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 func TestNotesAndSkillsPersistWithScopeAndCorrection(t *testing.T) {
@@ -181,11 +181,11 @@ func TestKnowledgeRootRejectsSymlinkAndCreatesMissingState(t *testing.T) {
 		t.Fatalf("create missing state directory: %v", err)
 	}
 	linkedState := t.TempDir()
-	if err := os.Symlink(t.TempDir(), filepath.Join(linkedState, "gator")); err != nil {
+	if err := os.Symlink(t.TempDir(), filepath.Join(linkedState, "hot-cross-buns")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Open(linkedState); err == nil {
-		t.Fatal("symlinked Gator state root accepted")
+		t.Fatal("symlinked Hot Cross Buns state root accepted")
 	}
 }
 

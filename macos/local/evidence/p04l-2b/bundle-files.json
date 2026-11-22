@@ -3,15 +3,15 @@
     "bytes": 909,
     "sha256": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23"
   },
-  "Contents/MacOS/GatorMac": {
+  "Contents/MacOS/HotCrossBunsMac": {
     "bytes": 12389200,
     "sha256": "ce8d0e6cf6c67bedb83241b0e2c8c1c1ca9fce3c6f01ea1f7ccfc204406b755c"
   },
-  "Contents/Resources/GatorHead.png": {
+  "Contents/Resources/HotCrossBunsHead.png": {
     "bytes": 37995,
     "sha256": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee"
   },
-  "Contents/Resources/gator-runtime": {
+  "Contents/Resources/hot-cross-buns-runtime": {
     "bytes": 42144130,
     "sha256": "184c493f51b95532a5248d2e80c02bce003b458a747708eb7bb535cd1159e4b5"
   },
@@ -19,7 +19,7 @@
     "bytes": 109631,
     "sha256": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401"
   },
-  "Contents/Resources/GatorMenuBar.png": {
+  "Contents/Resources/HotCrossBunsMenuBar.png": {
     "bytes": 701,
     "sha256": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
   },

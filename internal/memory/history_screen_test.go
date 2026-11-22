@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 type historyModelFunc func(context.Context, agent.TurnRequest) (agent.Turn, error)

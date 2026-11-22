@@ -101,7 +101,7 @@ Test Suite 'All tests' passed at 2026-11-17 10:45:46.464.
 ◇ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() started.
 ✔ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() passed after 0.268 seconds.
 ◇ Test nativeStreamingSnapshotHandlingBenchmark() started.
-GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=211.27402782440186 medianPerSnapshotMS=7.0424675941467285
+HOT_CROSS_BUNS_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=211.27402782440186 medianPerSnapshotMS=7.0424675941467285
 ✔ Test nativeStreamingSnapshotHandlingBenchmark() passed after 1.102 seconds.
 ◇ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() started.
 ✔ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() passed after 0.011 seconds.
@@ -112,13 +112,13 @@ GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=217
 ◇ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() started.
 ✔ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":1.2919902801513672,"messages":50,"transcriptMedianMS":0.056028366088867188},{"bytes":240934,"decodeMedianMS":6.6330432891845703,"messages":500,"transcriptMedianMS":0.25701522827148438},{"bytes":964934,"decodeMedianMS":21.235942840576172,"messages":2000,"transcriptMedianMS":0.84698200225830078}],"kind":"native-presentation","peakRSSBytes":44761088,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":1.2919902801513672,"messages":50,"transcriptMedianMS":0.056028366088867188},{"bytes":240934,"decodeMedianMS":6.6330432891845703,"messages":500,"transcriptMedianMS":0.25701522827148438},{"bytes":964934,"decodeMedianMS":21.235942840576172,"messages":2000,"transcriptMedianMS":0.84698200225830078}],"kind":"native-presentation","peakRSSBytes":44761088,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 0.230 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"64455  37296   0.0\n64456  36608   0.0\n64457  36752   0.0\n64458  36784   0.0\n","timeToConnectedMS":[95.669984817504883,92.957019805908203,92.09597110748291,77.529072761535645]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"64455  37296   0.0\n64456  36608   0.0\n64457  36752   0.0\n64458  36784   0.0\n","timeToConnectedMS":[95.669984817504883,92.957019805908203,92.09597110748291,77.529072761535645]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 3.963 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=73.85599613189697 peakRSSBytes=49512448
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=73.85599613189697 peakRSSBytes=49512448
 ✔ Test nativeThumbnailBenchmark() passed after 0.337 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.041 seconds.

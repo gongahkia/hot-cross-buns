@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 )
 
 func TestWatchDigestPreservesReportsWithoutRecoveryNotices(t *testing.T) {

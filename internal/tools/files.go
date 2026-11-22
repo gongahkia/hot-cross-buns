@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
@@ -266,7 +266,7 @@ func walkFiles(roots workspace.RootSet, directory string, maxResults int, keep f
 }
 
 func ignoredDirectory(name string) bool {
-	return name == ".git" || name == ".gator"
+	return name == ".git" || name == ".hot-cross-buns"
 }
 
 func boundedResultLimit(requested, configured int) int {

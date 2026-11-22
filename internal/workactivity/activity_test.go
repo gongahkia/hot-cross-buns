@@ -7,8 +7,26 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
+
+func TestOnlyAllowlistedDisplayIconsReachPublicActivity(t *testing.T) {
+	for _, fixture := range []struct{ arguments, icon string }{
+		{`{"display_icon":"book-open","private":"secret argument"}`, "book-open"},
+		{`{"display_icon":"<svg onload=bad>","private":"secret argument"}`, ""},
+		{`{"display_icon":{"private":"secret argument"}}`, ""},
+	} {
+		trace := New(time.Now())
+		trace.Record(agent.Event{Kind: agent.EventToolCalled, ToolCall: &agent.ToolCall{ID: "read", Name: "read_file", Arguments: json.RawMessage(fixture.arguments)}})
+		if len(trace.Entries) != 1 || trace.Entries[0].Icon != fixture.icon || trace.Entries[0].State != "running" {
+			t.Fatalf("invalid icon projection: %#v", trace.Entries)
+		}
+		raw, _ := json.Marshal(trace)
+		if strings.Contains(string(raw), "secret argument") || strings.Contains(string(raw), "onload") {
+			t.Fatalf("non-display data leaked: %s", raw)
+		}
+	}
+}
 
 func TestOrderedPublicActivityPairsToolsAndSeparatesAnswer(t *testing.T) {
 	start := time.Unix(100, 0).UTC()

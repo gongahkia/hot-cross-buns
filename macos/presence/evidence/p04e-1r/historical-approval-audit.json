@@ -2,7 +2,7 @@
   "verdict": "HISTORICAL NEGATIVE TEST INVALID",
   "source": "UNKNOWN: old AX/keyboard logs have no per-event timestamp/source-PID linkage",
   "knownNativePID": 12492,
-  "bundle": "dev.gator.presence.finalcheck",
+  "bundle": "dev.hot-cross-buns.presence.finalcheck",
   "wrapperPID": 12626,
   "conversation": "work-20261120T033452-ec96d92e176b4efc",
   "run": "work-20261120T033715-9b901523bfc5",
@@ -102,27 +102,27 @@
   "capturedConnectors": null,
   "hashes": {
     "interaction": {
-      "path": "/tmp/gator-native-test-presence-_5yzro2z/state/gator/interactions/work-20261120T033715-9b901523bfc5/1.json",
+      "path": "/tmp/hot-cross-buns-native-test-presence-_5yzro2z/state/hot-cross-buns/interactions/work-20261120T033715-9b901523bfc5/1.json",
       "SHA256": "41c2ef9047bcbff6dc1466521bc9113fc0163ac537b4bc271d17b128389b75e9"
     },
     "revision": {
-      "path": "/tmp/gator-native-test-presence-_5yzro2z/state/gator/conversations/work-20261120T033452-ec96d92e176b4efc/revisions/work-20261120T033715-9b901523bfc5.json",
+      "path": "/tmp/hot-cross-buns-native-test-presence-_5yzro2z/state/hot-cross-buns/conversations/work-20261120T033452-ec96d92e176b4efc/revisions/work-20261120T033715-9b901523bfc5.json",
       "SHA256": "3e30a9ea3841b259491f997aedfb9d99482b513e45178dc66f346c00fa759fda"
     },
     "trace": {
-      "path": "/tmp/gator-native-test-presence-_5yzro2z/state/gator/traces/work-20261120T033715-9b901523bfc5/trace.json",
+      "path": "/tmp/hot-cross-buns-native-test-presence-_5yzro2z/state/hot-cross-buns/traces/work-20261120T033715-9b901523bfc5/trace.json",
       "SHA256": "9880295d687574000b5efbbbffe0b1008b2df8985389b76035196f357012bdd1"
     },
     "manifest": {
-      "path": "/tmp/gator-native-test-presence-_5yzro2z/state/gator/workspaces/bac79099c6189eaf335d5b4ca6f7ed57/work-20261120T033715-9b901523bfc5/manifest.json",
+      "path": "/tmp/hot-cross-buns-native-test-presence-_5yzro2z/state/hot-cross-buns/workspaces/bac79099c6189eaf335d5b4ca6f7ed57/work-20261120T033715-9b901523bfc5/manifest.json",
       "SHA256": "3c46861ea0e7a44e99cf89d1682c1b0bb7e129c164f06636f062795bfd26f60d"
     },
     "requests": {
-      "path": "/tmp/gator-native-test-presence-_5yzro2z/state/gator/conversations/work-20261120T033452-ec96d92e176b4efc/requests.json",
+      "path": "/tmp/hot-cross-buns-native-test-presence-_5yzro2z/state/hot-cross-buns/conversations/work-20261120T033452-ec96d92e176b4efc/requests.json",
       "SHA256": "2fc72e0bf1f9e035fb8b3a582dd82c5a376a0bbb619b795324d9913f1750ea9f"
     },
     "bridge": {
-      "path": "/tmp/gator-native-test-presence-_5yzro2z/bridge-12626.jsonl",
+      "path": "/tmp/hot-cross-buns-native-test-presence-_5yzro2z/bridge-12626.jsonl",
       "SHA256": "285a47bf8dd568e5fe18fa064863d14073ba3e2ef907a5a232db6b6b6ef37a6a"
     }
   },

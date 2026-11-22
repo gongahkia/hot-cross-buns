@@ -13,8 +13,8 @@ if (authorization.total_usd !== 10 || authorization.ledger !== "results/budget.j
 const results = join(directory, "results");
 await mkdir(results, { recursive: true, mode: 0o700 });
 const report = join(results, `agents-${new Date().toISOString().replaceAll(":", "-")}.json`);
-const child = spawn("go", ["test", "./cmd/gator", "-run", "^TestLiveDynamicAgents$", "-count=1", "-v", "-timeout", "5m"], {
-  cwd: repository, env: { ...process.env, GATOR_LIVE_DYNAMIC_AGENTS_REPORT: report }, stdio: "inherit",
+const child = spawn("go", ["test", "./cmd/hot-cross-buns", "-run", "^TestLiveDynamicAgents$", "-count=1", "-v", "-timeout", "5m"], {
+  cwd: repository, env: { ...process.env, HOT_CROSS_BUNS_LIVE_DYNAMIC_AGENTS_REPORT: report }, stdio: "inherit",
 });
 child.on("error", () => { console.error("Could not start live specialist evaluation"); process.exitCode = 1; });
 child.on("exit", (code) => { console.log(`Retained synthetic report: ${report}`); process.exitCode = code ?? 1; });

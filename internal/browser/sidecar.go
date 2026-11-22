@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/hostproc"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const maxSidecarResponseBytes = 4 * 1024 * 1024
@@ -98,7 +98,7 @@ func startSidecarProcess(ctx context.Context, command *exec.Cmd, scratchRoot str
 	}
 	// Playwright normally creates profiles/downloads in the system temp folder.
 	// Own their parent so forced driver termination cannot strand login data.
-	command.Env = append(command.Env, "TMPDIR="+directory, "TMP="+directory, "TEMP="+directory, "GATOR_BROWSER_SCRATCH="+directory)
+	command.Env = append(command.Env, "TMPDIR="+directory, "TMP="+directory, "TEMP="+directory, "HOT_CROSS_BUNS_BROWSER_SCRATCH="+directory)
 	input, err := command.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("open browser driver input: %w", err)

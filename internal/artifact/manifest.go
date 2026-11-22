@@ -11,10 +11,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
 )
 
 var specialistNamePattern = regexp.MustCompile(`\A[a-z][a-z0-9_]{0,63}\z`)
@@ -326,7 +326,7 @@ func (e RendererEvidence) Validate() error {
 	if e.Format != "docx" && e.Format != "pdf" && e.Format != "xlsx" && e.Format != "pptx" {
 		return errors.New("renderer format is invalid")
 	}
-	if e.Renderer != "gator.document.v1" && e.Renderer != "gator.workbook.v1" && e.Renderer != "gator.presentation.v1" {
+	if e.Renderer != "hot-cross-buns.document.v1" && e.Renderer != "hot-cross-buns.workbook.v1" && e.Renderer != "hot-cross-buns.presentation.v1" {
 		return errors.New("renderer identity is invalid")
 	}
 	if !validSHA256(e.ArtifactSHA256) || !validSHA256(e.SpecSHA256) || e.TemplateSHA256 != "" && !validSHA256(e.TemplateSHA256) {

@@ -9,25 +9,25 @@ struct NativeMascotPreferencesView: View {
     @State private var displays = NativeDesktopPetScreen.current()
     var body: some View {
         Form {
-            Section("Gator Mascot") {
-                Toggle("Show In-Chat Mascot", isOn: $shown).accessibilityIdentifier("gator.mascot.shown")
+            Section("Hot Cross Buns Mascot") {
+                Toggle("Show In-Chat Mascot", isOn: $shown).accessibilityIdentifier("hot-cross-buns.mascot.shown")
                 Picker("Mascot Style", selection: Binding(get: { NativeMascotPreference.appearance(style).rawValue }, set: { style = $0 })) {
                     ForEach(NativeMascotStyle.allCases, id: \.rawValue) { appearance in Text(appearance.label).tag(appearance.rawValue) }
-                }.accessibilityIdentifier("gator.mascot.style")
-                Toggle("Animate Mascot", isOn: $animated).accessibilityIdentifier("gator.mascot.animated")
+                }.accessibilityIdentifier("hot-cross-buns.mascot.style")
+                Toggle("Animate Mascot", isOn: $animated).accessibilityIdentifier("hot-cross-buns.mascot.animated")
                 Text("Short reactions to the current conversation. macOS Reduce Motion takes precedence.").font(.callout).foregroundStyle(.secondary)
             }
             Section("Desktop Pet") {
-                Toggle("Show Desktop Pet", isOn: $desktopPet).accessibilityIdentifier("gator.desktopPet.shown")
+                Toggle("Show Desktop Pet", isOn: $desktopPet).accessibilityIdentifier("hot-cross-buns.desktopPet.shown")
                 Picker("Display", selection: $display) {
                     Text("Primary Display").tag("")
                     ForEach(displays.filter { !$0.id.isEmpty }, id: \.id) { screen in Text(screen.name).tag(screen.id) }
                     if !display.isEmpty && !displays.contains(where: { $0.id == display }) {
                         Text("Chosen display unavailable · using primary").tag(display)
                     }
-                }.accessibilityIdentifier("gator.desktopPet.display")
+                }.accessibilityIdentifier("hot-cross-buns.desktopPet.display")
                 Button("Tuck Away Desktop Pet") { desktopPet = false }.disabled(!desktopPet)
-                    .accessibilityIdentifier("gator.desktopPet.tuck")
+                    .accessibilityIdentifier("hot-cross-buns.desktopPet.tuck")
                 Text("Click-through companion for the current conversation. Uses the style and animation settings above, independently of the in-chat mascot.")
                     .font(.callout).foregroundStyle(.secondary)
                 Text("May remain visible in fullscreen or shared screens. Tuck Away hides it until you explicitly turn it on again.")

@@ -5,12 +5,12 @@ pilot, not a claim of comparative model quality or general user usefulness.
 
 ## Question and method
 
-Can a user give Gator ordinary document and table tasks in the terminal and get
+Can a user give Hot Cross Buns ordinary document and table tasks in the terminal and get
 an accurate result without repairing it? I selected five non-coding cases from
 the checked-in `work.v1` corpus: conflicting sources, missing evidence, document
 extraction, duplicate keys, and decimal precision. All inputs were tiny synthetic
 fixtures. The scripted run used the repository's fixed model turns; the live run
-used Gator's configured Gemini credential. Results were inspected against each
+used Hot Cross Buns's configured Gemini credential. Results were inspected against each
 source and objective, in addition to the repository's deterministic graders.
 
 | Run | Result | Interpretation |
@@ -20,7 +20,7 @@ source and objective, in addition to the repository's deterministic graders.
 | Live retry, `gemini-3.5-flash-lite`, three cases | 1/3 grader passes | The adapter was fixed and all three tasks executed, but automatic grading and manual review disagree about what succeeded. |
 
 The live retry used one attempt per case, no connected services or web research,
-and a bounded request and wall budget. It did not compare Gator with another
+and a bounded request and wall budget. It did not compare Hot Cross Buns with another
 terminal agent. The retry used a different model from the initial live run, so
 the two live scores are not a before/after quality comparison.
 
@@ -43,7 +43,7 @@ and its focused tests pass.
 
 The most concrete potential value is **doing file-heavy terminal work in one
 place**: inspect local material, transform or reconcile it, and produce a usable
-result while preserving the original files. This pilot demonstrates that Gator
+result while preserving the original files. This pilot demonstrates that Hot Cross Buns
 can complete a small conflicting-source brief and produce a checked workbook.
 It does not establish reliable end-to-end usefulness or an advantage over Claude
 Cowork, Pi, or a model plus shell tools. The current emphasis on manifests and
@@ -52,7 +52,7 @@ file to be substantively right.
 
 Before adopting a stronger pitch, run at least 10 realistic, previously unseen
 non-coding tasks across research, messy tables, document creation, and follow-up
-work. Use the same inputs and model with Gator and a terminal baseline, and
+work. Use the same inputs and model with Hot Cross Buns and a terminal baseline, and
 have a reviewer score task completion, factual support, cleanup needed, time,
 and cost without knowing which tool produced each output. Include source files
 large enough to expose the actual workflow friction and report failures and
@@ -62,8 +62,8 @@ quota limits separately.
 
 The selected corpus cases came from `internal/eval/testdata/work-v1/dataset.json`.
 The local experimental data and generated outputs were retained in
-`/tmp/gator-terminal-benchmark-f6a4dz0t` for this session. That path is
-ephemeral. The main commands were `gator work eval validate DATASET` and
-`gator work eval run DATASET --live --provider gemini --model
+`/tmp/hot-cross-buns-terminal-benchmark-f6a4dz0t` for this session. That path is
+ephemeral. The main commands were `hot-cross-buns work eval validate DATASET` and
+`hot-cross-buns work eval run DATASET --live --provider gemini --model
 gemini-3.5-flash-lite --max-model-requests 30 --timeout-seconds 300
 --report-dir DIR`; see `docs/WORK_EVALUATION.md` for the full syntax.

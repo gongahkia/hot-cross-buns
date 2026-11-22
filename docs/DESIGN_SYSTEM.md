@@ -1,4 +1,4 @@
-# Gator terminal interface
+# Hot Cross Buns terminal interface
 
 The optional [desktop companion](DESKTOP.md) adapts Referene's React DOM /
 Tailwind layout and shares the Go UI bridge with this terminal. Desktop
@@ -10,13 +10,13 @@ below continue to apply to `ui/`.
 The interactive UI is the React renderer in `ui/src/main.tsx`, built with
 `@claude-code-kit/ink-renderer` and `@claude-code-kit/ui` 0.4.0. The imported
 kit is an independent project inspired by Claude Code; it is not Anthropic's
-frontend. Gator uses its conversational layout and keyboard conventions while
+frontend. Hot Cross Buns uses its conversational layout and keyboard conventions while
 keeping its own green identity, work commands, and review flows.
 
 Go owns workflow state, actions, and approvals. It publishes display data
 through `BridgeState` and `UISnapshot`. Go `View()` methods are empty Bubble Tea
 interface adapters. There is no Go screen renderer or fallback. Interactive
-Gator and `gator doctor` require Node.js 22 or newer; headless
+Hot Cross Buns and `hot-cross-buns doctor` require Node.js 22 or newer; headless
 commands do not. The Go doctor checks feed a React report in either the
 standalone command or `/doctor` conversation result.
 
@@ -42,9 +42,9 @@ processing. `/context` expands supplied excerpts and source references with
 scope and correction controls. Input provenance does not establish model
 causality or source support for a claim.
 
-- `🐊 Gator` labels the home and conversation. Green marks Gator, the prompt,
+- `🐊 Hot Cross Buns` labels the home and conversation. Green marks Hot Cross Buns, the prompt,
   focused rows, and active work; neutral text carries content and muted green
-  carries secondary context. `/theme` applies the saved `gator`, `contrast`, or
+  carries secondary context. `/theme` applies the saved `hot-cross-buns`, `contrast`, or
   `mono` palette to the React interface immediately, including panels, result
   cards, status, and doctor diagnostics.
 - Yellow marks pending review; red marks errors. Colors follow typed state from
@@ -69,7 +69,7 @@ causality or source support for a claim.
 | Surface | Content | Input and exit |
 | --- | --- | --- |
 | Home | Welcome, model setup or next actions | Bottom composer; `/` commands |
-| Conversation | User and Gator turns, deliverables, run status | Bottom composer; Esc interrupts active work |
+| Conversation | User and Hot Cross Buns turns, deliverables, run status | Bottom composer; Esc interrupts active work |
 | Slash suggestions | Available commands filtered by typed prefix | Above composer; arrows, Tab or Enter select; Esc dismisses |
 | Search | Transcript match count and result navigation | Ctrl+F opens; Esc closes |
 | Pickers | Commands, conversations, goals, workspace, copy target | Search above rows; arrows and Enter; Esc closes |
@@ -98,19 +98,19 @@ causality or source support for a claim.
   or combining sequence as one character. Small terminals compress panel
   chrome and wrap long detail lines; the picker fits at 20×12.
 
-The kit hardcodes cyan in its `Select` and `ListItem` focus states, so Gator
+The kit hardcodes cyan in its `Select` and `ListItem` focus states, so Hot Cross Buns
 renders those rows with green rather than inheriting a mismatched color. The
 shared kit components used directly are `WelcomeScreen`, `MessageList`,
 `Markdown`, `Divider`, `StatusLine`, `Spinner`, `Byline`, and
-`KeyboardShortcutHint`. Gator's prompt, search, row picker, and focused form
+`KeyboardShortcutHint`. Hot Cross Buns's prompt, search, row picker, and focused form
 surfaces are adapters that follow the kit's placement, focus, and key
 conventions while using the saved palette and Go workflow state. The kit's
 `PromptInput` uses JavaScript character offsets, which split some emoji, and
-its `Dialog` owns Esc locally; Gator needs Go to own Esc for approval and model
+its `Dialog` owns Esc locally; Hot Cross Buns needs Go to own Esc for approval and model
 forms. Keep keyboard ownership in React for text editing and in Go for workflow
 actions so one key cannot trigger both.
 
 The kit's Markdown component reads its own theme for inline code and links.
-Gator synchronizes those public theme colors with the active palette before
+Hot Cross Buns synchronizes those public theme colors with the active palette before
 rendering Markdown; the adapter is covered by a UI test because it depends on
 the pinned kit version.

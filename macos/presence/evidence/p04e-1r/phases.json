@@ -5,7 +5,7 @@
     "phase": "idle",
     "state": {
       "action": "state",
-      "bundle": "dev.gator.presence.r1",
+      "bundle": "dev.hot-cross-buns.presence.r1",
       "capture": [
         {
           "kCGWindowAlpha": 1,
@@ -18,7 +18,7 @@
           "kCGWindowIsOnscreen": true,
           "kCGWindowLayer": 0,
           "kCGWindowMemoryUsage": 2368,
-          "kCGWindowName": "Gator",
+          "kCGWindowName": "Hot Cross Buns",
           "kCGWindowNumber": 62299,
           "kCGWindowOwnerName": "PresenceClosure",
           "kCGWindowOwnerPID": 25302,
@@ -29,8 +29,8 @@
       "controllerPID": 25289,
       "elapsed": 0.0034600496292114258,
       "focusedElement": {
-        "description": "Message Gator",
-        "id": "gator.composer.text",
+        "description": "Message Hot Cross Buns",
+        "id": "hot-cross-buns.composer.text",
         "role": "AXTextArea",
         "title": ""
       },
@@ -38,7 +38,7 @@
         "description": "",
         "id": "conversation",
         "role": "AXWindow",
-        "title": "Gator \u2013 Retained topic 0001"
+        "title": "Hot Cross Buns \u2013 Retained topic 0001"
       },
       "frontPID": 25302,
       "ok": true,
@@ -50,7 +50,7 @@
           "description": "",
           "id": "conversation",
           "role": "AXWindow",
-          "title": "Gator \u2013 Retained topic 0001"
+          "title": "Hot Cross Buns \u2013 Retained topic 0001"
         }
       ]
     },

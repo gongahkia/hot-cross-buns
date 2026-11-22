@@ -35,7 +35,7 @@ import CryptoKit
                         try data.write(to: path)
                     } else {
                         guard let context = CGContext(data: nil, width: 224, height: 224, bitsPerComponent: 8, bytesPerRow: 224 * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { throw NSError(domain: "VectorContext", code: 1) }
-                        ClassicGator.draw(context, pixels: 224, pose: pose)
+                        ClassicHotCrossBuns.draw(context, pixels: 224, pose: pose)
                         guard let image = context.makeImage(), let writer = CGImageDestinationCreateWithURL(path as CFURL, UTType.png.identifier as CFString, 1, nil) else { throw NSError(domain: "VectorPNG", code: 1) }
                         CGImageDestinationAddImage(writer, image, nil); guard CGImageDestinationFinalize(writer) else { throw NSError(domain: "VectorWrite", code: 1) }
                     }

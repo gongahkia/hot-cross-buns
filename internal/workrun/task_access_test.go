@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
 	"testing"
 )
 
@@ -31,7 +31,7 @@ func TestTaskAccessNeedCannotCreateAnExecutionGrant(t *testing.T) {
 	if len(needs.snapshot()) != 1 {
 		t.Fatal("repeated need was duplicated")
 	}
-	if effects, err := planToolEffects(tool, agent.ToolCall{Name: "gator_request_access"}); err != nil || len(effects) != 1 || effects[0] != "read" {
+	if effects, err := planToolEffects(tool, agent.ToolCall{Name: "hot_cross_buns_request_access"}); err != nil || len(effects) != 1 || effects[0] != "read" {
 		t.Fatal("setup request acquired mutating effects", effects, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -45,8 +45,8 @@ func TestTaskAccessRequirementFencesLaterToolsInTheSameModelTurn(t *testing.T) {
 	fixture := &appControllerFixture{}
 	model := &scriptedModel{turns: []agent.Turn{
 		{ToolCalls: []agent.ToolCall{
-			{ID: "setup-first", Name: "gator_request_access", Arguments: json.RawMessage(`{"kind":"http_json","operation":"fetch"}`)},
-			{ID: "must-not-apply", Name: "gator_app_update", Arguments: json.RawMessage(`{"setting":"theme","value":{"theme":"mono"}}`)},
+			{ID: "setup-first", Name: "hot_cross_buns_request_access", Arguments: json.RawMessage(`{"kind":"http_json","operation":"fetch"}`)},
+			{ID: "must-not-apply", Name: "hot_cross_buns_app_update", Arguments: json.RawMessage(`{"setting":"theme","value":{"theme":"mono"}}`)},
 		}},
 		{Text: "Account setup is required before this task can finish."},
 	}}

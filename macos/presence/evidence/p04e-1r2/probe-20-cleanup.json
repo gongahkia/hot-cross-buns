@@ -3,18 +3,18 @@
     "request": {
       "action": "activate",
       "pid": 32855,
-      "manifest": "/tmp/gator-native-test-presence-r2-hyu0yo1s/fixture.json"
+      "manifest": "/tmp/hot-cross-buns-native-test-presence-r2-hyu0yo1s/fixture.json"
     },
     "result": {
       "action": "activate",
       "binarySHA256": "e716fcd0284357f86f461b6a2d24c73dd745487e482275d2c4ceeab75d6a5c8c",
-      "bundle": "dev.gator.presence.r2.c20",
+      "bundle": "dev.hot-cross-buns.presence.r2.c20",
       "controllerPID": 33020,
       "elapsed": 0.02516305446624756,
-      "executable": "/tmp/gator-native-test-presence-r2-hyu0yo1s/ClosureR2.app/Contents/MacOS/GatorMac",
+      "executable": "/tmp/hot-cross-buns-native-test-presence-r2-hyu0yo1s/ClosureR2.app/Contents/MacOS/HotCrossBunsMac",
       "focusedElement": {
-        "description": "Message Gator",
-        "id": "gator.composer.text",
+        "description": "Message Hot Cross Buns",
+        "id": "hot-cross-buns.composer.text",
         "role": "AXTextArea",
         "title": ""
       },
@@ -22,7 +22,7 @@
         "description": "",
         "id": "conversation",
         "role": "AXWindow",
-        "title": "Gator \u2013 Retained topic 0001"
+        "title": "Hot Cross Buns \u2013 Retained topic 0001"
       },
       "frontPID": 32855,
       "ok": true,
@@ -35,12 +35,12 @@
     "request": {
       "action": "state",
       "pid": 32855,
-      "manifest": "/tmp/gator-native-test-presence-r2-hyu0yo1s/fixture.json"
+      "manifest": "/tmp/hot-cross-buns-native-test-presence-r2-hyu0yo1s/fixture.json"
     },
     "result": {
       "action": "state",
       "binarySHA256": "e716fcd0284357f86f461b6a2d24c73dd745487e482275d2c4ceeab75d6a5c8c",
-      "bundle": "dev.gator.presence.r2.c20",
+      "bundle": "dev.hot-cross-buns.presence.r2.c20",
       "capture": [
         {
           "kCGWindowAlpha": 1,
@@ -53,7 +53,7 @@
           "kCGWindowIsOnscreen": true,
           "kCGWindowLayer": 0,
           "kCGWindowMemoryUsage": 2368,
-          "kCGWindowName": "Gator",
+          "kCGWindowName": "Hot Cross Buns",
           "kCGWindowNumber": 63311,
           "kCGWindowOwnerName": "ClosureR2",
           "kCGWindowOwnerPID": 32855,
@@ -63,10 +63,10 @@
       ],
       "controllerPID": 33020,
       "elapsed": 0.00876009464263916,
-      "executable": "/tmp/gator-native-test-presence-r2-hyu0yo1s/ClosureR2.app/Contents/MacOS/GatorMac",
+      "executable": "/tmp/hot-cross-buns-native-test-presence-r2-hyu0yo1s/ClosureR2.app/Contents/MacOS/HotCrossBunsMac",
       "focusedElement": {
-        "description": "Message Gator",
-        "id": "gator.composer.text",
+        "description": "Message Hot Cross Buns",
+        "id": "hot-cross-buns.composer.text",
         "role": "AXTextArea",
         "title": ""
       },
@@ -74,7 +74,7 @@
         "description": "",
         "id": "conversation",
         "role": "AXWindow",
-        "title": "Gator \u2013 Retained topic 0001"
+        "title": "Hot Cross Buns \u2013 Retained topic 0001"
       },
       "frontPID": 32855,
       "ok": true,
@@ -87,7 +87,7 @@
           "description": "",
           "id": "conversation",
           "role": "AXWindow",
-          "title": "Gator \u2013 Retained topic 0001"
+          "title": "Hot Cross Buns \u2013 Retained topic 0001"
         }
       ]
     }
@@ -98,25 +98,25 @@
       "window": "conversation",
       "expectedWindow": "conversation",
       "expectedFocus": {
-        "description": "Message Gator",
-        "id": "gator.composer.text",
+        "description": "Message Hot Cross Buns",
+        "id": "hot-cross-buns.composer.text",
         "role": "AXTextArea",
         "title": ""
       },
       "preflightID": "5077FD03-AB77-4BB5-BF5D-CC5405C61282",
       "pid": 32855,
-      "manifest": "/tmp/gator-native-test-presence-r2-hyu0yo1s/fixture.json"
+      "manifest": "/tmp/hot-cross-buns-native-test-presence-r2-hyu0yo1s/fixture.json"
     },
     "result": {
       "action": "quit",
       "binarySHA256": "e716fcd0284357f86f461b6a2d24c73dd745487e482275d2c4ceeab75d6a5c8c",
-      "bundle": "dev.gator.presence.r2.c20",
+      "bundle": "dev.hot-cross-buns.presence.r2.c20",
       "controllerPID": 33020,
       "elapsed": 0.020364046096801758,
-      "executable": "/tmp/gator-native-test-presence-r2-hyu0yo1s/ClosureR2.app/Contents/MacOS/GatorMac",
+      "executable": "/tmp/hot-cross-buns-native-test-presence-r2-hyu0yo1s/ClosureR2.app/Contents/MacOS/HotCrossBunsMac",
       "focusedElement": {
-        "description": "Message Gator",
-        "id": "gator.composer.text",
+        "description": "Message Hot Cross Buns",
+        "id": "hot-cross-buns.composer.text",
         "role": "AXTextArea",
         "title": ""
       },
@@ -124,7 +124,7 @@
         "description": "",
         "id": "conversation",
         "role": "AXWindow",
-        "title": "Gator \u2013 Retained topic 0001"
+        "title": "Hot Cross Buns \u2013 Retained topic 0001"
       },
       "frontPID": 32855,
       "ok": true,

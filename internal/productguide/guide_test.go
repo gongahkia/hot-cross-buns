@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/productguide"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/productguide"
 )
 
 // A provider surface change must reconcile its public capability guide. This

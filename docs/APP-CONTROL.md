@@ -1,6 +1,6 @@
-# Control Gator through conversation
+# Control Hot Cross Buns through conversation
 
-Ask Gator to inspect or change its own settings. It uses the same stores and
+Ask Hot Cross Buns to inspect or change its own settings. It uses the same stores and
 services as the desktop screens, with tool results confirming actual changes.
 
 | Example request | Behavior |
@@ -28,7 +28,7 @@ changes, and source files or saved notes cannot authorize app mutations.
 
 Pausing requests or exhausting a shared limit also stops new model-powered
 chat and dictation requests. Use **Settings → Usage & limits** to resume or
-raise limits when Gator cannot make another model request.
+raise limits when Hot Cross Buns cannot make another model request.
 
 ## Dictation and spoken replies
 
@@ -54,7 +54,7 @@ The speaker button enables optional playback of new replies using a locally
 installed system voice. It also stops current playback. Existing conversation
 history is not replayed when playback is enabled. Code blocks are skipped and
 spoken text is bounded to 12,000 characters. Recording stops playback to avoid
-capturing Gator's own voice.
+capturing Hot Cross Buns's own voice.
 
 Audio bytes are transient and are not saved in transcripts, logs, or artifacts.
 The reviewed transcript becomes an ordinary draft; sending it follows the
@@ -66,14 +66,14 @@ from being added or uploaded under a different selection.
 The implementation uses [OpenAI file transcription](https://developers.openai.com/api/docs/guides/speech-to-text)
 and [Gemini inline media input](https://ai.google.dev/api/generate-content#Part).
 Provider model availability, billing, and retention are governed by the selected
-provider; Gator's local audio lifecycle does not establish the provider's policy.
+provider; Hot Cross Buns's local audio lifecycle does not establish the provider's policy.
 
 ## Chats and personal memory
 
 **New chat** (Cmd/Ctrl+N) starts an independent conversation. Launch restores the
 last selected chat. Personal saved memory is shared across chats in the same
 local profile; transcripts, file access, task settings and selected connections
-remain per chat. Ask Gator to remember an enduring fact or preference, inspect
+remain per chat. Ask Hot Cross Buns to remember an enduring fact or preference, inspect
 what it saved in Saved, or correct/forget it. Forgetting a memory keeps the
 historical message until you separately delete that chat/history.
 
@@ -85,7 +85,7 @@ See [chat and memory boundaries](DESKTOP-CONVERSATIONAL-IMPLEMENTATION.md#shared
 
 Open an attached or generated file card inside chat. Preview/Edit exposes only
 the controls supported by that format. Save creates a private working version;
-Ask Gator adds its saved version and selected text/cell to a reviewable message.
+Ask Hot Cross Buns adds its saved version and selected text/cell to a reviewable message.
 Neither action sends that message automatically. File edit drafts are separate
 from composer drafts and recover on reopening the file. Export uses a native
 save dialog and does not overwrite an original unless that destination is

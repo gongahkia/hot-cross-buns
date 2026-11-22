@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/delivery"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/delivery"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 const maxHistoryItems = 50

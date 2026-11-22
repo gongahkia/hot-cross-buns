@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func check(err error) {
@@ -20,7 +20,7 @@ func check(err error) {
 
 func main() {
 	root := os.Args[1]
-	if !strings.HasPrefix(root, "/tmp/gator-p01-") {
+	if !strings.HasPrefix(root, "/tmp/hot-cross-buns-p01-") {
 		panic("disposable P01 profile required")
 	}
 	check(os.MkdirAll(filepath.Join(root, "workspace"), 0700))
@@ -37,7 +37,7 @@ func main() {
 		}
 		for i := 1; i <= count; i++ {
 			now := time.Now()
-			turn, err := store.AdmitDialogue(conversation.ID, fmt.Sprintf("gator-p01-fixture-%s-%03d", label, i), fmt.Sprintf("History question %s-%03d", label, i), json.RawMessage(`{"version":1}`), now)
+			turn, err := store.AdmitDialogue(conversation.ID, fmt.Sprintf("hot-cross-buns-p01-fixture-%s-%03d", label, i), fmt.Sprintf("History question %s-%03d", label, i), json.RawMessage(`{"version":1}`), now)
 			check(err)
 			turn.State = "routing"
 			turn.UpdatedAt = time.Now()

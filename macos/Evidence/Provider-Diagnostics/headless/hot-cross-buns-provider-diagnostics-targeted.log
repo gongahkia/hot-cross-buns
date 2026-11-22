@@ -1,0 +1,5 @@
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/providerhttp	0.456s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/openai	0.890s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/gemini	1.349s
+ok  	github.com/gongahkia/hot-cross-buns/internal/agent	1.770s
+ok  	github.com/gongahkia/hot-cross-buns/internal/telemetry	2.225s

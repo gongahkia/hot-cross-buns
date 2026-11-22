@@ -1,6 +1,6 @@
 exit=0
 ======================================================================
-GatorDiagnostic [72690]: 64-bit    Footprint: 153 MB (16384 bytes per page)
+HotCrossBunsDiagnostic [72690]: 64-bit    Footprint: 153 MB (16384 bytes per page)
 ======================================================================
 
   Dirty      Clean  Reclaimable    Regions    Category

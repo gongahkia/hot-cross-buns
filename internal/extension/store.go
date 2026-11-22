@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
 )
 
 // Store owns installed extension bundles below one data directory.
@@ -22,13 +22,13 @@ type Store struct {
 	path string
 }
 
-// ResolveDataDir follows XDG data placement. GATOR_DATA_DIR is an explicit
+// ResolveDataDir follows XDG data placement. HOT_CROSS_BUNS_DATA_DIR is an explicit
 // override for managed installs and tests.
 func ResolveDataDir(override string) (string, error) {
 	if strings.TrimSpace(override) != "" {
 		return absoluteDirectory(override)
 	}
-	if configured := os.Getenv("GATOR_DATA_DIR"); strings.TrimSpace(configured) != "" {
+	if configured := os.Getenv("HOT_CROSS_BUNS_DATA_DIR"); strings.TrimSpace(configured) != "" {
 		return absoluteDirectory(configured)
 	}
 	if configured := os.Getenv("XDG_DATA_HOME"); strings.TrimSpace(configured) != "" {
@@ -50,10 +50,10 @@ func NewStore(dataRoot string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	return Store{path: filepath.Join(root, "gator", "extensions")}, nil
+	return Store{path: filepath.Join(root, "hot-cross-buns", "extensions")}, nil
 }
 
-// DefaultStore opens Gator's standard extension data store.
+// DefaultStore opens Hot Cross Buns's standard extension data store.
 func DefaultStore() (Store, error) {
 	directory, err := ResolveDataDir("")
 	if err != nil {
@@ -146,7 +146,7 @@ func (s Store) Install(source string, replace bool) (Installed, error) {
 
 // InstallSource installs either a local bundle directory or an explicit Git
 // repository URL. Re-running with --replace is the intentional package-update
-// mechanism; Gator never refreshes executable extensions in the background.
+// mechanism; Hot Cross Buns never refreshes executable extensions in the background.
 func (s Store) InstallSource(ctx context.Context, source string, replace bool) (Installed, error) {
 	info, err := os.Stat(source)
 	if err == nil {
@@ -161,7 +161,7 @@ func (s Store) InstallSource(ctx context.Context, source string, replace bool) (
 	if !validGitSource(source) {
 		return Installed{}, errors.New("extension source must be a local directory or an https, ssh, or git@ repository URL")
 	}
-	temporary, err := os.MkdirTemp("", "gator-extension-clone-")
+	temporary, err := os.MkdirTemp("", "hot-cross-buns-extension-clone-")
 	if err != nil {
 		return Installed{}, fmt.Errorf("create extension clone directory: %w", err)
 	}

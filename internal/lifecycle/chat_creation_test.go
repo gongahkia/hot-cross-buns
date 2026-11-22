@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestRestoreRetainsChatCreationReceiptWithoutCreatingAnotherChat(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRestoreRetainsChatCreationReceiptWithoutCreatingAnotherChat(t *testing.
 	}
 	found := false
 	for path := range manifest.Files {
-		if strings.HasPrefix(path, "gator/conversations/.creations/") && strings.HasSuffix(path, ".json") {
+		if strings.HasPrefix(path, "hot-cross-buns/conversations/.creations/") && strings.HasSuffix(path, ".json") {
 			found = true
 		}
 	}

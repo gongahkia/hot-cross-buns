@@ -1,16 +1,16 @@
-AXApplication | Gator |  | 
+AXApplication | Hot Cross Buns |  |
 AXWindow |  |  | 
 AXGroup |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Show me a readable native conversation
 AXButton |  | Inspect Current Task | 
 AXPopUpButton | More |  | 
-AXButton |  | Open full Gator window | 
+AXButton |  | Open full Hot Cross Buns window |
 AXScrollArea |  |  | 
 AXOpaqueProviderGroup |  |  | 
 AXStaticText |  |  | You
 AXStaticText |  |  | Show me a readable native conversation
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | # Your day, with room to breathe
 
 I found three useful things to keep in view. The draft remains yours to review.
@@ -21,15 +21,15 @@ I found three useful things to keep in view. The draft remains yours to review.
 
 ## A small example
 
-swift let message = "Hello, Gator" print(message) 
+swift let message = "Hello, Hot Cross Buns" print(message)
 
 A longer reference: https://example.invalid/planning/your-personal-assistant/retained-evidence-and-reviewed-changes
 
 Nothing has been sent or scheduled. You can ask for a correction or keep talking.
 AXLink | https://example.invalid/planning/your-personal-assistant/retained-evidence-and-reviewed-changes |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXDisclosureTriangle |  | Retained work result | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Context and sources
 AXStaticText |  |  | Inspect supplied saved context, source references, and usage.
 AXDisclosureTriangle |  | Exact details | 
@@ -45,16 +45,16 @@ AXStaticText |  |  | Request: completed
 AXButton |  | Inspect recovery evidence for the selected conversation | 
 AXDisclosureTriangle |  | Model processing · configuration, not a connectivity test | 
 AXScrollArea |  |  | 
-AXTextArea |  | Message Gator | 
-AXStaticText |  |  | Message Gator…
+AXTextArea |  | Message Hot Cross Buns |
+AXStaticText |  |  | Message Hot Cross Buns…
 AXButton |  | Attach Files | 
 AXPopUpButton | Photo | Image attachment options | 
 AXCheckBox |  | Plan first | 
 AXStaticText |  |  | ⇧ Return: new line
 AXButton |  | Send message | 
-AXWindow | Gator |  | 
+AXWindow | Hot Cross Buns |  |
 AXGroup |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Show me a readable native conversation
 AXButton |  | Inspect Current Task | 
 AXPopUpButton | More |  | 
@@ -62,7 +62,7 @@ AXScrollArea |  |  |
 AXOpaqueProviderGroup |  |  | 
 AXStaticText |  |  | You
 AXStaticText |  |  | Show me a readable native conversation
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | # Your day, with room to breathe
 
 I found three useful things to keep in view. The draft remains yours to review.
@@ -73,15 +73,15 @@ I found three useful things to keep in view. The draft remains yours to review.
 
 ## A small example
 
-swift let message = "Hello, Gator" print(message) 
+swift let message = "Hello, Hot Cross Buns" print(message)
 
 A longer reference: https://example.invalid/planning/your-personal-assistant/retained-evidence-and-reviewed-changes
 
 Nothing has been sent or scheduled. You can ask for a correction or keep talking.
 AXLink | https://example.invalid/planning/your-personal-assistant/retained-evidence-and-reviewed-changes |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXDisclosureTriangle |  | Retained work result | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Context and sources
 AXStaticText |  |  | Inspect supplied saved context, source references, and usage.
 AXDisclosureTriangle |  | Exact details | 
@@ -97,8 +97,8 @@ AXStaticText |  |  | Request: completed
 AXButton |  | Inspect recovery evidence for the selected conversation | 
 AXDisclosureTriangle |  | Model processing · configuration, not a connectivity test | 
 AXScrollArea |  |  | 
-AXTextArea |  | Message Gator | 
-AXStaticText |  |  | Message Gator…
+AXTextArea |  | Message Hot Cross Buns |
+AXStaticText |  |  | Message Hot Cross Buns…
 AXButton |  | Attach Files | 
 AXPopUpButton | Photo | Image attachment options | 
 AXCheckBox |  | Plan first | 
@@ -109,6 +109,6 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

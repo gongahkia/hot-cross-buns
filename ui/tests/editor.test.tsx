@@ -3,24 +3,24 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, readFile, writeFile, stat, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 // The existing Go editor command uses POSIX sh, including in the Windows preview.
 test.skipIf(process.platform === "win32")("external editor returns owned text and files after success, failure and a concurrent chat change", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-editor-")), script = join(root, "editor.mjs"), control = join(root, "control.json"), ready = join(root, "ready.json"), release = join(root, "release")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-editor-")), script = join(root, "editor.mjs"), control = join(root, "control.json"), ready = join(root, "ready.json"), release = join(root, "release")
   await writeFile(script, `import { readFile, writeFile, access } from 'node:fs/promises';
-    const command = JSON.parse(await readFile(process.env.GATOR_EDITOR_CONTROL, 'utf8'));
+    const command = JSON.parse(await readFile(process.env.HOT_CROSS_BUNS_EDITOR_CONTROL, 'utf8'));
     const path = process.argv[2];
-    await writeFile(process.env.GATOR_EDITOR_READY, JSON.stringify({path, original: await readFile(path, 'utf8')}));
-    if (command.block) while (!await access(process.env.GATOR_EDITOR_RELEASE).then(() => true, () => false)) await new Promise(resolve => setTimeout(resolve, 20));
+    await writeFile(process.env.HOT_CROSS_BUNS_EDITOR_READY, JSON.stringify({path, original: await readFile(path, 'utf8')}));
+    if (command.block) while (!await access(process.env.HOT_CROSS_BUNS_EDITOR_RELEASE).then(() => true, () => false)) await new Promise(resolve => setTimeout(resolve, 20));
     await writeFile(path, command.text); process.exitCode = command.fail ? 3 : 0;
   `)
   const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'"
   const source = join(root, "notes.txt"); await writeFile(source, "Retained attachment")
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, VISUAL: "", EDITOR: `${quote(process.execPath)} ${quote(script)}`, GATOR_EDITOR_CONTROL: control, GATOR_EDITOR_READY: ready, GATOR_EDITOR_RELEASE: release, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, VISUAL: "", EDITOR: `${quote(process.execPath)} ${quote(script)}`, HOT_CROSS_BUNS_EDITOR_CONTROL: control, HOT_CROSS_BUNS_EDITOR_READY: ready, HOT_CROSS_BUNS_EDITOR_RELEASE: release, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 36 })
   let setup = await render()
   await setup.renderer.setupTerminal()
@@ -56,7 +56,7 @@ test.skipIf(process.platform === "win32")("external editor returns owned text an
     expect(client.context).toBe(otherContext); expect(client.draft.text).toBe("Other chat draft")
     expect(client.drafts.get(originalContext)?.text).toBe("Concurrent original chat typing\n\nOriginal chat editor result")
     expect(client.drafts.get(originalContext)?.uploads).toHaveLength(1)
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start()
     const saved = await client.host.drafts.request({ action: "list" })
     expect(saved.drafts.find(draft => draft.context === originalContext)?.text).toContain("Original chat editor result")
     expect(client.draft.text).toBe("Other chat draft"); expect(client.state?.messages).toHaveLength(0)

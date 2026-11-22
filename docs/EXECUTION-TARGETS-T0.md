@@ -1,6 +1,6 @@
 # Execution target foundation (T0)
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -19,14 +19,14 @@ grant store, daemon, or lifecycle change is enabled by this tranche.
 
 ## Scope and authority
 
-`internal/executiontarget` describes four backend kinds: Gator Work, Gator PTY,
+`internal/executiontarget` describes four backend kinds: Hot Cross Buns Work, Hot Cross Buns PTY,
 external tmux, and external Ghostty. This is an additive host-owned contract,
 not a replacement for Work, `terminal.Manager`, or native coding-agent protocols.
 Nothing in the existing runtime imports it yet. The Electron and OpenTUI bridge
 and the companion action allowlist deliberately remain unchanged.
 
-Each target has an opaque random Gator ID, backend kind, actual execution owner
-or backend-instance ID, random Gator generation, optional native incarnation,
+Each target has an opaque random Hot Cross Buns ID, backend kind, actual execution owner
+or backend-instance ID, random Hot Cross Buns generation, optional native incarnation,
 display label, advertised operations, and availability with a required reason
 when unavailable. Owner/native identities must be resolved by the trusted host;
 display labels, titles, pane ordering, and PIDs alone cannot select authority.
@@ -35,7 +35,7 @@ Future display projections should redact owner/native details as appropriate.
 The host preserves a binding for the same live target. Replacement, restart,
 re-enrollment, or loss of confidence in native identity must rotate its generation
 and invalidate old grants. A native incarnation, when available, adds identity
-evidence; it does not replace the Gator generation. T0 has no registry or store
+evidence; it does not replace the Hot Cross Buns generation. T0 has no registry or store
 that would automatically maintain these bindings.
 
 Inspect, semantic steer, semantic answer, interrupt, raw text input, key input,
@@ -85,25 +85,25 @@ failed, or unrecognized statuses are conservatively unknown. A failed operation
 is not proof that no bytes were written. Only proven pre-dispatch rejection may
 produce `not_dispatched`; an unsettled actionlog entry remains unknown.
 
-No persistence or duplicate receipt schema is introduced. T1 must use Gator's
+No persistence or duplicate receipt schema is introduced. T1 must use Hot Cross Buns's
 receipt conventions: exact request IDs, owner/run binding, payload digests, private
 versioned records, durable intent before dispatch, and uncertain outcomes after
 interruption. Reuse `internal/actionlog` where its capability/schema fits and the
 native `cliagent` admission journal for native controls. Do not force terminal
 input into a connected-action proposal or claim the existing actionlog directly
 accepts arbitrary terminal records. Any necessary additive schema work belongs
-in Gator's existing receipt system, with crash/deduplication tests. No Onibi SQLite
+in Hot Cross Buns's existing receipt system, with crash/deduplication tests. No Onibi SQLite
 tables, auth, server, or daemon are imported. Input must not be automatically
 replayed when acknowledgement is lost, including after host restart.
 
 ## Inspected foundations and Onibi lessons
 
-Gator's `terminal.Attachment` is a restricted process-local PTY view; its registry
+Hot Cross Buns's `terminal.Attachment` is a restricted process-local PTY view; its registry
 does not survive host exit. `codeexec` currently creates a run-local PTY manager
 without registry/detach wiring. `cliagent` uses structured pipes and retained native
 session data rather than PTY input. `workrun.Operation` and its verified loopback
 control channel already provide semantic task controls. `workapp.BridgeState`,
-`cmd/gator/ui_bridge.go`, and `app-host/contracts` are the future UI seams.
+`cmd/hot-cross-buns/ui_bridge.go`, and `app-host/contracts` are the future UI seams.
 `worksession` admission generations/execution locks and `actionlog` write-before-
 dispatch uncertainty must remain authoritative. Companion currently owns separate
 Go workers; it does not attach to a desktop-owned worker.
@@ -112,15 +112,15 @@ The read-only `../onibi` inspection covered `internal/ghostty`, `internal/tmux`,
 `internal/web/receipts.go`, and `LICENSE`. Ghostty identities include process start
 and native surface identity; failures distinguish proven pre-dispatch rejection
 from uncertain delivery. tmux separates literal text from key input and captures
-pane output. Its selector strings are not Gator authorization. Onibi's web receipts
+pane output. Its selector strings are not Hot Cross Buns authorization. Onibi's web receipts
 claim request IDs/hashes and preserve uncertain outcomes in SQLite. Those ideas
 inform this contract; no Onibi source code was copied.
 
-Onibi is Apache-2.0. Gator currently has no tracked root project license (the
+Onibi is Apache-2.0. Hot Cross Buns currently has no tracked root project license (the
 tracked `ui/upstream/LICENSE` covers upstream material). Resolve attribution and
 project licensing before later source copying; T0 does not change licensing.
-Gator retains `go 1.25.13`; Onibi declares Go 1.26.10/toolchain 1.27.3. T0 uses
-Gator-compatible standard library APIs and introduces no dependencies.
+Hot Cross Buns retains `go 1.25.13`; Onibi declares Go 1.26.10/toolchain 1.27.3. T0 uses
+Hot Cross Buns-compatible standard library APIs and introduces no dependencies.
 
 ## Rollout and verification
 

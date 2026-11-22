@@ -1,5 +1,5 @@
 // Package patch exports and applies the complete reviewed state of a retained
-// Gator worktree. It is deliberately invoked outside the agent tool loop.
+// Hot Cross Buns worktree. It is deliberately invoked outside the agent tool loop.
 package patch
 
 import (
@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/hostproc"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const maxPatchBytes = 16 * 1024 * 1024
@@ -25,7 +25,7 @@ type Result struct {
 }
 
 // Export produces a portable binary Git patch for all tracked and untracked
-// regular files in a retained worktree. It skips untracked Gator metadata.
+// regular files in a retained worktree. It skips untracked Hot Cross Buns metadata.
 func Export(ctx context.Context, sourcePath, baseCommit string) ([]byte, error) {
 	source, err := workspace.Open(sourcePath)
 	if err != nil {
@@ -71,7 +71,7 @@ func Export(ctx context.Context, sourcePath, baseCommit string) ([]byte, error) 
 // Paths returns every repository-relative file touched by a retained
 // worktree's patch. It reports both sides of a rename by disabling rename
 // detection, which is intentionally conservative for orchestration conflict
-// checks. The result includes untracked regular files and excludes Gator's own
+// checks. The result includes untracked regular files and excludes Hot Cross Buns's own
 // metadata directory.
 func Paths(ctx context.Context, sourcePath, baseCommit string) ([]string, error) {
 	source, err := workspace.Open(sourcePath)
@@ -134,7 +134,7 @@ func Check(ctx context.Context, sourcePath, baseCommit, targetPath string) (Resu
 }
 
 // Apply transfers a reviewed worktree patch to a clean compatible target
-// checkout. Callers must make this explicit; normal Gator runs never invoke it.
+// checkout. Callers must make this explicit; normal Hot Cross Buns runs never invoke it.
 func Apply(ctx context.Context, sourcePath, baseCommit, targetPath string) (Result, error) {
 	patch, target, err := prepare(ctx, sourcePath, baseCommit, targetPath)
 	if err != nil {
@@ -204,7 +204,7 @@ func requireClean(ctx context.Context, target string) error {
 		return fmt.Errorf("inspect target checkout: %w", err)
 	}
 	if strings.TrimSpace(string(status)) != "" {
-		return errors.New("target checkout must be clean before applying a Gator patch")
+		return errors.New("target checkout must be clean before applying a Hot Cross Buns patch")
 	}
 	return nil
 }
@@ -221,7 +221,7 @@ func untrackedFiles(ctx context.Context, root workspace.Root) ([]string, error) 
 		}
 		relative := strings.TrimPrefix(entry, "?? ")
 		clean := filepath.ToSlash(filepath.Clean(relative))
-		if clean == ".gator" || strings.HasPrefix(clean, ".gator/") {
+		if clean == ".hot-cross-buns" || strings.HasPrefix(clean, ".hot-cross-buns/") {
 			continue
 		}
 		files = append(files, relative)
@@ -234,7 +234,7 @@ func patchPath(value string) (string, error) {
 		return "", errors.New("patch path contains NUL")
 	}
 	clean := filepath.ToSlash(filepath.Clean(value))
-	if clean == ".gator" || strings.HasPrefix(clean, ".gator/") {
+	if clean == ".hot-cross-buns" || strings.HasPrefix(clean, ".hot-cross-buns/") {
 		return "", nil
 	}
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "/") {

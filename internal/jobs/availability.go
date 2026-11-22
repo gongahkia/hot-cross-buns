@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 type CoverageGap struct{ From, To time.Time }

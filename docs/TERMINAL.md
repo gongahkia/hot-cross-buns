@@ -1,7 +1,7 @@
-# Gator terminal development and installation
+# Hot Cross Buns terminal development and installation
 
-Gator's main interaction surface is chat in the terminal. The navigation rail
-is hidden by default. Ask Gator to help through its app tools, or type `/` for
+Hot Cross Buns's main interaction surface is chat in the terminal. The navigation rail
+is hidden by default. Ask Hot Cross Buns to help through its app tools, or type `/` for
 controls. Ctrl+P searches commands; Ctrl+B optionally opens navigation.
 See [development](DEVELOPMENT.md) and the [port inventory](CLI-TUI-PORT.md).
 
@@ -13,7 +13,7 @@ message headings also open their own contextual actions.
 
 Results offer their exact retained sources, files and proposed code changes.
 Opening a file uses the existing working-version editor: Ctrl+S saves a new
-version, while Ctrl+O exposes versions, export and Ask Gator. The original result
+version, while Ctrl+O exposes versions, export and Ask Hot Cross Buns. The original result
 stays retained. An update can be inspected, marked read/done, reopened or added
 as reply context to the current draft. Replies and attached file versions remain
 editable before an explicit send. Changed or unavailable item identities require
@@ -57,21 +57,21 @@ The Go build uses a temporary directory under `ui/runtime/` and removes it after
 success or failure, avoiding small RAM-backed `/tmp` filesystems. An explicit
 `GOTMPDIR` overrides that default and remains owned by you.
 
-`make run` and `make terminal` launch the OpenCode-derived terminal against
-Gator's Go runtime. Use Ctrl+P for
+`make terminal` launches the OpenCode-derived terminal against
+Hot Cross Buns's Go runtime. Use Ctrl+P for
 grouped menus and searchable terminal actions. Slash commands appear in the
 composer: type `/`, use ↑/↓ to choose, Tab to complete, Enter to select, or Esc
 to dismiss. Commands needing arguments stay editable. The menu sections retain
 the same capabilities without a flat slash-command list. `/following`, `/saved`, `/settings`, `/files`, `/queue`,
-`/chats`, `/drafts`, `/updates`, `/memories`, `/receipts`, and `/voice` expose Gator
+`/chats`, `/drafts`, `/updates`, `/memories`, `/receipts`, and `/voice` expose Hot Cross Buns
 workflows. Ctrl+O or `/help` shows terminal help; `/prompt-history` stages retained
 message text without sending it. Ctrl+J adds a line where Shift+Enter is unavailable. Ctrl+O opens file
-versions/export/Ask Gator, Ctrl+E edits Office/table content, Ctrl+S saves an immutable
+versions/export/Ask Hot Cross Buns, Ctrl+E edits Office/table content, Ctrl+S saves an immutable
 working version, and Ctrl+D discards edits. Ctrl+L selects saved cell/paragraph content
-for Ask Gator. Tables page with Ctrl+Up/Down (rows) and Ctrl+Left/Right (columns);
+for Ask Hot Cross Buns. Tables page with Ctrl+Up/Down (rows) and Ctrl+Left/Right (columns);
 Ctrl+T switches worksheets. Returning to chat retains the draft. Exporting to an
 existing file shows a separate replacement review; changed destinations require
-a fresh review. Export outside Gator's private storage.
+a fresh review. Export outside Hot Cross Buns's private storage.
 Settings → Models and providers (also `/models`) separates model selection,
 effort, and provider/local-model setup. Escape in a model or effort list returns
 to that parent menu. Panels show one consolidated keyboard hint bar.
@@ -85,7 +85,7 @@ a custom provider still requires its separate confirmation review. Unsaved form 
 In Conversations, Ctrl+F searches indexed messages, Ctrl+L changes scope,
 Ctrl+Left/Right pages results, Ctrl+E manages the selected chat, and Ctrl+R refreshes.
 Choose `external-editor` in Ctrl+P to edit the idle draft with `$VISUAL`, `$EDITOR`
-or the existing `nvim` fallback. Gator suspends terminal rendering and restores
+or the existing `nvim` fallback. Hot Cross Buns suspends terminal rendering and restores
 text and attachments after exit. The current Go editor command requires POSIX
 `sh`; native Windows editor support remains unverified. `continue-external`
 resumes other Go-reviewed sign-in/install handoffs in the current terminal.
@@ -93,28 +93,28 @@ resumes other Go-reviewed sign-in/install handoffs in the current terminal.
 Build and install a local artifact into a new prefix:
 
 ```sh
-node ui/scripts/package.mjs /tmp/gator-terminal-artifact
-node ui/scripts/install.mjs /tmp/gator-terminal-artifact /tmp/gator-install
-/tmp/gator-install/bin/gator --help
-/tmp/gator-install/bin/gator
-node ui/scripts/uninstall.mjs /tmp/gator-install
+node ui/scripts/package.mjs /tmp/hot-cross-buns-terminal-artifact
+node ui/scripts/install.mjs /tmp/hot-cross-buns-terminal-artifact /tmp/hot-cross-buns-install
+/tmp/hot-cross-buns-install/bin/hot-cross-buns --help
+/tmp/hot-cross-buns-install/bin/hot-cross-buns
+node ui/scripts/uninstall.mjs /tmp/hot-cross-buns-install
 ```
 
 The installed product needs Bun on PATH, but no checkout, Go compiler, Node,
 Electron, development dependencies, or OpenCode server. Optional browser tools
 retain their existing external Node/Playwright requirements. Windows uses the
-console launcher `gator.cmd`; native Windows runtime evidence remains pending.
+console launcher `hot-cross-buns.cmd`; native Windows runtime evidence remains pending.
 The installer refuses to replace an existing path. It copies into a private
 staging directory and publishes the package only after the copy and required-file
 checks succeed. A failed copy cleans up its own staging directory. If the process
-is killed before publication, an unreferenced `.gator-terminal-install-*` directory
+is killed before publication, an unreferenced `.hot-cross-buns-terminal-install-*` directory
 may remain under the prefix's `lib/`; it is not a runnable installation.
 
 If package publication succeeded but launcher creation was interrupted, restore
 the launcher without copying the package or touching profiles:
 
 ```sh
-bun /tmp/gator-install/lib/gator-terminal/ui/scripts/install.mjs --recover /tmp/gator-install
+bun /tmp/hot-cross-buns-install/lib/hot-cross-buns-terminal/ui/scripts/install.mjs --recover /tmp/hot-cross-buns-install
 ```
 
 Recovery checks installation ownership and required files, and refuses to replace
@@ -134,7 +134,7 @@ Signing, publishing and release-account configuration are separate work.
 To verify installation continuity with two reviewed local artifacts:
 
 ```sh
-bun ui/scripts/verify-upgrade.mjs /path/to/old-artifact /path/to/new-artifact /tmp/gator-upgrade-report.json
+bun ui/scripts/verify-upgrade.mjs /path/to/old-artifact /path/to/new-artifact /tmp/hot-cross-buns-upgrade-report.json
 ```
 
 The probe uses disposable installation prefixes and a synthetic profile. It
@@ -146,11 +146,11 @@ Passing the same artifact twice checks prefix relocation only. Passing distinct
 artifacts checks those particular builds; it does not establish compatibility
 across arbitrary schema changes or replace reviewed background-service repair.
 
-Profiles keep Gator's existing configuration/state directories and file formats.
+Profiles keep Hot Cross Buns's existing configuration/state directories and file formats.
 The terminal reads the same per-profile draft store under Electron's established
-Gator user-data directory. `GATOR_DESKTOP_USER_DATA`, `GATOR_DESKTOP_WORKSPACE`,
+Hot Cross Buns user-data directory. `HOT_CROSS_BUNS_DESKTOP_USER_DATA`, `HOT_CROSS_BUNS_DESKTOP_WORKSPACE`,
 state/config overrides and existing desktop-named Go preferences remain
-compatible. `GATOR_TERMINAL_USER_DATA` and `GATOR_TERMINAL_WORKSPACE` explicitly
+compatible. `HOT_CROSS_BUNS_TERMINAL_USER_DATA` and `HOT_CROSS_BUNS_TERMINAL_WORKSPACE` explicitly
 select alternate roots. No private data is imported into OpenCode storage.
 Uninstall checks the selected Go state/configuration stores, the default draft
 store and both explicit draft overrides. If any resolves inside the installation,
@@ -182,7 +182,7 @@ Native adapters:
   copying text also supports OSC 52 when the terminal allows it.
 - Dictation requires `ffmpeg` and explicit OS microphone permission. The helper
   uses PulseAudio on Linux, AVFoundation on macOS and DirectShow on Windows.
-  `GATOR_MICROPHONE_DEVICE` selects a device (on Windows, its DirectShow audio
+  `HOT_CROSS_BUNS_MICROPHONE_DEVICE` selects a device (on Windows, its DirectShow audio
   device name). Audio is transient and transcription is explicitly reviewed in
   its original draft. Configure the provider/key through Models and Voice.
   Ctrl+V starts/finishes dictation by default; Ctrl+C cancels. Help reflects custom
@@ -219,8 +219,8 @@ local date/time and workspace folder; Ctrl+E retains the full details. Command
 palette labels are uppercase, with original command names still searchable.
 
 `/exit`, `/quit` and Ctrl+Q close the application through the same unsaved-work
-and active-work review. After leaving the terminal UI, Gator prints a runnable
-command to resume that chat. Installed launchers accept `gator resume ID`; source
+and active-work review. After leaving the terminal UI, Hot Cross Buns prints a runnable
+command to resume that chat. Installed launchers accept `hot-cross-buns resume ID`; source
 checkouts can use `bun run --cwd ui start resume ID`. Keep the same profile
 environment when reopening. The printed command quotes the actual launcher path
 so it also works when the launcher is not on PATH.
@@ -237,5 +237,5 @@ emulator only for testing:
 ```sh
 python3 -m venv .pty-venv
 .pty-venv/bin/pip install -r ui/scripts/requirements-pty.txt
-.pty-venv/bin/python ui/scripts/verify-package.py /tmp/gator-terminal-artifact --editor --untrusted-file
+.pty-venv/bin/python ui/scripts/verify-package.py /tmp/hot-cross-buns-terminal-artifact --editor --untrusted-file
 ```

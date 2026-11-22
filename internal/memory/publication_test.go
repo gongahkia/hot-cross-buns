@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 func TestPublicationNeverExposesPartialRecordsToConcurrentReaders(t *testing.T) {
@@ -100,10 +100,10 @@ func TestExclusivePublicationPreservesExistingIdentityAndIgnoresInterruptedStagi
 }
 
 func TestMemoryRejectsLinkedOwnedDirectories(t *testing.T) {
-	for _, component := range []string{"gator", "memory"} {
+	for _, component := range []string{"hot-cross-buns", "memory"} {
 		t.Run(component, func(t *testing.T) {
 			root, outside := t.TempDir(), t.TempDir()
-			path := filepath.Join(root, "gator")
+			path := filepath.Join(root, "hot-cross-buns")
 			if component == "memory" {
 				if err := os.Mkdir(path, 0700); err != nil {
 					t.Fatal(err)

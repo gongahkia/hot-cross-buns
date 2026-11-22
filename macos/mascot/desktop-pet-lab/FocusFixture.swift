@@ -9,7 +9,7 @@ import AppKit
     var targetFrame:CGRect?
     static func main(){let app=NSApplication.shared,owner=FocusFixture();app.delegate=owner;app.setActivationPolicy(.regular);app.run();withExtendedLifetime(owner){}}
     func applicationDidFinishLaunching(_ notification:Notification){
-        let args=CommandLine.arguments;guard args.count==2,args[1].hasPrefix("/tmp/gator-") else{NSApp.terminate(nil);return}
+        let args=CommandLine.arguments;guard args.count==2,args[1].hasPrefix("/tmp/hot-cross-buns-") else{NSApp.terminate(nil);return}
         output=URL(fileURLWithPath:args[1]);try? FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
         guard let screen=PetScreens.read().first(where:{$0.builtIn}) ?? PetScreens.read().first,let pet=PetGeometry.position(on:screen,placement:.reserved) else{NSApp.terminate(nil);return}
         targetFrame=pet.insetBy(dx:-12,dy:-12)

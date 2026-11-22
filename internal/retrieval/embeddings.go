@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/localmodel"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
 )
 
 const LocalModel = "embeddinggemma:latest"

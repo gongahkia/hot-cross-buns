@@ -4,19 +4,19 @@ import { join, resolve, dirname, basename, relative, isAbsolute, sep } from "nod
 const args = process.argv.slice(2), recovering = args[0] === "--recover";
 if (args.length !== 2) throw new Error("Usage: node install.mjs ARTIFACT PREFIX, or node install.mjs --recover PREFIX");
 const prefix = resolve(args[1]);
-const root = join(prefix, "lib/gator-terminal"), launcher = join(prefix, "bin", process.platform === "win32" ? "gator.cmd" : "gator");
-const windowsLauncher = '@echo off\r\nbun "%~dp0..\\lib\\gator-terminal\\bin\\gator" %*\r\n';
-const linkTarget = join("..", "lib/gator-terminal/bin/gator");
-const runtime = process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime";
+const root = join(prefix, "lib/hot-cross-buns-terminal"), launcher = join(prefix, "bin", process.platform === "win32" ? "hot-cross-buns.cmd" : "hot-cross-buns");
+const windowsLauncher = '@echo off\r\nbun "%~dp0..\\lib\\hot-cross-buns-terminal\\bin\\hot-cross-buns" %*\r\n';
+const linkTarget = join("..", "lib/hot-cross-buns-terminal/bin/hot-cross-buns");
+const runtime = process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime";
 const exists = async path => { try { return await lstat(path); } catch (error) { if (error.code === "ENOENT") return null; throw error; } };
 async function canonicalDestination(path) {
   try { return await realpath(path); }
   catch (error) { if (error.code !== "ENOENT" || dirname(path) === path) throw error; return join(await canonicalDestination(dirname(path)), basename(path)); }
 }
 async function requirePackage(directory) {
-  const metadata = JSON.parse(await readFile(join(directory, "gator-distribution.json"), "utf8"));
-  if (metadata.product !== "gator-terminal" || metadata.version !== 1 || metadata.platform !== process.platform || metadata.arch !== process.arch) throw new Error("This artifact is not a Gator terminal build for this platform/architecture.");
-  for (const path of ["bin/gator", `runtime/${runtime}`, "ui/dist/index.js", "ui/package.json", "app-host/package.json"]) {
+  const metadata = JSON.parse(await readFile(join(directory, "hot-cross-buns-distribution.json"), "utf8"));
+  if (metadata.product !== "hot-cross-buns-terminal" || metadata.version !== 1 || metadata.platform !== process.platform || metadata.arch !== process.arch) throw new Error("This artifact is not a Hot Cross Buns terminal build for this platform/architecture.");
+  for (const path of ["bin/hot-cross-buns", `runtime/${runtime}`, "ui/dist/index.js", "ui/package.json", "app-host/package.json"]) {
     if (!(await lstat(join(directory, path))).isFile()) throw new Error(`Required package file is not an ordinary file: ${path}`);
   }
 }
@@ -30,7 +30,7 @@ if (recovering) {
   const path = join(root, "installation.json");
   if (!(await lstat(path)).isFile()) throw new Error("Installation ownership could not be verified.");
   const manifest = JSON.parse(await readFile(path, "utf8"));
-  if (manifest.product !== "gator-terminal" || manifest.version !== 1 || manifest.root !== root || manifest.launcher !== launcher || manifest.prefix !== prefix) throw new Error("Installation ownership could not be verified.");
+  if (manifest.product !== "hot-cross-buns-terminal" || manifest.version !== 1 || manifest.root !== root || manifest.launcher !== launcher || manifest.prefix !== prefix) throw new Error("Installation ownership could not be verified.");
   await requirePackage(root);
   const current = await exists(launcher);
   if (current) {
@@ -45,11 +45,11 @@ if (recovering) {
   const destination = await canonicalDestination(root), inside = relative(artifact, destination);
   if (inside === "" || !isAbsolute(inside) && inside !== ".." && !inside.startsWith(`..${sep}`)) throw new Error("Choose an installation prefix outside the source artifact.");
   await mkdir(dirname(root), { recursive: true });
-  const stage = await mkdtemp(join(dirname(root), ".gator-terminal-install-"));
+  const stage = await mkdtemp(join(dirname(root), ".hot-cross-buns-terminal-install-"));
   try {
     await cp(artifact, stage, { recursive: true, dereference: true });
     await requirePackage(stage);
-    await writeFile(join(stage, "installation.json"), JSON.stringify({ product: "gator-terminal", root, launcher, prefix, version: 1 }) + "\n", { mode: 0o600 });
+    await writeFile(join(stage, "installation.json"), JSON.stringify({ product: "hot-cross-buns-terminal", root, launcher, prefix, version: 1 }) + "\n", { mode: 0o600 });
     // Publish only complete packages. Concurrent installers cannot replace a
     // populated installation; the launcher is separately created exclusively.
     if (await exists(root)) throw new Error("The installation path appeared during copying; it was not replaced.");

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 type testModel struct {
@@ -94,7 +94,7 @@ func TestModelMetersCategoriesStateOverridesFailuresAndRetries(t *testing.T) {
 	}
 }
 func TestRequestProcessCrashRetainsChargeAndReleasesConcurrency(t *testing.T) {
-	if root := os.Getenv("GATOR_USAGE_CRASH_TEST_ROOT"); root != "" {
+	if root := os.Getenv("HOT_CROSS_BUNS_USAGE_CRASH_TEST_ROOT"); root != "" {
 		s, _ := Open(root)
 		r, err := s.Reserve(time.Now(), "background", "test", 100)
 		if err != nil {
@@ -114,7 +114,7 @@ func TestRequestProcessCrashRetainsChargeAndReleasesConcurrency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestRequestProcessCrashRetainsChargeAndReleasesConcurrency$")
-	child.Env = append(os.Environ(), "GATOR_USAGE_CRASH_TEST_ROOT="+root)
+	child.Env = append(os.Environ(), "HOT_CROSS_BUNS_USAGE_CRASH_TEST_ROOT="+root)
 	stdout, _ := child.StdoutPipe()
 	stdin, _ := child.StdinPipe()
 	if err := child.Start(); err != nil {

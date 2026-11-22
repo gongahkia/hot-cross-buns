@@ -62,7 +62,7 @@ current native question token; decision grants capture the current preview diges
 Changing the question does not redirect an existing grant to its successor.
 
 ```sh
-# Use the execution host's GATOR_STATE_DIR and matching built runtime.
+# Use the execution host's HOT_CROSS_BUNS_STATE_DIR and matching built runtime.
 # Separately grant Inspect using the T1 procedure when using the phone view.
 node companion/control-access.mjs RUNTIME OWNER_TOKEN_FILE RUN_ID DEVICE_ID cancel '' 300
 node companion/control-access.mjs RUNTIME OWNER_TOKEN_FILE RUN_ID DEVICE_ID steer subagent-001 300
@@ -97,7 +97,7 @@ semantic operation already dispatched. All original Work policies remain ceiling
 `internal/actionlog/control.go` is an additive schema in the existing private
 action store, not a connected-service proposal or new action database:
 
-`gator/external-actions/RUN/semantic-TARGET/ACTION_ID.json`
+`hot-cross-buns/external-actions/RUN/semantic-TARGET/ACTION_ID.json`
 
 The admission namespace is one exact run/target/action ID. Records contain the
 actor, full target generation, operation, scope, canonical payload digest,

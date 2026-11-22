@@ -2,10 +2,10 @@
 Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--1AB21518FC5DEDBE.txt
-[3/5] Compiling GatorMacTests NativeInputTests.swift
-[4/5] Emitting module GatorMacTests
+[3/5] Compiling HotCrossBunsMacTests NativeInputTests.swift
+[4/5] Emitting module HotCrossBunsMacTests
 [4/6] Write Objects.LinkFileList
-[5/6] Linking GatorNativePackageTests
+[5/6] Linking HotCrossBunsNativePackageTests
 Build complete! (122.02s)
 ◇ Test run started.
 ↳ Testing Library Version: 124.4
@@ -75,7 +75,7 @@ Build complete! (122.02s)
 ◇ Test independentUncertainAdmissionsPersistTogetherAndRestartNeverReplaysEither() started.
 ✔ Test independentUncertainAdmissionsPersistTogetherAndRestartNeverReplaysEither() passed after 0.933 seconds.
 ◇ Test realGoLostAttachmentAdmissionRetainsOriginalIdentityAndNeverReplaysAfterRestart() started.
-Lost admission fixture: Gator is disconnected. Gator closed.
+Lost admission fixture: Hot Cross Buns is disconnected. Hot Cross Buns closed.
 ✘ Test realGoLostAttachmentAdmissionRetainsOriginalIdentityAndNeverReplaysAfterRestart() recorded an issue at NativeAttachmentDisconnectTests.swift:31:2: Caught error: BridgeFailure(message: "Managed Go integration timed out: actual Go admitted copied input")
 ✘ Test realGoLostAttachmentAdmissionRetainsOriginalIdentityAndNeverReplaysAfterRestart() failed after 21.404 seconds with 1 issue.
 ◇ Test attachmentDraftsShareSurfacesRemainOwnerScopedAndRestoreAcrossRestart() started.
@@ -107,13 +107,13 @@ Lost admission fixture: Gator is disconnected. Gator closed.
 ◇ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() started.
 ✔ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":4.362940788269043,"messages":50,"transcriptMedianMS":0.28204917907714844},{"bytes":240934,"decodeMedianMS":150.28095245361328,"messages":500,"transcriptMedianMS":2.1290779113769531},{"bytes":964934,"decodeMedianMS":396.30806446075439,"messages":2000,"transcriptMedianMS":19.797086715698242}],"kind":"native-presentation","peakRSSBytes":20766720,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":4.362940788269043,"messages":50,"transcriptMedianMS":0.28204917907714844},{"bytes":240934,"decodeMedianMS":150.28095245361328,"messages":500,"transcriptMedianMS":2.1290779113769531},{"bytes":964934,"decodeMedianMS":396.30806446075439,"messages":2000,"transcriptMedianMS":19.797086715698242}],"kind":"native-presentation","peakRSSBytes":20766720,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 4.588 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"99793  17876   0.0\n99794  16616   0.0\n99795  22996   0.0\n99796  24876   0.0\n","timeToConnectedMS":[281.40103816986084,683.82406234741211,331.80499076843262,251.03092193603516]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"99793  17876   0.0\n99794  16616   0.0\n99795  22996   0.0\n99796  24876   0.0\n","timeToConnectedMS":[281.40103816986084,683.82406234741211,331.80499076843262,251.03092193603516]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 6.908 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=1039.0839576721191 peakRSSBytes=23138304
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=1039.0839576721191 peakRSSBytes=23138304
 ✔ Test nativeThumbnailBenchmark() passed after 4.764 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.043 seconds.

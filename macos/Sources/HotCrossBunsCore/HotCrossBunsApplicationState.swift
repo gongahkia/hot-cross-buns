@@ -1,0 +1,929 @@
+import Foundation
+import Observation
+import CryptoKit
+
+public enum NativeConnectionStatus: String, Sendable { case idle, starting, connected, disconnected, stopping, closed }
+
+/// State for exactly one Go owner. The application-wide coordinator selects it for both scenes.
+@MainActor @Observable
+public final class HotCrossBunsApplicationState {
+    public private(set) var connectionStatus: NativeConnectionStatus = .idle
+    public private(set) var snapshot: BridgeSnapshot?
+    public private(set) var issue = ""
+    public private(set) var persistenceIssue = ""
+    public private(set) var submission: PendingSubmission?
+    public private(set) var review: ApprovalReview?
+    public private(set) var operation = ""
+    public private(set) var approvalSending = false
+    public private(set) var stopping = false
+    public private(set) var closing = false
+    public private(set) var generation = UUID()
+    public private(set) var started = false
+    public private(set) var draftText = ""
+    public private(set) var messages: [BridgeMessage] = []
+    public private(set) var transcript: [BridgeMessage] = []
+    public private(set) var correctionTarget: NativeCorrectionTarget?
+    public private(set) var planFirst = false
+    public private(set) var focusRequest = UUID()
+    public private(set) var planReviews: [String: NativePlanReview] = [:]
+    public private(set) var planOperation: NativePlanOperation?
+    public private(set) var receiptOperation: NativeReceiptOperation?
+    @ObservationIgnored private var receiptDeadline: Task<Void, Never>?
+    public private(set) var recoveryAccess: [String: NativeRecoveryAccess] = [:]
+    public private(set) var recoveryPreparation: NativeRecoveryPreparation?
+    @ObservationIgnored private var accessRequest: (id: String, recovery: NativeRequestRecovery, connections: [String]?, scope: JSONValue)?
+    @ObservationIgnored private var recoveryDeadline: Task<Void, Never>?
+    public private(set) var draftUploads: [NativeUpload] = []
+    public private(set) var draftReplyToUpdateID: String?
+    public private(set) var attachmentImport: NativeAttachmentImport?
+    public private(set) var attachmentIssue = ""
+    public private(set) var attachmentStatus = ""
+    @ObservationIgnored private let uploads: NativeUploadStore
+    private var planReviewEpoch = UUID()
+    @ObservationIgnored private var planControlDeadline: Task<Void, Never>?
+    @ObservationIgnored private var retiredApprovalTokens: Set<String> = []
+    @ObservationIgnored private var planReadRequest: (id: String, identity: NativePlanIdentity, generation: UUID)?
+
+    @ObservationIgnored var changed: (@MainActor (HotCrossBunsApplicationState, BridgeSnapshot?) -> Void)?
+    var managed: Bool { configuration.managed }
+    @ObservationIgnored private var configuration: BridgeLaunchConfiguration
+    @ObservationIgnored private let store: NativeDraftStore
+    @ObservationIgnored private let factory: @Sendable () -> any BridgeTransport
+    @ObservationIgnored private var transport: (any BridgeTransport)?
+    @ObservationIgnored private var eventTask: Task<Void, Never>?
+    @ObservationIgnored private var archive = NativeArchive()
+    @ObservationIgnored private var loaded = false
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
+    @ObservationIgnored private var saveSequence = 0
+    @ObservationIgnored private var savedBaseline = NativeArchiveBaseline()
+    @ObservationIgnored private var deadlineTask: Task<Void, Never>?
+    @ObservationIgnored private var startupDeadline: Task<Void, Never>?
+    @ObservationIgnored private var submissionNonce: String?
+    @ObservationIgnored private var setting: SettingChange?
+    @ObservationIgnored private let responseTimeout: Duration
+    @ObservationIgnored private var restoringContext = ""
+
+    private struct SettingChange {
+        let request: String
+        let generation: UUID
+        let context: String
+        let provider: String?
+        let model: String?
+        let effort: String?
+    }
+
+    public init(configuration: BridgeLaunchConfiguration, nativeDraftDirectory: URL, profile: String) {
+        self.configuration = configuration
+        self.uploads = NativeUploadStore(root: configuration.nativeUploadDirectory)
+        self.store = NativeDraftStore(directory: nativeDraftDirectory, profile: profile)
+        self.factory = { GoBridgeConnection() }
+        self.responseTimeout = .seconds(20)
+    }
+    init(configuration: BridgeLaunchConfiguration, store: NativeDraftStore, responseTimeout: Duration = .seconds(20), uploads: NativeUploadStore? = nil, factory: @escaping @Sendable () -> any BridgeTransport) {
+        self.uploads = uploads ?? NativeUploadStore(root: configuration.nativeUploadDirectory)
+        self.configuration = configuration; self.store = store; self.factory = factory; self.responseTimeout = responseTimeout
+    }
+
+    public var context: String { snapshot?.context ?? restoringContext }
+    public var conversationID: String { snapshot?.conversationID ?? archive.selectedConversationID }
+    public var title: String { snapshot?.title ?? "Hot Cross Buns" }
+    public var pendingSubmission: PendingSubmission? { archive.pending }
+    var draftRevision: UUID? { archive.drafts[context]?.revision }
+    public var isConnected: Bool { connectionStatus == .connected }
+    public var canEditDraft: Bool { loaded && !closing && connectionStatus != .closed && !context.isEmpty }
+    public var readiness: JSONValue { snapshot?.composer["readiness"] ?? .null }
+    public var composerModels: [JSONValue] { snapshot?.composer["models"].array ?? [] }
+    public var modelLabel: String {
+        guard let snapshot else { return "Model unavailable" }
+        return [snapshot.value["provider"].string, snapshot.value["model"].string].filter { !$0.isEmpty }.joined(separator: " / ")
+    }
+    public var canNavigate: Bool {
+        !closing && isConnected && operation.isEmpty && !approvalSending && archive.pending == nil && !(snapshot?.unsafeToNavigate ?? true)
+    }
+    public var canConfigureModel: Bool {
+        canNavigate && snapshot?.value["mode"].string == "chat" && snapshot?.composer["disabled"].string.isEmpty == true
+    }
+    public var sendUnavailableReason: String? {
+        if closing { return "Hot Cross Buns is closing. Your accepted draft changes are being saved." }
+        if attachmentImport != nil { return "Finish choosing or importing attachments before sending." }
+        if !persistenceIssue.isEmpty { return "Draft storage needs attention. Sending is disabled to preserve your request." }
+        if !isConnected { return "Reconnect to Hot Cross Buns before sending." }
+        guard let snapshot, !context.isEmpty else { return "Opening the conversation…" }
+        if archive.pending != nil { return "An earlier submission is unconfirmed. Inspect it before an explicit retry." }
+        if !operation.isEmpty { return operation }
+        if snapshot.value["dialogue_busy"].bool { return "Hot Cross Buns is considering your last message. Your next draft is kept here." }
+        if (snapshot.busy || snapshot.hasApproval || snapshot.value["queued"].int > 0) && !(managed && snapshot.value["dialogue_active"].bool) { return "Work or review is in progress. You can keep drafting; conversation during work and queue controls arrive later." }
+        if let notice = snapshot.unsupportedNotice, !(managed && (snapshot.value["dialogue_dispatch"] != .null || snapshot.value["session_request"] != .null)), !(managed && snapshot.value["dialogue_active"].bool && !snapshot.hasExternal) { return notice }
+        if !snapshot.value["requests_issue"].string.isEmpty { return snapshot.value["requests_issue"].string }
+        if snapshot.value["mode"].string != "chat" { return "Return to the conversation before sending." }
+        if readiness["state"].string != "configured" { return readiness["issue"].string.isEmpty ? "Choose an already configured model. Provider setup is available in Hot Cross Buns’s terminal app." : readiness["issue"].string }
+        if draftText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/") { return "Native slash commands are not available yet. Use New chat, Recents and model controls above." }
+        return nil
+    }
+    public var hasReviewableApproval: Bool { snapshot?.hasApproval == true && !retiredApprovalTokens.contains(snapshot?.value["pending_approval"]["token"].string ?? "") }
+    public var canSend: Bool { sendUnavailableReason == nil && (!draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !draftUploads.isEmpty) }
+    public var canStop: Bool {
+        !closing && isConnected && snapshot?.running == true && snapshot?.cancelling == false && snapshot?.value["mode"].string == "chat" && snapshot?.value["queued"].int == 0 && snapshot?.hasExternal == false && snapshot?.value["task_plans"].array.contains(where: { ["preparing", "revising"].contains($0["phase"].string) }) != true && !stopping && operation.isEmpty
+    }
+    public var canRetryAdmission: Bool {
+        !closing && isConnected && archive.pending?.phase == .uncertain && archive.pending?.context == context && snapshot?.unsafeToNavigate == false && operation.isEmpty && persistenceIssue.isEmpty
+    }
+    public var reservesPlanCapacity: Bool {
+        guard let pending = planOperation else { return false }
+        if pending.phase == .accepted, pending.resultConfirmed,
+           snapshot?.value["task_plans"].array.contains(where: { pending.identity.matches($0) && $0["state"].string == "queued" && $0["phase"].string == "approved" }) == true { return false }
+        return pending.reservesCapacity
+    }
+    public var recovery: NativeRecoveryProjection? { snapshot.map(NativeRecoveryProjection.init) }
+    public var quitGuard: String? {
+        if attachmentImport != nil { return "Files are being chosen or imported. Quit keeps saved drafts and retained copies; an unfinished import may need selecting again." }
+        if recoveryPreparation?.blocks == true { return "Recovery preparation is pending or unconfirmed. Its original identity is kept; no request will replay on restart." }
+        if receiptOperation?.unresolved == true { return "A read-only receipt check is unconfirmed. Its identity is retained; no check or external action will replay on restart." }
+        if planOperation?.blocksAuthorization == true { return "A plan authorization outcome is unconfirmed. Its identity is retained and is never replayed. Quitting stops this owner." }
+        if archive.pending != nil { return "A submission has an unconfirmed outcome. Its identity and draft will be kept; it will not be resent on restart." }
+        if snapshot?.hasApproval == true { return "An exact action is waiting for review. Quitting cancels this Go owner; the approval will not be replayed." }
+        if snapshot?.unsafeToNavigate == true || !operation.isEmpty { return "Hot Cross Buns is working or holding retained work. Quitting cancels this Go owner and keeps its durable history. Recovered work is not resumed automatically." }
+        return nil
+    }
+
+    public func start() async {
+        guard !started else { return }; started = true
+        do {
+            archive = try await store.load(); savedBaseline = archive.baseline; loaded = true
+            if configuration.conversationID.isEmpty && configuration.bootMode != "new" { configuration.conversationID = archive.selectedConversationID }
+            // Allocate an idle durable identity before exposing a fresh native
+            // composer. Existing drafts/uncertain workspace admissions keep the
+            // legacy restore path; opening another scene never calls this twice.
+            if managed, configuration.conversationID.isEmpty, configuration.bootMode.isEmpty, archive.drafts.isEmpty, archive.pending == nil, archive.pendingByContext?.isEmpty != false {
+                configuration.bootMode = "new"
+            }
+            if managed {
+                let requested = configuration.conversationID.isEmpty ? "workspace:" + configuration.workspace.path : "conversation:" + configuration.conversationID
+                let matching = archive.pendingByContext?.values.filter { !($0.ownerConversationID ?? "").isEmpty && "conversation:" + ($0.ownerConversationID ?? "") == requested } ?? []
+                guard matching.count <= 1 else { throw BridgeFailure("Multiple unconfirmed submissions need inspection in their original owner; no identity was selected.") }
+                archive.pending = archive.pendingByContext?[requested] ?? matching.first ?? (archive.pending?.context == requested ? archive.pending : nil)
+            }
+            recoveryPreparation = archive.recoveryPreparationsByContext?["conversation:" + configuration.conversationID]
+            receiptOperation = archive.receiptOperationsByContext?["conversation:" + configuration.conversationID]
+            submission = archive.pending
+            planOperation = archive.planOperationsByContext?["conversation:" + configuration.conversationID]
+            restoringContext = configuration.conversationID.isEmpty ? "" : "conversation:" + configuration.conversationID
+            restoreDraft(restoringContext)
+        } catch { persistenceIssue = "Native drafts could not be loaded: " + error.localizedDescription }
+        await connect()
+    }
+    private func connect() async {
+        guard !closing else { return }
+        connectionStatus = .starting; generation = UUID(); let ownerGeneration = generation
+        let owner = factory(); transport = owner
+        eventTask = Task { [weak self] in
+            for await event in owner.events {
+                guard let self, self.generation == ownerGeneration else { return }
+                self.receive(event, generation: ownerGeneration)
+            }
+        }
+        do {
+            try await owner.start(configuration)
+            startupDeadline?.cancel()
+            startupDeadline = Task { [weak self, responseTimeout] in
+                try? await Task.sleep(for: responseTimeout)
+                guard !Task.isCancelled, let self, self.generation == ownerGeneration, self.connectionStatus == .starting else { return }
+                self.issue = "Hot Cross Buns did not publish an initial state. Reconnect to try opening the conversation again."
+                await owner.shutdown()
+            }
+        } catch { receive(.disconnected(error.localizedDescription), generation: ownerGeneration) }
+    }
+    func receive(_ event: BridgeEvent, generation ownerGeneration: UUID) {
+        guard ownerGeneration == generation, connectionStatus != .closed else { return }
+        // terminal animation ticks do not change any native presentation or
+        // authority data. Do not invalidate SwiftUI or reconcile owners for them.
+        if connectionStatus == .connected, case .state(let next) = event,
+           let snapshot, snapshot.hasSameNativeContent(as: next) { return }
+        let priorSnapshot = snapshot
+        defer { changed?(self, priorSnapshot) }
+        switch event {
+        case .state(let next):
+            startupDeadline?.cancel()
+            connectionStatus = .connected
+            let previous = snapshot
+            if previous == nil, managed, archive.pending == nil, let retained = archive.pendingByContext?[next.context] { archive.pending = retained; submission = retained }
+            let previousToken = previous?.value["pending_approval"]["token"].string ?? ""
+            if !previousToken.isEmpty, previousToken != next.value["pending_approval"]["token"].string { retiredApprovalTokens.insert(previousToken) }
+            snapshot = next
+            if previous?.value["foreground"].bool == true && !next.value["foreground"].bool { planReviewEpoch = UUID() }
+            let nextMessages = next.messages
+            if messages != nextMessages { messages = nextMessages }
+            if previous?.value["messages"] != next.value["messages"] || previous?.value["dialogue"] != next.value["dialogue"] || previous?.value["dialogue_peers"] != next.value["dialogue_peers"] || previous?.context != next.context { transcript = next.transcript }
+            if var pending = archive.pending, pending.context.hasPrefix("workspace:"), !next.conversationID.isEmpty, pending.ownerConversationID == nil || pending.ownerConversationID == "" { pending.ownerConversationID = next.conversationID; archive.pending = pending; submission = pending }
+            if !next.conversationID.isEmpty { archive.selectedConversationID = next.conversationID; configuration.conversationID = next.conversationID; configuration.bootMode = "" }
+            if let previous, previous.conversationID.isEmpty, !next.conversationID.isEmpty, !previous.context.isEmpty {
+                promotedDraftContexts.insert(previous.context)
+                if archive.drafts[next.context] == nil { archive.drafts[next.context] = archive.drafts[previous.context] }
+                archive.drafts[previous.context] = NativeDraft()
+            }
+            if previous?.context != next.context { restoreDraft(next.context) }
+            if let pending = archive.pending, next.value["upload_result"]["request_id"].string == pending.id {
+                deadlineTask?.cancel()
+                let error = next.value["upload_result"]["error"].string
+                if error.isEmpty {
+                    var accepted = pending; accepted.phase = pending.planFirst == true ? .accepted : next.running ? .running : .accepted; submission = accepted
+                    // Compare revision, not text: typing and then undoing is still a newer draft.
+                    for draftContext in Set([pending.context, context]) where archive.drafts[draftContext]?.revision == pending.draftRevision {
+                        if var retained = archive.drafts[draftContext], retained.correction != nil {
+                            retained.correction = nil; retained.revision = UUID(); retained.updated = Date(); archive.drafts[draftContext] = retained
+                        } else { archive.drafts[draftContext] = NativeDraft() }
+                    }
+                    restoreDraft(context)
+                    archive.pending = nil
+                } else {
+                    var rejected = pending; rejected.phase = .failed; submission = rejected
+                    archive.pending = nil; issue = error
+                }
+                submissionNonce = nil
+            }
+            if var current = submission, !current.phase.awaitingAcceptance, current.phase != .failed, current.phase != .stopped, current.phase != .completed {
+                let turnID = SHA256.hash(data: Data(current.id.utf8)).map { String(format: "%02x", $0) }.joined()
+                if current.planFirst == true {
+                    // Preparing a proposal uses Go's running flag too. Admission
+                    // of plan preparation is not authorization or execution.
+                    current.phase = .accepted
+                } else if managed, let turn = next.value["dialogue"].array.first(where: { $0["id"].string == turnID }) {
+                    // A reply during Work belongs to its own retained turn. The
+                    // unrelated Work's running flag cannot label it as running.
+                    switch turn["state"].string {
+                    case "answered", "clarification", "guided": current.phase = .completed
+                    case "stopped": current.phase = .stopped
+                    case "failed", "interrupted": current.phase = .failed
+                    case "delegated":
+                        let peer = next.value["dialogue_peers"].array.first { $0["conversation_id"] == turn["task_chat"] }
+                        switch peer?["state"].string {
+                        case "completed": current.phase = .completed
+                        case "failed", "interrupted": current.phase = .failed
+                        case "stopped": current.phase = .stopped
+                        case "running": current.phase = .running
+                        default: current.phase = .accepted
+                        }
+                    default: current.phase = .accepted
+                    }
+                }
+                else if next.running { current.phase = .running }
+                else if previous?.running == true {
+                    let activityState = next.messages.last(where: { $0.value["activity"] != .null })?.value["activity"]["state"].string ?? ""
+                    if activityState == "failed" { current.phase = .failed }
+                    else if activityState == "stopped" { current.phase = .stopped }
+                    else if activityState == "completed" { current.phase = .completed }
+                }
+                submission = current
+            }
+            if let setting, setting.generation == generation, setting.context == context, next.value["composer_result"]["request_id"].string == setting.request {
+                let resultError = next.value["composer_result"]["error"].string
+                if !resultError.isEmpty { issue = resultError }
+                else if let provider = setting.provider, (next.value["provider"].string != provider || next.value["model"].string != setting.model) { issue = "The saved model selection was not confirmed. Review settings before sending." }
+                else if let effort = setting.effort, next.composer["effort"].string != effort { issue = "The saved effort was not confirmed." }
+                else { issue = "" }
+                self.setting = nil; operation = ""; deadlineTask?.cancel()
+            }
+            if let reading = planReadRequest, reading.generation == generation, next.value["task_plan_result"]["request_id"].string == reading.id {
+                let result = next.value["task_plan_result"], value = result["review"]
+                if !result["error"].string.isEmpty { issue = result["error"].string }
+                else if isCurrentPlan(reading.identity), reading.identity.matches(value) {
+                    var inspected = NativePlanReview(identity: reading.identity, generation: generation, value: value)
+                    inspected.summaryAtInspection = next.value["task_plans"].array.first(where: reading.identity.matches)
+                    inspected.scopeAtInspection = NativePlanPresentation.scope(next)
+                    inspected.focusEpoch = planReviewEpoch
+                    planReviews[reading.identity.taskID] = inspected
+                    // A replacement owner plus a fresh Go inspection can reconcile
+                    // a retained uncertain request; it never resends that request.
+                    if var pending = planOperation, pending.phase == .uncertain, pending.generation != generation, pending.identity.taskID == reading.identity.taskID {
+                        pending.phase = .reconciled; pending.error = "Prior operation retained for inspection; reconnected owner inspected canonical state. No request was replayed."
+                        setPlanOperation(pending)
+                    }
+                } else { issue = "The plan changed while loading. Inspect its current revision again." }
+                planReadRequest = nil; operation = ""; deadlineTask?.cancel()
+            }
+            receiveRecovery(next)
+            receiveReceiptResult(next)
+            receivePlanOperation(next)
+            if !next.running { stopping = false }
+            if approvalSending && (previous?.value["pending_approval"] != next.value["pending_approval"]) { approvalSending = false; operation = ""; deadlineTask?.cancel(); review = nil }
+            if !next.value["notice"].string.isEmpty { issue = next.value["notice"].string }
+            // State ticks can be frequent: persistence is required only for durable client changes.
+            if archive.selectedConversationID != previous?.conversationID || (submissionNonce == nil && previous?.value["upload_result"] != next.value["upload_result"]) { persist() }
+        case .acknowledged(let nonce):
+            if var pending = recoveryPreparation, pending.nonce == nonce, pending.phase == "submitted" { pending.phase = "acknowledged"; setRecoveryPreparation(pending) }
+            if var pending = receiptOperation, pending.nonce == nonce, pending.phase == "submitted" { pending.phase = "acknowledged"; setReceiptOperation(pending) }
+            if var pending = planOperation, pending.nonce == nonce, pending.phase == .submitted { pending.phase = .acknowledged; setPlanOperation(pending) }
+            if nonce == submissionNonce, var pending = archive.pending, pending.phase == .submitted {
+                pending.phase = .acknowledged; archive.pending = pending; submission = pending; persist()
+            }
+        case .disconnected(let reason):
+            connectionStatus = .disconnected; issue = reason
+            markRecoveryUncertain(); accessRequest = nil
+            markReceiptUncertain()
+            markUncertain(); markPlanUncertain("Original Go owner disconnected."); operation = ""; setting = nil; planReadRequest = nil; approvalSending = false; stopping = false
+            deadlineTask?.cancel(); startupDeadline?.cancel(); planControlDeadline?.cancel()
+        case .updateReady: break
+        }
+    }
+
+    public func editDraft(_ text: String) {
+        guard canEditDraft else { return }
+        guard text.utf8.count <= (correctionTarget == nil ? 128 : 120) * 1024 else { issue = "The draft exceeds 128 KiB. Previous text is kept."; return }
+        var draft = archive.drafts[context] ?? NativeDraft()
+        if draft.correction != nil { draft.correction?.text = text } else { draft.text = text }
+        draft.revision = UUID(); draft.updated = Date(); archive.drafts[context] = draft
+        draftText = text; persist()
+    }
+    @ObservationIgnored private var promotedDraftContexts: Set<String> = []
+    private func persist() {
+        guard loaded else { return }
+        let value = archive, previous = saveTask, store = store
+        let contexts = promotedDraftContexts.union([context]).union(archive.pending.map { [$0.context] } ?? []).filter { !$0.isEmpty }
+        saveSequence += 1
+        saveTask = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            var next = value; next.baseline = self.savedBaseline
+            do {
+                let receipt = self.managed ? try await store.saveOwners(next, contexts: Set(contexts)) : try await store.save(next)
+                self.savedBaseline.apply(receipt)
+                self.persistenceIssue = ""
+            } catch { self.persistenceIssue = "Native drafts could not be saved: " + error.localizedDescription }
+        }
+    }
+    public func flushDrafts() async -> Bool {
+        // edits accepted while an earlier save awaits disk must join this flush.
+        while let task = saveTask {
+            let sequence = saveSequence
+            await task.value
+            if sequence == saveSequence { break }
+        }
+        return !loaded || persistenceIssue.isEmpty
+    }
+    private func markUncertain() {
+        if var pending = archive.pending { pending.phase = .uncertain; archive.pending = pending; submission = pending; persist() }
+    }
+    public func submit() async {
+        guard canSend, let draft = archive.drafts[context] else { issue = sendUnavailableReason ?? "Type a message first."; return }
+        let text = draft.correction.map { $0.target.message($0.text) } ?? draft.text
+        let pending = PendingSubmission(id: UUID().uuidString, context: context, text: text, draftRevision: draft.revision, phase: .submitted, planFirst: draft.correction == nil ? draft.planFirst : false, uploads: draft.correction == nil ? draft.uploads : [], replyToUpdateID: draft.correction == nil ? draft.replyToUpdateID : nil, ownerGeneration: generation, ownerConversationID: nil, correctionTarget: draft.correction?.target)
+        archive.pending = pending; submission = pending; issue = ""; persist()
+        guard await flushDrafts() else { markUncertain(); return }
+        await dispatchSubmission(pending)
+    }
+    public func retryOriginalAdmission() async {
+        guard canRetryAdmission, var pending = archive.pending else { return }
+        pending.phase = .submitted; archive.pending = pending; submission = pending; persist()
+        guard await flushDrafts() else { markUncertain(); return }
+        await dispatchSubmission(pending)
+    }
+    private func dispatchSubmission(_ pending: PendingSubmission) async {
+        guard !closing, let owner = transport, isConnected, pending.context == context else { markUncertain(); return }
+        let ownerGeneration = generation, nonce = UUID().uuidString
+        do { try await uploads.check(pending.uploads ?? []) }
+        catch {
+            guard generation == ownerGeneration, archive.pending?.id == pending.id else { return }
+            var failed = pending; failed.phase = .failed; submission = failed; archive.pending = nil
+            attachmentIssue = error.localizedDescription; issue = "Attachments were not sent. " + error.localizedDescription; persist(); return
+        }
+        guard !closing, generation == ownerGeneration, isConnected, context == pending.context, archive.pending?.id == pending.id else { markUncertain(); return }
+        submissionNonce = nonce; startDeadline { [weak self] in
+            guard self?.archive.pending?.id == pending.id else { return }
+            self?.markUncertain(); self?.issue = "Admission is unconfirmed. The original identity is kept. Reconnect and inspect before explicitly retrying."
+        }
+        do { try await owner.send(.submission(id: pending.id, context: pending.context, text: pending.text, planFirst: pending.planFirst == true, files: (pending.uploads ?? []).map(\.id), reply: pending.replyToUpdateID), nonce: nonce) }
+        catch {
+            guard generation == ownerGeneration, archive.pending?.id == pending.id else { return }
+            markUncertain(); issue = error.localizedDescription
+        }
+    }
+
+    public func openConversation(_ id: String) async {
+        guard canNavigate, let snapshot, snapshot.value["recent_conversations"].array.contains(where: { $0["id"].string == id }), let owner = transport else { return }
+        await navigate(.conversation(id: id, listID: snapshot.value["recent_id"].string), owner: owner, expected: id)
+    }
+    public func newConversation() async {
+        guard canNavigate, let owner = transport else { return }
+        await navigate(.newConversation, owner: owner, expected: nil)
+    }
+    private func navigate(_ command: BridgeCommand, owner: any BridgeTransport, expected: String?) async {
+        guard await flushDrafts() else { return }
+        guard canNavigate else { return }
+        operation = "Opening conversation…"; let ownerGeneration = generation, previous = context
+        defer { if generation == ownerGeneration { operation = "" } }
+        do {
+            try await owner.send(command, nonce: UUID().uuidString)
+            if let expected, conversationID != expected { issue = snapshot?.value["notice"].string ?? "The conversation did not open. Choose it from the refreshed list." }
+            else if expected == nil && context == previous { issue = "Go did not confirm a new conversation. Your original conversation is kept." }
+        } catch { if generation == ownerGeneration { issue = error.localizedDescription } }
+    }
+
+    public func selectModel(provider: String, model: String) async {
+        guard canConfigureModel, let snapshot, composerModels.contains(where: { $0["provider"].string == provider && $0["model"].string == model && $0["unavailable"].string.isEmpty }) else { return }
+        let request = UUID().uuidString
+        await changeSetting(.model(id: snapshot.composer["id"].string, request: request, provider: provider, model: model), setting: SettingChange(request: request, generation: generation, context: context, provider: provider, model: model, effort: nil))
+    }
+    public func selectEffort(_ effort: String) async {
+        guard canConfigureModel, let snapshot, ["low", "standard", "high"].contains(effort) else { return }
+        let request = UUID().uuidString
+        await changeSetting(.effort(id: snapshot.composer["id"].string, request: request, effort: effort), setting: SettingChange(request: request, generation: generation, context: context, provider: nil, model: nil, effort: effort))
+    }
+    public func selectWorkMode(_ mode: NativeWorkMode) async {
+        guard canNavigate, let owner = transport else { issue = "Finish the current operation before changing this chat's work mode."; return }
+        let original = generation, deadline = ContinuousClock.now + .seconds(5)
+        operation = "Waiting for Hot Cross Buns's work mode…"
+        defer { if generation == original { operation = "" } }
+        do {
+            try await owner.send(.workMode(mode), nonce: UUID().uuidString)
+            while generation == original, isConnected, snapshot?.value["work_details"]["mode"].string != mode.rawValue {
+                guard ContinuousClock.now < deadline else { throw BridgeFailure("Work mode was not confirmed. Inspect its current value before sending.") }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+        } catch { if generation == original { issue = error.localizedDescription } }
+    }
+    private func changeSetting(_ command: BridgeCommand, setting: SettingChange) async {
+        guard let owner = transport else { return }; self.setting = setting; operation = "Waiting for saved settings…"; issue = ""
+        startDeadline { [weak self] in self?.setting = nil; self?.operation = ""; self?.issue = "Settings outcome is unconfirmed. Inspect the current selection before trying again." }
+        do { try await owner.send(command, nonce: UUID().uuidString) }
+        catch { if generation == setting.generation, self.setting != nil { self.setting = nil; operation = ""; issue = error.localizedDescription } }
+    }
+
+    public func stopWork() async {
+        guard canStop, let owner = transport else { return }
+        let ownerGeneration = generation, originalContext = context
+        stopping = true; issue = ""
+        do {
+            try await owner.send(.stop, nonce: UUID().uuidString)
+            guard generation == ownerGeneration, context == originalContext else { return }
+            // The acknowledgement is not a cancellation receipt. Wait for Go's state.
+            if snapshot?.cancelling == true { stopping = true }
+        } catch { if generation == ownerGeneration { issue = error.localizedDescription; stopping = false } }
+    }
+    public var currentApprovalReview: ApprovalReview? {
+        guard let snapshot, hasReviewableApproval else { return nil }
+        let pending = snapshot.value["pending_approval"], index = pending["message_index"].int
+        let result = index >= 0 && index < messages.count ? messages[index].result : .null
+        return ApprovalReview(conversationID: conversationID, context: context, generation: generation, interactionID: pending["id"].int, token: pending["token"].string, messageIndex: index, result: result)
+    }
+    public func openApprovalReview() { review = currentApprovalReview }
+    public func closeApprovalReview() { if !approvalSending { review = nil; requestComposerFocus() } }
+    public func isCurrentReview(_ candidate: ApprovalReview) -> Bool {
+        guard isConnected, candidate.generation == generation, candidate.context == context, candidate.conversationID == conversationID, let snapshot else { return false }
+        let pending = snapshot.value["pending_approval"]
+        let exactResult = candidate.result != .null && candidate.messageIndex >= 0 && candidate.messageIndex < messages.count && messages[candidate.messageIndex].result == candidate.result
+        return !retiredApprovalTokens.contains(candidate.token) && exactResult && candidate.interactionID > 0 && candidate.interactionID == pending["id"].int && candidate.token.count == 64 && candidate.token == pending["token"].string && candidate.messageIndex == pending["message_index"].int
+    }
+    public func respondToApproval(_ candidate: ApprovalReview, approved: Bool) async {
+        guard !closing, !approvalSending, isCurrentReview(candidate), !approved || candidate.inspectable, let owner = transport else { return }
+        if approved {
+            guard candidate.messageIndex >= 0, candidate.messageIndex < messages.count, messages[candidate.messageIndex].result == candidate.result else { issue = "Approval details changed. Reopen the exact review."; return }
+        }
+        retiredApprovalTokens.insert(candidate.token)
+        approvalSending = true; operation = "Waiting for the approval outcome…"
+        startDeadline { [weak self] in self?.approvalSending = false; self?.operation = ""; self?.issue = "The approval outcome is unconfirmed. Inspect retained work; do not repeat an external action." }
+        do { try await owner.send(.approval(id: candidate.interactionID, token: candidate.token, approved: approved), nonce: UUID().uuidString) }
+        catch { if generation == candidate.generation { approvalSending = false; operation = ""; issue = error.localizedDescription } }
+    }
+
+    public func reconnect() async {
+        guard !closing, connectionStatus == .disconnected || connectionStatus == .idle else { return }
+        markUncertain(); markPlanUncertain("Owner reconnect requested."); guard await flushDrafts() else { return }
+        operation = "Reconnecting…"
+        if let transport, !(await transport.shutdownConfirmed()) {
+            operation = ""; issue = "Original Go owner exit is unconfirmed. No replacement owner was started."; return
+        }
+        eventTask?.cancel(); transport = nil
+        configuration.conversationID = archive.selectedConversationID
+        review = nil; operation = ""; issue = ""
+        await connect()
+        // Deliberately no send here: restore is not a resubmission or approval replay.
+    }
+    func beginClosing() {
+        guard !closing else { return }
+        closing = true
+        if attachmentImport != nil {
+            attachmentImport = nil; attachmentStatus = ""
+            attachmentIssue = "An unfinished import was cancelled while closing. Existing draft selections are kept; choose unfinished files again if closing is cancelled."
+        }
+    }
+    func cancelClosing() {
+        closing = false
+        if connectionStatus == .closed || connectionStatus == .stopping { connectionStatus = .disconnected }
+    }
+    func prepareForShutdown() async -> Bool {
+        beginClosing()
+        markRecoveryUncertain(); markReceiptUncertain(); markUncertain()
+        markPlanUncertain("Application shutdown requested.")
+        // retry the latest accepted state after a recoverable disk failure.
+        persist()
+        return await flushDrafts()
+    }
+    public func shutdown(confirmed: Bool = false) async -> Bool {
+        if connectionStatus == .closed { return true }
+        guard confirmed || quitGuard == nil else { return false }
+        guard await prepareForShutdown() else { cancelClosing(); return false }
+        connectionStatus = .stopping
+        deadlineTask?.cancel(); startupDeadline?.cancel(); planControlDeadline?.cancel()
+        recoveryDeadline?.cancel(); receiptDeadline?.cancel()
+        if let transport, !(await transport.shutdownConfirmed()) {
+            issue = "Hot Cross Buns shutdown could not be confirmed. The original owner is retained; no replacement was started."
+            cancelClosing(); return false
+        }
+        // consume final result/disconnect events before the final durable boundary.
+        await eventTask?.value
+        transport = nil
+        guard await flushDrafts() else { cancelClosing(); return false }
+        connectionStatus = .closed; review = nil; return true
+    }
+
+    private func restoreDraft(_ context: String) {
+        let draft = archive.drafts[context]
+        correctionTarget = draft?.correction?.target
+        draftText = draft?.correction?.text ?? draft?.text ?? ""
+        planFirst = draft?.correction == nil && draft?.planFirst == true
+        draftUploads = draft?.correction == nil ? draft?.uploads ?? [] : []
+        draftReplyToUpdateID = draft?.correction == nil ? draft?.replyToUpdateID : nil
+        attachmentIssue = ""
+    }
+    public var canImportAttachments: Bool { canEditDraft && correctionTarget == nil && attachmentImport == nil && connectionStatus != .closed && connectionStatus != .stopping }
+    public func beginAttachmentImport() -> NativeAttachmentImport? {
+        guard canImportAttachments else { attachmentIssue = "Finish the current selection or correction before attaching files."; return nil }
+        let request = NativeAttachmentImport(context: context, generation: generation, existing: draftUploads)
+        attachmentImport = request; attachmentIssue = ""; attachmentStatus = "Choosing or importing files…"; return request
+    }
+    public func cancelAttachmentImport(_ request: NativeAttachmentImport) {
+        guard attachmentImport == request else { return }; attachmentImport = nil; attachmentStatus = ""
+    }
+    public func failAttachmentImport(_ request: NativeAttachmentImport, message: String) {
+        guard attachmentImport == request else { return }; attachmentImport = nil; attachmentStatus = ""; attachmentIssue = message
+    }
+    public func importFiles(_ urls: [URL], request: NativeAttachmentImport) async {
+        guard attachmentImport == request else { return }; attachmentStatus = "Importing private copies…"
+        do { let files = try await uploads.importFiles(urls, existing: request.existing); finishAttachmentImport(files, request: request) }
+        catch { failAttachmentImport(request, message: error.localizedDescription) }
+    }
+    public func importImage(_ data: Data, request: NativeAttachmentImport) async {
+        guard attachmentImport == request else { return }; attachmentStatus = "Validating and copying image…"
+        do { let files = try await uploads.importPastedImage(data, existing: request.existing); finishAttachmentImport(files, request: request) }
+        catch { failAttachmentImport(request, message: error.localizedDescription) }
+    }
+    private func finishAttachmentImport(_ files: [NativeUpload], request: NativeAttachmentImport) {
+        guard attachmentImport == request else { return }
+        defer { attachmentImport = nil; attachmentStatus = "" }
+        guard generation == request.generation, context == request.context, correctionTarget == nil, connectionStatus != .closed else { attachmentIssue = "The original destination changed. Private copies were retained, but were not attached to another chat. Choose the files again in the intended conversation."; return }
+        var draft = archive.drafts[request.context] ?? NativeDraft()
+        let merged = (draft.uploads ?? []) + files
+        guard NativeUploadLimits.validSelection(merged) else { attachmentIssue = "The resulting selection exceeds message limits. Existing draft kept; imported copies retained."; return }
+        draft.uploads = merged; draft.revision = UUID(); draft.updated = Date(); archive.drafts[request.context] = draft
+        draftUploads = merged; attachmentIssue = ""; persist()
+    }
+    public func removeAttachment(_ id: String) {
+        guard canEditDraft, correctionTarget == nil, attachmentImport == nil, var draft = archive.drafts[context] else { return }
+        draft.uploads = (draft.uploads ?? []).filter { $0.id != id }; draft.revision = UUID(); draft.updated = Date(); archive.drafts[context] = draft
+        draftUploads = draft.uploads ?? []; attachmentIssue = ""; persist()
+        // Deliberately no filesystem deletion: a pending or retained request may own the bytes.
+    }
+    public func validateDraftAttachments() async {
+        let files = draftUploads, originalContext = context, originalGeneration = generation
+        do { try await uploads.check(files)
+            if context == originalContext, generation == originalGeneration, draftUploads == files { attachmentIssue = "" }
+        } catch { if context == originalContext, generation == originalGeneration, draftUploads == files { attachmentIssue = error.localizedDescription } }
+    }
+    public func attachmentThumbnail(_ file: NativeUpload) async -> Data? { try? await uploads.thumbnail(file) }
+    public func setReplyToUpdateID(_ id: String?) {
+        guard canEditDraft, correctionTarget == nil, id == nil || id!.range(of: "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$", options: .regularExpression) != nil else { return }
+        var draft = archive.drafts[context] ?? NativeDraft(); draft.replyToUpdateID = id; draft.revision = UUID(); draft.updated = Date(); archive.drafts[context] = draft; draftReplyToUpdateID = id; persist()
+    }
+
+    public func setPlanFirst(_ value: Bool) {
+        guard canEditDraft, correctionTarget == nil else { return }
+        var draft = archive.drafts[context] ?? NativeDraft()
+        draft.planFirst = value; draft.revision = UUID(); draft.updated = Date(); archive.drafts[context] = draft
+        planFirst = value; persist()
+    }
+    func beginCorrection(_ target: NativeCorrectionTarget) -> Bool {
+        guard canEditDraft, archive.pending == nil, correctionTarget == nil, attachmentImport == nil else { issue = "An existing draft submission or correction is kept. Finish or cancel it before starting another correction."; return false }
+        var draft = archive.drafts[context] ?? NativeDraft()
+        draft.correction = NativeCorrectionDraft(target: target); draft.revision = UUID(); draft.updated = Date(); archive.drafts[context] = draft
+        restoreDraft(context); persist(); requestComposerFocus(); return true
+    }
+    public func cancelCorrection() {
+        guard canEditDraft, archive.pending == nil, var draft = archive.drafts[context] else { return }
+        draft.correction = nil; draft.revision = UUID(); draft.updated = Date(); archive.drafts[context] = draft
+        restoreDraft(context); persist(); requestComposerFocus()
+    }
+    public func requestComposerFocus() { focusRequest = UUID() }
+    public func isCurrentPlan(_ identity: NativePlanIdentity) -> Bool {
+        isConnected && identity.conversationID == conversationID && snapshot?.value["task_plans"].array.contains(where: identity.matches) == true
+    }
+    public func isCurrentPlanReview(_ value: NativePlanReview) -> Bool {
+        guard value.generation == generation, isCurrentPlan(value.identity), let snapshot else { return false }
+        if let epoch = value.focusEpoch, epoch != planReviewEpoch { return false }
+        if let captured = value.summaryAtInspection, snapshot.value["task_plans"].array.first(where: value.identity.matches) != captured { return false }
+        if let captured = value.scopeAtInspection, captured != NativePlanPresentation.scope(snapshot) { return false }
+        return true
+    }
+    func inspectPlan(_ identity: NativePlanIdentity) async {
+        guard managed, isCurrentPlan(identity), snapshot?.value["foreground"].bool == true, archive.pending == nil, operation.isEmpty, let owner = transport else { issue = "Open the original chat and inspect its current plan revision."; return }
+        let request = UUID().uuidString, original = generation
+        planReadRequest = (request, identity, original); operation = "Loading exact proposed plan…"; issue = ""
+        startDeadline { [weak self] in self?.planReadRequest = nil; self?.operation = ""; self?.issue = "Plan inspection was not confirmed. Your draft is kept; inspect again explicitly." }
+        do { try await owner.send(.inspectPlan(identity, request: request), nonce: UUID().uuidString) }
+        catch { if generation == original { planReadRequest = nil; operation = ""; issue = error.localizedDescription } }
+    }
+
+    public func planAuthorizationUnavailable(_ review: NativePlanReview, action: NativePlanAction) -> String? { planAuthorizationIssue(review, action: action) }
+    private func planAuthorizationIssue(_ review: NativePlanReview, action: NativePlanAction, permittedPendingID: String? = nil) -> String? {
+        if recoveryPreparation?.blocks == true { return "Recovery preparation is pending or unconfirmed. Inspect its resulting plan before any separate authorization." }
+        let ownPrepared = permittedPendingID != nil && planOperation?.id == permittedPendingID && planOperation?.phase == .submitted
+        guard !closing, managed, isConnected, let snapshot, snapshot.value["foreground"].bool else { return "Open and focus the original connected owner, then inspect again." }
+        guard isCurrentPlanReview(review), planReviews[review.identity.taskID] == review else { return "This review changed. Inspect the exact current plan again." }
+        guard review.summaryAtInspection != nil, review.scopeAtInspection != nil, NativePlanPresentation.complete(review) else { return "The full authoritative review is incomplete. Approval is unavailable." }
+        if planOperation?.blocksAuthorization == true && !ownPrepared { return "A prior authorization is unconfirmed. Reconnect and inspect; do not repeat it." }
+        if !ownPrepared, let prior = planOperation, prior.identity == review.identity, prior.action == action,
+           ![NativePlanOperationPhase.rejected, .notSubmitted, .reconciled].contains(prior.phase) {
+            return "This exact authorization was already submitted. Inspect its retained outcome; it will not be sent twice."
+        }
+        if (!operation.isEmpty && !ownPrepared) || archive.pending != nil || approvalSending || snapshot.running || snapshot.hasApproval || snapshot.hasExternal || snapshot.value["dialogue_busy"].bool || snapshot.value["dialogue_dispatch"] != .null || snapshot.value["pending_operation"].string.isEmpty == false || snapshot.value["receipt_busy"].bool || snapshot.value["catalog_busy"].bool { return "Finish the current operation or exact action review before authorizing this plan." }
+        guard snapshot.value["mode"].string == "chat", snapshot.value["panel"] == .null, snapshot.value["session_request"] == .null else { return "Return to the original idle conversation and inspect again." }
+        if !persistenceIssue.isEmpty { return "Native operation storage needs attention. Nothing will be submitted." }
+        if !snapshot.value["requests_issue"].string.isEmpty { return snapshot.value["requests_issue"].string }
+        guard review.value["state"].string == "queued", review.value["phase"].string == (action == .approve ? "review" : "approved") else { return action == .start ? "Start requires an approved, undispatched queued plan." : "Only a queued proposed plan can be approved." }
+        if review.value["edit_state"].string == "preparing" { return "Wait for the replacement proposal and inspect it." }
+        if review.value["attempts"].array.contains(where: { $0["uncertain"].bool }) { return "Prior effects are uncertain. Inspect retained evidence; authorization is unavailable." }
+        return nil
+    }
+    func authorizePlan(_ review: NativePlanReview, action: NativePlanAction, finalAdmissionAllowed: @MainActor () -> Bool) async {
+        guard planAuthorizationUnavailable(review, action: action) == nil, let transport else { return }
+        let pending = NativePlanOperation(id: UUID().uuidString, nonce: UUID().uuidString, identity: review.identity, generation: generation, action: action)
+        setPlanOperation(pending); operation = "Awaiting exact plan authorization confirmation…"; issue = ""
+        guard await flushDrafts() else {
+            var unsent = pending; unsent.phase = .notSubmitted; unsent.error = "Operation could not be durably recorded. No send was attempted."; setPlanOperation(unsent); operation = ""; return
+        }
+        // Recheck after persistence without using the pending-operation guard.
+        guard generation == pending.generation, finalAdmissionAllowed(), planAuthorizationIssue(review, action: action, permittedPendingID: pending.id) == nil else {
+            var unsent = pending; unsent.phase = .notSubmitted; unsent.error = "Owner, proposal, capacity or application state changed before send. Inspect again."; setPlanOperation(unsent); operation = ""; return
+        }
+        planControlDeadline?.cancel()
+        planControlDeadline = Task { [weak self, responseTimeout] in
+            try? await Task.sleep(for: responseTimeout)
+            guard !Task.isCancelled, let self, self.planOperation?.id == pending.id, self.planOperation?.phase.awaitingResult == true else { return }
+            self.markPlanUncertain("Go did not confirm the request ID."); self.operation = ""
+        }
+        do { try await transport.send(.authorizePlan(pending.identity, action: action, request: pending.id), nonce: pending.nonce) }
+        catch { if generation == pending.generation { markPlanUncertain(error.localizedDescription); operation = "" } }
+    }
+    private func setPlanOperation(_ value: NativePlanOperation) {
+        planOperation = value
+        if archive.planOperationsByContext == nil { archive.planOperationsByContext = [:] }
+        archive.planOperationsByContext?["conversation:" + value.identity.conversationID] = value
+        persist()
+    }
+    private func markPlanUncertain(_ reason: String) {
+        guard var value = planOperation, value.phase.awaitingResult || value.phase == .accepted else { return }
+        value.phase = .uncertain; value.error = reason; setPlanOperation(value); planControlDeadline?.cancel()
+    }
+    private func receivePlanOperation(_ next: BridgeSnapshot) {
+        guard var pending = planOperation else { return }
+        let old = pending
+        let result = next.value["task_plan_result"]
+        if !pending.resultConfirmed, pending.generation == generation, result["request_id"].string == pending.id {
+            pending.resultConfirmed = true; pending.error = result["error"].string
+            pending.phase = pending.error.isEmpty ? .accepted : .rejected
+            if !pending.error.isEmpty { planReviewEpoch = UUID() } // Retain the read, invalidate its controls until fresh inspection.
+            operation = ""; planControlDeadline?.cancel()
+        }
+        if pending.resultConfirmed, pending.phase != .rejected,
+           let summary = next.value["task_plans"].array.first(where: pending.identity.matches) {
+            pending.workID = summary["work_id"].string
+            switch summary["state"].string {
+            case "running": if summary["phase"].string == "dispatching" && next.running { pending.phase = next.hasApproval ? .waitingReview : .working }
+            case "completed": pending.phase = .completed
+            case "failed", "interrupted": pending.phase = .failed
+            case "stopped", "cancelled": pending.phase = .stopped
+            default: break
+            }
+        }
+        if pending != old { setPlanOperation(pending) }
+    }
+    func awaitPlanAuthorizationResult() async {
+        while planOperation?.phase.awaitingResult == true && isConnected { try? await Task.sleep(for: .milliseconds(10)) }
+    }
+
+    public var requestRecoveries: [NativeRequestRecovery] {
+        snapshot?.value["request_recoveries"].array.map { NativeRequestRecovery(conversationID: conversationID, generation: generation, value: $0) } ?? []
+    }
+    public var reservesRecoveryCapacity: Bool { recoveryPreparation?.blocks == true }
+    public func isCurrentRecovery(_ candidate: NativeRequestRecovery) -> Bool {
+        isConnected && candidate.valid && candidate.generation == generation && candidate.conversationID == conversationID && requestRecoveries.contains(candidate)
+    }
+    public func recoveryUnavailable(_ candidate: NativeRequestRecovery, action: NativeRecoveryAction) -> String? { recoveryEligibility(candidate, action: action) }
+    private func recoveryEligibility(_ candidate: NativeRequestRecovery, action: NativeRecoveryAction, pendingID: String? = nil) -> String? {
+        let ownPending = pendingID != nil && recoveryPreparation?.id == pendingID && recoveryPreparation?.phase == "submitted"
+        guard !closing, isCurrentRecovery(candidate), let snapshot, snapshot.value["foreground"].bool else { return "Open the original connected owner and inspect its current recovery state." }
+        if recoveryPreparation?.blocks == true && !ownPending { return "An earlier preparation is pending or uncertain. Inspect its original task; it cannot be retried automatically." }
+        if (!operation.isEmpty && !ownPending) || archive.pending != nil || approvalSending || snapshot.busy || snapshot.hasApproval || snapshot.hasExternal || snapshot.value["dialogue_dispatch"] != .null || snapshot.value["session_request"] != .null || snapshot.value["mode"].string != "chat" || snapshot.value["panel"] != .null { return "Return to the idle original owner before reviewing recovery." }
+        if !persistenceIssue.isEmpty { return "Native operation storage needs attention. Nothing will be submitted." }
+        if !snapshot.value["requests_issue"].string.isEmpty { return snapshot.value["requests_issue"].string }
+        if action == .reviewAccess { return candidate.needs.isEmpty ? "This task has no retained account-access requirement." : nil }
+        guard candidate.retrySafe else { return "Go does not project safe recovery preparation for this task. Inspect retained effects." }
+        if action == .prepareRetry && (candidate.value["state"].string != "failed" || !candidate.needs.isEmpty) { return "Review this task’s required account access first, or inspect its current plan." }
+        if readiness["state"].string != "configured" { return "Repair the original provider in Hot Cross Buns’s supported terminal configuration, then inspect again. Your draft is retained." }
+        if candidate.value["provider"].string != snapshot.value["provider"].string || candidate.value["model"].string != snapshot.value["model"].string { return "Select the original provider and model. Recovery never switches processing automatically." }
+        if action == .prepareAccess {
+            guard let access = recoveryAccess[candidate.id], isCurrentRecoveryAccess(access), access.ready else { return "Review the exact selected accounts and permissions again; ready access is required." }
+        }
+        return nil
+    }
+    public func isCurrentRecoveryAccess(_ access: NativeRecoveryAccess) -> Bool {
+        guard recoveryAccess[access.recovery.id] == access, isCurrentRecovery(access.recovery), let snapshot, access.scope == NativePlanPresentation.scope(snapshot), let review = access.review else { return false }
+        return review["requirements"].array.count == access.selections.count && review["requirements"].array.map { $0["selected"].string } == access.selections
+    }
+    /// Synchronous invalidation occurs before an async request can be queued.
+    public func proposeRecoveryAccount(_ candidate: NativeRequestRecovery, index: Int, account: String) -> Bool {
+        guard isCurrentRecovery(candidate), operation.isEmpty, var access = recoveryAccess[candidate.id], access.recovery == candidate, snapshot.map(NativePlanPresentation.scope) == access.scope, access.requirements.indices.contains(index), access.selections.indices.contains(index), access.requirements[index]["choices"].array.contains(where: { $0["id"].string == account && $0["issue"].string.isEmpty }) else { return false }
+        access.selections[index] = account; access.review = nil; access.issue = "Selection changed · awaiting a fresh Go access review"
+        recoveryAccess[candidate.id] = access; return true
+    }
+    func reviewRecoveryAccess(_ candidate: NativeRequestRecovery, proposed: Bool) async {
+        guard recoveryUnavailable(candidate, action: .reviewAccess) == nil, let owner = transport, let snapshot else { return }
+        let selections = proposed ? recoveryAccess[candidate.id]?.selections : nil
+        if proposed && selections == nil { return }
+        let request = UUID().uuidString, scope = NativePlanPresentation.scope(snapshot)
+        if var old = recoveryAccess[candidate.id] { old.review = nil; old.issue = "Reviewing configured account access…"; recoveryAccess[candidate.id] = old }
+        accessRequest = (request, candidate, selections, scope); operation = "Reviewing configured access…"; issue = ""
+        startDeadline { [weak self] in self?.accessRequest = nil; self?.operation = ""; self?.issue = "Access review was not confirmed. No recovery plan or account change was requested. Review explicitly again." }
+        var fields: [String: JSONValue] = ["conversation_id": .string(candidate.conversationID), "task_id": .string(candidate.id), "token": .string(candidate.token), "action": .string("review_access"), "request_id": .string(request)]
+        if let selections { fields["connections"] = .array(selections.map(JSONValue.string)) }
+        do { try await owner.send(.recovery(fields: fields), nonce: UUID().uuidString) }
+        catch { if generation == candidate.generation, accessRequest?.id == request { accessRequest = nil; operation = ""; issue = error.localizedDescription } }
+    }
+    func prepareRecovery(_ candidate: NativeRequestRecovery, action: NativeRecoveryAction, reviewedAccess: NativeRecoveryAccess? = nil, finalAdmissionAllowed: @MainActor () -> Bool) async {
+        guard action != .reviewAccess, recoveryUnavailable(candidate, action: action) == nil, let owner = transport else { return }
+        let access = action == .prepareAccess ? reviewedAccess : nil
+        guard action != .prepareAccess || (access != nil && access == recoveryAccess[candidate.id]) else { return }
+        var pending = NativeRecoveryPreparation(id: UUID().uuidString, nonce: UUID().uuidString, conversationID: conversationID, taskID: candidate.id, token: candidate.token, generation: generation, action: action, connections: access?.selections, accessToken: access?.review?["token"].string, previousRevision: snapshot?.value["task_plans"].array.first(where: { $0["id"].string == candidate.id })?["revision"].int ?? 0)
+        setRecoveryPreparation(pending); operation = "Awaiting recovery preparation admission…"; issue = ""
+        guard await flushDrafts() else { pending.phase = "not_submitted"; pending.error = "Could not retain the operation identity; no send attempted."; setRecoveryPreparation(pending); operation = ""; return }
+        // Revalidate after persistence, without treating our own new receipt as a conflict.
+        let valid = recoveryEligibility(candidate, action: action, pendingID: pending.id) == nil && (access == nil || access.map(isCurrentRecoveryAccess) == true)
+        guard valid && finalAdmissionAllowed() else { pending.phase = "not_submitted"; pending.error = "Owner, recovery, access or capacity changed before send. Inspect again."; setRecoveryPreparation(pending); operation = ""; return }
+        // Invalidate all old plan authorization reads before mutation, even while admission is pending.
+        planReviews.removeValue(forKey: candidate.id)
+        recoveryDeadline?.cancel()
+        recoveryDeadline = Task { [weak self, responseTimeout] in
+            try? await Task.sleep(for: responseTimeout)
+            guard !Task.isCancelled, let self, self.recoveryPreparation?.id == pending.id, self.recoveryPreparation?.awaitsResult == true else { return }
+            self.markRecoveryUncertain(); self.operation = ""
+        }
+        do { try await owner.send(.recovery(fields: pending.fields), nonce: pending.nonce) }
+        catch { if generation == pending.generation, recoveryPreparation?.id == pending.id, recoveryPreparation?.awaitsResult == true { markRecoveryUncertain(); operation = "" } }
+    }
+    private func setRecoveryPreparation(_ value: NativeRecoveryPreparation) {
+        recoveryPreparation = value
+        if archive.recoveryPreparationsByContext == nil { archive.recoveryPreparationsByContext = [:] }
+        archive.recoveryPreparationsByContext?["conversation:" + value.conversationID] = value; persist()
+    }
+    private func markRecoveryUncertain() {
+        guard var value = recoveryPreparation, value.blocks else { return }
+        value.phase = "uncertain"; setRecoveryPreparation(value); recoveryDeadline?.cancel()
+    }
+    private func receiveRecovery(_ next: BridgeSnapshot) {
+        let result = next.value["request_recovery_result"]
+        if let reading = accessRequest, result["request_id"].string == reading.id {
+            let review = result["access_review"], rows = review["requirements"].array
+            if !result["error"].string.isEmpty {
+                issue = result["error"].string
+                if var access = recoveryAccess[reading.recovery.id] { access.review = nil; access.issue = issue; recoveryAccess[reading.recovery.id] = access }
+            }
+            else if isCurrentRecovery(reading.recovery), reading.scope == NativePlanPresentation.scope(next), rows.map({ $0["need"] }) == reading.recovery.needs, rows.count <= 16, review["token"].string.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil, reading.connections == nil || rows.map({ $0["selected"].string }) == reading.connections {
+                recoveryAccess[reading.recovery.id] = NativeRecoveryAccess(recovery: reading.recovery, scope: reading.scope, requirements: rows, selections: rows.map { $0["selected"].string }, review: review)
+                issue = ""
+            } else { issue = "The task, selection or access scope changed during review. Inspect access again." }
+            accessRequest = nil; operation = ""; deadlineTask?.cancel()
+        }
+        guard var pending = recoveryPreparation else { return }
+        let prior = pending
+        if pending.generation == generation, pending.conversationID == next.conversationID, pending.awaitsResult, result["request_id"].string == pending.id {
+            pending.error = result["error"].string; pending.resultConfirmed = true; pending.accepted = pending.error.isEmpty && result["accepted"].bool
+            if pending.accepted == true { pending.phase = "accepted" }
+            else { pending.phase = "rejected"; if pending.error.isEmpty { pending.error = "Go did not confirm preparation admission." } }
+            if var access = recoveryAccess[pending.taskID] { access.review = nil; recoveryAccess[pending.taskID] = access }
+            recoveryDeadline?.cancel(); operation = ""
+        }
+        if pending.phase == "accepted" || pending.phase == "preparing" || (pending.phase == "uncertain" && pending.generation != generation) {
+            if let plan = next.value["task_plans"].array.first(where: { $0["id"].string == pending.taskID }), plan["revision"].int > pending.previousRevision {
+                if plan["phase"].string == "review", plan["state"].string == "queued" { pending.phase = pending.generation == generation ? "plan_ready" : "reconciled" }
+                else if pending.generation == generation && ["revising", "preparing"].contains(plan["phase"].string) { pending.phase = "preparing" }
+                else if pending.generation == generation && plan["state"].string == "failed" { pending.phase = "failed"; pending.error = plan["issue"].string }
+            }
+        }
+        if pending != prior { setRecoveryPreparation(pending) }
+    }
+    func awaitRecoveryAdmission() async {
+        while let pending = recoveryPreparation, ["submitted", "acknowledged"].contains(pending.phase), isConnected { try? await Task.sleep(for: .milliseconds(10)) }
+    }
+
+    public func receiptUnavailable(_ candidate: NativeRecoveryReceipt, generation expected: UUID) -> String? {
+        guard !closing, isConnected, generation == expected, candidate.identity?.conversationID == conversationID else { return "Open the original connected owner and inspect its current evidence." }
+        guard let current = recovery?.receipts.first(where: { $0.id == candidate.id }), current == candidate, current.identity != nil else { return "Exact retained bundle identity is missing or changed. A journal receipt alone cannot authorize a check." }
+        if receiptOperation?.unresolved == true { return "A prior check is unconfirmed. Its request identity is retained; no automatic retry. Reconnect and inspect retained evidence." }
+        guard operation.isEmpty, snapshot?.value["receipt_busy"].bool != true else { return "Wait for the current owner operation." }
+        if !persistenceIssue.isEmpty { return "Native storage needs attention. No check was submitted." }
+        return nil
+    }
+    func checkReceipt(_ candidate: NativeRecoveryReceipt, generation expected: UUID, action: NativeReceiptAction) async {
+        guard receiptUnavailable(candidate, generation: expected) == nil, let identity = candidate.identity, let owner = transport else { return }
+        var pending = NativeReceiptOperation(id: UUID().uuidString, nonce: UUID().uuidString, identity: identity, generation: generation, action: action)
+        setReceiptOperation(pending); operation = "Awaiting read-only receipt check…"
+        guard await flushDrafts() else { pending.phase = "uncertain"; setReceiptOperation(pending); operation = ""; return }
+        guard generation == expected, isConnected, recovery?.receipts.contains(candidate) == true else {
+            pending.phase = "failed"; pending.result = .object(["error": .string("Owner or evidence changed before send. No check submitted.")]); setReceiptOperation(pending); operation = ""; return
+        }
+        receiptDeadline?.cancel()
+        receiptDeadline = Task { [weak self, responseTimeout] in
+            try? await Task.sleep(for: responseTimeout)
+            guard !Task.isCancelled, let self, self.receiptOperation?.id == pending.id, self.receiptOperation?.unresolved == true else { return }
+            self.markReceiptUncertain(); self.operation = ""
+        }
+        do { try await owner.send(.receipt(identity, action: action, request: pending.id), nonce: pending.nonce) }
+        catch { if generation == expected, receiptOperation?.id == pending.id, receiptOperation?.unresolved == true { markReceiptUncertain(); operation = "" } }
+    }
+    private func setReceiptOperation(_ value: NativeReceiptOperation) {
+        receiptOperation = value
+        if archive.receiptOperationsByContext == nil { archive.receiptOperationsByContext = [:] }
+        archive.receiptOperationsByContext?["conversation:" + value.identity.conversationID] = value
+        persist()
+    }
+    private func markReceiptUncertain() {
+        guard var value = receiptOperation, value.unresolved else { return }
+        value.phase = "uncertain"; setReceiptOperation(value); receiptDeadline?.cancel()
+    }
+    private func receiveReceiptResult(_ next: BridgeSnapshot) {
+        guard var pending = receiptOperation, pending.unresolved, pending.generation == generation, pending.identity.conversationID == next.conversationID else { return }
+        let result = next.value["receipt_result"]
+        guard result["request_id"].string == pending.id else { return }
+        pending.result = result
+        pending.phase = result["error"].string.isEmpty && ["not_checked", "found", "ambiguous", "unconfirmed"].contains(result["check"]["status"].string) ? "confirmed" : "failed"
+        setReceiptOperation(pending); receiptDeadline?.cancel(); operation = ""
+    }
+
+    // Host-only operations retain this owner's generation through every await.
+    func host(_ command: HostCommand, timeout: Duration = .seconds(5), until accepted: @escaping @MainActor (BridgeSnapshot) -> Bool = { _ in true }) async throws {
+        guard isConnected, let owner = transport else { throw BridgeFailure("Original Go owner is disconnected. Inspect retained work before retrying.") }
+        let originalGeneration = generation
+        try await owner.send(.host(command), nonce: UUID().uuidString)
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            guard generation == originalGeneration, isConnected else { throw BridgeFailure("Original Go owner changed or disconnected; the outcome is unconfirmed.") }
+            if let snapshot, accepted(snapshot) { return }
+            guard ContinuousClock.now < deadline else { throw BridgeFailure("The owner did not confirm this operation. Inspect retained work; it will not be retried automatically.") }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+    func awaitReady(timeout: Duration = .seconds(15)) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while !isConnected {
+            if closing { throw BridgeFailure("Hot Cross Buns is closing.") }
+            if connectionStatus == .disconnected || connectionStatus == .closed { throw BridgeFailure(issue.isEmpty ? "Go owner could not open." : issue) }
+            guard ContinuousClock.now < deadline else { throw BridgeFailure("Go did not confirm this chat. Original work was kept.") }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+    func requestManagedConversation(_ id: String) async throws {
+        guard managed, isConnected, let snapshot, snapshot.value["recent_conversations"].array.contains(where: { $0["id"].string == id }), let owner = transport else { throw BridgeFailure("This conversation is no longer in the current Go list.") }
+        let sequence = snapshot.value["session_request"]["sequence"].int, notice = snapshot.value["notice"].string
+        try await owner.send(.conversation(id: id, listID: snapshot.value["recent_id"].string), nonce: UUID().uuidString)
+        try await awaitNavigation(after: sequence, notice: notice)
+    }
+    func requestManagedNew() async throws {
+        guard managed, isConnected, let owner = transport else { throw BridgeFailure("Reconnect before opening a new chat.") }
+        let sequence = snapshot?.value["session_request"]["sequence"].int ?? 0, notice = snapshot?.value["notice"].string ?? ""
+        try await owner.send(.newConversation, nonce: UUID().uuidString)
+        try await awaitNavigation(after: sequence, notice: notice)
+    }
+    private func awaitNavigation(after sequence: Int, notice: String) async throws {
+        let originalGeneration = generation, deadline = ContinuousClock.now + .seconds(5)
+        while isConnected, generation == originalGeneration {
+            if let snapshot, snapshot.value["session_request"]["sequence"].int > sequence { return }
+            if let next = snapshot?.value["notice"].string, !next.isEmpty, next != notice { throw BridgeFailure(next) }
+            guard ContinuousClock.now < deadline else { throw BridgeFailure("Go did not project the requested navigation. Original selection and draft retained.") }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        throw BridgeFailure("The requesting owner disconnected before navigation was confirmed.")
+    }
+    func awaitAdmissionResolution() async {
+        while let pending = archive.pending, pending.phase == .submitted || pending.phase == .acknowledged {
+            guard isConnected else { return }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private func startDeadline(_ action: @escaping @MainActor () -> Void) {
+        deadlineTask?.cancel()
+        deadlineTask = Task { [responseTimeout] in
+            try? await Task.sleep(for: responseTimeout)
+            if !Task.isCancelled { action() }
+        }
+    }
+}

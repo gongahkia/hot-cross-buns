@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 func TestUserExcludedKnowledgeCannotBeSearchedOrRead(t *testing.T) {

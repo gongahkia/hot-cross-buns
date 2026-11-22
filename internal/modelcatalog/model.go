@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/rattles"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/rattles"
 )
 
 // Config contains only the state and callbacks required by model management.

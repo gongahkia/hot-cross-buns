@@ -8,7 +8,7 @@ Date: 2026-11-17. Scope: the nine findings in `NATIVE-UIUX-AUDIT.md`, with the e
 
 Seven original findings are addressed; two have targeted improvements with larger work explicitly deferred. No new P0/P1 defect was reproduced. This does not establish the absence of defects in untested OS/preference/accessibility configurations.
 
-Development candidate: **`/tmp/Gator-Native-UIUX-Verified.app`**. The existing `/tmp/Gator-Native-Safety-Verified.app` was preserved. The final executable was launched in a separate-preference-domain copy with a disposable profile; executable hashes match the candidate. No signing, notarization, distribution or paid provider request was performed.
+Development candidate: **`/tmp/HotCrossBuns-Native-UIUX-Verified.app`**. The existing `/tmp/HotCrossBuns-Native-Safety-Verified.app` was preserved. The final executable was launched in a separate-preference-domain copy with a disposable profile; executable hashes match the candidate. No signing, notarization, distribution or paid provider request was performed.
 
 ## Baseline, current worktree and preservation
 
@@ -16,7 +16,7 @@ Development candidate: **`/tmp/Gator-Native-UIUX-Verified.app`**. The existing `
 - HEAD advanced externally to `677b955f5b75b4cea37244f0bfc700bc35b04829`, then `2a8b22fcbe3efd7f23fe51e551d855052d005465`, and later `a7c910fb11c657c1849161de9199cfb0c5b2bbff`, `35d45ed3aa5747b61ca9255a0eab882e8c0fcba2` and `29394118926ac032112b5d075a57bdd251a2d631`, capturing in-progress UI edits/evidence. The final observed value is recorded in `integrity.json`. **This agent created no commits and did not reset/rewrite those external commits.** Changes and integrity are compared to the starting HEAD, rather than relying only on the final uncommitted diff.
 - Read all nine UI/UX findings and the engineering/safety reports; inspected current native views, projections, tests, packaging scripts, older screenshot provenance and relevant Go conversation/upload contracts.
 - Verified the archive sidecar lock and conflict/baseline checks, synchronous all-owner closing boundary/final flush, and termination-handler/cancelable pipe cleanup in the current implementation.
-- Byte comparisons to the starting HEAD confirm that `NativeDraftStore.swift`, `GatorApplicationState.swift`, `ManagedSessionCoordinator.swift`, `GoBridgeConnection.swift`, `BridgePipeIO.swift`, and `AppDelegate.swift` are unchanged. Their safety tests are unchanged and pass. See [integrity.json](evidence/uiux-remediation-01/integrity.json).
+- Byte comparisons to the starting HEAD confirm that `NativeDraftStore.swift`, `HotCrossBunsApplicationState.swift`, `ManagedSessionCoordinator.swift`, `GoBridgeConnection.swift`, `BridgePipeIO.swift`, and `AppDelegate.swift` are unchanged. Their safety tests are unchanged and pass. See [integrity.json](evidence/uiux-remediation-01/integrity.json).
 - No README, production Go/JS, package dependency, transport, runtime protocol, database, provider/credential configuration, execution authority or approval/recovery identity change. Only the existing Go source was rebuilt for tests/bundling. No unrelated paused work was resumed.
 - Verification host: arm64 macOS 26.5.2, Apple Swift 6.3.3, Go 1.27.3, locally installed Node 26.7.0. Swift tools 6.1 / Swift 6 language mode. Package, plist and final Mach-O deployment minimum remain macOS 15.0; `vtool` reports SDK 26.5. macOS 15 runtime behavior was not physically tested.
 
@@ -90,16 +90,16 @@ The editor still owns native selection, undo, IME and focus. A small NSTextView 
 
 | Files | Change |
 | --- | --- |
-| `GatorCore/NativeMessageContent.swift` | Hierarchical list metadata/parser; no application state/protocol change. |
-| `GatorMac/NativeMessageBody.swift` | Native list rows, indentation/wrapping, reusable inline formatting for tests. |
-| `GatorMac/NativeStatusMessage.swift` (new), `NativeErrorDisclosure.swift` | Semantic readable text and distinct status/error presentation. |
-| `GatorMac/ComposerView.swift`, `NativeComposer.swift`, `NativeComposerPresentation.swift` (new), `AttachmentSelectionView.swift` | Inline slash/duplicate feedback and measured bounded editor growth. |
-| `GatorMac/RecentConversationsMenu.swift` (new), `GatorApp.swift` | Discoverable recent navigation, shared native menu items and app-scoped reading cache injection. |
-| `GatorMac/ConversationView.swift`, `NativeReadingPositions.swift` (new) | Contextual full-window inspection and bounded reading/follow presentation state. |
-| `GatorMac/TaskInspectorView.swift`, `RecoveryInspectorContent.swift`, `RecoveryPreparationView.swift` | Visible conversation identity, clearer recovery hierarchy and readable uncertainty/unavailability. |
-| `GatorMac/NotchQuickAccess.swift` | One observable preference/geometry availability predicate. |
-| `Tests/GatorCoreTests/NativeMessageContentTests.swift` | Five additional parser regressions; original test/assertions retained. |
-| `Tests/GatorMacTests/NativeUIUXRemediationTests.swift` (new) | Nine tests for colors, feedback, recent identity/order, reading cache, native inline/list rendering and editor measurement. |
+| `HotCrossBunsCore/NativeMessageContent.swift` | Hierarchical list metadata/parser; no application state/protocol change. |
+| `HotCrossBunsMac/NativeMessageBody.swift` | Native list rows, indentation/wrapping, reusable inline formatting for tests. |
+| `HotCrossBunsMac/NativeStatusMessage.swift` (new), `NativeErrorDisclosure.swift` | Semantic readable text and distinct status/error presentation. |
+| `HotCrossBunsMac/ComposerView.swift`, `NativeComposer.swift`, `NativeComposerPresentation.swift` (new), `AttachmentSelectionView.swift` | Inline slash/duplicate feedback and measured bounded editor growth. |
+| `HotCrossBunsMac/RecentConversationsMenu.swift` (new), `HotCrossBunsApp.swift` | Discoverable recent navigation, shared native menu items and app-scoped reading cache injection. |
+| `HotCrossBunsMac/ConversationView.swift`, `NativeReadingPositions.swift` (new) | Contextual full-window inspection and bounded reading/follow presentation state. |
+| `HotCrossBunsMac/TaskInspectorView.swift`, `RecoveryInspectorContent.swift`, `RecoveryPreparationView.swift` | Visible conversation identity, clearer recovery hierarchy and readable uncertainty/unavailability. |
+| `HotCrossBunsMac/NotchQuickAccess.swift` | One observable preference/geometry availability predicate. |
+| `Tests/HotCrossBunsCoreTests/NativeMessageContentTests.swift` | Five additional parser regressions; original test/assertions retained. |
+| `Tests/HotCrossBunsMacTests/NativeUIUXRemediationTests.swift` (new) | Nine tests for colors, feedback, recent identity/order, reading cache, native inline/list rendering and editor measurement. |
 | `audits/evidence/uiux-remediation-01/` | Disposable fixture/controller sources, measurements, fresh captures, hashes and filtered reading observations. |
 
 Paths in this table are relative to `macos/Sources/` unless prefixed `Tests/` or `audits/`. No production changes occur outside the listed Swift presentation/model files.
@@ -171,41 +171,41 @@ All routine builds/tests were headless. Desktop interaction was confined to the 
 ### Targeted parsing, rendering and presentation tests
 
 ```sh
-GATOR_TEST_BINARY=/tmp/gator-safety-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-uiux-build --no-parallel \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-safety-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-uiux-build --no-parallel \
   --filter 'uiux|nestedMarkdown|markdownBlank|markdownTabs|markdownFences|markdownOrdinals|nativeMarkdownPreserves'
 
-GATOR_TEST_BINARY=/tmp/gator-safety-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-uiux-build --no-parallel \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-safety-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-uiux-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'uiux|nestedMarkdown|markdownBlank|markdownTabs|markdownFences|markdownOrdinals|nativeMarkdownPreserves'
 ```
 
-Both completed with **15 selected tests passing**. The first attempt to compile the new test file needed `@testable import GatorCore` for fixture construction and an explicit `CGFloat.greatestFiniteMagnitude`; these test compilation errors were corrected. No failing assertion was removed or weakened.
+Both completed with **15 selected tests passing**. The first attempt to compile the new test file needed `@testable import HotCrossBunsCore` for fixture construction and an explicit `CGFloat.greatestFiniteMagnitude`; these test compilation errors were corrected. No failing assertion was removed or weakened.
 
 Coverage includes unordered/ordered/mixed nesting, multiple depths and tabs, blank/continuation paragraphs, headings/adjacent paragraphs, original ordinals, inline bold/italic/code, code fences with list-like text, incomplete fences, native compact/full wrapping, sRGB contrast, conditional slash guidance, duplicate-name display, recent identity/order, separate reading anchors, missing/empty anchors, cache bounds and measured editor growth.
 
 ### Required complete build/regression and strict compiler
 
 ```sh
-go build -o /tmp/gator-uiux-runtime ./cmd/gator
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-GATOR_TEST_BINARY=/tmp/gator-uiux-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel
-swift build --package-path macos --scratch-path /tmp/gator-native-uiux-build \
+go build -o /tmp/hot-cross-buns-uiux-runtime ./cmd/hot-cross-buns
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-uiux-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-uiux-build \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 ```
 
 **Final build passed. Final complete regression: 170 passed / zero failed, 50.987 seconds. Strict Swift 6 build passed with warnings-as-errors.** The new total is the original **156 plus 14 additional tests** (five Core parser, nine Mac presentation tests); parameterized cases do not imply an arbitrary change in suite accounting. All 23 safety remediation tests remain present and passing, along with existing real-Go owner/approval/plan/recovery integrations.
 
-The first full run passed 170 in 50.030 seconds. A final review added guards deferring programmatic scroll changes during an active gesture, followed by a 170-test pass in 51.383 seconds. The explicit native Jump check then exposed a new integration defect: the button changed follow intent and used the scroll proxy, while the bound scroll-position ID retained the older anchor. Settled native offset moved only from 0.445 to 0.542. The corrected shared `scrollToLatest` method updates the binding and proxy to the same target. After that correction, the complete build/test and strict compiler were repeated; the final run passed 170 in 50.987 seconds. No timeout or assertion was weakened. Final logs: `/tmp/gator-uiux-final-build.log`, `/tmp/gator-uiux-final-regression.log`, `/tmp/gator-uiux-final-strict.log`. Strict targeted test compilation is in `/tmp/gator-uiux-strict-targeted.log`.
+The first full run passed 170 in 50.030 seconds. A final review added guards deferring programmatic scroll changes during an active gesture, followed by a 170-test pass in 51.383 seconds. The explicit native Jump check then exposed a new integration defect: the button changed follow intent and used the scroll proxy, while the bound scroll-position ID retained the older anchor. Settled native offset moved only from 0.445 to 0.542. The corrected shared `scrollToLatest` method updates the binding and proxy to the same target. After that correction, the complete build/test and strict compiler were repeated; the final run passed 170 in 50.987 seconds. No timeout or assertion was weakened. Final logs: `/tmp/hot-cross-buns-uiux-final-build.log`, `/tmp/hot-cross-buns-uiux-final-regression.log`, `/tmp/hot-cross-buns-uiux-final-strict.log`. Strict targeted test compilation is in `/tmp/hot-cross-buns-uiux-strict-targeted.log`.
 
 The existing streaming benchmark also passed: 30 snapshots / 500 retained messages / 2,176,935 wire bytes, median 6.754 ms per snapshot. This is a bounded state-processing measurement, not a GUI frame-rate improvement claim.
 
 ### Relevant unchanged contracts and measurements
 
 ```sh
-go test ./cmd/gator ./internal/workapp ./internal/attachment ./internal/worksession \
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/attachment ./internal/worksession \
   -run 'Test(UIBridge|BridgeUploads|DesktopApprovalCannot|ExecutionOwnerIsExclusive|DialogueAdmission|.*TaskPlan.*Reject|.*RequestRecovery.*|.*Upload.*)' -count=1
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test \
   app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs \
@@ -220,15 +220,15 @@ All four Go packages passed. Host: **63 passed, zero failed/skipped/cancelled**.
 ### Packaging and actual final executable
 
 ```sh
-GATOR_NATIVE_BUILD_DIR=/tmp/gator-native-build \
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-UIUX-Verified.app \
+HOT_CROSS_BUNS_NATIVE_BUILD_DIR=/tmp/hot-cross-buns-native-build \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-UIUX-Verified.app \
 bash macos/scripts/build-dev-app.sh
-xcrun vtool -show-build /tmp/Gator-Native-UIUX-Verified.app/Contents/MacOS/GatorMac
+xcrun vtool -show-build /tmp/HotCrossBuns-Native-UIUX-Verified.app/Contents/MacOS/HotCrossBunsMac
 ```
 
-Packaging and plist validation passed. Candidate identifier remains `dev.gator.native`, executable/resources are present, and Mach-O minimum is 15.0. A copy at `/tmp/Gator-Native-UIUX-Desktop.app` uses a fixture-only preference domain; its Swift and Go executable bytes match the candidate. That final executable was actually launched/checked/quit. Hashes and final screenshots are included in the evidence manifest. The preserved safety bundle's Swift SHA256 remains `427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04`.
+Packaging and plist validation passed. Candidate identifier remains `dev.hot-cross-buns.native`, executable/resources are present, and Mach-O minimum is 15.0. A copy at `/tmp/HotCrossBuns-Native-UIUX-Desktop.app` uses a fixture-only preference domain; its Swift and Go executable bytes match the candidate. That final executable was actually launched/checked/quit. Hashes and final screenshots are included in the evidence manifest. The preserved safety bundle's Swift SHA256 remains `427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04`.
 
-Fixture/controller sources under the evidence directory reproduce disposable setup, process-scoped appearance, native AX checks and contrast measurement. `verify-jump.py PID /tmp/gator-uiux-desktop` is an explicit desktop-only regression: it verifies an older offset below 0.95 and a settled latest offset at least 0.98, independently of button visibility. It is not part of routine headless testing. Capture used the installed screenshot helper with explicit window IDs. No entire desktop, personal file-picker listing or user credentials are included in the delivered evidence. The optional PIL metadata reader was unavailable; PNG dimensions were read directly from the PNG header without installing anything.
+Fixture/controller sources under the evidence directory reproduce disposable setup, process-scoped appearance, native AX checks and contrast measurement. `verify-jump.py PID /tmp/hot-cross-buns-uiux-desktop` is an explicit desktop-only regression: it verifies an older offset below 0.95 and a settled latest offset at least 0.98, independently of button visibility. It is not part of routine headless testing. Capture used the installed screenshot helper with explicit window IDs. No entire desktop, personal file-picker listing or user credentials are included in the delivered evidence. The optional PIL metadata reader was unavailable; PNG dimensions were read directly from the PNG header without installing anything.
 
 ## Remaining issues and readiness
 

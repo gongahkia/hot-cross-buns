@@ -29,7 +29,7 @@ The source inspection covered the local manager/client/host/eligibility and sett
 
 This is a scoped writer repair, not a claim that every `Store.Save` caller in the product now implements reviewed-field conflict detection. Legacy custom-provider workflows do not gain a new durable review protocol. Native custom-provider definition remains outside this increment.
 
-[Independent-process tests](../../cmd/gator/local_settings_safety_test.go) hold the original HTTP read barrier while a separate executable process changes: default, cloud endpoint, CLI revocation, competing local selection, theme, local endpoint, or settings publication availability. Relevant conflicts reject the old selection; unrelated changes survive. The original L1 independent-writer barrier is retained and now asserts preservation instead of the historical defect. A separate test changes the installed digest between reads. The barrier also demonstrates that selection is not holding the settings lock during the network wait.
+[Independent-process tests](../../cmd/hot-cross-buns/local_settings_safety_test.go) hold the original HTTP read barrier while a separate executable process changes: default, cloud endpoint, CLI revocation, competing local selection, theme, local endpoint, or settings publication availability. Relevant conflicts reject the old selection; unrelated changes survive. The original L1 independent-writer barrier is retained and now asserts preservation instead of the historical defect. A separate test changes the installed digest between reads. The barrier also demonstrates that selection is not holding the settings lock during the network wait.
 
 The two reads are not a distributed Ollama transaction. An external client can mutate a tag afterward. Missing digest metadata is not manufactured; universal tag/digest exclusion is not established. Native initial selection remains disabled pending the reviewed lifecycle workflow.
 
@@ -62,9 +62,9 @@ The remaining lifecycle implementation must distinguish:
 
 B/C/D crash recovery and mutation receipts are **not implemented here**. Historical L1 partial-commit evidence is preserved; it is not relabeled as a successful mutation. Read-only status can show current inventory and future configuration, but cannot prove the causal outcome of a past unreceipted delete.
 
-Future cooperating leases must cover pending inference, active requests, retained exact reviews and recoveries that still depend on the captured model, multiple Go owners and separate Gator processes. Lease identity needs profile/owner/generation/run, runtime origin and ownership generation, exact tag and observed digest. Admission and release must be under a stable cooperating lock, with crash reconciliation that does not trust PID reuse or an arbitrary timeout. Mutable RealityKit/presentation state is unrelated. No second model supervisor is introduced.
+Future cooperating leases must cover pending inference, active requests, retained exact reviews and recoveries that still depend on the captured model, multiple Go owners and separate Hot Cross Buns processes. Lease identity needs profile/owner/generation/run, runtime origin and ownership generation, exact tag and observed digest. Admission and release must be under a stable cooperating lock, with crash reconciliation that does not trust PID reuse or an arbitrary timeout. Mutable RealityKit/presentation state is unrelated. No second model supervisor is introduced.
 
-An already reachable Ollama remains unadopted; the existing no-adoption/no-stop fixture passes. Terminal `Start`/`Close` still track their own child only; their manager-local ownership does not solve the historical shared-use risk. Native managed runtime start/stop is not exposed. Existing terminal pull/start are not certified as cross-process lease-safe. A Gator lease cannot exclude arbitrary third-party Ollama clients; future destructive operations must disclose or refuse unsupported exclusivity.
+An already reachable Ollama remains unadopted; the existing no-adoption/no-stop fixture passes. Terminal `Start`/`Close` still track their own child only; their manager-local ownership does not solve the historical shared-use risk. Native managed runtime start/stop is not exposed. Existing terminal pull/start are not certified as cross-process lease-safe. A Hot Cross Buns lease cannot exclude arbitrary third-party Ollama clients; future destructive operations must disclose or refuse unsupported exclusivity.
 
 ## Unified native management
 
@@ -88,7 +88,7 @@ Long inventories use lazy layout. An eager 320-row maximum fixture initially cau
 
 The P04 editor, native secure input, review state, canonical Go save callback `saveTUICloudModelConfiguration`, credential store, replacement/retain/removal checks, endpoint review and future-default confirmation remain in use. All 38 existing native built-in provider rows remain available. Unsupported CLI/OAuth/custom-definition paths retain their limitations; no vendor CLI credentials are imported.
 
-Switching away from the API editor destroys its transient secure entry and clears UI-held key text through the existing lifecycle. Non-secret forms remain in `NativeProviderSetup`. No credentials enter the new local request. Known Gator/ambient provider credentials are redacted from untrusted status fields, and invalid/oversized diagnostics use bounded generic text. No auth-store, credential persistence, archive, approval or task-ownership implementation was changed.
+Switching away from the API editor destroys its transient secure entry and clears UI-held key text through the existing lifecycle. Non-secret forms remain in `NativeProviderSetup`. No credentials enter the new local request. Known Hot Cross Buns/ambient provider credentials are redacted from untrusted status fields, and invalid/oversized diagnostics use bounded generic text. No auth-store, credential persistence, archive, approval or task-ownership implementation was changed.
 
 Configured, locally ready and live verified retain P04's meanings. Opening/refreshing/saving does not make a paid provider request. Local runtime failure does not block API setup; an unconfigured API provider does not block local inspection.
 
@@ -147,7 +147,7 @@ The [pipe-level fixture](lab/read_only_status_fixture.py) uses the final bundled
 
 Median refresh round trip: 3.76 ms; maximum 6.49 ms. Incremental settled RSS is 4.62 MiB; incremental settled physical footprint is 3.42 MiB. These are separate measures. The active CPU interval is a deliberately rapid 20-request burst, not sustained native idle/review load. CPU covers the Go process, excluding the short sysctl children and the Python server/controller.
 
-The external sampler uses SDK-verified `rusage_info_v0`, system Mach timebase conversion and a self-CPU-clock calibration. An initial unit check failed before launching Gator; that invalid run is preserved and excluded. Final conversion ratio was 0.9999 versus the CPU clock. No guessed GPU/energy figure is supplied.
+The external sampler uses SDK-verified `rusage_info_v0`, system Mach timebase conversion and a self-CPU-clock calibration. An initial unit check failed before launching Hot Cross Buns; that invalid run is preserved and excluded. Final conversion ratio was 0.9999 versus the CPU clock. No guessed GPU/energy figure is supplied.
 
 Final hosted fixture: median initial layout 6.28 ms; settled two-second CPU 0.032% of one core; process physical footprint baseline 7.31, peak 86.59, settled 25.63 MiB. This final artifact run includes ImageRenderer, duplicate component rendering and bitmap/PNG buffers, so its peak is **not** attributed to production UI memory. There is no ImageRenderer in production. All 12 host weak probes were nil after close; no window was ordered onscreen. Raw RSS/footprint samples are retained in [final-hosted](evidence/p04l-2a/final-hosted/hosted-resources.json).
 
@@ -156,32 +156,32 @@ Valid partial-component illustrations: [light runtime details](evidence/p04l-2a/
 ## Verification commands and results
 
 ```sh
-swift build --package-path macos --scratch-path /tmp/gator-native-build
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 
 PATH="/Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin:$PATH" \
-GATOR_TEST_BINARY=/tmp/Gator-Native-P04L2A-Models.app/Contents/Resources/gator-runtime \
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-P04L2A-Models.app/Contents/Resources/hot-cross-buns-runtime \
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
 
-# same PATH and GATOR_TEST_BINARY
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+# same PATH and HOT_CROSS_BUNS_TEST_BINARY
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
 go test -json -count=1 ./internal/localmodel ./internal/modelcatalog ./internal/config \
   ./internal/auth ./internal/workapp ./internal/model ./internal/model/chatcompletions \
-  ./internal/cliagent ./internal/retrieval ./internal/workrun ./internal/worksession ./cmd/gator
+  ./internal/cliagent ./internal/retrieval ./internal/workrun ./internal/worksession ./cmd/hot-cross-buns
 
 go test -race -json -count=1 ./internal/localmodel ./internal/config ./internal/modelcatalog \
-  ./internal/workapp ./internal/model ./internal/model/chatcompletions ./internal/auth ./cmd/gator
+  ./internal/workapp ./internal/model ./internal/model/chatcompletions ./internal/auth ./cmd/hot-cross-buns
 
 PATH="/Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin:$PATH" \
 npm test --prefix app-host
 
 python3 macos/local/lab/read_only_status_fixture.py \
-  /tmp/Gator-Native-P04L2A-Models.app/Contents/Resources/gator-runtime \
+  /tmp/HotCrossBuns-Native-P04L2A-Models.app/Contents/Resources/hot-cross-buns-runtime \
   macos/local/evidence/p04l-2a/pipe-fixture
 
 # requires a fresh destination; do not overwrite an existing candidate
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-P04L2A-Models.app bash macos/scripts/build-dev-app.sh
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-P04L2A-Models.app bash macos/scripts/build-dev-app.sh
 ```
 
 | Verification | Final result |
@@ -206,15 +206,15 @@ Logs: [normal Swift](evidence/p04l-2a/swift-full.log), [strict Swift](evidence/p
 
 Production files changed or added in this increment:
 
-- `cmd/gator/command_local.go`
-- `cmd/gator/command_provider_config.go`
-- `cmd/gator/local_manager.go`
-- `cmd/gator/model_management.go`
-- `cmd/gator/native_local_status.go`
-- `cmd/gator/native_provider_management.go`
-- `cmd/gator/provider.go`
-- `cmd/gator/reviewed_model_settings.go`
-- `cmd/gator/work_recall.go`
+- `cmd/hot-cross-buns/command_local.go`
+- `cmd/hot-cross-buns/command_provider_config.go`
+- `cmd/hot-cross-buns/local_manager.go`
+- `cmd/hot-cross-buns/model_management.go`
+- `cmd/hot-cross-buns/native_local_status.go`
+- `cmd/hot-cross-buns/native_provider_management.go`
+- `cmd/hot-cross-buns/provider.go`
+- `cmd/hot-cross-buns/reviewed_model_settings.go`
+- `cmd/hot-cross-buns/work_recall.go`
 - `internal/localmodel/ollama.go`
 - `internal/localmodel/transport.go`
 - `internal/model/chatcompletions/chatcompletions.go`
@@ -222,35 +222,35 @@ Production files changed or added in this increment:
 - `internal/modelcatalog/native_provider.go`
 - `internal/workapp/bridge_native_provider.go`
 - `internal/workapp/models.go`
-- `macos/Sources/GatorCore/NativeLocalStatus.swift`
-- `macos/Sources/GatorCore/NativeProviderProtocol.swift`
-- `macos/Sources/GatorCore/NativeProviderSetup.swift`
-- `macos/Sources/GatorMac/LocalModelInspectionView.swift`
-- `macos/Sources/GatorMac/ProviderSetupView.swift`
+- `macos/Sources/HotCrossBunsCore/NativeLocalStatus.swift`
+- `macos/Sources/HotCrossBunsCore/NativeProviderProtocol.swift`
+- `macos/Sources/HotCrossBunsCore/NativeProviderSetup.swift`
+- `macos/Sources/HotCrossBunsMac/LocalModelInspectionView.swift`
+- `macos/Sources/HotCrossBunsMac/ProviderSetupView.swift`
 
 Verification sources and isolated harness:
 
-- `cmd/gator/command_local_test.go`
-- `cmd/gator/local_first_audit_test.go`
-- `cmd/gator/local_settings_safety_test.go`
-- `cmd/gator/native_local_status_test.go`
-- `cmd/gator/local_inference_transport_test.go`
-- `cmd/gator/work_models_test.go`
+- `cmd/hot-cross-buns/command_local_test.go`
+- `cmd/hot-cross-buns/local_first_audit_test.go`
+- `cmd/hot-cross-buns/local_settings_safety_test.go`
+- `cmd/hot-cross-buns/native_local_status_test.go`
+- `cmd/hot-cross-buns/local_inference_transport_test.go`
+- `cmd/hot-cross-buns/work_models_test.go`
 - `internal/localmodel/ollama_test.go`
 - `internal/localmodel/local_first_audit_test.go`
 - `internal/localmodel/transport_safety_test.go`
 - `internal/workapp/bridge_native_local_test.go`
-- `macos/Tests/GatorCoreTests/NativeLocalStatusTests.swift`
-- `macos/Tests/GatorCoreTests/NativeLocalIntegrationTests.swift`
-- `macos/Tests/GatorCoreTests/Fixtures/local-inspection-provider.mjs`
-- `macos/Tests/GatorMacTests/LocalModelInspectionTests.swift`
+- `macos/Tests/HotCrossBunsCoreTests/NativeLocalStatusTests.swift`
+- `macos/Tests/HotCrossBunsCoreTests/NativeLocalIntegrationTests.swift`
+- `macos/Tests/HotCrossBunsCoreTests/Fixtures/local-inspection-provider.mjs`
+- `macos/Tests/HotCrossBunsMacTests/LocalModelInspectionTests.swift`
 - `macos/local/lab/read_only_status_fixture.py`
 
 This report and `macos/local/evidence/p04l-2a/` are the remaining deliverables. No README, dependency manifest, Go auth-store, Go execution/approval policy, coordinator ownership, native archive, streaming/presence/reaction implementation or app icon source was edited for this increment.
 
 Final recorded HEAD: `d35e47ad3fea5a4c06abeb9b5a8c79338808c7af`. Working-source hashes are authoritative for the dirty/concurrently changing tree: [production](evidence/p04l-2a/production-source-hashes.json), [verification](evidence/p04l-2a/verification-source-hashes.json), [final status/inventory](evidence/p04l-2a/final-source.json).
 
-Candidate: `/tmp/Gator-Native-P04L2A-Models.app`.
+Candidate: `/tmp/HotCrossBuns-Native-P04L2A-Models.app`.
 
 - Native executable SHA-256: `7dc537b594f38ac61548ef77e28a42eb286065c2d45104b0ca984cd89944a2cc`.
 - Go runtime SHA-256: `b03ffca962161912b84deb5684701322beae2fce1b27f6ba58ed34199253a01e`.

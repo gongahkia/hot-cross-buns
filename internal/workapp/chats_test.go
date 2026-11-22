@@ -2,7 +2,7 @@ package workapp
 
 import (
 	"errors"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 	"testing"
 	"time"
 )

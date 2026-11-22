@@ -5,16 +5,16 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const destination = resolve(process.argv[2] || join(root, "ui/release/gator-terminal"));
+const destination = resolve(process.argv[2] || join(root, "ui/release/hot-cross-buns-terminal"));
 // Never replace a tree silently. Packaging into a fresh directory is reproducible
 // and cannot delete an installed product or a user profile.
 if (existsSync(destination)) throw new Error("Package destination already exists. Choose a fresh directory.");
-const runtime = process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime";
+const runtime = process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime";
 await access(join(root, "ui/runtime", runtime)); await access(join(root, "ui/dist/index.js"));
 await mkdir(destination, { recursive: true, mode: 0o700 });
 for (const directory of ["bin", "runtime", "ui/dist", "ui/scripts", "app-host/src", "app-host/contracts", "licenses"]) await mkdir(join(destination, directory), { recursive: true });
-await cp(join(root, "ui/launcher/gator.mjs"), join(destination, "bin/gator")); await chmod(join(destination, "bin/gator"), 0o755);
-await writeFile(join(destination, "bin/gator.cmd"), '@echo off\r\nbun "%~dp0gator" %*\r\n');
+await cp(join(root, "ui/launcher/hot-cross-buns.mjs"), join(destination, "bin/hot-cross-buns")); await chmod(join(destination, "bin/hot-cross-buns"), 0o755);
+await writeFile(join(destination, "bin/hot-cross-buns.cmd"), '@echo off\r\nbun "%~dp0hot-cross-buns" %*\r\n');
 await cp(join(root, "ui/runtime", runtime), join(destination, "runtime", runtime));
 await cp(join(root, "ui/dist"), join(destination, "ui/dist"), { recursive: true });
 await cp(join(root, "app-host/src"), join(destination, "app-host/src"), { recursive: true });
@@ -29,13 +29,13 @@ if (result.error || result.status !== 0) throw result.error || new Error("Produc
 // dependencies, and break when the artifact moves. Materialize our own package
 // beside its dependencies before verification/distribution. This destination is
 // a newly created artifact, never an existing installation.
-const installedHost = join(destination, "ui/node_modules/@gator/application-host");
+const installedHost = join(destination, "ui/node_modules/@hot-cross-buns/application-host");
 await rm(installedHost, { recursive: true, force: true });
 await cp(join(destination, "app-host"), installedHost, { recursive: true, dereference: true });
 await cp(join(root, "ui/licenses"), join(destination, "licenses/spinners"), { recursive: true });
-const metadata = { product: "gator-terminal", version: 1, platform: process.platform, arch: process.arch, upstream: "f669c46c9604ea3d70b8a7ed1f0c10f3a5ac1f61", runtime: "Bun >=1.4.2", electron: false };
-await writeFile(join(destination, "gator-distribution.json"), JSON.stringify(metadata, null, 2) + "\n");
-const notices = ["Gator terminal production JavaScript dependency notices.\nOpenCode's source license is retained separately.\n"];
+const metadata = { product: "hot-cross-buns-terminal", version: 1, platform: process.platform, arch: process.arch, upstream: "f669c46c9604ea3d70b8a7ed1f0c10f3a5ac1f61", runtime: "Bun >=1.4.2", electron: false };
+await writeFile(join(destination, "hot-cross-buns-distribution.json"), JSON.stringify(metadata, null, 2) + "\n");
+const notices = ["Hot Cross Buns terminal production JavaScript dependency notices.\nOpenCode's source license is retained separately.\n"];
 async function scan(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if (entry.name.startsWith(".")) continue;
@@ -52,5 +52,5 @@ async function scan(directory) {
 await scan(join(destination, "ui/node_modules"));
 await writeFile(join(destination, "licenses/DEPENDENCIES.txt"), notices.join(""));
 const verification = spawnSync("bun", [join(root, "ui/scripts/verify-package-services.mjs"), destination], { stdio: "inherit", windowsHide: true });
-if (verification.error || verification.status !== 0) throw verification.error || new Error("Production service verification failed. Refresh the local host dependency lock with bun update @gator/application-host from ui/ and rebuild.");
+if (verification.error || verification.status !== 0) throw verification.error || new Error("Production service verification failed. Refresh the local host dependency lock with bun update @hot-cross-buns/application-host from ui/ and rebuild.");
 console.log(destination);

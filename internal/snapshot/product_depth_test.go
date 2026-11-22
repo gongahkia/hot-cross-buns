@@ -55,7 +55,7 @@ func TestVersionOneCaptureRemainsReadableAndSharedTreeSurvivesGC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(state, "gator", "snapshots", "manifests", legacy.ID+".json"), data, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(state, "hot-cross-buns", "snapshots", "manifests", legacy.ID+".json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 	canonicalSource, err := filepath.EvalSymlinks(source)

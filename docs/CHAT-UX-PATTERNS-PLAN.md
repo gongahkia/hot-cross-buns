@@ -2,7 +2,7 @@
 
 Status: **implemented and automated acceptance passed**. All five patterns are connected to the existing Go owner and Electron product surface. Final whole-application verification: 81 Electron journeys passed / 2 opt-in paid journeys skipped; all four plan journeys passed again after scoped list-marker polish. Full evidence, commits and manual limitations: [Chat UX acceptance](CHAT-UX-ACCEPTANCE.md). The starting audit at HEAD `79763f45c` and delivery plan below are retained as design history; earlier shared-coding/local-voice work was preserved and committed separately.
 
-References: Shape of AI’s [connectors](https://www.shapeof.ai/patterns/connectors), [action plans](https://www.shapeof.ai/patterns/action-plan), [citations](https://www.shapeof.ai/patterns/citations), [stream of thought](https://www.shapeof.ai/patterns/stream-of-thought), and [branches](https://www.shapeof.ai/patterns/branches). Adapt the interaction ideas to Gator’s existing visual language. Do not import example products’ application code, branding or screenshot assets.
+References: Shape of AI’s [connectors](https://www.shapeof.ai/patterns/connectors), [action plans](https://www.shapeof.ai/patterns/action-plan), [citations](https://www.shapeof.ai/patterns/citations), [stream of thought](https://www.shapeof.ai/patterns/stream-of-thought), and [branches](https://www.shapeof.ai/patterns/branches). Adapt the interaction ideas to Hot Cross Buns’s existing visual language. Do not import example products’ application code, branding or screenshot assets.
 
 ## Starting-point audit (before this implementation)
 
@@ -16,11 +16,11 @@ References: Shape of AI’s [connectors](https://www.shapeof.ai/patterns/connect
 
 ### Starting-point implementation evidence
 
-- Connections: `cmd/gator/work_connections.go:229`, `internal/connector/connector.go:220`, `desktop/src/SettingsNavigation.tsx:3`, `desktop/src/WorkDetails.tsx:138`.
-- Goal-plan projection: `cmd/gator/work_ui_results.go:206`; native plan inspection: `internal/tools/local_plans.go:15`; exact current action review: `desktop/src/Result.tsx:37`.
+- Connections: `cmd/hot-cross-buns/work_connections.go:229`, `internal/connector/connector.go:220`, `desktop/src/SettingsNavigation.tsx:3`, `desktop/src/WorkDetails.tsx:138`.
+- Goal-plan projection: `cmd/hot-cross-buns/work_ui_results.go:206`; native plan inspection: `internal/tools/local_plans.go:15`; exact current action review: `desktop/src/Result.tsx:37`.
 - Source references: `desktop/src/sourceReferences.tsx:15`; exact retained preview enforcement: `desktop/electron/source-preview.mjs:9`; read/citation distinctions: `desktop/src/SourcePreviewSidebar.tsx:26`; typed boundary: `app-host/contracts/sourcePreview.ts`.
 - Activity: `internal/workactivity/activity.go:1`, `desktop/src/ActivityTimeline.tsx`, `desktop/src/CodeChanges.tsx`.
-- Existing revision graph: `internal/worksession/store.go:49`, navigation: `cmd/gator/work_interactive.go:539`. Current assistant-message actions expose Copy at `desktop/src/App.tsx:95`; `desktop/src/MessageTools.tsx:48` is composer-level draft reuse, not a per-response branch menu.
+- Existing revision graph: `internal/worksession/store.go:49`, navigation: `cmd/hot-cross-buns/work_interactive.go:539`. Current assistant-message actions expose Copy at `desktop/src/App.tsx:95`; `desktop/src/MessageTools.tsx:48` is composer-level draft reuse, not a per-response branch menu.
 
 Line numbers are audit anchors and may move during implementation.
 

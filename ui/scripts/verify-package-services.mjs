@@ -26,26 +26,26 @@ async function checkLinks(directory) {
   }
 }
 await checkLinks(artifact);
-const module = join(artifact, "ui/node_modules/@gator/application-host/src/application.mjs"), require = createRequire(module);
+const module = join(artifact, "ui/node_modules/@hot-cross-buns/application-host/src/application.mjs"), require = createRequire(module);
 const metadata = JSON.parse(await readFile(join(artifact, "app-host/package.json"), "utf8"));
 for (const dependency of Object.keys(metadata.dependencies)) {
   const resolved = await realpath(require.resolve(dependency)), part = relative(artifact, resolved);
   assert.ok(!isAbsolute(part) && part !== ".." && !part.startsWith("../") && !part.startsWith("..\\"), `${dependency} escaped the artifact: ${resolved}`);
 }
 const { Application } = await import(pathToFileURL(module).href);
-const { inspectContent } = await import(pathToFileURL(join(artifact, "ui/node_modules/@gator/application-host/src/file-content.mjs")).href);
-const root = await mkdtemp(join(tmpdir(), "gator-production-services-"));
+const { inspectContent } = await import(pathToFileURL(join(artifact, "ui/node_modules/@hot-cross-buns/application-host/src/file-content.mjs")).href);
+const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-production-services-"));
 let host;
 try {
   const userData = join(root, "app"), legacy = new ClassicLevel(join(userData, "Local Storage/leveldb"), { keyEncoding: "buffer", valueEncoding: "buffer" });
-  await legacy.put(Buffer.from("_gator://app\0\x01gator:sidebar-collapsed", "latin1"), Buffer.from("\x01true", "latin1")); await legacy.close();
+  await legacy.put(Buffer.from("_hot-cross-buns://app\0\x01hot-cross-buns:sidebar-collapsed", "latin1"), Buffer.from("\x01true", "latin1")); await legacy.close();
   await mkdir(join(root, "path"));
   if (process.platform === "win32") await copyFile(process.execPath, join(root, "path/bun.exe"));
   else await symlink(process.execPath, join(root, "path/bun"));
-  const env = { ...process.env, PATH: join(root, "path"), GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") };
-  host = new Application({ binary: join(artifact, "runtime", process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"), userData, workspace: join(root, "workspace"), env });
+  const env = { ...process.env, PATH: join(root, "path"), HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") };
+  host = new Application({ binary: join(artifact, "runtime", process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"), userData, workspace: join(root, "workspace"), env });
   await host.start(); assert.equal((await host.preferences.read()).sidebarCollapsed, true);
-  assert.match(await host.version(), /gator terminal/i);
+  assert.match(await host.version(), /Hot Cross Buns terminal/);
   const specimens = [
     { name: "document.pdf", bytes: Buffer.from(pdfFixture()) },
     { name: "notes.txt", bytes: Buffer.from("Original complete content") },

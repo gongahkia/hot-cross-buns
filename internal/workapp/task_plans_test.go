@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestTaskPlanAdmissionCannotBypassReviewOrReplayInterruptedWork(t *testing.T) {

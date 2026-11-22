@@ -1,4 +1,4 @@
-module github.com/gongahkia/gator
+module github.com/gongahkia/hot-cross-buns
 
 go 1.25.13
 

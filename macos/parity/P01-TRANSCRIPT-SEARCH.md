@@ -1,4 +1,4 @@
-# Gator native parity P01 — CH08 transcript search
+# Hot Cross Buns native parity P01 — CH08 transcript search
 
 Date: 2026-11-18. This is the first selected native parity increment, not migration Tranche 09. Scope: CH08 only, preceded by the explicitly requested menu-bar icon preference.
 
@@ -20,7 +20,7 @@ P01 is limited to the projection already supplied to Swift. It does not load old
 
 ## 1. Terminal reference behavior
 
-Verified against [actions.tsx](../../ui/src/gator/actions.tsx), [activity.tsx](../../ui/src/gator/activity.tsx) and [transcript.tsx](../../ui/src/gator/transcript.tsx):
+Verified against [actions.tsx](../../ui/src/hot-cross-buns/actions.tsx), [activity.tsx](../../ui/src/hot-cross-buns/activity.tsx) and [transcript.tsx](../../ui/src/hot-cross-buns/transcript.tsx):
 
 | Question | Current terminal behavior |
 | --- | --- |
@@ -35,13 +35,13 @@ Native achieves that local text-finding/reveal workflow, with explicit differenc
 
 ## 2. Native searchable content and limitations
 
-`BridgeSnapshot.transcript` combines received Work messages with public dialogue user text, responses, distinct peer summaries and structured notices. Search consumes the same cached `GatorApplicationState.transcript` used for rows, preserving its order and exact IDs. Work IDs remain `context:index`; dialogue IDs remain `context:dialogue:turnID:component`. Raw Go approval indexes are unchanged.
+`BridgeSnapshot.transcript` combines received Work messages with public dialogue user text, responses, distinct peer summaries and structured notices. Search consumes the same cached `HotCrossBunsApplicationState.transcript` used for rows, preserving its order and exact IDs. Work IDs remain `context:index`; dialogue IDs remain `context:dialogue:turnID:component`. Raw Go approval indexes are unchanged.
 
 Go forwards the current Work `m.messages` in `internal/workapp/bridge.go`. Dialogue restore/retention in `internal/workapp/dialogue.go` is bounded to the newest 100 turns and exposes `dialogue_more`. Swift does not fetch earlier turns. The desktop fixture retains 105 A turns: A-006 onward is projected; A-001 remains stored but produces no Find result.
 
 Included:
 
-- Ordinary public You/user and Gator/assistant text, including projected dialogue and public peer summaries.
+- Ordinary public You/user and Hot Cross Buns/assistant text, including projected dialogue and public peer summaries.
 - Structured result/notice headings actually rendered by the native row, including the visible fallback “Result details”. Their unrendered `message.text` is excluded.
 
 Excluded:
@@ -56,9 +56,9 @@ Matching is literal, case-, diacritic- and width-insensitive, using Foundation w
 
 ## 3. Architecture and concurrency
 
-[NativeTranscriptSearch.swift](../Sources/GatorCore/NativeTranscriptSearch.swift) is a deterministic Sendable value index, importing only Foundation and CryptoKit. It has no transport, owner or mutation dependency. Each match carries scope (context + owner generation), exact message ID, ordinal, UTF-16 range, excerpt and a fingerprint of eligible content. It exposes a current-projection reveal validator.
+[NativeTranscriptSearch.swift](../Sources/HotCrossBunsCore/NativeTranscriptSearch.swift) is a deterministic Sendable value index, importing only Foundation and CryptoKit. It has no transport, owner or mutation dependency. Each match carries scope (context + owner generation), exact message ID, ordinal, UTF-16 range, excerpt and a fingerprint of eligible content. It exposes a current-projection reveal validator.
 
-[NativeTranscriptFind.swift](../Sources/GatorMac/NativeTranscriptFind.swift) holds window-local, main-actor presentation state and the Find bar. It does not retain a Go owner. The index is discarded on close, rebuilt only when Find opens or the transcript changes, and reused for query changes. Unrelated snapshot/activity updates do not rebuild the index. Query/result work is synchronous and explicitly bounded; no detached task, new service or asynchronous result race was introduced.
+[NativeTranscriptFind.swift](../Sources/HotCrossBunsMac/NativeTranscriptFind.swift) holds window-local, main-actor presentation state and the Find bar. It does not retain a Go owner. The index is discarded on close, rebuilt only when Find opens or the transcript changes, and reused for query changes. Unrelated snapshot/activity updates do not rebuild the index. Query/result work is synchronous and explicitly bounded; no detached task, new service or asynchronous result race was introduced.
 
 The only new asynchronous UI operation is a SwiftUI-owned focus task keyed by an explicit Find request. It yields through insertion/native responder updates before focusing. Snapshot updates do not change that request, steal focus or issue a reveal.
 
@@ -94,13 +94,13 @@ Baseline: 170 tests from UI/UX remediation, plus one menu-bar reopen regression 
 New coverage: exact/case-insensitive and repeated matches; composed Unicode, sharp-s and Japanese; literal punctuation; empty/whitespace/no-match queries; long text and explicit bounds; visible versus private/structured content; projected dialogue; stable selection; changed/deleted messages; snapshots; conversation/generation changes; stale selection rejection; reading-cache continuity; bounded deterministic benchmarks.
 
 ```sh
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'transcriptSearch|transcriptFind|actualGoManagedDialogueKeepsMainWorkIndependentAndRetainsChildResult'
-GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P01.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P01.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
 go test ./internal/workapp \
   -run 'TestBridgeUsesLiveCommandAndMessageState|TestBridgeProjectsCommandPanelsWithoutGoView|TestBridgeReportsOnlyActivePendingOperations'
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test \
@@ -139,7 +139,7 @@ The fixture uses 105 A dialogue turns and 30 B turns for desktop continuity; the
 
 ## 8. Targeted native evidence
 
-All captures use the current implementation and disposable profile `/tmp/gator-p01-7pck7qc_`, separate preference domain `dev.gator.native.p01-disposable`, and loopback-only unreachable provider configuration. Fixtures seed retained dialogue directly through Go storage APIs; no model is invoked for seeding or desktop search. No message was sent on the desktop. Final Swift/Go executable hashes match the packaged candidate. Older verified bundles were not run against this profile.
+All captures use the current implementation and disposable profile `/tmp/hot-cross-buns-p01-7pck7qc_`, separate preference domain `dev.hot-cross-buns.native.p01-disposable`, and loopback-only unreachable provider configuration. Fixtures seed retained dialogue directly through Go storage APIs; no model is invoked for seeding or desktop search. No message was sent on the desktop. Final Swift/Go executable hashes match the packaged candidate. Older verified bundles were not run against this profile.
 
 | Check | Observation / evidence |
 | --- | --- |
@@ -159,13 +159,13 @@ Reproduction helpers are desktop-only, outside routine tests: `seed-transcripts.
 
 | File | Change |
 | --- | --- |
-| `Sources/GatorCore/NativeTranscriptSearch.swift` | New bounded read-only index, public-content policy, match identity and live reveal validation. |
-| `Sources/GatorMac/NativeTranscriptFind.swift` | Window-local Find state, focused command, search controls/results and focus task. |
-| `Sources/GatorMac/ConversationView.swift` | Full-window Find affordance, index refresh/scope changes, exact reveal/outline and layout-aware reading restoration. Also includes the prior menu toggle insertion. |
-| `Sources/GatorMac/GatorApp.swift` | Focused Command-F routing; menu-stage preference uses read-only scene insertion binding. |
-| `Tests/GatorCoreTests/NativeTranscriptSearchTests.swift` | Eight deterministic content/identity/bounds/benchmark tests. |
-| `Tests/GatorMacTests/NativeTranscriptFindTests.swift` | Three state/snapshot/switch/anchor regressions. |
-| `Tests/GatorCoreTests/ManagedGoIntegrationTests.swift` | Additional read-only search assertions while two actual Go owners work. |
+| `Sources/HotCrossBunsCore/NativeTranscriptSearch.swift` | New bounded read-only index, public-content policy, match identity and live reveal validation. |
+| `Sources/HotCrossBunsMac/NativeTranscriptFind.swift` | Window-local Find state, focused command, search controls/results and focus task. |
+| `Sources/HotCrossBunsMac/ConversationView.swift` | Full-window Find affordance, index refresh/scope changes, exact reveal/outline and layout-aware reading restoration. Also includes the prior menu toggle insertion. |
+| `Sources/HotCrossBunsMac/HotCrossBunsApp.swift` | Focused Command-F routing; menu-stage preference uses read-only scene insertion binding. |
+| `Tests/HotCrossBunsCoreTests/NativeTranscriptSearchTests.swift` | Eight deterministic content/identity/bounds/benchmark tests. |
+| `Tests/HotCrossBunsMacTests/NativeTranscriptFindTests.swift` | Three state/snapshot/switch/anchor regressions. |
+| `Tests/HotCrossBunsCoreTests/ManagedGoIntegrationTests.swift` | Additional read-only search assertions while two actual Go owners work. |
 | Menu stage: `MenuBarVisibilityToggle.swift`, `AppDelegate.swift`, `NotchQuickAccess.swift`, `NativeInputTests.swift` | Preference control, shared presentation startup, existing-scene reopen and one regression; included in external baseline commit. |
 | This report, menu verification and `parity/evidence/p01/` | Measurements, native captures, guarded reproduction helpers and integrity/test evidence. |
 
@@ -173,14 +173,14 @@ Paths in this table are relative to `macos/`. `NativeReadingPositions.swift` is 
 
 ## 10. Package, remaining issues and P02
 
-Development candidate: **`/tmp/Gator-Native-Parity-P01.app`**.
+Development candidate: **`/tmp/HotCrossBuns-Native-Parity-P01.app`**.
 
 ```sh
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Parity-P01.app bash macos/scripts/build-dev-app.sh
-xcrun vtool -show-build /tmp/Gator-Native-Parity-P01.app/Contents/MacOS/GatorMac
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Parity-P01.app bash macos/scripts/build-dev-app.sh
+xcrun vtool -show-build /tmp/HotCrossBuns-Native-Parity-P01.app/Contents/MacOS/HotCrossBunsMac
 ```
 
-The existing script is not executable directly (an initial direct invocation returned permission denied); invoking it with Bash passed without changing its mode. Candidate domain is `dev.gator.native`; final Mach-O minimum is 15.0. No signing/notarization/distribution work. `/tmp/Gator-Native-Safety-Verified.app` and `/tmp/Gator-Native-UIUX-Verified.app` are preserved; hashes are in the integrity evidence.
+The existing script is not executable directly (an initial direct invocation returned permission denied); invoking it with Bash passed without changing its mode. Candidate domain is `dev.hot-cross-buns.native`; final Mach-O minimum is 15.0. No signing/notarization/distribution work. `/tmp/HotCrossBuns-Native-Safety-Verified.app` and `/tmp/HotCrossBuns-Native-UIUX-Verified.app` are preserved; hashes are in the integrity evidence.
 
 Remaining limitations are explicit scope choices: loaded projection only; no collapsed raw-detail/activity search; Markdown-source matching; no inline character highlight; no compact/notch search. Physical accessibility/OS variants and streaming desktop stress remain unverified. No new P0/P1 issue was reproduced in the completed headless/native checks; this is not proof of absence in untested environments. Existing UI/UX P2 items, including dense recovery evidence and duplicate document basenames, remain outside this increment.
 

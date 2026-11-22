@@ -1,6 +1,6 @@
 # Competitive gap implementation
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -78,7 +78,7 @@ G05 first-use verification: full workapp and modelcatalog tests, the concurrent 
 
 - Memory privacy: Settings now separates automatic learning from earlier-chat retrieval. New requests capture the retrieval preference, and disabling it removes both earlier-chat tools while retaining current conversation context and saved memories. The panel explains what is retained, what changes for already-running requests and where to manage deletion. The conversational settings tool uses the same reviewed, stale-checked preference.
 
-G06 privacy verification: workrun/workapp/config race tests, targeted command tests, TypeScript and runtime/UI builds passed. The isolated Electron journey verified the settings route, actual provider tool list and settings across restart. The macOS Node 26 test runner timed out during process shutdown; the installed Node 24.19.0 runner passed with tracing enabled and normal application close. This was a runner limitation, not a reason to bypass Gator's normal shutdown. Broader memory quality and multilingual live trials remain in G01.
+G06 privacy verification: workrun/workapp/config race tests, targeted command tests, TypeScript and runtime/UI builds passed. The isolated Electron journey verified the settings route, actual provider tool list and settings across restart. The macOS Node 26 test runner timed out during process shutdown; the installed Node 24.19.0 runner passed with tracing enabled and normal application close. This was a runner limitation, not a reason to bypass Hot Cross Buns's normal shutdown. Broader memory quality and multilingual live trials remain in G01.
 
 - Saved knowledge correction: edits and forgetting bind to the displayed version, with a locked comparison at mutation time. Note versions cover both metadata and body, including file edits outside the app. Conflicting changes preserve the editor draft. Successful edits update the detail/list version, including when inspecting an older run's retained excerpt.
 
@@ -157,7 +157,7 @@ G10 comparison UI verification: TypeScript and renderer builds passed. Three Nod
 
 G10 intake verification: 21 Node upload/clipboard/draft/policy tests, focused Go attachment/application/command race tests, TypeScript and runtime/UI builds passed. A Node 24 Electron journey selected 12 files including a document over 5 MiB, rejected a thirteenth dropped file while preserving the selection and message, restored all files after reload, and sent all 12 through the real Go loader to a local provider fixture. The minimum-window screenshot was inspected with the composer visible and no horizontal overflow. Original contents were unchanged; no live model or account was used.
 
-- SQLite conversation index: a private, rebuildable `gator/cache/conversations-v1.sqlite` indexes display metadata and retained user/assistant text, using parameterized FTS5 substring queries. One- and two-character searches also work. Canonical conversation, revision and admission files remain authoritative. Queries reconcile file identities and remove changed/deleted excerpts before searching; private replay, provider configuration and admission options are omitted. Initial indexing has explicit record/byte/lineage limits and reports incomplete coverage. A corrupt cache is rebuilt; an unavailable/newer cache falls back to bounded canonical reads. The database uses the pinned pure Go SQLite driver so this does not introduce a C toolchain requirement.
+- SQLite conversation index: a private, rebuildable `hot-cross-buns/cache/conversations-v1.sqlite` indexes display metadata and retained user/assistant text, using parameterized FTS5 substring queries. One- and two-character searches also work. Canonical conversation, revision and admission files remain authoritative. Queries reconcile file identities and remove changed/deleted excerpts before searching; private replay, provider configuration and admission options are omitted. Initial indexing has explicit record/byte/lineage limits and reports incomplete coverage. A corrupt cache is rebuilt; an unavailable/newer cache falls back to bounded canonical reads. The database uses the pinned pure Go SQLite driver so this does not introduce a C toolchain requirement.
 
 SQLite verification: full conversation and lifecycle race suites passed. Focused checks cover literal/Unicode search, discarded admissions, canonical corruption/deletion, private file permissions, cache corruption repair, future-schema fallback, cache symlinks and concurrent queries/organization. History deletion and history retention remove derived indexes; backups omit them and retain canonical records. A local 1,000-chat benchmark (three iterations, warm filesystem) measured 294 ms / 28.3 MB allocated for a no-match file scan versus 126 ms / 4.2 MB for warm indexed search. This includes source stat reconciliation and is not a general workload or Windows runtime certification. Indexing is local and makes no provider calls. Desktop integration is the next slice.
 
@@ -404,7 +404,7 @@ Stop bypasses the operation lock. Startup/listen failures also clean up their
 engine and access token. These paths do not automatically retry browser actions.
 
 EOF lets Playwright close Chromium normally. After two seconds, an unresponsive
-driver is killed and reaped. Gator now owns the temporary profile/download
+driver is killed and reaped. Hot Cross Buns now owns the temporary profile/download
 directory and removes it after either exit path, including forced termination.
 Cleanup errors reach the daemon log. Whole-daemon crashes/forced termination
 remain a distinct recovery gap; this work does not establish crash-safe scratch
@@ -472,7 +472,7 @@ CI execution or native Windows result is claimed.
 
 ### Presentation package, editing and native preview verification
 
-Independent validation exposed defects that Gator's own PPTX parser accepted.
+Independent validation exposed defects that Hot Cross Buns's own PPTX parser accepted.
 Microsoft's Open XML SDK 3.5.1 reported nine errors for a two-slide generated
 deck: missing slide master, incorrect presentation child ordering, an invalid
 notes-master element, empty theme style lists and incomplete font definitions.
@@ -507,7 +507,7 @@ in `scripts/office-validation`. The CI Office job generates all three themes,
 notes, transitions, slide add/move/delete, whole-shape edits, alternate namespace
 prefixes and split formatting runs; it then roundtrips a generated deck through
 the shared editor and validates all nine resulting packages independently.
-The .NET SDK is a verification dependency, not a Gator runtime dependency.
+The .NET SDK is a verification dependency, not a Hot Cross Buns runtime dependency.
 
 Local verification on macOS:
 
@@ -561,7 +561,7 @@ clears the client when its next request is rejected.
 
 Verification on this Intel Mac:
 
-- `go test -race ./cmd/gator -run 'TestCompanionCatalog|TestDesktopRuntime'
+- `go test -race ./cmd/hot-cross-buns -run 'TestCompanionCatalog|TestDesktopRuntime'
   -count=1` passes. A 53-chat fixture checks stable pages, exact title search,
   mismatched-cursor refusal and no newly created conversations.
 - `node --test companion/server.test.mjs`: five pass, including the real Go
@@ -576,7 +576,7 @@ Verification on this Intel Mac:
   fix, both catalog journeys pass again with actual minimum-height assertions.
 - Screenshots at 390 pixels in dark/light themes were inspected; overflow checks
   pass at 320, 390 and 760 pixels. Evidence is under ignored
-  `.gator/native-tools/companion-*-catalog*.png`.
+  `.hot-cross-buns/native-tools/companion-*-catalog*.png`.
 
 Interface review scope: the new catalog and navigation controls, plain DOM and
 the existing CSS tokens. The existing chat/approval layout was exercised by its
@@ -633,7 +633,7 @@ Observed checks on this Mac:
   invalid identities and linked receipt-directory rejection.
 - The backup/restore race regression preserves the original creation identity
   and returns one chat on retry in the restored profile. Its initial assertion
-  omitted the manifest's `gator/` prefix; correcting that fixture made the actual
+  omitted the manifest's `hot-cross-buns/` prefix; correcting that fixture made the actual
   receipt and restored identity checks pass.
 - Six HTTP tests pass, including real Go creation/opening with no model request,
   stable creation across retries, restart and token rotation, rejected source/
@@ -699,7 +699,7 @@ G10 remains open for native Word/Excel/PowerPoint acceptance, pagination, dense
 layouts, arbitrary template fidelity and application recalculation. No actual
 Office application was available for these checks. Schema validity alone does
 not establish those outcomes. Local evidence remains under ignored
-`.gator/native-tools/office-format-audit`, `office-formats-fixed` and
+`.hot-cross-buns/native-tools/office-format-audit`, `office-formats-fixed` and
 `office-format-previews`.
 
 ### Repair after moving an installation — 29 October
@@ -798,7 +798,7 @@ Verification on this Mac:
 - Dark/light 390-pixel Chromium/WebKit screenshots were inspected. Overflow
   checks pass at 320, 390 and 760 pixels; update buttons are at least 44 pixels
   high. Hostile title/evidence markup stays plain text. Evidence is under ignored
-  `.gator/native-tools/companion-*-updates-*.png`.
+  `.hot-cross-buns/native-tools/companion-*-updates-*.png`.
 - The first WebKit attempt found no browser matching the freshly installed
   Playwright 1.64.1. Installing its WebKit 2370 in the isolated test directory
   allowed all four WebKit journeys to run and pass. No remote CI was run.
@@ -874,7 +874,7 @@ configuration. Preparation checks the runtime, entry, selected profile/workspace
 and private token, then exclusively creates a mode-0600 unit. It never activates
 a service or changes login/boot policy. The README describes explicit installation,
 status, journal access, removal, optional administrator-managed lingering and the
-separate Gator job supervisor required for recurring checks.
+separate Hot Cross Buns job supervisor required for recurring checks.
 
 The generated unit preserves exact argv and environment values, escapes systemd
 percent specifiers, disables command-line environment substitution and explicitly
@@ -923,7 +923,7 @@ follow-up card was absent on reconnect. This exposed an integration gap: ordinar
 CLI jobs have no originating chat, while chat update controls deliberately require
 that exact owner. The global host inbox retained the result correctly.
 
-`gator job add --conversation ID` now explicitly binds a new job to an existing
+`hot-cross-buns job add --conversation ID` now explicitly binds a new job to an existing
 chat in the selected profile. The chat's folder becomes the default source instead
 of shell cwd; an explicit source must refer to the same directory. Source edits
 preserve this binding. Missing chats and mismatched sources fail before job
@@ -1025,7 +1025,7 @@ the independent Open XML SDK. A false expected total is rejected by the checker.
 Calculation ran in a disposable Ubuntu container with no external network or host
 filesystem mounts; only generated synthetic files and the verifier were copied
 in. The container was removed. The result copies and JSON report are retained
-under ignored `.gator/native-tools/calc-results/`; the report records engine version
+under ignored `.hot-cross-buns/native-tools/calc-results/`; the report records engine version
 and original file digests. Final coverage/reinspection, Python syntax, workflow
 YAML and diff checks pass. CI now runs this calculation gate and uploads the
 result copies/report, but no remote CI was triggered.
@@ -1050,7 +1050,7 @@ extraction. Installing the emoji fallback font in the test environment fixed its
 appearance in Word and PowerPoint, and the complete check passed again. CI now
 installs the required rendering/font tools and retains PDFs, PNGs, extracted
 text/bounds, font inventories and a report, including artifacts on failure.
-Local evidence is in ignored `.gator/native-tools/layout-with-emoji/`; the
+Local evidence is in ignored `.hot-cross-buns/native-tools/layout-with-emoji/`; the
 disposable rendering container was removed. No remote CI was triggered.
 
 No production renderer changes were needed for these cases. G10 remains open
@@ -1079,7 +1079,7 @@ exactly-once guarantee. No production service code change was needed.
 
 The final run used systemd 252.39, Node 24.22.1 and Docker 29.7.2 on this Mac's
 Linux Docker VM. Runtime hash, service/user-manager invocation IDs, counts and
-diagnostics are retained under ignored `.gator/native-tools/companion-boot-verified/`.
+diagnostics are retained under ignored `.hot-cross-buns/native-tools/companion-boot-verified/`.
 The container was removed; no host mounts, published ports, real accounts or
 external model requests were used. CI now runs the same harness and retains
 evidence on failure; no remote CI was triggered. Syntax, workflow YAML and diff

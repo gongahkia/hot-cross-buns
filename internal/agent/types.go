@@ -42,7 +42,7 @@ type Image struct {
 // Attachment is a developer-supplied document or extracted text attachment.
 // Data is private session state so stateless providers can replay the same
 // context on every turn. application/pdf retains the original document bytes;
-// text/plain contains Gator's bounded textual representation of a document.
+// text/plain contains Hot Cross Buns's bounded textual representation of a document.
 type Attachment struct {
 	Name      string `json:"name"`
 	MediaType string `json:"media_type"`
@@ -150,7 +150,7 @@ type Observation struct {
 
 // VisualInputModel lets a model explicitly decline browser screenshots while
 // still using text snapshots. Models that do not advertise this interface are
-// treated as vision-capable because Gator's cloud adapters encode images.
+// treated as vision-capable because Hot Cross Buns's cloud adapters encode images.
 type VisualInputModel interface {
 	SupportsVisualInput() bool
 }

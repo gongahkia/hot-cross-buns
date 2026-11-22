@@ -1,0 +1,557 @@
+import mathjaxPackage from "mathjax-full/package.json" with { type: "json" };
+import assert from "node:assert/strict";
+import test from "node:test";
+import { build } from "esbuild";
+import { JSDOM } from "jsdom";
+import { fileURLToPath } from "node:url";
+import { createMemorySamples } from '../public/memory-samples.mjs';
+
+const dom = new JSDOM("", { url: "http://127.0.0.1:4317/" });
+globalThis.window = dom.window;
+globalThis.document = dom.window.document;
+globalThis.location = dom.window.location;
+const { outputFiles } = await build({
+  stdin: { contents: 'export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
+    bundle: true, write: false, format: "esm", platform: "browser",
+  external: ["/vendor/mermaid-entry.mjs"],
+  plugins: [{ name: "local-browser-dependencies", setup(builder) {
+    builder.onResolve({ filter: /^\/vendor\/math-entry\.mjs$/ }, () => ({
+      path: fileURLToPath(new URL("../math-entry.mjs", import.meta.url)),
+    }));
+    builder.onResolve({ filter: /^\/vendor\/render-deps\.mjs$/ }, () => ({
+      path: fileURLToPath(new URL("../render-deps.mjs", import.meta.url)),
+    }));
+    builder.onResolve({ filter: /^\/vendor\/icons-entry\.mjs$/ }, () => ({
+      path: fileURLToPath(new URL("../icons-entry.mjs", import.meta.url)),
+    }));
+  } }],
+});
+const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, outputPreview, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+
+test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
+  assert.ok(activityIconNames.length > 0);
+  for (const name of activityIconNames) assert.equal(icon(name).dataset.icon, name);
+  assert.equal(icon('<svg onload=bad>').dataset.icon, 'circle-dashed');
+  const menu = document.createElement('nav'); menu.innerHTML = '<button data-ui-icon="brain">Memory</button>';
+  decorateIcons(menu); decorateIcons(menu);
+  assert.equal(menu.querySelectorAll('svg').length, 1);
+  assert.equal(menu.querySelector('button').textContent, 'Memory');
+});
+
+test("Markdown handles tables, emphasis, lists, and code while escaping raw HTML", () => {
+  const result = prose("**Hello** and *welcome*.\n\n| Item | Count |\n| --- | --- |\n| Bread | 2 |\n\n- Read\n- Walk\n\n<script>window.compromised = true</script>");
+  assert.equal(result.querySelector("strong").textContent, "Hello");
+  assert.equal(result.querySelectorAll("td").length, 2);
+  assert.equal(result.querySelectorAll("li").length, 2);
+  assert.equal(result.querySelector("script"), null);
+  assert.match(result.textContent, /<script>/);
+});
+
+test("HTML and SVG code render only inside isolated script-enabled frames and retain source", () => {
+  for (const language of ["html", "svg"]) {
+    const source = '<script>parent.document.body.remove()</script><img src="https://example.invalid/pixel"><form action="/api/action"></form>';
+    const result = prose("```" + language + "\n" + source + "\n```");
+    const frame = result.querySelector("iframe");
+    assert.ok(frame);
+    assert.equal(frame.getAttribute("sandbox"), "allow-scripts");
+    assert.equal(frame.getAttribute("src"), "/artifact");
+    assert.equal(result.querySelector("script"), null);
+    assert.equal(result.querySelector("details code").textContent.trim(), source);
+  }
+});
+
+test("streaming and incomplete fences stay as code", () => {
+  const incomplete = prose("```html\n<h1>Still writing</h1>");
+  assert.equal(incomplete.querySelector("iframe"), null);
+  assert.match(incomplete.querySelector("code").textContent, /Still writing/);
+  const shortFence = prose("````html\n<h1>Still writing</h1>\n```");
+  assert.equal(shortFence.querySelector("iframe"), null);
+  const streaming = prose("```svg\n<svg></svg>\n```", { previews: false });
+  assert.equal(streaming.querySelector("iframe"), null);
+  assert.ok(streaming.querySelector("code"));
+});
+
+test("unsafe links and image schemes cannot become active content", () => {
+  const result = prose('[unsafe](javascript:alert%281%29)\n\n![unsafe](data:text/html;base64,PHNjcmlwdD4=)\n\n[credentials](https://user:secret@example.com)');
+  assert.equal(result.querySelector("a[href]"), null);
+  assert.equal(result.querySelector("img"), null);
+  const image = prose("![Animation](/preview.gif)").querySelector("img");
+  assert.equal(image.getAttribute("src"), "/preview.gif");
+  assert.equal(image.referrerPolicy, "no-referrer");
+});
+
+test("diagram loading failure exposes a readable fallback and source", async () => {
+  const result = prose("```mermaid\ninvalid diagram\n```");
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.match(result.textContent, /could not be rendered/);
+  assert.equal(result.querySelector("details").open, true);
+  assert.match(result.querySelector("code").textContent, /invalid diagram/);
+});
+
+test("highlighted code preserves its source and copies through the clipboard", async () => {
+  const source = 'const greeting = "<script>example</script>";\n';
+  const result = prose("```js\n" + source + "```");
+  assert.ok(result.querySelector(".hljs-keyword"));
+  assert.equal(result.querySelector("code").textContent, source);
+  let copied;
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+    clipboard: { writeText: async value => { copied = value; } },
+  } });
+  const copy = result.querySelector(".copy-code");
+  copy.click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(copied, source);
+  assert.equal(copy.textContent, "Copied");
+  assert.equal(copy.querySelector('svg').dataset.icon, 'check');
+  assert.equal(copy.querySelector('svg').getAttribute('aria-hidden'), 'true');
+  assert.equal(result.querySelector("script"), null);
+});
+
+test("table columns resize by keyboard with bounded widths", () => {
+  const result = prose("| A | B |\n| --- | --- |\n| one | two |");
+  const handle = result.querySelector("[role=separator]");
+  handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  assert.equal(handle.getAttribute("aria-valuenow"), "200");
+  assert.equal(result.querySelector("col").style.width, "200px");
+  for (let i = 0; i < 20; i++) handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowLeft" }));
+  assert.equal(handle.getAttribute("aria-valuenow"), "80");
+});
+
+test("MathJax renders inline and display TeX without treating code or prices as math", async () => {
+  const result = prose(String.raw`Inline $E=mc^2$ and \(x^2\).
+
+$$
+\frac{1}{3}
+$$
+
+A price of $5 and $10.
+
+` + '`$literal$`');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(result.querySelectorAll(".math-expression svg").length, 3, [...result.querySelectorAll(".math-expression")].map(node => node.outerHTML).join("\n"));
+  assert.equal(result.querySelectorAll(".display-math").length, 1);
+  assert.match(result.textContent, /\$5 and \$10/);
+  assert.match(result.querySelector("code").textContent, /\$literal\$/);
+});
+
+test("command palette filters commands and conversation text and supports keyboard selection", () => {
+  document.body.innerHTML = '<div id="transcript"><article class="turn">Read in the sunshine</article></div>';
+  dom.window.HTMLDialogElement.prototype.showModal = function() { this.open = true; };
+  dom.window.HTMLDialogElement.prototype.close = function() { this.open = false; this.dispatchEvent(new dom.window.Event("close")); };
+  let opened = false;
+  installPalette(() => [{ label: "New chat", action: () => { opened = true; } }, { label: "Models", action: () => {} }]);
+  document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+  const input = document.getElementById("command-search");
+  assert.equal(document.querySelector("dialog").open, true);
+  input.value = "sunshine";
+  input.dispatchEvent(new dom.window.Event("input"));
+  assert.match(document.getElementById("command-results").textContent, /Read in the sunshine/);
+  input.value = "missing term";
+  input.dispatchEvent(new dom.window.Event("input"));
+  assert.equal(document.querySelectorAll("[role=option]").length, 0);
+  assert.equal(input.hasAttribute("aria-activedescendant"), false);
+  input.value = "new";
+  input.dispatchEvent(new dom.window.Event("input"));
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter" }));
+  assert.equal(opened, true);
+  assert.equal(document.querySelector("dialog").open, false);
+});
+
+
+test("clipboard denial selects the snippet and reports the manual shortcut", async () => {
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+    clipboard: { writeText: async () => { throw new Error("Denied"); } },
+  } });
+  const result = prose("```js\nconst value = 1;\n```");
+  document.body.append(result);
+  const copy = document.body.querySelector(".copy-code");
+  copy.click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(copy.textContent, /Selected/);
+  assert.equal(window.getSelection().toString(), "const value = 1;\n");
+});
+
+test("public activity updates preserve nested disclosures and collapse on completion", () => {
+  const view = activityView("test", { remember: false });
+  const start = "2026-11-22T01:00:00Z";
+  const entry = { id: "file", kind: "tool", tool: "read_file", state: "running" };
+  view.update({ state: "running", started_at: start, entries: [entry] });
+  assert.equal(view.element.open, true);
+  assert.match(view.element.querySelector(".activity-label").textContent, /Reading a file/);
+  const row = view.element.querySelector(".activity-entry");
+  row.open = true;
+  view.update({ state: "running", started_at: start, entries: [{ ...entry, state: "completed", details: [{ kind: "read_file", path: "source/note.md" }] }] });
+  assert.equal(view.element.querySelector(".activity-entry"), row);
+  assert.equal(row.open, true);
+  assert.match(row.textContent, /source\/note.md/);
+  view.update({ state: "completed", started_at: start, finished_at: "2026-11-22T01:01:59Z", entries: [{ ...entry, state: "completed" }] });
+  assert.equal(view.element.open, false);
+  assert.equal(view.element.querySelector(".activity-label").textContent, "Worked for 1m 59s");
+  assert.equal(view.element.querySelector(".activity-indicator").dataset.active, "false");
+  view.element.open = true;
+  view.update({ state: "completed", started_at: start, finished_at: "2026-11-22T01:01:59Z", entries: [] });
+  assert.equal(view.element.open, true);
+});
+
+test("activity accurately distinguishes approval, disconnection, failure, and missing timing", () => {
+  const view = activityView("states", { remember: false });
+  const trace = { state: "running", entries: [{ id: "waiting", kind: "tool", tool: "web_fetch", state: "waiting" }] };
+  view.update(trace);
+  assert.match(view.element.querySelector(".activity-label").textContent, /Waiting for approval/);
+  assert.equal(view.element.querySelector(".activity-indicator").dataset.active, "false");
+  view.update(trace, { active: true, disconnected: true });
+  assert.equal(view.element.querySelector(".activity-label").textContent, "Connection lost");
+  view.update({ state: "failed", entries: [] });
+  assert.equal(view.element.querySelector(".activity-label").textContent, "Work failed");
+  assert.equal(elapsed("invalid", "2026-11-22T01:00:00Z"), "");
+  assert.equal(elapsed("2026-11-22T02:00:00Z", "2026-11-22T01:00:00Z"), "");
+});
+
+test("attachment cards preview safely and keep preview and remove actions separate", async () => {
+  let opened = 0, removed = 0;
+  const file = { id: 'opaque/note.txt', name: '<script>note</script>.txt', size: 1200 };
+  const card = attachmentCard(file, {
+    load: async () => ({ kind: 'text', text: '<img onerror="bad()">' }),
+    open: () => opened++, remove: () => removed++,
+  });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(card.querySelector('script'), null);
+  assert.match(card.querySelector('.attachment-thumbnail').textContent, /<img/);
+  card.querySelector('.attachment-open').click();
+  assert.equal(opened, 1);
+  assert.equal(removed, 0);
+  card.querySelector('.attachment-remove').click();
+  assert.equal(removed, 1);
+  const unsafe = previewContent({ kind: 'image', data: 'https://example.invalid/tracker' });
+  assert.equal(unsafe.querySelector('img'), null);
+});
+
+test("clipboard files become attachments and long text keeps its original bytes", () => {
+  globalThis.File = dom.window.File;
+  const image = new File(['image'], 'pasted.png', { type: 'image/png' });
+  const mixed = pastedFiles({ files: [image], getData: () => 'A caption' });
+  assert.equal(mixed.files[0], image);
+  assert.equal(mixed.text, 'A caption');
+  const short = pastedFiles({ files: [], getData: () => 'Keep this in the composer' });
+  assert.equal(short.files.length, 0);
+  assert.equal(short.text, 'Keep this in the composer');
+  const long = pastedFiles({ files: [], getData: () => '🍞'.repeat(3000) });
+  assert.equal(long.files[0].name, 'Pasted text.txt');
+  assert.equal(long.files[0].size, new TextEncoder().encode('🍞'.repeat(3000)).length);
+  assert.equal(long.text, '');
+});
+
+test('task inspector stays tucked away, preserves disclosure state, and checks only observed completed steps', () => {
+  const inspector = taskInspector({ openChat: async () => {} });
+  document.body.replaceChildren(inspector.trigger, inspector.element);
+  inspector.update([]);
+  assert.equal(inspector.trigger.hidden, true);
+  assert.equal(inspector.element.getAttribute('popover'), 'auto');
+  const task = { id: 'current', title: '<script>Your notes</script>', current: true, active: true, state: 'running', steps: [
+    { id: 'read', tool: 'read_file', state: 'completed' }, { id: 'search', tool: 'web_search', state: 'running' },
+  ], plans: [{ id: 'plan', steps: ['Read notes', 'Prepare a summary'] }] };
+  inspector.update([task]);
+  assert.match(inspector.trigger.textContent, /In progress · 1/);
+  assert.equal(inspector.element.querySelector('script'), null);
+  assert.equal(inspector.element.querySelectorAll('.task-steps [data-state="completed"]').length, 1);
+  assert.equal(inspector.element.querySelectorAll('.task-proposal .task-check').length, 0);
+  const row = inspector.element.querySelector('.task-item'); row.open = false;
+  inspector.update([{ ...task, state: 'completed', active: false }]);
+  assert.equal(inspector.element.querySelector('.task-item'), row);
+  assert.equal(row.open, false);
+  assert.equal(inspector.element.querySelectorAll('.task-steps [data-state="completed"]').length, 1);
+  assert.equal(inspector.element.querySelectorAll('.task-steps [data-state="stopped"]').length, 1);
+  inspector.update([task], { connected: false });
+  assert.match(inspector.element.textContent, /Live updates paused/);
+  assert.equal(inspector.element.querySelectorAll('.task-steps [data-state="running"]').length, 0);
+});
+
+test('composer progress shows observed steps, folds on completion, and preserves later manual expansion', () => {
+  const progress = composerProgress(); document.body.replaceChildren(progress.element);
+  progress.update(); assert.equal(progress.element.hidden, true);
+  const task = { id: 'task', started_at: '2026-11-22T00:00:00Z', state: 'running', active: true, steps: [
+    { id: 'read', text: 'Read your notes', state: 'completed' }, { id: 'write', text: 'Write a summary', icon: 'notebook-pen', state: 'running' },
+  ], plans: [{ phase: 'review', steps: ['A proposed future step'] }] };
+  progress.update(task);
+  assert.equal(progress.element.open, true);
+  assert.match(progress.element.querySelector('summary').textContent, /Write a summary/);
+  assert.equal(progress.element.querySelectorAll('li[data-state="completed"]').length, 1);
+  assert.equal(progress.element.querySelectorAll('li[data-state="planned"]').length, 1);
+  assert.equal(progress.element.querySelector('summary .task-check svg').dataset.icon, 'notebook-pen');
+  assert.equal(progress.element.querySelector('li[data-state="running"] svg').dataset.icon, 'notebook-pen');
+  assert.equal(progress.element.querySelector('li[data-state="completed"] svg').dataset.icon, 'check');
+  assert.equal(progress.element.querySelector('li[data-state="planned"] svg').dataset.icon, 'circle-dashed');
+  progress.update({ ...task, steps: [{ ...task.steps[1], tool: 'web_search', icon: '<svg onload=bad>' }] });
+  assert.equal(progress.element.querySelector('summary .task-check svg').dataset.icon, 'search');
+  progress.update(task);
+  const finished = { ...task, state: 'completed', active: false };
+  progress.update(finished); assert.equal(progress.element.open, false);
+  assert.equal(progress.element.querySelectorAll('li[data-state="completed"]').length, 1);
+  progress.element.open = true; progress.update(finished); assert.equal(progress.element.open, true);
+  progress.update(task, { connected: false });
+  assert.equal(progress.element.querySelectorAll('li[data-state="running"]').length, 0);
+});
+
+test('scheduled task actions use the displayed digest and expose stale errors without changing the task', async () => {
+  const calls = [], task = { id: 'job-sample', digest: 'original', title: 'Morning notes', enabled: true, schedule: '0 9 * * *', timezone: 'UTC' };
+  const pane = scheduledPane({ request: async action => {
+    calls.push(action);
+    if (action.action === 'pause') throw new Error('Schedule changed. Refresh and review it.');
+    return { entries: [task], running: true };
+  } });
+  pane.update({ entries: [task], running: true }); document.body.replaceChildren(pane.element);
+  [...pane.element.querySelectorAll('button')].find(button => button.textContent === 'Pause').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls[0], { action: 'pause', id: task.id, digest: 'original' });
+  assert.match(pane.element.querySelector('[role="alert"]').textContent, /Schedule changed/);
+  assert.equal(task.enabled, true);
+});
+
+test('live chat activity can remain collapsed while its status updates', () => {
+  const activity = activityView('quiet', { remember: false, autoExpand: false });
+  activity.update({ state: 'running', entries: [] });
+  assert.equal(activity.element.open, false);
+  activity.element.open = true;
+  activity.update({ state: 'running', entries: [{ id: 'read', kind: 'tool', tool: 'read_file', state: 'running' }] });
+  assert.equal(activity.element.open, true);
+});
+
+test('Memory preview uses the real pane for editing, forgetting, filtering, and reset', async () => {
+  const samples = createMemorySamples();
+  const pane = memoryPane({ request: samples.request, manage: () => {}, description: 'Fictional preview data.' });
+  document.body.replaceChildren(pane.element);
+  await pane.load();
+  const findButton = (root, text) => [...root.querySelectorAll('button')].find(node => node.textContent === text);
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(pane.element.querySelectorAll('.memory-section').length, 1);
+  assert.equal(pane.element.querySelectorAll('.memory-topics button').length, 6);
+  let topic = pane.element.querySelector('.memory-topic');
+  findButton(topic, 'Edit').click();
+  topic.querySelector('textarea').value = 'An edited preview preference.';
+  findButton(topic, 'Save').click(); await settle();
+  assert.match(pane.element.textContent, /An edited preview preference/);
+  topic = pane.element.querySelector('.memory-topic');
+  findButton(topic, 'Forget').click();
+  findButton(topic, 'Cancel').click();
+  assert.equal((await samples.request()).total, 15);
+  findButton(topic, 'Forget').click();
+  findButton(topic, 'Forget memory').click(); await settle();
+  assert.doesNotMatch(pane.element.textContent, /An edited preview preference/);
+  assert.equal((await samples.request()).total, 14);
+  [...pane.element.querySelectorAll('.memory-topics button')].find(node => node.textContent.startsWith('Project context')).click(); await settle();
+  const search = pane.element.querySelector('input'); search.value = 'local-first';
+  pane.element.querySelector('form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await settle();
+  assert.match(pane.element.querySelector('.memory-content h3').textContent, /Project context/);
+  samples.reset(); search.value = ''; await pane.load();
+  assert.equal(pane.element.querySelectorAll('.memory-topic').length, 2);
+  findButton(pane.element, 'Add memory').click();
+  pane.element.querySelector('.memory-create select').value = 'fact';
+  pane.element.querySelector('.memory-create textarea').value = 'I enjoy quiet libraries.';
+  pane.element.querySelector('.memory-create').dispatchEvent(new window.Event('submit', { cancelable: true })); await settle();
+  assert.equal((await samples.request()).total, 16);
+  assert.match(pane.element.querySelector('.memory-content').textContent, /I enjoy quiet libraries/);
+  const added = pane.element.querySelector('.memory-topic'); added.open = true;
+  findButton(added, 'Edit').click();
+  added.querySelector('textarea').value = 'I enjoy quiet places to read.';
+  findButton(added, 'Save').click(); await settle();
+  assert.equal(pane.element.querySelector('.memory-topic-title').textContent, 'I enjoy quiet places to read.');
+});
+
+test("Memory groups topics and keeps an unsuccessful correction available for editing", async () => {
+  const catalog = { total: 1, matched: 1, page: 0, pages: 1, categories: { Preferences: 1 }, entries: [
+    { id: 'mem-fixture', kind: 'memory', title: 'Response style', category: 'Preferences', text: '<script>Concise answers</script>', scope: 'Across chats', source: 'user', status: 'Active', revision: 'original', editable: true, updated_at: '2026-11-22T00:00:00Z' },
+  ] };
+  const requests = [];
+  const pane = memoryPane({ manage: () => {}, request: async action => {
+    requests.push(action);
+    if (action.action === 'correct') throw new Error('This memory changed. Reopen it.');
+    return catalog;
+  } });
+  document.body.replaceChildren(pane.element);
+  await pane.load();
+  assert.match(pane.element.querySelector('.memory-content h3').textContent, /Preferences/);
+  assert.equal(pane.element.querySelector('script'), null);
+  const buttons = () => [...pane.element.querySelectorAll('button')];
+  buttons().find(node => node.textContent === 'Edit').click();
+  const editor = pane.element.querySelector('textarea');
+  editor.value = 'Keep my correction';
+  buttons().find(node => node.textContent === 'Save').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(editor.value, 'Keep my correction');
+  assert.equal(editor.disabled, false);
+  assert.match(pane.element.querySelector('[role=alert]').textContent, /changed/);
+  assert.equal(requests.at(-1).revision, 'original');
+});
+
+test('the chat menu pages inside its own scroll area and opens only returned selections', async () => {
+  const requests = [], opened = [];
+  const menu = chatMenu({ request: async request => {
+    requests.push(request);
+    return request.after ? { items: [{ id: 'older', title: '<script>Older chat</script>', selection: 'older-selection' }], next: '' }
+      : { items: [{ id: 'newer', title: 'Newer chat', selection: 'newer-selection' }], next: 'cursor' };
+  }, open: async selection => opened.push(selection) });
+  document.body.replaceChildren(menu.element);
+  await menu.load('chat-context');
+  const nav = menu.element.querySelector('nav');
+  Object.defineProperties(nav, { scrollHeight: { value: 600 }, clientHeight: { value: 200 } });
+  nav.scrollTop = 390; nav.dispatchEvent(new window.Event('scroll'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(requests.map(request => request.after), ['', 'cursor']);
+  assert.equal(nav.querySelectorAll('.chat-row').length, 2);
+  assert.equal(menu.element.dataset.top, 'true');
+  assert.equal(menu.element.querySelector('script'), null);
+  nav.querySelector('.chat-row').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(opened, [{ context: 'chat-context', selection: 'newer-selection' }]);
+});
+
+test('settings routes to real management pages and output examples render one type at a time', () => {
+  const destinations = [];
+  const settings = settingsView({ state: { model: 'Configured model' }, navigate: route => destinations.push(route), backend: route => destinations.push(route) });
+  assert.match(settings.textContent, /Configured model/);
+  [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Memory & privacy')).click();
+  assert.deepEqual(destinations, ['/memory']);
+  const gallery = outputPreview(); document.body.replaceChildren(gallery);
+  assert.equal(gallery.querySelectorAll('table').length, 1);
+  const tabs = [...gallery.querySelectorAll('[role="tab"]')];
+  tabs.find(tab => tab.textContent === 'Interactive').click();
+  assert.equal(gallery.querySelectorAll('iframe').length, 1);
+  assert.equal(gallery.querySelectorAll('table').length, 0);
+  tabs.find(tab => tab.textContent === 'Code').click();
+  assert.equal(gallery.querySelectorAll('iframe').length, 0);
+  assert.ok(gallery.querySelector('.hljs-keyword'));
+});
+
+test('local model selection binds the displayed review and never repeats an unconfirmed mutation', async () => {
+  const calls = [], review = { id: 'review', generation: 'generation', model_id: 'local', tag: 'local:latest', digest: 'a'.repeat(64), endpoint: 'http://127.0.0.1:11434', notice: 'Future requests only.' };
+  const local = { reachable: true, installed_known: true, installed: [{}], catalog: [{ id: 'local', name: 'Local model', tag: 'local:latest', digest: 'a'.repeat(64), downloaded: true, eligible: true }] };
+  const pane = localModelsView({ request: async action => {
+    calls.push(action);
+    if (action.action === 'local_review_select') return { local_review: review };
+    if (action.action === 'local_select') throw new Error('Publication could not be confirmed. Refresh and reconcile.');
+    return { local };
+  } });
+  document.body.replaceChildren(pane.element); await pane.load();
+  const find = text => [...pane.element.querySelectorAll('button')].find(node => node.textContent === text);
+  find('Review selection').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(pane.element.querySelector('.local-selection-review').textContent, /Future requests only/);
+  find('Confirm future selection').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls.at(-1), { action: 'local_select', model_id: 'local', review_id: 'review', generation: 'generation' });
+  assert.equal(find('Confirm future selection'), undefined);
+  assert.match(pane.element.querySelector('[role="alert"]').textContent, /could not be confirmed/);
+  assert.equal(calls.filter(call => call.action === 'local_select').length, 1);
+});
+
+test('management forms expose source checkboxes, labeled budgets, mappings, and RFC3339 dates', () => {
+  const sources = panelField({ kind: 'multi', value: 'null', max: 4, options: [{ value: 'notes', label: 'Notes' }] }, 'Connected sources');
+  assert.equal(sources.element.querySelector('input').type, 'checkbox');
+  sources.element.querySelector('input').checked = true;
+  assert.deepEqual(JSON.parse(sources.value), ['notes']);
+  const budget = panelField({ kind: 'budget', value: '2,1000,60', parts: [{ label: 'Requests', min: 1, max: 10 }, { label: 'Tokens', min: 10, max: 10000 }, { label: 'Seconds', min: 1, max: 300 }] }, 'Limits');
+  assert.equal(budget.element.querySelectorAll('input[type="number"]').length, 3);
+  budget.element.querySelector('input').value = '3';
+  assert.equal(budget.value, '3,1000,60');
+  const date = panelField({ kind: 'datetime', value: '2026-11-22T09:15:00+08:00' }, 'End date');
+  assert.equal(Date.parse(date.value), Date.parse('2026-11-22T01:15:00Z'));
+  date.element.querySelector('input').value = ''; assert.equal(date.value, '');
+  const mapping = panelField({ kind: 'mappings', value: '[{"from":"/old","to":"/new"}]' }, 'Folders');
+  assert.deepEqual(JSON.parse(mapping.value), [{ from: '/old', to: '/new' }]);
+  const password = panelField({ secret: true, value: 'must not appear' }, 'Credential');
+  assert.equal(password.value, '');
+});
+
+test('chat search retires prior results and renames the exact returned selection without opening it', async () => {
+  const requests = [], renamed = [];
+  const menu = chatMenu({ request: async value => {
+    requests.push(value); return { items: [{ id: 'a', title: value.query ? 'Matching chat' : 'Original chat', snippet: '<b>literal</b>', selection: value.query ? 'searched' : 'original' }] };
+  }, open: () => assert.fail('rename must not navigate'), rename: async value => renamed.push(value) });
+  document.body.replaceChildren(menu.element); await menu.load('owner');
+  const search = menu.element.querySelector('input[type="search"]'); search.value = 'notes'; search.dispatchEvent(new window.Event('input'));
+  assert.equal(menu.element.querySelector('.chat-row'), null);
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.equal(requests.at(-1).query, 'notes'); assert.equal(menu.element.querySelector('b'), null);
+  menu.element.querySelector('.rename-chat').click();
+  const editor = menu.element.querySelector('form'), title = editor.querySelector('input'); title.value = 'My notes'; editor.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(renamed, [{ context: 'owner', selection: 'searched', title: 'My notes' }]);
+});
+
+test('Find highlights visible occurrences across inline markup, wraps navigation, excludes closed sources, and clears on chat changes', () => {
+  document.body.innerHTML = '<div id="transcript"><article class="turn" data-message-id="one"><p>Hello <strong>quiet</strong> world. Quiet again.</p><details><summary>Source</summary><pre>quiet hidden</pre></details><button>quiet action</button></article></div>';
+  const find = transcriptFind({ transcript: document.querySelector('#transcript') }); document.body.prepend(find.element); find.refresh('one'); find.open();
+  const input = find.element.querySelector('input'); input.value = 'quiet'; input.dispatchEvent(new window.Event('input'));
+  assert.match(find.element.textContent, /1 of 2/); assert.equal(document.querySelectorAll('mark').length, 2);
+  [...find.element.querySelectorAll('button')].find(node => node.getAttribute('aria-label') === 'Next match').click(); assert.match(find.element.textContent, /2 of 2/);
+  input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter' })); assert.match(find.element.textContent, /1 of 2/);
+  input.value = 'quiet world'; input.dispatchEvent(new window.Event('input')); assert.match(find.element.textContent, /1 of 1/);
+  assert.equal(document.querySelector('strong').textContent, 'quiet');
+  find.refresh('two'); assert.equal(find.element.hidden, true); assert.equal(document.querySelector('mark'), null);
+});
+
+test('reactions require exact durable answered-turn metadata and preferences preserve text fallbacks', () => {
+  const turn = { id: 'turn', state: 'answered', revision: 2, response: "You're welcome.", reaction: { version: 1, conversation_id: 'chat', turn_id: 'turn', revision: 2, kind: 'appreciation', emoji: '❤️', level: 'subtle' } };
+  const reaction = reactionFor(turn, 'chat'); assert.equal(reaction.emoji, '❤️'); assert.match(reactionChip(reaction).getAttribute('aria-label'), /conversational only/);
+  for (const changed of [{ issue: 'failed' }, { task_chat: 'work' }, { revision: 3 }, { input_ids: ['file'] }, { reply_to_update_id: 'update' }, { response: 'Different response' }]) assert.equal(reactionFor({ ...turn, ...changed }, 'chat'), null);
+  assert.equal(reactionFor(turn, 'wrong'), null); assert.equal(reactionFor(turn, 'chat', 'off'), null);
+  const greeting = { ...turn, response: 'Hello!', reaction: { ...turn.reaction, kind: 'greeting', emoji: '👋', level: 'expressive' } };
+  assert.equal(reactionFor(greeting, 'chat'), null); assert.ok(reactionFor(greeting, 'chat', 'expressive'));
+  reactionPreference('off'); assert.equal(reactionPreference(), 'off'); reactionPreference('subtle');
+});
+
+test('task details require explicit receipt confirmation and retain uncertainty after a missing acknowledgement', async () => {
+  const requests = [];
+  const pane = taskDetailView({ id: 'chat', request: async value => {
+    requests.push(value);
+    if (value.op === 'task-control') throw new Error('Receipt check not confirmed');
+    return { id: 'chat', current: true, connected: true, title: 'Your request', state: 'Interrupted', identity: [], records: [], receipts: [{ title: 'gmail_send', state: 'Outcome uncertain', uncertain: true, selection: 'exact', fields: [] }] };
+  } });
+  document.body.replaceChildren(pane.element); await pane.load();
+  const byText = text => [...pane.element.querySelectorAll('button')].find(node => node.textContent === text);
+  byText('Check Sent · read-only').click(); assert.equal(requests.length, 1); assert.match(pane.element.textContent, /never sends or resends/);
+  byText('Check Sent').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(requests.at(-1), { op: 'task-control', selection: 'exact', action: 'check_sent' });
+  assert.match(pane.element.textContent, /No action was replayed/); assert.equal(byText('Check Sent'), undefined);
+});
+
+test('reading positions survive updates, chat switches, and reloads without pulling a reader to the end', () => {
+  const saved = new Map(), storage = { getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value) };
+  const frames = new Map(); let frameID = 0, scroll = 0;
+  globalThis.requestAnimationFrame = callback => { frames.set(++frameID, callback); return frameID; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const flushFrames = () => { for (let pass = 0; pass < 5 && frames.size; pass++) { const pending = [...frames.values()]; frames.clear(); for (const callback of pending) callback(); } };
+  Object.defineProperty(window, 'scrollY', { configurable: true, get: () => scroll });
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+  Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 3200 });
+  const oldScroll = window.scrollTo; window.scrollTo = value => { scroll = Math.max(0, Math.min(2400, value.top)); };
+  document.body.innerHTML = '<div id="transcript"><article data-message-id="first"></article><article data-message-id="middle"></article><article data-message-id="last"></article></div>';
+  const transcript = document.querySelector('#transcript');
+  for (const [index, node] of [...transcript.children].entries()) node.getBoundingClientRect = () => ({ top: index * 600 + 100 - scroll, bottom: index * 600 + 500 - scroll });
+  let reading = readingPosition({ transcript, storage }); reading.before('chat-a'); reading.after(); flushFrames(); assert.equal(scroll, 2400);
+  scroll = 700; window.dispatchEvent(new window.Event('scroll')); assert.equal(reading.element.hidden, false);
+  reading.before('chat-a'); reading.after(); flushFrames(); assert.equal(scroll, 700);
+  reading.before('chat-b'); reading.after(); flushFrames(); assert.equal(scroll, 2400);
+  reading.before('chat-a'); reading.after(); flushFrames(); assert.equal(scroll, 700);
+  reading.dispose(); scroll = 0;
+  reading = readingPosition({ transcript, storage }); reading.before('chat-a'); reading.after(); flushFrames(); assert.equal(scroll, 700);
+  reading.element.click(); assert.equal(scroll, 2400); assert.equal(reading.element.hidden, true);
+  reading.dispose(); window.scrollTo = oldScroll; delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame;
+});
+
+test('recovery access stays disabled until an exact review and preparation requires a separate confirmation', async () => {
+  const requests = [], account = { id: 'account-a', label: 'Personal inbox', destination: 'Gmail', operation: 'gmail_read', permission: 'Read mail' };
+  const pane = taskDetailView({ id: 'chat', request: async value => {
+    requests.push(value);
+    if (value.op === 'task-inspect') return { id: 'chat', current: true, connected: true, title: 'Original task', state: 'Failed', records: [{ title: 'Review my notes', detail: 'Access needs review.', retrySafe: true, selection: 'original', needs: [{ operation: 'gmail_read' }], fields: [] }], receipts: [] };
+    if (value.action === 'review_access') return { access: { ready: true, connections: ['account-a'], requirements: [{ selected: 'account-a', need: { operation: 'gmail_read' }, choices: [account] }] } };
+    return { accepted: true };
+  } });
+  document.body.replaceChildren(pane.element); await pane.load();
+  const byText = text => [...pane.element.querySelectorAll('button')].find(node => node.textContent === text);
+  assert.equal(byText('Prepare recovery plan').disabled, true);
+  byText('Review configured account access').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(byText('Prepare recovery plan').disabled, false);
+  byText('Prepare recovery plan').click(); assert.equal(requests.length, 2); assert.match(pane.element.textContent, /may consume model usage/);
+  byText('Confirm preparation').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(requests.at(-1), { op: 'task-control', selection: 'original', action: 'prepare_access', connections: ['account-a'] });
+  assert.match(pane.element.textContent, /Nothing has been approved or repeated/);
+});

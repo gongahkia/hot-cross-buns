@@ -1,8 +1,8 @@
 package workapp
 
 import (
-	"github.com/gongahkia/gator/internal/modelcatalog"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 	"reflect"
 	"strings"
 	"testing"
@@ -57,7 +57,7 @@ func TestManagedNativeDoesNotExposeLegacyModelLifecyclePanel(t *testing.T) {
 }
 
 func TestNativeLocalSelectionFutureRefreshPreservesExactApproval(t *testing.T) {
-	m := New(Config{ManagedSessions: true, SelectedModel: func() (string, string, error) { return "gator-local", "qwen3:4b", nil }, NativeProviders: func(a modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult {
+	m := New(Config{ManagedSessions: true, SelectedModel: func() (string, string, error) { return "hot-cross-buns-local", "qwen3:4b", nil }, NativeProviders: func(a modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult {
 		return modelcatalog.NativeProviderResult{RequestID: a.RequestID, Action: a.Action, Confirmed: true, Changed: true}
 	}})
 	m.interaction = &workrun.Interaction{ID: 44, Kind: "inert-test"}

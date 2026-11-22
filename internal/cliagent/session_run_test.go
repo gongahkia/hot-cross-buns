@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
 )
 
 func TestSessionRetainsNativeHomeCheckoutAndTrustedPatches(t *testing.T) {

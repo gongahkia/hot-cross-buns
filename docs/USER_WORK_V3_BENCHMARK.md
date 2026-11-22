@@ -1,6 +1,6 @@
 # User Work benchmark, thirty-task corpus
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-16. [Version 3](../internal/eval/testdata/user-work-v3/dataset.json) preserves the 21-case [version 2 corpus](USER_WORK_V2_BENCHMARK.md) and adds nine tasks for a terminal-based knowledge worker. The prior live reports remain version 2 results; they are not scores for this new manifest. The new fixtures are synthetic and local. They exercise decisions and deliverables from source material, not live web retrieval or connected apps.
 
@@ -25,13 +25,13 @@ All 30 cases pass `TestUserWorkV3CorpusThroughProductService`; scripted runs val
 ## Run after provider quota resets
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval validate internal/eval/testdata/user-work-v3/dataset.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/user-work-v3/dataset.json \
-  --id user-work-v3-scripted --split all --report-dir /tmp/gator-user-work-v3-scripted
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/user-work-v3/dataset.json \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval validate internal/eval/testdata/user-work-v3/dataset.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/user-work-v3/dataset.json \
+  --id user-work-v3-scripted --split all --report-dir /tmp/hot-cross-buns-user-work-v3-scripted
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/user-work-v3/dataset.json \
   --id user-work-v3-live-development --split development --live \
   --provider PROVIDER --model MODEL --max-model-requests 900 \
-  --timeout-seconds 3600 --report-dir /tmp/gator-user-work-v3-live-development
+  --timeout-seconds 3600 --report-dir /tmp/hot-cross-buns-user-work-v3-live-development
 ```
 
 Use a fresh report directory for each run. Report provider errors separately from task errors; inspect live output for unsupported claims that narrow graders may miss. Only then run `--split held-out` and have a reviewer inspect representative deliverables. A pass on the scripted reference actions is not a usefulness claim.

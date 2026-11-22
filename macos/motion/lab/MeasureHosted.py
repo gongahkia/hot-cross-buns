@@ -3,17 +3,17 @@
 import json, os, pathlib, statistics, subprocess, time
 ROOT=pathlib.Path(__file__).resolve().parents[3]
 E=ROOT/'macos/motion/evidence/p04u-1'
-SAMPLER='/tmp/gator-p04u-process-sampler'
+SAMPLER='/tmp/hot-cross-buns-p04u-process-sampler'
 subprocess.run(['clang','-O2',str(ROOT/'macos/presence/acceptance-r2/sample.c'),'-o',SAMPLER],check=True)
 all_results=[]
 for trial in range(1,4):
  for mode in (['before','after'] if trial!=2 else ['after','before']):
   phases=E/f'hosted-{mode}-phases.jsonl'
   if phases.exists(): phases.unlink()
-  env=dict(os.environ,GATOR_MOTION_BENCH=mode)
+  env=dict(os.environ,HOT_CROSS_BUNS_MOTION_BENCH=mode)
   log=open(E/f'hosted-{mode}-{trial}.log','w')
   started=time.monotonic()
-  app=subprocess.Popen(['swift','test','--package-path','macos','--scratch-path','/tmp/gator-native-build','--skip-build','--no-parallel','--filter','streamingHostedPresentationResourceTrial'],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
+  app=subprocess.Popen(['swift','test','--package-path','macos','--scratch-path','/tmp/hot-cross-buns-native-build','--skip-build','--no-parallel','--filter','streamingHostedPresentationResourceTrial'],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
   while not phases.exists() and app.poll() is None and time.monotonic()-started<20: time.sleep(.05)
   if not phases.exists(): raise RuntimeError('No component readiness phase')
   pid=json.loads(phases.read_text().splitlines()[0])['pid']

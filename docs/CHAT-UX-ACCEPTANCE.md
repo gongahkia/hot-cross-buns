@@ -30,20 +30,20 @@ The full suite was run at `e065bc071`, including the prior retained implementati
 
 | Command / scope | Actual result |
 | --- | --- |
-| `env -u GATOR_LIVE_UI_ENDPOINT -u GATOR_LIVE_UI_TOKEN -u GATOR_LIVE_UI_SUITE GATOR_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop -- --max-failures=3` | **81 passed, 2 skipped, 9.9 min**; real Electron/Go, no paid requests |
+| `env -u HOT_CROSS_BUNS_LIVE_UI_ENDPOINT -u HOT_CROSS_BUNS_LIVE_UI_TOKEN -u HOT_CROSS_BUNS_LIVE_UI_SUITE HOT_CROSS_BUNS_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop -- --max-failures=3` | **81 passed, 2 skipped, 9.9 min**; real Electron/Go, no paid requests |
 | Same environment, `npm run test:e2e --prefix desktop -- task-plans.spec.ts --max-failures=1` after final list polish | **4 passed, 18.2 s**; includes visible-numbered-list assertions, exact edit/approval, restart/cancel, scope denial and later pending exact command review |
-| `go test -p 2 ./...` | **72 packages passed, 11 without tests**, no failures; `cmd/gator` 204.708 s, `workrun` 112.977 s, `workapp` 25.174 s |
+| `go test -p 2 ./...` | **72 packages passed, 11 without tests**, no failures; `cmd/hot-cross-buns` 204.708 s, `workrun` 112.977 s, `workapp` 25.174 s |
 | `go vet ./...` | **PASS**, exit 0 |
 | `go test -race ./internal/workapp ./internal/worksession ./internal/workrun ./internal/workactivity ./internal/executiontarget/...` | **7 packages passed**; final confirmation workapp 23.153 s, remaining packages cached after passing runs |
 | `go test -race ./internal/workrun -run 'TestTaskPlan\|TestServiceApproval\|TestExecutorConnectedRequestNeedsNoInventedOutputFile\|TestExecutorRetainsUnknownExternalOutcomeWithoutDerivingRetryLearning'` | **PASS**, 8.134 s; exact command/service preview, deny/allow/unknown, consumed review and no receipt-read replay |
-| `go test -race ./internal/workapp ./internal/worksession ./cmd/gator -run 'TestTaskPlan\|TestDesktopTaskPlan'` | **PASS**, 6.018 / 7.496 / 2.882 s |
+| `go test -race ./internal/workapp ./internal/worksession ./cmd/hot-cross-buns -run 'TestTaskPlan\|TestDesktopTaskPlan'` | **PASS**, 6.018 / 7.496 / 2.882 s |
 | `npm test --prefix desktop` (includes `npm test --prefix app-host`) | Desktop **31 passed / 1 skipped**; application host **80 passed / 1 skipped** |
 | `npm run check --prefix desktop` | **PASS** on final UI/test changes |
 | `npm run build --prefix desktop` | **PASS**, private Go runtime and UI; `npm run build:ui --prefix desktop` passed again after final polish |
-| `GATOR_TEST_BINARY="$PWD/desktop/runtime/gator-runtime" node --test companion/*.test.mjs` | **37 passed / 5 skipped / 0 cancelled**, 45.650 s; includes headless Chromium auth, recovery, Work inspection/semantic controls and external-target journeys |
+| `HOT_CROSS_BUNS_TEST_BINARY="$PWD/desktop/runtime/hot-cross-buns-runtime" node --test companion/*.test.mjs` | **37 passed / 5 skipped / 0 cancelled**, 45.650 s; includes headless Chromium auth, recovery, Work inspection/semantic controls and external-target journeys |
 | Formatting and `git diff --check` | **PASS**; changed frontend uses existing project conventions; no additional Go changes after the passing Go/vet checks |
 
-The resumed Electron suite covers all three branches/speech journeys, all four plans, all six citation/link journeys, both activity journeys, all seven deterministic coding journeys, sources, voice setup, attachments, memory, follow-ups, scrolling, restart, existing conversation behavior and startup without a standalone Gator/Node on PATH. The coding journeys perform real edits/checks against disposable files; scripted model replies are not evidence of commercial-model coding quality.
+The resumed Electron suite covers all three branches/speech journeys, all four plans, all six citation/link journeys, both activity journeys, all seven deterministic coding journeys, sources, voice setup, attachments, memory, follow-ups, scrolling, restart, existing conversation behavior and startup without a standalone Hot Cross Buns/Node on PATH. The coding journeys perform real edits/checks against disposable files; scripted model replies are not evidence of commercial-model coding quality.
 
 Final light narrow plan/branch and dark plan editor screenshots were inspected. Plan numbering was corrected after visual review. Keyboard Escape/focus return, bounded modal scrolling, stale selection handling and actual theme selection are exercised. Existing motion checks inspect 10% playback, reversal and reduced motion. See [application test isolation](CHAT-UX-TESTING.md) and the [plan review](CHAT-TASK-PLANS.md).
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify synthetic Gator XLSX calculations using an installed LibreOffice.
+"""Verify synthetic Hot Cross Buns XLSX calculations using an installed LibreOffice.
 
 Inputs are never modified; converted workbooks and a JSON report go to a new
 output directory. This is an engine compatibility check, not Excel acceptance.
@@ -116,7 +116,7 @@ def main():
     # Refuse reuse so an engine failure cannot pass against stale output files.
     output.mkdir(parents=True, exist_ok=False)
     version = subprocess.run([engine, "--version"], check=True, capture_output=True, text=True, timeout=20).stdout.strip()
-    with tempfile.TemporaryDirectory(prefix="gator-calc-profile-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="hot-cross-buns-calc-profile-") as temporary:
         result = subprocess.run([engine, "-env:UserInstallation=" + Path(temporary).as_uri(), "--headless", "--norestore", "--convert-to", "xlsx:Calc MS Excel 2007 XML", "--outdir", str(output), *inputs], capture_output=True, text=True, timeout=120)
     print(result.stdout, end="")
     if result.returncode:

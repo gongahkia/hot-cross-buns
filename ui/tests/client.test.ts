@@ -2,16 +2,16 @@ import { afterEach, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { DraftSnapshot, UploadedFile } from "@gator/application-host/contracts/frontend"
-import { GatorClient } from "../src/gator/client"
+import type { DraftSnapshot, UploadedFile } from "@hot-cross-buns/application-host/contracts/frontend"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
-const roots: string[] = [], clients: GatorClient[] = []
+const roots: string[] = [], clients: HotCrossBunsClient[] = []
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "gator-client-")); roots.push(root)
-  const options = { binary: "/unused", workspace: join(root, "workspace"), userData: join(root, "app"), env: { GATOR_STATE_DIR: join(root, "state") } }
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-client-")); roots.push(root)
+  const options = { binary: "/unused", workspace: join(root, "workspace"), userData: join(root, "app"), env: { HOT_CROSS_BUNS_STATE_DIR: join(root, "state") } }
   const host = new FixtureHost(options)
-  const client = new GatorClient(host); clients.push(client)
+  const client = new HotCrossBunsClient(host); clients.push(client)
   return { host, client, options }
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done }); return { resolve, promise } }
@@ -82,7 +82,7 @@ test("draft review intent restores with its files, reply and text and rejects a 
   const uploads = [{ id: "a".repeat(32) + "/brief.txt", name: "brief.txt", size: 8 }]
   await client.edit("Keep my next question\nSecond line", uploads, "update-original")
   await client.close()
-  const host = new FixtureHost(options), restored = new GatorClient(host); clients.push(restored)
+  const host = new FixtureHost(options), restored = new HotCrossBunsClient(host); clients.push(restored)
   await restored.start()
   expect(restored.draft).toMatchObject({ text: "Keep my next question\nSecond line", uploads, reply_to_update_id: "update-original", plan_first: true })
   await restored.navigate("/settings"); await restored.navigate("/chat")

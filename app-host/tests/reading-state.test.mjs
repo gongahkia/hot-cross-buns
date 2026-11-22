@@ -8,7 +8,7 @@ import { ReadingStore } from "../src/reading-state.mjs";
 
 const anchor = { key: "a".repeat(64), index: 12, offset: 3, following: false, seen: "b".repeat(64), seen_version: "c".repeat(64) };
 test("reading anchors reopen privately without storing conversation text and remain isolated by chat/profile", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-reading-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-reading-"));
   try {
     const store = new ReadingStore(root);
     assert.equal(await store.read("conversation:one"), undefined);
@@ -31,7 +31,7 @@ test("reading anchors reopen privately without storing conversation text and rem
 });
 
 test("invalid and linked anchors fail explicitly without modifying history or the retained file", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-reading-invalid-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-reading-invalid-"));
   try {
     const store = new ReadingStore(root), file = join(root, createHash("sha256").update("conversation:one").digest("hex") + ".json");
     await writeFile(file, "{broken");

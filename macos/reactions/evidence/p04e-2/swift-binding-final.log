@@ -2,30 +2,30 @@
 Building for debugging...
 [0/6] Write sources
 [2/6] Write swift-version--58304C5D6DBC2206.txt
-[4/8] Compiling GatorMac NativeMessageReactionView.swift
-[5/8] Emitting module GatorMac
-[6/11] Compiling GatorMac GatorApp.swift
-[7/11] Compiling GatorMac NativeMascotPreferences.swift
-[8/11] Compiling GatorMac ConversationView.swift
+[4/8] Compiling HotCrossBunsMac NativeMessageReactionView.swift
+[5/8] Emitting module HotCrossBunsMac
+[6/11] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[7/11] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[8/11] Compiling HotCrossBunsMac ConversationView.swift
 [8/13] Write Objects.LinkFileList
-[9/13] Linking GatorMac
-[10/13] Applying GatorMac
-[12/16] Emitting module GatorMacTests
-[13/16] Compiling GatorMacTests NativeMessageReactionTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
+[9/13] Linking HotCrossBunsMac
+[10/13] Applying HotCrossBunsMac
+[12/16] Emitting module HotCrossBunsMacTests
+[13/16] Compiling HotCrossBunsMacTests NativeMessageReactionTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  91 |         for reduced in [false, true] {
  92 |             let host = NSHostingView(rootView: NativeMessageReactionChip(reaction: reaction).transaction { $0.disablesAnimations = reduced })
  93 |             host.appearance = try #require(NSAppearance(named: name))
     |                                            `- warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  94 |             let size = host.fittingSize
  95 |             #expect(size.width >= 20 && size.width < 60 && size.height >= 16 && size.height < 45)
-[14/16] Compiling GatorMacTests NativeReactionGoTests.swift
+[14/16] Compiling HotCrossBunsMacTests NativeReactionGoTests.swift
 [14/16] Write Objects.LinkFileList
-[15/16] Linking GatorNativePackageTests
+[15/16] Linking HotCrossBunsNativePackageTests
 Build complete! (10.26s)
 Test Suite 'Selected tests' started at 2026-11-20 17:24:50.957.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 17:24:50.958.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 17:24:50.958.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 17:24:50.958.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 17:24:50.958.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 17:24:50.958.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

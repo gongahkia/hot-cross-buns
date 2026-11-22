@@ -86,7 +86,7 @@
             <process name="mediaanalysisd" pid="777" path="/System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd" />
             <process name="Alcove" pid="891" path="/Applications/Alcove.app/Contents/MacOS/Alcove" />
             <process name="Klack" pid="12709" path="/Applications/Klack.app/Contents/MacOS/Klack" />
-            <process name="Gate2Lab" pid="48742" path="/private/tmp/Gator-Gate2-FinalCandidate-v10.app/Contents/MacOS/Gate2Lab" />
+            <process name="Gate2Lab" pid="48742" path="/private/tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app/Contents/MacOS/Gate2Lab" />
             <process name="com.apple.cmio.registerassistan" pid="401" path="com.apple.cmio.r" />
             <process name="ThemeWidgetControlViewService" pid="52355" path="/System/Library/Frameworks/AppKit.framework/Versions/C/XPCServices/ThemeWidgetControlViewService.xpc/Contents/MacOS/ThemeWidgetControlViewService" />
             <process name="Google Chrome Helper (GPU)" pid="35444" path="/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/153.0.8010.48/Helpers/Google Chrome Helper (GPU).app/Contents/MacOS/Google Chrome Helper (GPU)" />

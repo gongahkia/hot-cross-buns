@@ -15,17 +15,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/usage"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type restoreModel struct{}
@@ -322,7 +322,7 @@ func hostileBackup(t *testing.T, entries map[string][]byte, extra *tar.Header) s
 		}
 	}
 	data, _ := json.Marshal(manifest)
-	_ = tw.WriteHeader(&tar.Header{Name: "gator-backup.json", Size: int64(len(data)), Mode: 0600, Typeflag: tar.TypeReg})
+	_ = tw.WriteHeader(&tar.Header{Name: "hot-cross-buns-backup.json", Size: int64(len(data)), Mode: 0600, Typeflag: tar.TypeReg})
 	_, _ = tw.Write(data)
 	tw.Close()
 	gz.Close()
@@ -333,13 +333,13 @@ func TestRestoreRejectsTraversalLinksAndRuntimeCapabilities(t *testing.T) {
 	s, _ := Open(t.TempDir())
 	for _, header := range []*tar.Header{
 		{Name: "../escaped", Typeflag: tar.TypeReg},
-		{Name: "gator/memory/link", Typeflag: tar.TypeSymlink, Linkname: "/tmp"},
-		{Name: "gator/memory/link", Typeflag: tar.TypeLink, Linkname: "gator/auth.json"},
-		{Name: "gator/auth.json", Typeflag: tar.TypeReg},
-		{Name: "gator/work-control/access.json", Typeflag: tar.TypeReg},
+		{Name: "hot-cross-buns/memory/link", Typeflag: tar.TypeSymlink, Linkname: "/tmp"},
+		{Name: "hot-cross-buns/memory/link", Typeflag: tar.TypeLink, Linkname: "hot-cross-buns/auth.json"},
+		{Name: "hot-cross-buns/auth.json", Typeflag: tar.TypeReg},
+		{Name: "hot-cross-buns/work-control/access.json", Typeflag: tar.TypeReg},
 	} {
 		t.Run(header.Name+strconv.Itoa(int(header.Typeflag)), func(t *testing.T) {
-			archive := hostileBackup(t, map[string][]byte{"gator/memory/one.json": []byte("{}")}, header)
+			archive := hostileBackup(t, map[string][]byte{"hot-cross-buns/memory/one.json": []byte("{}")}, header)
 			target := filepath.Join(t.TempDir(), "fresh")
 			if _, err := s.PreviewRestore(context.Background(), archive, target, nil); err == nil {
 				t.Fatal("unsafe archive accepted")
@@ -368,7 +368,7 @@ func TestEmptyBackupCanBecomeAFreshProfile(t *testing.T) {
 	if p.Files != 0 {
 		t.Fatal("fixture is not an empty backup")
 	}
-	if _, err = os.Stat(filepath.Join(receipt.Plan.Target, "gator", "usage", "policy.json")); err != nil {
+	if _, err = os.Stat(filepath.Join(receipt.Plan.Target, "hot-cross-buns", "usage", "policy.json")); err != nil {
 		t.Fatal("empty profile was not initialized")
 	}
 }
@@ -470,7 +470,7 @@ func TestRestoreStillRejectsClaimedMissingRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(filepath.Join(root, "gator", "conversations", chat.ID, "conversation.json"), bytes, 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(root, "hot-cross-buns", "conversations", chat.ID, "conversation.json"), bytes, 0600); err != nil {
 		t.Fatal(err)
 	}
 	store, err := Open(root)

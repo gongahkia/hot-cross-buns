@@ -1,6 +1,6 @@
 # Terminal migration verification
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -20,7 +20,7 @@ by evidence yet.** This ledger records observed results, not inferred parity.
   with the local Linux notice. Preserve this edit outside migration commits.
 - Existing changes to the migration plan and development pointer belong to this
   migration and are captured with this ledger.
-- Use temporary `GATOR_STATE_DIR`, `GATOR_CONFIG_DIR`, `GATOR_DESKTOP_USER_DATA`,
+- Use temporary `HOT_CROSS_BUNS_STATE_DIR`, `HOT_CROSS_BUNS_CONFIG_DIR`, `HOT_CROSS_BUNS_DESKTOP_USER_DATA`,
   workspace, and draft roots. Never use the live profile for fixtures.
 - Host: Linux x64, Node 24.21.0, Go 1.26.10, Bun 1.4.2 initially installed.
 - Native Windows and macOS evidence must come from those hosts; cross-builds
@@ -31,7 +31,7 @@ by evidence yet.** This ledger records observed results, not inferred parity.
 | Command | Result |
 | --- | --- |
 | `npm test --prefix desktop` | 69 cases: 68 pass, 1 native Windows case skipped on Linux; 0 failures. Baseline only. |
-| `go test ./...` | Initial run exhausted 2.5 GiB `/tmp`. Rerun with workspace-backed TMPDIR/GOTMPDIR and `-p 2`: all packages except cmd/gator pass; existing installer-progress test failed (see below). |
+| `go test ./...` | Initial run exhausted 2.5 GiB `/tmp`. Rerun with workspace-backed TMPDIR/GOTMPDIR and `-p 2`: all packages except cmd/hot-cross-buns pass; existing installer-progress test failed (see below). |
 | `npm run check --prefix desktop` | Pass before and after service extraction. |
 | `npm run build --prefix desktop` | Pass before extraction; extracted frontend build also passes. |
 
@@ -60,7 +60,7 @@ keyboard accessibility. Native/manual cases remain pending until exercised.
 | P15 | Text and tabular editing | Pending | Open full text/Markdown/code/JSON and CSV/TSV; edit supported content/cells, validate where applicable, preserve supported formatting/quoting, and explicitly save/discard. |
 | P16 | Native Office content editing | Pending | Inspect/edit the supported DOCX paragraph/table/run content, XLSX sheets/cells/formulas, and PPTX existing text. Preserve package parts and existing protected/signed/macro restrictions and rendering limits. |
 | P17 | Image and PDF previews | Pending | Inspect actual images and PDF pages through supported terminal/native adapters, navigate pages, and return to the same chat/draft. Do not replace visual inspection with filenames or extracted text alone. |
-| P18 | File versions and agent handoff | Pending | Save immutable working versions, inspect/compare/restore versions, export exact selected bytes, and stage Ask Gator with the saved version and supported selection. Preserve originals and sealed outputs; reject stale saves. |
+| P18 | File versions and agent handoff | Pending | Save immutable working versions, inspect/compare/restore versions, export exact selected bytes, and stage Ask Hot Cross Buns with the saved version and supported selection. Preserve originals and sealed outputs; reject stale saves. |
 | P19 | Provider and local model setup | Pending | Configure credentials/endpoints/custom providers; inspect/download/select/rename/remove local models and view installation progress. Preserve masking, readiness checks, and explicit reviews. |
 | P20 | Account and tool integrations | Pending | Complete supported browser/device/API-key sign-in, verification, reconnect/disconnect, and reviewed external editor/install/tool handoffs. Preserve current browser, computer-control, connector, and specialist capabilities. |
 | P21 | Voice | Pending | Explicitly start/stop/cancel dictation, review text in the original draft, account for provider usage, and optionally speak only new replies. Preserve permission, cancellation, conversation-binding, and transient-audio rules. |
@@ -167,7 +167,7 @@ assertions to terminal/host/native tests before retiring any Electron suite.
 - [x] knowledge and model filters preserve the selected record and original model identity — `ui/tests/knowledge.test.tsx`, `ui/tests/panel.test.tsx`, and `ui/tests/providers.test.tsx`.
 - [ ] native follow-up fields review exact values and path selection never switches workspace
 - [ ] saved guidance persists native choices and retired terminal settings are absent
-- [ ] the desktop starts without a standalone Node or Gator CLI on PATH
+- [ ] the desktop starts without a standalone Node or Hot Cross Buns CLI on PATH
 - [ ] text fields use quiet focus across search, forms and inline editors
 
 ### `desktop/tests/e2e/request-recovery.spec.ts`
@@ -201,7 +201,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   `Sessions` host owns up to four open runtimes and three active chats. Shared
   services are currently Electron-independent modules next to the Electron main
   process. Extract them without changing protocol or file formats.
-- Downloaded the pinned OpenCode snapshot into `/tmp/gator-migration/` for source
+- Downloaded the pinned OpenCode snapshot into `/tmp/hot-cross-buns-migration/` for source
   audit. Its actual frontend is Solid/OpenTUI 0.6.8; client/data, configuration,
   plugins, and execution routes require explicit adaptation/exclusion.
 
@@ -221,7 +221,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 ### OpenCode-derived shell and first runtime journey
 
 - Added `ui/UPSTREAM.md`, pristine upstream source hashes/license, adapted
-  Solid/OpenTUI dialogs, keymap, palette, session frame/rail, composer, and Gator
+  Solid/OpenTUI dialogs, keymap, palette, session frame/rail, composer, and Hot Cross Buns
   client/data contexts. Upstream execution/server/config/plugin dependencies are
   excluded. Bun 1.4.2 + OpenTUI 0.6.8 + patched Solid 1.9.15 work on this host.
 - Added Electron-independent `Application` composition and frontend contracts.
@@ -276,7 +276,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   Async actions wait for the matching request nonce and reject chat/disconnect
   changes; opening a hub does not submit agent work or acknowledge updates.
 - Added full-buffer text editing, Office paragraph/table/slide and worksheet cell
-  selection, immutable version history/comparison/restoration/export/Ask Gator,
+  selection, immutable version history/comparison/restoration/export/Ask Hot Cross Buns,
   actual terminal image/PDF display, clipboard intake, explicit voice controls,
   and terminal suspend/resume for Go-produced reviewed external steps.
 - Preserved exact approval preview JSON in the transcript. Configured desktop
@@ -359,7 +359,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 - The full workspace-backed `go test -p 2 ./...` rerun and `go vet ./...` pass.
   No Go source changes have been made. The earlier installer-progress failure
   did not reproduce in three focused repeats or this complete run.
-- Production artifact `/home/gongahkia/.cache/gator-migration/artifact-2` passed
+- Production artifact `/home/gongahkia/.cache/hot-cross-buns-migration/artifact-2` passed
   `python3 ui/scripts/verify-package.py ARTIFACT`: actual PTY, fresh cwd outside
   checkout, PATH containing only Bun, connected Go, literal Unicode/bracketed
   paste, command palette, retained draft, clean exit. It contains neither the
@@ -529,7 +529,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 - Table/workbook rendering uses at most 50 rows and 20 columns per page. Keyboard
   paging retains the per-file position; F7 switches worksheets. F3 can edit cells
   beyond the existing extent. Display truncation never truncates saved content.
-- F6 selects cells or existing Office paragraphs for Ask Gator, including read-only
+- F6 selects cells or existing Office paragraphs for Ask Hot Cross Buns, including read-only
   content. Selections resolve from the chosen immutable version; spreadsheet
   formulas use that version's formula, rather than an old displayed value.
   Text quotes carry their revision and reject a different selected version.
@@ -547,7 +547,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   its absolute path, size and modification time. Escape cancels. Replacement
   grants are single-use, expire after ten minutes and verify the same regular
   file identity/metadata before writing; a changed destination is left intact.
-  New exports retain exclusive creation. Linked files and Gator's private state/
+  New exports retain exclusive creation. Linked files and Hot Cross Buns's private state/
   user-data storage are refused to protect retained inputs and sealed outputs.
 - `node --test app-host/tests/export.test.mjs`: **2 pass**, including stale,
   replayed, wrong-path, changed-chat, linked-file and private-storage refusals.
@@ -643,7 +643,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 - Concurrent user commits `724e1bd93` and `b9c11fb35` captured the preference store,
   terminal wiring, tests and refreshed dependency lock. These commits were kept.
 - First use copies bounded LevelDB files into a private temporary directory and
-  opens only the copy with pinned `classic-level 3.0.0`. Only the three named Gator
+  opens only the copy with pinned `classic-level 3.0.0`. Only the three named Hot Cross Buns
   display preferences are decoded; deleted keys, string encodings and latest
   values are respected. Original database bytes remain untouched and temporary
   copies are removed. A failed/corrupt import writes no completed migration file.
@@ -755,7 +755,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 
 ### Model selection and first-task setup
 
-- Gator's model/effort picker now projects current Go state while open, with stable
+- Hot Cross Buns's model/effort picker now projects current Go state while open, with stable
   model identities. Disabled model/effort choices show their reason and cannot
   activate by keyboard or mouse; controls become usable after work completes.
   The upstream-derived selector keeps its original filtering by default and adds
@@ -1122,7 +1122,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   matches the generated file. Keyboard editing creates a separate immutable
   working version; both the sealed original and manifest remain byte-identical.
 - Restart retains the edited file and independent composer without another
-  provider request. F2 → Version 2 → Ask Gator stages exactly the saved bytes;
+  provider request. F2 → Version 2 → Ask Hot Cross Buns stages exactly the saved bytes;
   only explicit Enter sends them to the real provider boundary. The original file
   and manifest still match afterward. This complements the display fixture's
   origin navigation with actual output authority, persistence and intake evidence.
@@ -1143,7 +1143,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   modes. Install command: `pip install -r ui/scripts/requirements-pty.txt` in a
   private venv; verification command: that venv's `python
   ui/scripts/verify-package.py artifact-6 --editor --untrusted-file`.
-  Python dependencies are verification-only, absent from Gator's runtime needs.
+  Python dependencies are verification-only, absent from Hot Cross Buns's runtime needs.
 - Native macOS/Windows and actual audio/clipboard permissions remain unverified;
   the package result does not close those removal-gate cases.
 
@@ -1183,7 +1183,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 
 - `bun test --cwd ui --preload ./scripts/preload.ts tests/goals.test.tsx`:
   **1 pass / 24 assertions**; terminal typecheck passes. A fixture goal created
-  with Gator's retained script command opens through the terminal goal picker in
+  with Hot Cross Buns's retained script command opens through the terminal goal picker in
   its own workspace. Slash plan controls persist outcomes, steps, deadlines,
   blocked/done state, evidence and review timing through the authoritative Go
   plan store. Removal without `--yes` is rejected; explicit removal succeeds.
@@ -1310,7 +1310,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   `node ui/scripts/build-runtime.mjs`; `node ui/scripts/package.mjs <artifact-9>`;
   the private PTY venv's Python running `ui/scripts/verify-package.py <artifact-9>
   --editor --untrusted-file`; `node ui/scripts/verify-install.mjs <artifact-9>`.
-  Logs are under `/home/gongahkia/.cache/gator-migration/menu-*.log`.
+  Logs are under `/home/gongahkia/.cache/hot-cross-buns-migration/menu-*.log`.
 - No profile format or data migration changes were required for these menu fixes.
   The overall migration parity gate remains open, including deferred native
   macOS/Windows checks. Electron remains functional as the reference.
@@ -1327,13 +1327,13 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 - `make terminal-build` passes without a temporary-directory override while `/tmp`
   remains at 8.9 MiB free. A temporary fake-Go subprocess probe verifies nonzero exit
   propagation, cleanup after failure, and retention of an explicit caller directory.
-  Build log: `/home/gongahkia/.cache/gator-migration/tmp-build-fix.log`.
+  Build log: `/home/gongahkia/.cache/hot-cross-buns-migration/tmp-build-fix.log`.
 
 ## Native macOS continuation — 29 October 2026
 
 - Host: macOS 15.7.7, Intel x64, Node 24.19, Go 1.27 and pinned Bun 1.4.2.
   Bun and the pinned PTY Python environment are isolated under ignored
-  `.gator/native-tools/`; fixture profiles do not use the user's live data.
+  `.hot-cross-buns/native-tools/`; fixture profiles do not use the user's live data.
 - Terminal TypeScript check, frontend production build and runtime build pass.
   A minimal real-Go startup/render/flush/close/dispose probe passes on this host.
 - The first independent package failed: Bun installed the local host package
@@ -1348,7 +1348,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   not native Microsoft Office layout/fidelity certification.
 - Isolated installation, version/scripted commands, active-profile uninstall
   refusal, owned uninstall and retained user data pass. Logs/artifacts remain
-  under `.gator/native-tools/` in this checkout.
+  under `.hot-cross-buns/native-tools/` in this checkout.
 - The full terminal suite stalled in its first receipt case and required a
   bounded stop; this is **not a passing suite**. The combined installed PTY
   probe reached editor return and untrusted file viewing but failed its exit
@@ -1370,7 +1370,7 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
   assertions. The focused pages/restore rerun passes 83 assertions.
 - The fresh complete rerun passes **57 tests, 2 skips, 0 failures, 860
   assertions across 43 files** in 203.86 seconds. Log:
-  `.gator/native-tools/terminal-macos-full-3.log`. The Linux-only clipboard-image
+  `.hot-cross-buns/native-tools/terminal-macos-full-3.log`. The Linux-only clipboard-image
   and dictation fixtures remain skipped; native device/permission acceptance is
   not inferred. This suite used the runtime built before the subsequent DOCX/XLSX
   changes, which have their own Go regression checks. Windows, device permissions,
@@ -1381,14 +1381,14 @@ remaining release/platform matrix. A passing fixture does not verify hardware.
 The terminal now exposes `/browser` installation review, private-window lifecycle,
 site/tab/capture controls, pause/resume and one-task grants. The fresh full suite
 passes **58 tests, 3 skips, 0 failures, 867 assertions across 44 files** in 164.09
-seconds (`.gator/native-tools/terminal-browser-full.log`). The extra skip is the
+seconds (`.hot-cross-buns/native-tools/terminal-browser-full.log`). The extra skip is the
 opt-in native browser test; it ran separately with the pinned local runtime.
 
 The separate browser suite passes both journeys and 16 assertions: cancellation
 without a download/session, and real headed Chromium starting paused, reviewed
 site/resume/task access, an actual selected-tab tool result, no inherited browser
 tools on the next task, private takeover and stop. It uses a local fixture model
-and synthetic profile, not real accounts. Log: `.gator/native-tools/browser-ui.log`.
+and synthetic profile, not real accounts. Log: `.hot-cross-buns/native-tools/browser-ui.log`.
 The complete suite used the runtime built for the browser functional changes;
 the focused journey was rerun after the final wording/prompt changes.
 
@@ -1417,7 +1417,7 @@ execution remain separate open gates.
 
 ### Installation failure recovery — 29 October
 
-The installer previously copied directly into `lib/gator-terminal`, so a copy
+The installer previously copied directly into `lib/hot-cross-buns-terminal`, so a copy
 failure could leave a partial product that prevented another attempt. It now
 copies to a private sibling staging directory, checks required files, writes the
 ownership manifest, and renames the complete directory before creating the public
@@ -1499,12 +1499,12 @@ from successful activation and leaves repair available.
 To repeat the opt-in native check from a macOS login session after rebuilding:
 
 ```sh
-GATOR_NATIVE_LAUNCHAGENT_BINARY="$PWD/ui/runtime/gator-runtime" \
-  go test ./cmd/gator -run '^TestNativeLaunchAgentExecutableRelocation$' -count=1 -v
+HOT_CROSS_BUNS_NATIVE_LAUNCHAGENT_BINARY="$PWD/ui/runtime/hot-cross-buns-runtime" \
+  go test ./cmd/hot-cross-buns -run '^TestNativeLaunchAgentExecutableRelocation$' -count=1 -v
 ```
 
-The test uses a random `com.gator.test.relocation.*` label and temporary profile;
-it does not install the user's production Gator service or use real accounts.
+The test uses a random `com.hot-cross-buns.test.relocation.*` label and temporary profile;
+it does not install the user's production Hot Cross Buns service or use real accounts.
 
 ### Model setup failure and secret re-entry — 29 October
 
@@ -1568,9 +1568,9 @@ independent Open XML SDK Office2007 validation with zero errors.
 Repeat on a machine with LibreOffice Calc and the existing host dependencies:
 
 ```sh
-go run ./scripts/office-fixtures .gator/office-fixtures
-node scripts/office-validation/roundtrip.mjs .gator/office-fixtures
-python3 scripts/office-validation/recalculate.py .gator/office-fixtures .gator/office-calculated
+go run ./scripts/office-fixtures .hot-cross-buns/office-fixtures
+node scripts/office-validation/roundtrip.mjs .hot-cross-buns/office-fixtures
+python3 scripts/office-validation/recalculate.py .hot-cross-buns/office-fixtures .hot-cross-buns/office-calculated
 ```
 
 Use a fresh output directory for each calculation run. `--soffice` accepts an
@@ -1616,7 +1616,7 @@ emoji fallbacks. Text checks alone do not establish correct glyph appearance.
 After generating fixtures and running the shared-editor roundtrip above:
 
 ```sh
-python3 scripts/office-validation/render.py .gator/office-fixtures .gator/office-rendered
+python3 scripts/office-validation/render.py .hot-cross-buns/office-fixtures .hot-cross-buns/office-rendered
 ```
 
 Install LibreOffice Writer/Impress, Poppler (`pdftotext`, `pdftoppm`, `pdffonts`)
@@ -1624,7 +1624,7 @@ and the fonts listed in the Office CI job. Use a new output directory; `--soffic
 can select another executable. The local run used a disposable Ubuntu container
 on the Mac, with networking disabled while rendering, copied synthetic inputs
 and no host mounts. It was removed afterward. Final evidence is retained under
-ignored `.gator/native-tools/layout-with-emoji/`.
+ignored `.hot-cross-buns/native-tools/layout-with-emoji/`.
 
 This establishes compatibility for these synthetic layouts, using fallback fonts.
 It does not verify native Microsoft Word/PowerPoint, installed Aptos typography,
@@ -1660,8 +1660,8 @@ are not covered by this test. It uses no production profiles or accounts.
 Repeat with a Linux runtime matching the Docker engine's architecture:
 
 ```sh
-GOOS=linux GOARCH=amd64 go build -o .gator/linux-runtime ./cmd/gator
-python3 scripts/companion-boot/run.py .gator/linux-runtime .gator/companion-boot
+GOOS=linux GOARCH=amd64 go build -o .hot-cross-buns/linux-runtime ./cmd/hot-cross-buns
+python3 scripts/companion-boot/run.py .hot-cross-buns/linux-runtime .hot-cross-buns/companion-boot
 ```
 
 Use `GOARCH=arm64` for an ARM64 Docker engine and a fresh result directory for
@@ -1672,7 +1672,7 @@ failure; image/build cache remains. Only synthetic test data exists inside it,
 and exported device secrets are not copied into the report. CI retains build logs,
 journal diagnostics and the report even on failure. No remote CI was triggered.
 
-Final ignored evidence: `.gator/native-tools/companion-boot-verified/`. Native
+Final ignored evidence: `.hot-cross-buns/native-tools/companion-boot-verified/`. Native
 physical-host reboot, kernel restart, permanent remote deployment, HTTPS/tunnel
 availability and physical iOS/Android use are still unverified. The existing
 listener-crash and offline-supervisor tests remain separate coverage.
@@ -1689,7 +1689,7 @@ failed reads, disconnection or tab hiding until a successful response arrives.
 
 Validation completed on this Mac:
 
-- `GATOR_TEST_BINARY="$PWD/ui/runtime/gator-runtime" node --test companion/health.test.mjs`:
+- `HOT_CROSS_BUNS_TEST_BINARY="$PWD/ui/runtime/hot-cross-buns-runtime" node --test companion/health.test.mjs`:
   **1 pass**. Real Go/CLI/storage checks conversation ownership, offline and limit
   evidence, observed gaps, corrupt availability storage, recovery to paused state
   and listener restart. No model requests or new attempts occur. The fixture waits
@@ -1731,7 +1731,7 @@ timing details and no new animation. **Verdict: Approve within this reviewed
 scope**; physical-phone touch/permissions and screen-reader acceptance remain
 unverified. Full native terminal parity and remote deployment remain open.
 
-Ignored evidence: `.gator/native-tools/companion-health-real.log`,
+Ignored evidence: `.hot-cross-buns/native-tools/companion-health-real.log`,
 `companion-health-browser-all.log` and `companion-check-*-health-*.png` under the
 same directory. Synthetic profiles and model fixtures were removed after testing.
 
@@ -1755,7 +1755,7 @@ Native Mac x64 evidence: **pass** using retained `artifact-macos-4` and a freshl
 built/package-verified `artifact-macos-upgrade`. Their runtime SHA-256 digests
 differ; the new runtime identifies commit `48e1af9ae`, while the earlier runtime
 has the existing unknown development revision label. Both hashes are retained
-in `.gator/native-tools/upgrade-continuity-report.json`. A second run using the
+in `.hot-cross-buns/native-tools/upgrade-continuity-report.json`. A second run using the
 new artifact twice also passes, matching the same-build relocation variant
 added to the four-platform terminal workflow. No remote CI was triggered.
 
@@ -1764,7 +1764,7 @@ Bun-only child PATH, real Go, preference import, rendered PDF pages, native Offi
 save/export/handoff and unchanged originals. JavaScript syntax, workflow YAML
 and diff checks pass. Disposable prefixes, profiles and model fixtures were
 removed. Build/package and continuity logs remain under ignored
-`.gator/native-tools/upgrade-*`.
+`.hot-cross-buns/native-tools/upgrade-*`.
 
 This verifies bundled-host/data continuity for these artifacts. It is not proof
 of a schema-changing release migration, signed OS installer, automatic updater,
@@ -1797,7 +1797,7 @@ successful initial read), initial unknown values display as checking, and only
 one readiness read may be in flight. The terminal test awaits readiness before
 reading or toggling those values. Native Windows acceptance remains pending.
 
-Run [40914908922](https://github.com/gongahkia/gator/actions/runs/40914908922)
+Run [40914908922](https://github.com/gongahkia/hot-cross-buns/actions/runs/40914908922)
 at `9d53b8183` passes all four runners: Windows, Linux, Intel macOS and ARM macOS.
 This includes host/terminal integration, production packaging, installed lifecycle
 and upgrade/rollback/uninstall checks. Unix runners also pass PTY/editor handoff.
@@ -1814,7 +1814,7 @@ switch/rollback checks, not proof of a future schema-changing release migration.
 
 ### Memory and lifecycle native acceptance — 30 October
 
-Run [40980460758](https://github.com/gongahkia/gator/actions/runs/40980460758)
+Run [40980460758](https://github.com/gongahkia/hot-cross-buns/actions/runs/40980460758)
 at `70a596794` passes the complete workflow on Windows, Linux, Intel macOS and
 ARM macOS. It adds native Go memory/learning/personalization/retrieval suites,
 focused backup, retention and forget/restore tests, and memory/recall/idle

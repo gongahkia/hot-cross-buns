@@ -8,7 +8,7 @@ import Metal
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let source = try await Entity(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2]))
         let native = try await NativeMeshArchive.read(URL(fileURLWithPath: CommandLine.arguments[3])).entity()
-        guard let original = source.findEntity(named: "Gator_B"), let device = MTLCreateSystemDefaultDevice() else { throw NSError(domain: "MissingResource", code: 1) }
+        guard let original = source.findEntity(named: "HotCrossBuns_B"), let device = MTLCreateSystemDefaultDevice() else { throw NSError(domain: "MissingResource", code: 1) }
         func replace(_ destination: Entity, _ original: Entity, meshes: Bool, materials: Bool) throws {
             guard destination.name == original.name, destination.children.count == original.children.count else { throw NSError(domain: "GraphMismatch", code: 1) }
             if var current = destination.components[ModelComponent.self], let authored = original.components[ModelComponent.self] {

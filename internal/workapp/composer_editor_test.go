@@ -28,7 +28,7 @@ func TestComposerEditorPreference(t *testing.T) {
 }
 
 func TestComposerEditorCommandPassesTheDraftPathAsOneArgument(t *testing.T) {
-	file, err := os.CreateTemp("", "gator composer editor test-*.md")
+	file, err := os.CreateTemp("", "hot-cross-buns composer editor test-*.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestComposerEditorCommandPassesTheDraftPathAsOneArgument(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	command := composerEditorCommand(`sh -c 'printf %s edited > "$1"' gator-editor-test`, path)
+	command := composerEditorCommand(`sh -c 'printf %s edited > "$1"' hot-cross-buns-editor-test`, path)
 	if err := command.Run(); err != nil {
 		t.Fatalf("run editor command: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestBridgeEditorHandoffRestoresDraft(t *testing.T) {
 
 func TestComposerEditorKeepsSavedTextWhenEditorExitsWithError(t *testing.T) {
 	model := New(Config{CurrentFolder: "/work"})
-	file, err := os.CreateTemp("", "gator-composer-test-*.md")
+	file, err := os.CreateTemp("", "hot-cross-buns-composer-test-*.md")
 	if err != nil {
 		t.Fatal(err)
 	}

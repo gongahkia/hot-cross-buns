@@ -1,4 +1,4 @@
-// Package lifecycle owns reviewed maintenance of Gator's private content. It
+// Package lifecycle owns reviewed maintenance of Hot Cross Buns's private content. It
 // never follows a source path out of the selected private state directory.
 package lifecycle
 
@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
 )
 
 // Historical excerpts are intentionally included in history, independently
@@ -78,10 +78,10 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(abs, "gator")
+	root := filepath.Join(abs, "hot-cross-buns")
 	if info, err := os.Lstat(root); err == nil {
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return Store{}, errors.New("private Gator root must be a regular directory")
+			return Store{}, errors.New("private Hot Cross Buns root must be a regular directory")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Store{}, err
@@ -341,7 +341,7 @@ func (s Store) PreviewDelete(ctx context.Context, scope string) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	p := Plan{Complete: true, Scope: scope, CreatedAt: time.Now().UTC(), Items: items, Notes: []string{"Only private Gator content is selected. Original project files, provider data, external exports, credentials, settings, and shared usage counters are not deleted.", "Filesystem deletion is not guaranteed secure erasure on SSDs or backups."}}
+	p := Plan{Complete: true, Scope: scope, CreatedAt: time.Now().UTC(), Items: items, Notes: []string{"Only private Hot Cross Buns content is selected. Original project files, provider data, external exports, credentials, settings, and shared usage counters are not deleted.", "Filesystem deletion is not guaranteed secure erasure on SSDs or backups."}}
 	if scope == "knowledge" {
 		p.Notes = append(p.Notes, "Prior transcripts, Work outputs, suggestions and retained excerpts can still contain this knowledge. Choose all private content to remove those local copies too.")
 	}

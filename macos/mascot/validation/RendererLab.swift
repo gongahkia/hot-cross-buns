@@ -30,7 +30,7 @@ import Darwin
             return CommandLine.arguments[index + 1]
         }
         mode = argument("--mode", fallback: "interactive")
-        output = URL(fileURLWithPath: argument("--output", fallback: "/tmp/gator-mascot-a2-interactive"), isDirectory: true)
+        output = URL(fileURLWithPath: argument("--output", fallback: "/tmp/hot-cross-buns-mascot-a2-interactive"), isDirectory: true)
         assets = Bundle.main.resourceURL!.appendingPathComponent("Assets", isDirectory: true)
         let readyPath = argument("--record-ready", fallback: "")
         recordReady = readyPath.isEmpty ? nil : URL(fileURLWithPath: readyPath)
@@ -45,7 +45,7 @@ import Darwin
         do { try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true) }
         catch { fputs("Cannot create validation output: \(error)\n", stderr); NSApp.terminate(nil); return }
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 470), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "Gator B — RealityKit validation only"
+        window.title = "Hot Cross Buns B — RealityKit validation only"
         window.identifier = NSUserInterfaceItemIdentifier("mascot-validation")
         window.isReleasedWhenClosed = false; window.delegate = self
         let stack = NSStackView(); stack.orientation = .vertical; stack.spacing = 10
@@ -63,7 +63,7 @@ import Darwin
         stack.addArrangedSubview(buttons)
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true
         let text = NSTextView(frame: NSRect(x: 0, y: 0, width: 610, height: 1000))
-        text.string = "ISOLATED RENDERER FIXTURE — not Gator chat\nNo backend, credentials or task authority.\n\n" + (1...70).map { "Fixture paragraph \($0): native scrolling and text selection remain available." }.joined(separator: "\n\n")
+        text.string = "ISOLATED RENDERER FIXTURE — not Hot Cross Buns chat\nNo backend, credentials or task authority.\n\n" + (1...70).map { "Fixture paragraph \($0): native scrolling and text selection remain available." }.joined(separator: "\n\n")
         text.isEditable = true; text.isVerticallyResizable = true
         scroll.documentView = text; stack.addArrangedSubview(scroll)
         stack.addArrangedSubview(NSTextField(labelWithString: "No model requests. Genuine named 3D parts; draw-on-demand Metal surface."))
@@ -118,7 +118,7 @@ import Darwin
                 }
             }
             defer { monitor.cancel() }
-            let renderer = try await RealtimeRenderer(asset: assets.appendingPathComponent("Gator-B.usdz"), points: points)
+            let renderer = try await RealtimeRenderer(asset: assets.appendingPathComponent("HotCrossBuns-B.usdz"), points: points)
             renderer.view.widthAnchor.constraint(equalToConstant: points).isActive = true
             renderer.view.heightAnchor.constraint(equalToConstant: points).isActive = true
             slot.addArrangedSubview(renderer.view); renderers.append(renderer); modelLoads += 1

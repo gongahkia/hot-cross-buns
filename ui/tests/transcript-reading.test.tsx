@@ -5,13 +5,13 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
-import { readingItems, unreadStart } from "../src/gator/transcript-reading"
-import { chatTimeline } from "../src/gator/timeline"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
+import { readingItems, unreadStart } from "../src/hot-cross-buns/transcript-reading"
+import { chatTimeline } from "../src/hot-cross-buns/timeline"
 import { FixtureHost, state } from "./fixture"
 
 test("reading identities follow original items across inserted history and delivery receipts are not new content", () => {
-  const messages = [{ role: "Gator", text: "Retained answer", created_at: "2026-11-12T01:00:00Z" }]
+  const messages = [{ role: "Hot Cross Buns", text: "Retained answer", created_at: "2026-11-12T01:00:00Z" }]
   const before = readingItems(chatTimeline(messages, [])), tail = before.at(-1)!
   const inserted = readingItems(chatTimeline([{ role: "You", text: "Earlier", created_at: "2026-11-12T00:00:00Z" }, ...messages], []))
   expect(inserted.at(-1)?.key).toBe(tail.key)
@@ -29,11 +29,11 @@ test("reading identities follow original items across inserted history and deliv
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
   test(`reading anchor → new content → restart → catch up → configured latest at ${width}×${height}`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "gator-reading-journey-"))
-    const options = { binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-reading-journey-"))
+    const options = { binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }
     let host = new FixtureHost(options)
-    host.current = { ...state(), desktop: { shortcuts: { jump_latest: "Ctrl+Shift+L" } }, messages: Array.from({ length: 80 }, (_, index) => ({ role: "Gator", text: `Retained answer ${index}\n` + Array.from({ length: 8 }, (_, line) => `Line ${line}: a stable readable explanation.`).join("\n"), created_at: new Date(1700000000000 + index * 60000).toISOString() })) }
-    let client = new GatorClient(host)
+    host.current = { ...state(), desktop: { shortcuts: { jump_latest: "Ctrl+Shift+L" } }, messages: Array.from({ length: 80 }, (_, index) => ({ role: "Hot Cross Buns", text: `Retained answer ${index}\n` + Array.from({ length: 8 }, (_, line) => `Line ${line}: a stable readable explanation.`).join("\n"), created_at: new Date(1700000000000 + index * 60000).toISOString() })) }
+    let client = new HotCrossBunsClient(host)
     const mount = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height, kittyKeyboard: true })
     let setup = await mount()
     const flush = async () => { await setup.flush(); await Bun.sleep(35); await setup.flush() }
@@ -48,7 +48,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       expect(saved.following).toBe(false); expect(saved.index).toBeLessThan(79)
       expect(setup.captureCharFrame()).toContain("Ctrl+Shift+L latest")
       const text = "First unseen answer\n" + Array.from({ length: 12 }, (_, n) => `New detail ${n}`).join("\n")
-      host.change({ ...host.current, messages: [...host.current.messages.map((message, index) => index ? message : { ...message, text: message.text + "\nInserted detail above the current reader.\nMore detail." }), { role: "Gator", text, created_at: "2026-11-12T00:00:00Z" }, { role: "Gator", text: "Newest answer kept intact", created_at: "2026-11-12T00:01:00Z" }] })
+      host.change({ ...host.current, messages: [...host.current.messages.map((message, index) => index ? message : { ...message, text: message.text + "\nInserted detail above the current reader.\nMore detail." }), { role: "Hot Cross Buns", text, created_at: "2026-11-12T00:00:00Z" }, { role: "Hot Cross Buns", text: "Newest answer kept intact", created_at: "2026-11-12T00:01:00Z" }] })
       await settle()
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       expect(client.readingAnchors.get("conversation:first")?.offset).toBe(saved.offset)
@@ -64,7 +64,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       setup.resize(width, height); await settle()
       saved = client.readingAnchors.get("conversation:first")!
       const original = structuredClone(host.current)
-      host.change({ ...state("second"), messages: [{ role: "Gator", text: "Different owner and history", created_at: "2026-11-12T01:00:00Z" }] }); await settle()
+      host.change({ ...state("second"), messages: [{ role: "Hot Cross Buns", text: "Different owner and history", created_at: "2026-11-12T01:00:00Z" }] }); await settle()
       host.change(original); await settle()
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       expect(client.readingAnchors.get("conversation:first")?.offset).toBe(saved.offset)
@@ -75,7 +75,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       const retainedState = structuredClone(host.current)
       await client.close(); await setup.dispose()
-      host = new FixtureHost(options); host.current = retainedState; client = new GatorClient(host); setup = await mount()
+      host = new FixtureHost(options); host.current = retainedState; client = new HotCrossBunsClient(host); setup = await mount()
       await client.start(); await settle()
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       expect(client.readingAnchors.get("conversation:first")?.offset).toBe(saved.offset)

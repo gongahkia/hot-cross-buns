@@ -3,8 +3,8 @@ Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--58304C5D6DBC2206.txt
 error: emit-module command failed with exit code 1 (use -v to see invocation)
-[3/11] Emitting module GatorMac
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeDesktopPet.swift:9:8: error: type 'NativeDesktopPetScreen' does not conform to protocol 'Equatable'
+[3/11] Emitting module HotCrossBunsMac
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeDesktopPet.swift:9:8: error: type 'NativeDesktopPetScreen' does not conform to protocol 'Equatable'
   7 | }
   8 | 
   9 | struct NativeDesktopPetScreen: Equatable {
@@ -89,18 +89,18 @@ Swift.Equatable.==:2:13: note: protocol requires function '==' with type '(Nativ
   |             `- note: protocol requires function '==' with type '(NativeDesktopPetScreen, NativeDesktopPetScreen) -> Bool'
 3 | 
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeDesktopPet.swift:65:95: error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeDesktopPet.swift:65:95: error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
  63 | 
  64 |     init(defaults: UserDefaults = .standard, readSignal: @escaping () -> NativeMascotSignal?,
  65 |          isClosing: @escaping () -> Bool, screens: @escaping () -> [NativeDesktopPetScreen] = NativeDesktopPetScreen.current,
     |                                                                                               `- error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
  66 |          makeSurface: @escaping () -> any NativeDesktopPetSurface = { NativeDesktopPetPanel() }) {
  67 |         self.defaults = defaults; self.readSignal = readSignal; self.isClosing = isClosing
-[4/11] Compiling GatorMac ConversationView.swift
-[5/11] Compiling GatorMac NativeMascotPreferences.swift
-[6/11] Compiling GatorMac AppDelegate.swift
-[7/11] Compiling GatorMac NativeDesktopPet.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeDesktopPet.swift:9:8: error: type 'NativeDesktopPetScreen' does not conform to protocol 'Equatable'
+[4/11] Compiling HotCrossBunsMac ConversationView.swift
+[5/11] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[6/11] Compiling HotCrossBunsMac AppDelegate.swift
+[7/11] Compiling HotCrossBunsMac NativeDesktopPet.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeDesktopPet.swift:9:8: error: type 'NativeDesktopPetScreen' does not conform to protocol 'Equatable'
   7 | }
   8 | 
   9 | struct NativeDesktopPetScreen: Equatable {
@@ -185,19 +185,19 @@ Swift.Equatable.==:2:13: note: protocol requires function '==' with type '(Nativ
   |             `- note: protocol requires function '==' with type '(NativeDesktopPetScreen, NativeDesktopPetScreen) -> Bool'
 3 | 
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeDesktopPet.swift:65:95: error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeDesktopPet.swift:65:95: error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
  63 | 
  64 |     init(defaults: UserDefaults = .standard, readSignal: @escaping () -> NativeMascotSignal?,
  65 |          isClosing: @escaping () -> Bool, screens: @escaping () -> [NativeDesktopPetScreen] = NativeDesktopPetScreen.current,
     |                                                                                               `- error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
  66 |          makeSurface: @escaping () -> any NativeDesktopPetSurface = { NativeDesktopPetPanel() }) {
  67 |         self.defaults = defaults; self.readSignal = readSignal; self.isClosing = isClosing
-[8/11] Compiling GatorMac GatorApp.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeDesktopPet.swift:65:95: error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
+[8/11] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeDesktopPet.swift:65:95: error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
  63 | 
  64 |     init(defaults: UserDefaults = .standard, readSignal: @escaping () -> NativeMascotSignal?,
  65 |          isClosing: @escaping () -> Bool, screens: @escaping () -> [NativeDesktopPetScreen] = NativeDesktopPetScreen.current,
     |                                                                                               `- error: converting function value of type '@MainActor @Sendable () -> [NativeDesktopPetScreen]' to '() -> [NativeDesktopPetScreen]' loses global actor 'MainActor'
  66 |          makeSurface: @escaping () -> any NativeDesktopPetSurface = { NativeDesktopPetPanel() }) {
  67 |         self.defaults = defaults; self.readSignal = readSignal; self.isClosing = isClosing
-[9/12] Compiling GatorMac NotchQuickAccess.swift
+[9/12] Compiling HotCrossBunsMac NotchQuickAccess.swift

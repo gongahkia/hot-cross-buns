@@ -1,9 +1,9 @@
 """Sequential fixture-only actions; no global keyboard events or paid endpoint."""
 import json,pathlib,subprocess,time,re
-m=json.loads(pathlib.Path('/tmp/gator-presence-session.json').read_text());pid=str(m['pid']);root=pathlib.Path(m['root']); evidence=pathlib.Path('macos/presence/evidence/p04e-1'); trace=[]
-assert root.name.startswith('gator-native-test-presence-')
+m=json.loads(pathlib.Path('/tmp/hot-cross-buns-presence-session.json').read_text());pid=str(m['pid']);root=pathlib.Path(m['root']); evidence=pathlib.Path('macos/presence/evidence/p04e-1'); trace=[]
+assert root.name.startswith('hot-cross-buns-native-test-presence-')
 def run(*args):
- r=subprocess.run(['/tmp/gator-presence-control',pid,*args],capture_output=True,text=True,timeout=12);trace.append({'args':args,'exit':r.returncode,'output':r.stdout});
+ r=subprocess.run(['/tmp/hot-cross-buns-presence-control',pid,*args],capture_output=True,text=True,timeout=12);trace.append({'args':args,'exit':r.returncode,'output':r.stdout});
  if r.returncode:raise RuntimeError('owned fixture action failed: '+str(args))
  return r.stdout
 def states():
@@ -25,16 +25,16 @@ def capture(name):
  subprocess.run(['python3','/Users/gongahkia/.codex/skills/screenshot/scripts/take_screenshot.py','--window-id',ids[0],'--path',str(evidence/name)],check=True,capture_output=True)
 record=None
 try:
- run('activate');run('press','menu','AXMenuBarItem::Window');run('press','menu','AXMenuItem::Gator');run('wait-window','conversation')
- log=(evidence/'controlled-recording-final.log').open('w');record=subprocess.Popen(['/tmp/gator-presence-record',pid,str((evidence/'controlled-live-reaction-final.mp4').resolve()),'22'],stdout=log,stderr=subprocess.STDOUT)
+ run('activate');run('press','menu','AXMenuBarItem::Window');run('press','menu','AXMenuItem::Hot Cross Buns');run('wait-window','conversation')
+ log=(evidence/'controlled-recording-final.log').open('w');record=subprocess.Popen(['/tmp/hot-cross-buns-presence-record',pid,str((evidence/'controlled-live-reaction-final.mp4').resolve()),'22'],stdout=log,stderr=subprocess.STDOUT)
  wait(lambda: (evidence/'controlled-recording-final.log').read_text().find('recording started')>=0,8)
- run('focus','conversation');run('set-value','conversation','gator.composer.text','Controlled local presence observation');run('press','conversation','Send message')
+ run('focus','conversation');run('set-value','conversation','hot-cross-buns.composer.text','Controlled local presence observation');run('press','conversation','Send message')
  running=wait(lambda:next((s for s in states() if s.get('running')),None),6);capture('controlled-working.png')
  complete=wait(lambda:next((s for s in states() if not s.get('running') and any((x.get('activity') or {}).get('state')=='completed' for x in s.get('messages',[]))),None),16);capture('controlled-completed.png')
  trace.append({'GoRunning':running.get('conversation_id'),'GoCompleted':complete.get('conversation_id')})
  record.wait(timeout=28)
  if record.returncode:raise RuntimeError('recording not confirmed')
- run('focus','conversation');run('set-value','conversation','gator.composer.text','Review mascot');run('press','conversation','Send message')
+ run('focus','conversation');run('set-value','conversation','hot-cross-buns.composer.text','Review mascot');run('press','conversation','Send message')
  pending=wait(lambda:next((s for s in states() if s.get('pending_approval')),None),12)
  run('press','conversation','An action needs your review');capture('pending-review.png');trace.append({'pendingReview':True,'decisionRequestedByHarness':False})
 except Exception as error:trace.append({'unverified':str(error)})

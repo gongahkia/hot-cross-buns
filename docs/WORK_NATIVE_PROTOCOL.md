@@ -1,6 +1,6 @@
 # Work-native protocol v1
 
-`gator work-rpc` accepts newline-delimited JSON on stdin and emits versioned JSON
+`hot-cross-buns work-rpc` accepts newline-delimited JSON on stdin and emits versioned JSON
 on stdout. This is the canonical machine-facing Work application surface.
 
 The first frame is `{"version":1,"type":"start","request":{...}}`. Request fields:

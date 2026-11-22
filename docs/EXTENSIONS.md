@@ -1,49 +1,49 @@
 # Extensions
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
-Gator extensions add reusable prompt guidance, skills, and optional executable
-tools to native Gator runs. There is one lifecycle:
+Hot Cross Buns extensions add reusable prompt guidance, skills, and optional executable
+tools to native Hot Cross Buns runs. There is one lifecycle:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator extension install /path/to/extension
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator extension install https://github.com/example/review-helper.git
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator extension list
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator extension disable extension-id
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator extension enable extension-id
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator extension remove extension-id --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns extension install /path/to/extension
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns extension install https://github.com/example/review-helper.git
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns extension list
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns extension disable extension-id
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns extension enable extension-id
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns extension remove extension-id --yes
 ```
 
-Installed bundles live below `$XDG_DATA_HOME/gator/extensions/` (or
-`~/.local/share/gator/extensions/`). The non-secret enabled state is in the
-single Gator configuration file, `$XDG_CONFIG_HOME/gator/config.json`. An
+Installed bundles live below `$XDG_DATA_HOME/hot-cross-buns/extensions/` (or
+`~/.local/share/hot-cross-buns/extensions/`). The non-secret enabled state is in the
+single Hot Cross Buns configuration file, `$XDG_CONFIG_HOME/hot-cross-buns/config.json`. An
 installation is enabled immediately; replacement requires `--replace`, and
 removal requires `--yes`.
 
 `install` accepts a local directory or an explicit `https`, `ssh`, or `git@`
 repository URL. Git sources are cloned shallowly only for that explicit
 installation; re-run the same command with `--replace` to update an installed
-package. Gator never refreshes executable extension code in the background.
+package. Hot Cross Buns never refreshes executable extension code in the background.
 
 ## Project extensions and trust
 
 A repository can keep extensions at:
 
 ```text
-.gator/extensions/<extension-id>/gator-extension.json
+.hot-cross-buns/extensions/<extension-id>/hot-cross-buns-extension.json
 ```
 
-They do nothing until the developer runs `gator extension trust` from that Git
+They do nothing until the developer runs `hot-cross-buns extension trust` from that Git
 checkout. Trust records the canonical repository path and a SHA-256 hash of the
 entire extension bundle: any manifest, prompt, executable, helper, or file-mode
 change disables the project bundle until it is reviewed and trusted again. Use
-`gator extension status` to inspect that state and `gator extension untrust` to
+`hot-cross-buns extension status` to inspect that state and `hot-cross-buns extension untrust` to
 revoke it. This is deliberate: cloning or opening a repository must not make
-its files executable merely because Gator starts a task there.
+its files executable merely because Hot Cross Buns starts a task there.
 
 ## Manifest
 
-Every bundle has a `gator-extension.json` file:
+Every bundle has a `hot-cross-buns-extension.json` file:
 
 ```json
 {
@@ -88,7 +88,7 @@ Every bundle has a `gator-extension.json` file:
 IDs use lower-case letters, digits, and hyphens. Resource and command paths
 are exact relative paths—no globs, absolute paths, symlinks, implicit startup
 hooks, or shell command strings are accepted. Skill and prompt files must be
-`.md` or `.txt` files. Gator places their contents in the native model’s system
+`.md` or `.txt` files. Hot Cross Buns places their contents in the native model’s system
 guidance with the extension ID shown.
 
 Extension tools are available only in Execute mode and appear to the model as
@@ -96,14 +96,14 @@ Extension tools are available only in Execute mode and appear to the model as
 passed through to the direct model adapter.
 
 Legacy extension-command prompt metadata is still parsed for installed-bundle
-compatibility, but the main Gator TUI does not add extension-specific commands
+compatibility, but the main Hot Cross Buns TUI does not add extension-specific commands
 to its composer. A future Work-native prompt template must enter through the
-same visible main-Gator send boundary; it must not revive a Code-only palette.
+same visible main-Hot Cross Buns send boundary; it must not revive a Code-only palette.
 
 ## Retired Code UI metadata
 
 The extension schema may contain up to sixteen static `ui` cards for backward
-compatibility with the retired Code frontend. The main Gator TUI deliberately
+compatibility with the retired Code frontend. The main Hot Cross Buns TUI deliberately
 does not render those cards or expose the old `/extensions` and review-panel
 entry points. Installed bundles therefore cannot add user-facing UI today.
 
@@ -116,7 +116,7 @@ Code, and the sandboxed, approval-gated sidecar boundary.
 ## Sidecar tool protocol
 
 An executable tool receives one JSON object on standard input and emits exactly
-one JSON object on standard output. Gator invokes the command with argv, never
+one JSON object on standard output. Hot Cross Buns invokes the command with argv, never
 a shell, from the isolated worktree. A representative request is:
 
 ```json
@@ -152,6 +152,6 @@ require an explicit local install; project extensions require explicit
 hash-pinned trust. Neither bypasses the native run's process sandbox or the
 per-tool developer approval boundary. Extension sidecars can write only where
 the run sandbox already permits writes; any resulting worktree change remains
-subject to Gator's final diff, verifier, and explicit patch handoff review.
-Gator rejects symlinks and non-regular files in every extension bundle, and
+subject to Hot Cross Buns's final diff, verifier, and explicit patch handoff review.
+Hot Cross Buns rejects symlinks and non-regular files in every extension bundle, and
 rehashes a bundle before reading its guidance or launching its sidecar.

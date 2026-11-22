@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 type SourceMap struct {
@@ -219,7 +219,7 @@ func (s Store) Restore(ctx context.Context, id string) (RestoreReceipt, error) {
 		return receipt, err
 	}
 	receipt = RestoreReceipt{Plan: p, RestoredAt: time.Now().UTC()}
-	control := filepath.Join(profile, "gator", "data-control")
+	control := filepath.Join(profile, "hot-cross-buns", "data-control")
 	if err = os.MkdirAll(control, 0700); err != nil {
 		return RestoreReceipt{}, err
 	}
@@ -227,7 +227,7 @@ func (s Store) Restore(ctx context.Context, id string) (RestoreReceipt, error) {
 		return RestoreReceipt{}, err
 	}
 	// A migrated profile never inherits runnable background behavior or retention.
-	usage := filepath.Join(profile, "gator", "usage")
+	usage := filepath.Join(profile, "hot-cross-buns", "usage")
 	if err = os.MkdirAll(usage, 0700); err != nil {
 		return RestoreReceipt{}, err
 	}
@@ -252,7 +252,7 @@ func (s Store) Restore(ctx context.Context, id string) (RestoreReceipt, error) {
 }
 
 func stageBackup(ctx context.Context, archive, parent string) (stage string, manifest BackupManifest, digest string, err error) {
-	stage, err = os.MkdirTemp(parent, ".gator-restore-")
+	stage, err = os.MkdirTemp(parent, ".hot-cross-buns-restore-")
 	if err != nil {
 		return
 	}
@@ -294,7 +294,7 @@ func stageBackup(ctx context.Context, archive, parent string) (stage string, man
 		return
 	}
 	defer root.Close()
-	if err = root.MkdirAll("gator", 0700); err != nil {
+	if err = root.MkdirAll("hot-cross-buns", 0700); err != nil {
 		return
 	}
 	manifest, err = readBackup(ctx, copyPath, func(header *tar.Header, reader io.Reader) error {

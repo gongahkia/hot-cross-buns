@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
 )
 
 func TestTerminalPreferencesBindChangesToCurrentReviewAndPreserveLiveTaskState(t *testing.T) {

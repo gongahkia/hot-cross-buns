@@ -2,22 +2,22 @@ import {test,expect} from "bun:test"
 import {mkdtemp,mkdir,readFile,writeFile,rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join,resolve} from "node:path"
-import {Application} from "@gator/application-host/application"
-import {GatorClient} from "../src/gator/client"
+import {Application} from "@hot-cross-buns/application-host/application"
+import {HotCrossBunsClient} from "../src/hot-cross-buns/client"
 async function until(check:()=>boolean,label:string){const end=Date.now()+15000;while(!check()){if(Date.now()>end)throw Error("Timed out: "+label);await Bun.sleep(20)}}
 for(const direct of [false,true])for(const delegated of [false,true])test(`${direct?"direct":"planned"} ${delegated?"delegated":"local"} ordinary correction retains evidence and spends only remaining budget after fresh review`,async()=>{
- const root=await mkdtemp(join(tmpdir(),"gator-running-plan-"));let release!:()=>void;const held=new Promise<void>(r=>{release=r});let executions=0,parentExecutions=0;const proposals:any[]=[],workBodies:string[]=[]
+ const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-running-plan-"));let release!:()=>void;const held=new Promise<void>(r=>{release=r});let executions=0,parentExecutions=0;const proposals:any[]=[],workBodies:string[]=[]
  const plan={outcome:"Compare venues",steps:[{id:"compare",text:"Compare venues"}],sources:[],effects:["read"]}
  const server=Bun.serve({hostname:"127.0.0.1",port:0,async fetch(request){
   const body=await request.json() as any,system=body.messages.find((m:any)=>m.role==="system")?.content??"";let content:string
-  if(system.includes("You handle the conversation with Gator")){const meta=JSON.parse(body.messages.at(-1).content);content=JSON.stringify(meta.message==="Compare venues"?{kind:"task"}:meta.message==="Hello during reviewed work"?{kind:"reply",text:"The original owners are still working."}:{kind:"revise_plan",target:meta.tasks.find((t:any)=>t.title.includes("Compare venues")&&(t.can_revise_plan||meta.has_new_files&&t.can_review_inputs)).id,instruction:meta.message})}
+  if(system.includes("You handle the conversation with Hot Cross Buns")){const meta=JSON.parse(body.messages.at(-1).content);content=JSON.stringify(meta.message==="Compare venues"?{kind:"task"}:meta.message==="Hello during reviewed work"?{kind:"reply",text:"The original owners are still working."}:{kind:"revise_plan",target:meta.tasks.find((t:any)=>t.title.includes("Compare venues")&&(t.can_revise_plan||meta.has_new_files&&t.can_review_inputs)).id,instruction:meta.message})}
   else if(system.includes("Propose a plan")){const meta=JSON.parse(body.messages.at(-1).content);proposals.push(meta);content=JSON.stringify({...plan,outcome:meta.correction?"Venues under $2,000":plan.outcome})}
   else if(body.messages.some((m:any)=>m.role==="user"&&m.content==="Research an unrelated topic")){parentExecutions++;await held;content="Unrelated original work completed."}
   else{executions++;workBodies.push(JSON.stringify(body));if(executions===1)await held;content="Reviewed venue comparison completed."}
   return Response.json({choices:[{message:{role:"assistant",content},finish_reason:"stop"}],usage:{prompt_tokens:10,completion_tokens:10}})
  }})
- await mkdir(join(root,"config/gator"),{recursive:true});await writeFile(join(root,"config/gator/config.json"),JSON.stringify({version:4,defaults:{provider:"fixture",model:"fixture"},custom_providers:[{id:"fixture",base_url:`http://127.0.0.1:${server.port}/chat`,models:["fixture"],default_model:"fixture"}]}))
- const options={binary:process.env.GATOR_TEST_BINARY||resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"gator-runtime.exe":"gator-runtime")),env:{...process.env,GATOR_STATE_DIR:join(root,"state"),GATOR_CONFIG_DIR:join(root,"config")},userData:join(root,"app"),workspace:join(root,"workspace")};let client=new GatorClient(new Application(options))
+ await mkdir(join(root,"config/hot-cross-buns"),{recursive:true});await writeFile(join(root,"config/hot-cross-buns/config.json"),JSON.stringify({version:4,defaults:{provider:"fixture",model:"fixture"},custom_providers:[{id:"fixture",base_url:`http://127.0.0.1:${server.port}/chat`,models:["fixture"],default_model:"fixture"}]}))
+ const options={binary:process.env.HOT_CROSS_BUNS_TEST_BINARY||resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"hot-cross-buns-runtime.exe":"hot-cross-buns-runtime")),env:{...process.env,HOT_CROSS_BUNS_STATE_DIR:join(root,"state"),HOT_CROSS_BUNS_CONFIG_DIR:join(root,"config")},userData:join(root,"app"),workspace:join(root,"workspace")};let client=new HotCrossBunsClient(new Application(options))
  try{
   await client.start();await client.send({type:"submit",text:"/mode inspect"})
   const parent=client.state!.conversation_id!
@@ -28,7 +28,7 @@ for(const direct of [false,true])for(const delegated of [false,true])test(`${dir
   if(direct)await until(()=>executions===1,"direct original execution")
   else await until(()=>client.state?.task_plans?.[0]?.phase==="review","initial review")
   const owner=client.state!.conversation_id!
-  const firstRequest=JSON.parse(await readFile(join(root,"state/gator/conversations",owner,"requests.json"),"utf8")).requests[0]
+  const firstRequest=JSON.parse(await readFile(join(root,"state/hot-cross-buns/conversations",owner,"requests.json"),"utf8")).requests[0]
   const original=direct?{id:firstRequest.id,revision:0,digest:""}:client.state!.task_plans![0]!
   const approve=async(value:typeof original,id:string)=>client.send({type:"task_plan",task_plan:{conversation_id:owner,task_id:value.id,revision:value.revision,digest:value.digest,action:"approve",request_id:id}})
   if(!direct)await approve(original,"initial-plan-approval");await until(()=>executions===1&&!!client.state?.running,"original execution held")
@@ -38,7 +38,7 @@ for(const direct of [false,true])for(const delegated of [false,true])test(`${dir
   if(delegated){await until(()=>client.state?.dialogue?.at(-1)?.state==="guided","delegated correction result");expect(client.state?.conversation_id).toBe(parent);if(!client.state?.running)throw Error("Original parent execution ended: "+JSON.stringify(client.state?.messages.slice(-4)));expect(client.state?.running).toBe(true);await client.edit("Hello during reviewed work");await client.submit();await until(()=>client.state?.dialogue?.at(-1)?.state==="answered","unrelated conversation");await client.edit("Preserve requesting chat draft");await client.host.sessions.open({conversation_id:owner});await client.loadDraft()}
   await until(()=>client.state?.task_plans?.[0]?.phase==="review"&&!client.state?.running&&proposals.length===(direct?1:2),"corrected plan after accounting")
   if(!delegated)expect(client.state?.dialogue?.at(-1)?.state).toBe("guided");expect(executions).toBe(1)
-  const path=join(root,"state/gator/conversations",owner,"requests.json"),saved=JSON.parse(await readFile(path,"utf8")),r=saved.requests[0]
+  const path=join(root,"state/hot-cross-buns/conversations",owner,"requests.json"),saved=JSON.parse(await readFile(path,"utf8")),r=saved.requests[0]
   expect(saved.requests).toHaveLength(1);expect(r.id).toBe(original.id);expect(r.plan.approval).toBeUndefined();expect(r.plan.attempts).toHaveLength(1);expect(r.plan.draining_run).toBeUndefined()
   expect(r.plan.attempts[0].usage.model_requests).toBeGreaterThan(0)
   expect(!!r.plan.input_changes[0].before_options.PlanFirst).toBe(!direct);if(direct)expect(r.plan.input_changes[0].promoted).toBe(true);
@@ -61,30 +61,30 @@ for(const direct of [false,true])for(const delegated of [false,true])test(`${dir
   await approve(fresh,"fresh-plan-approval");await until(()=>!client.state?.running&&executions===2,"only freshly reviewed replacement executes")
   const finished=JSON.parse(await readFile(path,"utf8")).requests[0]
   expect(finished.id).toBe(original.id);expect(finished.state).toBe("completed");expect(workBodies[1]).toContain("silver otter");expect(workBodies[1]).toContain("golden heron")
-  const revision=JSON.parse(await readFile(join(root,"state/gator/conversations",owner,"revisions",finished.revision_id+".json"),"utf8"))
+  const revision=JSON.parse(await readFile(join(root,"state/hot-cross-buns/conversations",owner,"revisions",finished.revision_id+".json"),"utf8"))
   const manifest=JSON.parse(await readFile(join(revision.bundle_path,"manifest.json"),"utf8"))
   expect(manifest.execution_accounting.limits.model_requests).toBe(256-r.plan.attempts[0].usage.model_requests)
   expect(manifest.execution_accounting.max_steps).toBe(r.plan.budget.max_steps-r.plan.attempts[0].execution.steps)
-  release();await client.close();client=new GatorClient(new Application(options));await client.start(owner)
+  release();await client.close();client=new HotCrossBunsClient(new Application(options));await client.start(owner)
   expect(client.draft.text).toBe("Preserve this unrelated draft");expect(executions).toBe(2);expect(proposals).toHaveLength(direct?1:2)
   if(delegated){await client.host.sessions.open({conversation_id:parent});await client.loadDraft();expect(client.draft.text).toBe("Preserve requesting chat draft");expect(parentExecutions).toBe(1)}
  }finally{release();await client.close();server.stop(true);await rm(root,{recursive:true,force:true})}
 },45000)
 
 test("an uncertain original effect blocks replacement approval without replay",async()=>{
- const root=await mkdtemp(join(tmpdir(),"gator-uncertain-replan-"));let release!:()=>void;const effect=new Promise<void>(r=>{release=r});let effects=0,work=0
+ const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-uncertain-replan-"));let release!:()=>void;const effect=new Promise<void>(r=>{release=r});let effects=0,work=0
  const plan={outcome:"Publish a reviewed update",steps:[{id:"publish",text:"Publish the exact reviewed update"}],sources:["release"],effects:["read","connected_write"]}
  const server=Bun.serve({hostname:"127.0.0.1",port:0,async fetch(request){
   if(new URL(request.url).pathname==="/effect"){effects++;await effect;return Response.json({id:"unconfirmed"})}
   const body=await request.json() as any,system=body.messages.find((m:any)=>m.role==="system")?.content??"";let message:any
-  if(system.includes("You handle the conversation with Gator")){const meta=JSON.parse(body.messages.at(-1).content);message={role:"assistant",content:JSON.stringify({kind:"revise_plan",target:meta.tasks.find((t:any)=>t.can_revise_plan||meta.has_new_files&&t.can_review_inputs).id,instruction:meta.message})}}
+  if(system.includes("You handle the conversation with Hot Cross Buns")){const meta=JSON.parse(body.messages.at(-1).content);message={role:"assistant",content:JSON.stringify({kind:"revise_plan",target:meta.tasks.find((t:any)=>t.can_revise_plan||meta.has_new_files&&t.can_review_inputs).id,instruction:meta.message})}}
   else if(system.includes("Propose a plan")){message={role:"assistant",content:JSON.stringify(plan)}}
   else{work++;message=work===1?{role:"assistant",tool_calls:[{id:"original-publish",type:"function",function:{name:"connector_release_publish",arguments:JSON.stringify({payload:{version:"v1"}})}}]}:{role:"assistant",content:"Inspect the original receipt before retrying."}}
   return Response.json({choices:[{message,finish_reason:message.tool_calls?"tool_calls":"stop"}],usage:{prompt_tokens:10,completion_tokens:10}})
  }})
  const base=`http://127.0.0.1:${server.port}`
- await mkdir(join(root,"config/gator"),{recursive:true});await writeFile(join(root,"config/gator/config.json"),JSON.stringify({version:4,defaults:{provider:"fixture",model:"fixture"},custom_providers:[{id:"fixture",base_url:base+"/chat",models:["fixture"],default_model:"fixture"}],connectors:[{version:1,id:"release",name:"Controlled release",kind:"http_webhook",resource:base+"/effect",authentication:"none"}]}))
- const options={binary:process.env.GATOR_TEST_BINARY||resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"gator-runtime.exe":"gator-runtime")),env:{...process.env,GATOR_STATE_DIR:join(root,"state"),GATOR_CONFIG_DIR:join(root,"config")},userData:join(root,"app"),workspace:join(root,"workspace")};let client=new GatorClient(new Application(options))
+ await mkdir(join(root,"config/hot-cross-buns"),{recursive:true});await writeFile(join(root,"config/hot-cross-buns/config.json"),JSON.stringify({version:4,defaults:{provider:"fixture",model:"fixture"},custom_providers:[{id:"fixture",base_url:base+"/chat",models:["fixture"],default_model:"fixture"}],connectors:[{version:1,id:"release",name:"Controlled release",kind:"http_webhook",resource:base+"/effect",authentication:"none"}]}))
+ const options={binary:process.env.HOT_CROSS_BUNS_TEST_BINARY||resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"hot-cross-buns-runtime.exe":"hot-cross-buns-runtime")),env:{...process.env,HOT_CROSS_BUNS_STATE_DIR:join(root,"state"),HOT_CROSS_BUNS_CONFIG_DIR:join(root,"config")},userData:join(root,"app"),workspace:join(root,"workspace")};let client=new HotCrossBunsClient(new Application(options))
  try{
   await client.start();await client.send({type:"submit",text:"/mode act"});await client.send({type:"submit",text:"/connector add release"});await until(()=>!!client.state?.work_details?.connector_ids.includes("release"),"selected connected scope")
   await client.edit("Publish the update",[],undefined,true);await client.submit();await until(()=>client.state?.task_plans?.[0]?.phase==="review","plan review")
@@ -100,9 +100,9 @@ test("an uncertain original effect blocks replacement approval without replay",a
   await until(()=>client.state?.task_plan_result?.request_id==="uncertain-replacement-review","rejected uncertain replacement")
   expect(client.state?.task_plan_result?.error).toContain("uncertain")
   expect(effects).toBe(1);expect(work).toBe(1)
-  const saved=JSON.parse(await readFile(join(root,"state/gator/conversations",owner,"requests.json"),"utf8")).requests[0]
+  const saved=JSON.parse(await readFile(join(root,"state/hot-cross-buns/conversations",owner,"requests.json"),"utf8")).requests[0]
   expect(saved.id).toBe(original.id);expect(saved.plan.approval).toBeUndefined();expect(saved.plan.attempts[0].uncertain).toBe(true)
-  release();await client.close();client=new GatorClient(new Application(options));await client.start(owner)
+  release();await client.close();client=new HotCrossBunsClient(new Application(options));await client.start(owner)
   expect(client.state?.running).toBe(false);expect(effects).toBe(1);expect(work).toBe(1)
   await approve(client.state!.task_plans![0]!,"uncertain-after-restart");expect(client.state?.task_plan_result?.error).toContain("uncertain");expect(effects).toBe(1)
  }finally{release();await client.close();server.stop(true);await rm(root,{recursive:true,force:true})}

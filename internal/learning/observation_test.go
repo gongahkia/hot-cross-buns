@@ -14,7 +14,7 @@ func TestExplicitCorrectionCreatesObservationAndInactiveCandidate(t *testing.T) 
 	scope := Scope{Kind: Project, Value: project}
 	observation, err := store.RecordObservation(ObservationInput{
 		Signal: UserCorrected, WorkID: "work-correction", Scope: &scope,
-		Summary: "User corrected the package manager.", EvidenceRefs: []string{"gator/work-history/work-correction.json"},
+		Summary: "User corrected the package manager.", EvidenceRefs: []string{"hot-cross-buns/work-history/work-correction.json"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -106,10 +106,10 @@ func TestFailureAndUnknownSignalsRemainDistinctAndNeverCreateRetryRule(t *testin
 		t.Fatal(err)
 	}
 	for _, input := range []ObservationInput{
-		{ID: "observation-work-failed", Signal: WorkFailed, WorkID: "work-failed", Summary: "Work execution failed.", EvidenceRefs: []string{"gator/work-history/work-failed.json"}},
-		{ID: "observation-delivery-failed", Signal: DeliveryFailed, WorkID: "work-failed", Summary: "Local delivery failed.", EvidenceRefs: []string{"gator/delivery/work-failed/delivery-one.json"}},
-		{ID: "observation-delivery-unknown", Signal: DeliveryUnknown, WorkID: "work-failed", Summary: "Delivery outcome is unknown.", EvidenceRefs: []string{"gator/delivery/work-failed/delivery-two.json"}},
-		{ID: "observation-external-unknown", Signal: ExternalOutcomeUnknown, WorkID: "work-failed", Summary: "External action outcome is unknown.", EvidenceRefs: []string{"gator/work/work-failed/manifest.json"}},
+		{ID: "observation-work-failed", Signal: WorkFailed, WorkID: "work-failed", Summary: "Work execution failed.", EvidenceRefs: []string{"hot-cross-buns/work-history/work-failed.json"}},
+		{ID: "observation-delivery-failed", Signal: DeliveryFailed, WorkID: "work-failed", Summary: "Local delivery failed.", EvidenceRefs: []string{"hot-cross-buns/delivery/work-failed/delivery-one.json"}},
+		{ID: "observation-delivery-unknown", Signal: DeliveryUnknown, WorkID: "work-failed", Summary: "Delivery outcome is unknown.", EvidenceRefs: []string{"hot-cross-buns/delivery/work-failed/delivery-two.json"}},
+		{ID: "observation-external-unknown", Signal: ExternalOutcomeUnknown, WorkID: "work-failed", Summary: "External action outcome is unknown.", EvidenceRefs: []string{"hot-cross-buns/work/work-failed/manifest.json"}},
 	} {
 		if _, err := store.RecordObservation(input); err != nil {
 			t.Fatal(err)
@@ -140,7 +140,7 @@ func TestFailureObservationCannotProposeCandidateWithoutExplicitCorrection(t *te
 	}
 	observation, err := store.RecordObservation(ObservationInput{
 		Signal: VerificationFailed, WorkID: "work-verification-failed", Summary: "The focused verification failed.",
-		EvidenceRefs: []string{"gator/work-history/work-verification-failed.json"},
+		EvidenceRefs: []string{"hot-cross-buns/work-history/work-verification-failed.json"},
 	})
 	if err != nil {
 		t.Fatal(err)

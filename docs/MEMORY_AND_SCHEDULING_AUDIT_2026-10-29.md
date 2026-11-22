@@ -22,7 +22,7 @@ browser integration, native-device or release gates.
 
 The intended comparison is a high-level, correctable view of remembered context,
 not merely a raw memory list. OpenAI describes its summary as incomplete and
-separate from the original sources. Gator should make its own coverage explicit
+separate from the original sources. Hot Cross Buns should make its own coverage explicit
 and link each statement to inspectable evidence.
 [OpenAI memory documentation](https://help.openai.com/en/articles/8590148-memory-in-chatgpt).
 
@@ -32,12 +32,12 @@ and link each statement to inspectable evidence.
 | --- | --- | --- |
 | Saved facts/preferences | Local JSON, global/goal scope, optional expiry, source fingerprints | `internal/memory/store.go` |
 | Chat learning | Exact current-message quotes, origin chat/run, subject consolidation, revision checks, receipts | `internal/tools/chat_memory.go`, `internal/memory/chat*.go` |
-| Retrieval | Lexical fallback plus optional embeddings; scope, expiry and source eligibility filtered before retrieval | `cmd/gator/work_service.go`, `internal/retrieval/` |
+| Retrieval | Lexical fallback plus optional embeddings; scope, expiry and source eligibility filtered before retrieval | `cmd/hot-cross-buns/work_service.go`, `internal/retrieval/` |
 | Personal context | Up to four recent preferences or selected profile subjects, then query matches within a 4,000-byte rendering budget | `internal/memory/chat.go`, `store.go` |
 | Notes and procedures | Separate scoped notes and reusable skills with review controls | `internal/knowledge/` |
 | User guidance | Separate global/project learnings; inferred candidates require confirmation before activation | `internal/learning/` |
 | Earlier chats | Bounded selected-ancestry retrieval; current chat and other-goal chats excluded | `internal/tools/chat_history.go` |
-| Privacy | Separate chat-learning/history toggles, per-run exclusions, explicit cloud embedding choice | `internal/workapp/recall.go`, `cmd/gator/work_app_settings.go` |
+| Privacy | Separate chat-learning/history toggles, per-run exclusions, explicit cloud embedding choice | `internal/workapp/recall.go`, `cmd/hot-cross-buns/work_app_settings.go` |
 | Data lifecycle | Reviewed retention/deletion and export/restore; subject-forgetting markers included in backups | `internal/lifecycle/` |
 
 Memory and notes do not grant tool authority. Current corrections take precedence
@@ -153,7 +153,7 @@ Existing unit/product fixtures are not a measured live recall success rate.
 
 ## Scheduling: reuse and missing pieces
 
-Gator already has cron/timezone jobs, missed-run policies, durable attempt
+Hot Cross Buns already has cron/timezone jobs, missed-run policies, durable attempt
 identities, run history, enable/disable/edit/run commands, supervisor integration,
 goal follow-ups and a retained inbox. The terminal launcher exposes the retained
 `job` and `memory` command families. Goal-plan review reminders already avoid
@@ -169,7 +169,7 @@ management controls and local-project execution requirements.
 Claude documents recurring prompts, run review, edit/pause/resume/delete/run-now,
 and remote execution with local exceptions.
 [Claude scheduled tasks](https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork).
-Gator's current local host does not provide cloud availability while it is asleep.
+Hot Cross Buns's current local host does not provide cloud availability while it is asleep.
 
 ## Implementation sequence after current work
 

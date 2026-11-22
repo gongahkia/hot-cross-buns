@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
 )
 
 type failingActionAttempt struct{ closed bool }

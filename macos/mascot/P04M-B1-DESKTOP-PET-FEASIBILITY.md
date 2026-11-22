@@ -8,13 +8,13 @@ The condition is primarily UX: **the pet remained visible over the native fullsc
 
 Recommended design for user approval: **one passive pet, placement B, fixed user-selected display with primary-display fallback, representing the selected conversation, default OFF**. Preserve independent in-chat visibility. Share style, animation preference, and OS Reduce Motion. Provide Show/Hide in ordinary app and menu-bar controls. These are proposals; no production preferences were added.
 
-Prototype: `/tmp/Gator-Mascot-P04M-B1-Desktop-Pet-Lab.app`.
+Prototype: `/tmp/HotCrossBuns-Mascot-P04M-B1-Desktop-Pet-Lab.app`.
 
 ## Baseline, provenance and scope
 
 Started at HEAD `b5991b5ac729945d783f69d5b28d433de39491f8` with a clean worktree. HEAD subsequently advanced externally to `d904ef6f08e5717398e6c970260a1a06eef83fcd` during this session; that commit includes intermediate B1 work. This session did not run a commit, reset, checkout, or revert. The final report and remaining lab edits supplement that state.
 
-Read A1 and the accepted A2 2D report; inspected mascot model/playback/view/preferences, native scenes/window configuration, AppDelegate, notch geometry, tests, resources and build scripts. Production Gator is unchanged. The final hash check found **all 2,330 protected existing files and all files in 61 pre-existing development bundles unchanged**, including A1/live-3D evidence, the accepted P04 app and `/tmp/Gator-Native-P04M-2D.app`. See [preservation check](evidence/p04m-b1/preservation-check.json).
+Read A1 and the accepted A2 2D report; inspected mascot model/playback/view/preferences, native scenes/window configuration, AppDelegate, notch geometry, tests, resources and build scripts. Production Hot Cross Buns is unchanged. The final hash check found **all 2,330 protected existing files and all files in 61 pre-existing development bundles unchanged**, including A1/live-3D evidence, the accepted P04 app and `/tmp/HotCrossBuns-Native-P04M-2D.app`. See [preservation check](evidence/p04m-b1/preservation-check.json).
 
 Host: Apple M3, Mac15,12, 16 GiB, arm64; macOS 26.5.2 (25F84); Swift 6.3.3; optimized standalone builds, SDK 26.5, deployment target **macOS 15.0**. Physical macOS 15 runtime acceptance is **NOT TESTED**.
 
@@ -26,11 +26,11 @@ The final bundle has the exact binary used in the successful final resource/life
 
 The panel is borderless, transparent, nonopaque, shadowless, nonrestorable and nonactivating. It cannot become key or main. Showing or animating uses ordering, without application activation. Window level is ordinary `.floating` (3), below the existing notch panel's `.mainMenu + 1` (25). No custom elevated security-overlay level is used. This is not a universal claim about ordering relative to every third-party window or system dialog.
 
-Collection behavior is `.canJoinAllSpaces`, `.transient`, `.ignoresCycle`, `.fullScreenNone`. The lab does not change production Gator's activation policy. Its own normal control app has a standard app menu and a status-menu escape route. No global event monitor is installed.
+Collection behavior is `.canJoinAllSpaces`, `.transient`, `.ignoresCycle`, `.fullScreenNone`. The lab does not change production Hot Cross Buns's activation policy. Its own normal control app has a standard app menu and a status-menu escape route. No global event monitor is installed.
 
 All controller/view mutation is MainActor-isolated. Existing frame decoding remains in the accepted frame-store actor. Requests retain the existing generation/cancellation checks and finite Core Animation clips. There is no added high-frequency application playback timer. The 1 Hz sampler and scripted stimulus tasks exist only for lab measurements. Observers use weak callbacks and are removed during teardown.
 
-Dynamic-library inspection found AppKit/Foundation/ImageIO/QuartzCore and normal Swift overlays; no RealityKit, SceneKit, WebKit, GatorCore or Go runtime dependency. No agent, network client, prompt input, approval action, conversation storage, or credential facility is linked by this prototype.
+Dynamic-library inspection found AppKit/Foundation/ImageIO/QuartzCore and normal Swift overlays; no RealityKit, SceneKit, WebKit, HotCrossBunsCore or Go runtime dependency. No agent, network client, prompt input, approval action, conversation storage, or credential facility is linked by this prototype.
 
 ## Passive versus interactive
 
@@ -69,10 +69,10 @@ Actual native screenshots, filtered to disposable windows:
 - [A: menu-adjacent](evidence/p04m-b1/A-placement-final.png).
 - [B: center below reserved region](evidence/p04m-b1/top-center-B-final.png).
 - [C: offset, Classic style](evidence/p04m-b1/C-placement-final.png).
-- [Accepted Gator, existing expanded notch surface and separate pet](evidence/p04m-b1/with-gator-and-notch.png).
-- [Gator chat closed, pet still visible](evidence/p04m-b1/chat-closed-pet-visible.png).
+- [Accepted Hot Cross Buns, existing expanded notch surface and separate pet](evidence/p04m-b1/with-hot-cross-buns-and-notch.png).
+- [Hot Cross Buns chat closed, pet still visible](evidence/p04m-b1/chat-closed-pet-visible.png).
 
-The last two are visual coexistence checks only. The copied accepted Gator binary/resources were unchanged; its bundle identifier and private profile were disposable. Shared desktop input entered unexpected fixture messages and caused two failed task admissions. The saved failures identify **connection refused at `http://127.0.0.1:9/responses`**; only an inert credential was provided. See [fixture isolation record](evidence/p04m-b1/visual-fixture-isolation.json). This session is **not** evidence of an interference-free composer/task interaction test. The standalone pet has no Go admission capability. No real account or paid endpoint was used.
+The last two are visual coexistence checks only. The copied accepted Hot Cross Buns binary/resources were unchanged; its bundle identifier and private profile were disposable. Shared desktop input entered unexpected fixture messages and caused two failed task admissions. The saved failures identify **connection refused at `http://127.0.0.1:9/responses`**; only an inert credential was provided. See [fixture isolation record](evidence/p04m-b1/visual-fixture-isolation.json). This session is **not** evidence of an interference-free composer/task interaction test. The standalone pet has no Go admission capability. No real account or paid endpoint was used.
 
 ## Displays, Spaces and presentation safety
 
@@ -92,7 +92,7 @@ The lab feeds the actual accepted reducer with explicit fixture values, includin
 
 Recommend representing the **selected conversation**, matching the in-chat mascot. App-wide attention remains in the existing explicit surfaces, including notch quick access. Do not silently merge background owners' private details or make their completion impersonate the selected chat. Future B2 can observe the existing public projection; no additional Go owner is needed.
 
-The pet contains no message text, filename, secret, provider setting or task trace. Its gestures cannot send, approve, replay, start plans, grant access or configure providers. Explicit status and review controls remain in Gator.
+The pet contains no message text, filename, secret, provider setting or task trace. Its gestures cannot send, approve, replay, start plans, grant access or configure providers. Explicit status and review controls remain in Hot Cross Buns.
 
 Proposed settings, not production implementation:
 
@@ -110,7 +110,7 @@ The lab uses **memory-only** desktop settings, defaults OFF every ordinary launc
 
 ## Resource measurements
 
-Same machine, optimized source, assets and panel/player configuration. `TASK_VM_INFO` provides resident bytes, physical footprint, kernel lifetime peak and the app's graphics ledger; `getrusage` gives cumulative user/system CPU. CPU is whole-lab percent of **one core**, including the 1 Hz sampler and atomic JSON diagnostics. Each phase is 6–14 seconds; table memory is the median of per-second samples. This is a bounded feasibility trial, not an energy study or a whole-Gator performance benchmark.
+Same machine, optimized source, assets and panel/player configuration. `TASK_VM_INFO` provides resident bytes, physical footprint, kernel lifetime peak and the app's graphics ledger; `getrusage` gives cumulative user/system CPU. CPU is whole-lab percent of **one core**, including the 1 Hz sampler and atomic JSON diagnostics. Each phase is 6–14 seconds; table memory is the median of per-second samples. This is a bounded feasibility trial, not an energy study or a whole-Hot Cross Buns performance benchmark.
 
 The **final 139.97-second run** completed 66 native assertions and exited 0. [Raw samples](evidence/p04m-b1/final-run/verified-trial/samples.ndjson), [state/events](evidence/p04m-b1/final-run/verified-trial/state.json), [process exit](evidence/p04m-b1/final-run/verified-trial-exit.json), [derived table](evidence/p04m-b1/resource-summary.json).
 
@@ -145,7 +145,7 @@ Each lifecycle run performs 12 create/destroy cycles, changes style/placement, h
 
 An initial assertion found one empty closed panel still alive after the controller/player/canvas had disappeared. Diagnostics showed `NSApp.currentEvent.windowNumber` referred to that panel. After dispatching one marked **app-local** mouse-move event to the lab controls through the native application loop, the last panel disappeared too. Final run: last pet event window 52592, then control window 52485; **zero surviving weak subjects**. This is observed bounded AppKit event retention, not evidence of unbounded mascot ownership. No global event interception or private API is involved.
 
-An earlier lab shutdown using `.terminateLater` did not exit despite successful teardown. Only the **isolated lab delegate** was corrected to cancel/await its owned trial task, clean up once, then explicitly reenter termination with a ready flag. The final 139.97-second run and a separate 25.67-second/60-assertion lifecycle run exited successfully. Final full-trial cleanup completed in approximately **2.8 ms**. The earlier timeout logs remain as failed historical evidence; they are not reported as passing Quit tests. Production Gator's guarded Quit implementation was not changed.
+An earlier lab shutdown using `.terminateLater` did not exit despite successful teardown. Only the **isolated lab delegate** was corrected to cancel/await its owned trial task, clean up once, then explicitly reenter termination with a ready flag. The final 139.97-second run and a separate 25.67-second/60-assertion lifecycle run exited successfully. Final full-trial cleanup completed in approximately **2.8 ms**. The earlier timeout logs remain as failed historical evidence; they are not reported as passing Quit tests. Production Hot Cross Buns's guarded Quit implementation was not changed.
 
 Observers are removed, status item removed, finite animation/decode tasks stopped, content views detached and windows closed. Final process checks found no running pet/peer/latency probe. No orphaned overlay remained. This bounded result is not a proof of indefinite leak freedom.
 
@@ -156,9 +156,9 @@ Observers are removed, status item removed, finite animation/decode tasks stoppe
 - [Native acceptance events](evidence/p04m-b1/native-acceptance.json) and [guarded input transcript](evidence/p04m-b1/native-acceptance-retry.log).
 - [Interactive drag](evidence/p04m-b1/drag-final.png), [passive tucked](evidence/p04m-b1/B-passive-hidden-final.png), [interactive tucked](evidence/p04m-b1/B-interactive-hidden-final.png).
 
-Screenshots/recording use ScreenCaptureKit with an explicit allowlist of disposable lab/peer/Gator-fixture windows, neutral replacement background, no cursor or audio, and no unrelated application windows. These are actual captured windows in display coordinates, not schematic mockups. Filtering and display reconfiguration can affect captured framing; numeric placement comes from native panel/screen metadata. The physical camera cutout itself is not rendered into these captures.
+Screenshots/recording use ScreenCaptureKit with an explicit allowlist of disposable lab/peer/HotCrossBuns-fixture windows, neutral replacement background, no cursor or audio, and no unrelated application windows. These are actual captured windows in display coordinates, not schematic mockups. Filtering and display reconfiguration can affect captured framing; numeric placement comes from native panel/screen metadata. The physical camera cutout itself is not rendered into these captures.
 
-Passive center clicks reached the peer without focusing Gator. Peer text/empty secure-field focus and app inactivity were observed during animation. Interactive drag did not activate the lab; interactive click focus remains partial. No real password was entered. The panel is decorative in passive mode; interactive mode has a labeled action and a standard menu alternative. Reduce Motion and static playback assertions pass. Physical VoiceOver, IME, actual password-manager behavior, and broader OS accessibility preference variants are **NOT TESTED**. Accessibility metadata is not VoiceOver acceptance.
+Passive center clicks reached the peer without focusing Hot Cross Buns. Peer text/empty secure-field focus and app inactivity were observed during animation. Interactive drag did not activate the lab; interactive click focus remains partial. No real password was entered. The panel is decorative in passive mode; interactive mode has a labeled action and a standard menu alternative. Reduce Motion and static playback assertions pass. Physical VoiceOver, IME, actual password-manager behavior, and broader OS accessibility preference variants are **NOT TESTED**. Accessibility metadata is not VoiceOver acceptance.
 
 Earlier desktop probes saw stale element references, focus changes and unexpected shared input. Drivers were changed to retain their own fixture processes, verify PID/window/focus before posting input, await observable state, and perform capture sequentially. SCK probes with a prohibited capture-app activation policy failed and were reverted. Rejected/stale probes are retained as diagnostic logs, not counted as application failures or passes. Production keyboard shortcuts were not changed to accommodate automation.
 
@@ -168,20 +168,20 @@ Final commands from repository root:
 
 ```sh
 bash macos/mascot/desktop-pet-lab/verify.sh
-GATOR_PET_LAB_APP=/tmp/Gator-Pet-B1-Packaged-Final.app \
+HOT_CROSS_BUNS_PET_LAB_APP=/tmp/HotCrossBuns-Pet-B1-Packaged-Final.app \
   bash macos/mascot/desktop-pet-lab/build.sh
-PET_APP=/tmp/Gator-Pet-B1-Acceptance-Final.app \
+PET_APP=/tmp/HotCrossBuns-Pet-B1-Acceptance-Final.app \
 PET_EVIDENCE=macos/mascot/evidence/p04m-b1/final-run \
   python3 macos/mascot/desktop-pet-lab/tools/trial.py
-xcrun vtool -show-build /tmp/Gator-Mascot-P04M-B1-Desktop-Pet-Lab.app/Contents/MacOS/PetLab
-otool -L /tmp/Gator-Mascot-P04M-B1-Desktop-Pet-Lab.app/Contents/MacOS/PetLab
+xcrun vtool -show-build /tmp/HotCrossBuns-Mascot-P04M-B1-Desktop-Pet-Lab.app/Contents/MacOS/PetLab
+otool -L /tmp/HotCrossBuns-Mascot-P04M-B1-Desktop-Pet-Lab.app/Contents/MacOS/PetLab
 bash -n macos/mascot/desktop-pet-lab/build.sh macos/mascot/desktop-pet-lab/verify.sh
 git diff --check
 ```
 
 Build destinations must be fresh; the build script refuses overwrite. The final packaged binary matches the measured Acceptance-Final binary. Older lab bundles were preserved before promoting the final copy to the requested path.
 
-`verify.sh` creates a fresh `/tmp/gator-pet-b1-check.*` directory containing logic/player checks, native latency tool, allowlisted Control/Pointer/Capture tools, and a packaged inert `FocusFixture.app`. It uses `-swift-version 6 -strict-concurrency=complete -warnings-as-errors -O -target arm64-apple-macosx15.0` throughout. For another controlled trial set `PET_APP` to a freshly built lab, `PET_PEER_APP` to that generated fixture app, and `PET_EVIDENCE` to a fresh evidence directory. The fixed-path `acceptance.py` driver records the exact desktop sequence; inspect its fixture/tool paths before reusing it.
+`verify.sh` creates a fresh `/tmp/hot-cross-buns-pet-b1-check.*` directory containing logic/player checks, native latency tool, allowlisted Control/Pointer/Capture tools, and a packaged inert `FocusFixture.app`. It uses `-swift-version 6 -strict-concurrency=complete -warnings-as-errors -O -target arm64-apple-macosx15.0` throughout. For another controlled trial set `PET_APP` to a freshly built lab, `PET_PEER_APP` to that generated fixture app, and `PET_EVIDENCE` to a fresh evidence directory. The fixed-path `acceptance.py` driver records the exact desktop sequence; inspect its fixture/tool paths before reusing it.
 
 | Verification | Result |
 |---|---|
@@ -209,7 +209,7 @@ New files relative to the initial baseline, all isolated under `macos/mascot/`:
 - `desktop-pet-lab/CheckLogic.swift`, `FocusFixture.swift`, `Latency.swift`: deterministic checks and inert native fixtures.
 - `desktop-pet-lab/build.sh`, `verify.sh`: isolated packaging and strict/headless verification.
 - `desktop-pet-lab/tools/Control.swift`, `Pointer.swift`, `Capture.swift`: allowlisted native evidence tools.
-- `desktop-pet-lab/tools/acceptance.py`, `trial.py`, `scenarios.py`, `gator-visual.py`: disposable controlled drivers; exploratory failures remain documented.
+- `desktop-pet-lab/tools/acceptance.py`, `trial.py`, `scenarios.py`, `hot-cross-buns-visual.py`: disposable controlled drivers; exploratory failures remain documented.
 - This report and `evidence/p04m-b1/` captures, recordings, raw samples, JSON, manifests and logs.
 
 No production panel/preferences, app icon, notch interaction, Go execution, credentials, archive, approval, plan, recovery, queue or native shutdown code was edited. No assets were regenerated. No new dependency, signing, notarization or distribution step was performed.

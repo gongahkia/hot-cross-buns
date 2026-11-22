@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func requestConfig(t *testing.T, run func(string, string, string, RunOptions) RunResult) (Config, worksession.Store) {
@@ -221,7 +221,7 @@ func TestUnreadableRequestsNeverStartWithAnEmptyQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "gator", "conversations", c.ID, "requests.json"), []byte("damaged"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "hot-cross-buns", "conversations", c.ID, "requests.json"), []byte("damaged"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	m := New(Config{CurrentFolder: c.SourcePath, StartConversationID: c.ID, SessionStore: &store, LoadConversation: func(string) (ConversationState, error) { return ConversationState{SourcePath: c.SourcePath}, nil }, Run: func(_, _, _ string, _ RunOptions) RunResult {

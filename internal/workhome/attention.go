@@ -1,13 +1,13 @@
 // Package workhome collects the small, read-only state needed to guide a
-// person to the next useful action when they open Gator.
+// person to the next useful action when they open Hot Cross Buns.
 package workhome
 
 import (
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/inbox"
-	"github.com/gongahkia/gator/internal/suggestion"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 type Attention struct {

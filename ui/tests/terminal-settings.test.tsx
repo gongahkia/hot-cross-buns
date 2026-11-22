@@ -3,28 +3,28 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
-import { frontendDefaults } from "@gator/application-host/preferences"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { frontendDefaults } from "@hot-cross-buns/application-host/preferences"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
   test(`conversational and manual terminal settings share persisted outcomes at ${width}×${height}`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "gator-terminal-settings-")), config = join(root, "config/gator/config.json"), legacyPath = join(root, "app/frontend-preferences.json")
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-settings-")), config = join(root, "config/hot-cross-buns/config.json"), legacyPath = join(root, "app/frontend-preferences.json")
     const calls: any[] = [], changes: any[] = []
     const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
       const body = await request.json(); calls.push(body)
-      if (body.messages.some((message: any) => message.role === "system" && message.content?.includes("You handle the conversation with Gator"))) {
+      if (body.messages.some((message: any) => message.role === "system" && message.content?.includes("You handle the conversation with Hot Cross Buns"))) {
         const context = JSON.parse(body.messages.at(-1).content)
         return Response.json({ choices: [{ message: { role: "assistant", content: JSON.stringify({ kind: "task", instruction: context.message }) }, finish_reason: "stop" }] })
       }
       const question = body.messages.findLast((message: any) => message.role === "user")?.content || "", last = body.messages.at(-1)
       let tool: any
-      if (body.tools?.some((tool: any) => tool.function?.name === "gator_app_inspect")) {
-        if (last.role !== "tool") tool = { id: "inspect-" + calls.length, name: "gator_app_inspect", arguments: JSON.stringify({ topic: "terminal" }) }
+      if (body.tools?.some((tool: any) => tool.function?.name === "hot_cross_buns_app_inspect")) {
+        if (last.role !== "tool") tool = { id: "inspect-" + calls.length, name: "hot_cross_buns_app_inspect", arguments: JSON.stringify({ topic: "terminal" }) }
         else if (last.tool_call_id?.startsWith("inspect-") && question.includes("Hide navigation")) {
           const value = { theme: "terminal", sidebarCollapsed: true, groupChatsByFolder: false }; changes.push(value)
-          tool = { id: "update-" + calls.length, name: "gator_app_update", arguments: JSON.stringify({ setting: "terminal", value }) }
+          tool = { id: "update-" + calls.length, name: "hot_cross_buns_app_update", arguments: JSON.stringify({ setting: "terminal", value }) }
         }
       }
       let content = "The terminal settings task finished."
@@ -35,12 +35,12 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       const message = tool ? { role: "assistant", tool_calls: [{ id: tool.id, type: "function", function: { name: tool.name, arguments: tool.arguments } }] } : { role: "assistant", content }
       return Response.json({ choices: [{ message, finish_reason: tool ? "tool_calls" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
     } })
-    await mkdir(join(root, "config/gator"), { recursive: true }); await mkdir(join(root, "app"))
+    await mkdir(join(root, "config/hot-cross-buns"), { recursive: true }); await mkdir(join(root, "app"))
     await writeFile(config, JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
     const legacy = { ...frontendDefaults(), theme: "contrast" as const, sidebarCollapsed: false, groupChatsByFolder: true, workDetailsSections: { ...frontendDefaults().workDetailsSections, context: true } }
     await writeFile(legacyPath, JSON.stringify({ version: 1, legacyImport: "absent", preferences: legacy }))
-    const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-    let client = new GatorClient(new Application(options))
+    const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+    let client = new HotCrossBunsClient(new Application(options))
     const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
     let setup = await render()
     const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
@@ -85,7 +85,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       // An old frontend file is now an inert import source, even if another
       // old installation edits it while this terminal is closed.
       await writeFile(legacyPath, JSON.stringify({ version: 1, preferences: frontendDefaults() }))
-      client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await flush()
+      client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await flush()
       expect(client.preferences.theme).toBe("mono"); expect(client.preferences.sidebarCollapsed).toBe(false)
       expect(client.preferences.workDetailsSections.context).toBe(true)
       expect(client.draft.text).toBe("Keep my offline multiline draft\nSecond line")
@@ -94,10 +94,10 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
 }
 
 test("unreadable retained display settings recover through a cancelled and then confirmed default import", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-preference-recovery-")), legacyPath = join(root, "app/frontend-preferences.json")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-preference-recovery-")), legacyPath = join(root, "app/frontend-preferences.json")
   await mkdir(join(root, "app")); await writeFile(legacyPath, "{unreadable retained settings")
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  const client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  const client = new HotCrossBunsClient(new Application(options))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 42, height: 14 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   const choose = async (text: string) => { await setup.mockInput.typeText(text); await flush(); setup.mockInput.pressEnter(); await flush() }
@@ -120,12 +120,12 @@ test("unreadable retained display settings recover through a cancelled and then 
 }, 30000)
 
 test("manual terminal changes preserve an executing owner's identity, scope and newer draft", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-live-settings-")), config = join(root, "config/gator")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-live-settings-")), config = join(root, "config/hot-cross-buns")
   let release!: () => void, calls = 0
   const gate = new Promise<void>(resolve => { release = resolve })
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch() { calls++; await gate; return Response.json({ choices: [{ message: { role: "assistant", content: "The original task finished with its original scope." }, finish_reason: "stop" }] }) } })
   await mkdir(config, { recursive: true }); await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 80, height: 24 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   const until = async (predicate: () => boolean) => { const end = Date.now() + 10000; while (!predicate()) { if (Date.now() > end) throw new Error(client.issue + "\n" + setup.captureCharFrame()); await flush() } }

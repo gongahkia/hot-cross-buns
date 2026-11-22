@@ -39,7 +39,7 @@ func prepareDarwin(ctx context.Context, root, scratch string, argv, environment 
 
 // Apple's /usr/bin/git is an xcrun shim. Invoking that shim inside Seatbelt
 // makes xcrun try to update a cache in the user's global temporary directory,
-// which is intentionally outside Gator's sandbox. Resolve the selected
+// which is intentionally outside Hot Cross Buns's sandbox. Resolve the selected
 // developer-tool Git binary before entering the sandbox instead.
 func darwinExecutable(ctx context.Context, name string) (string, error) {
 	executable, err := exec.LookPath(name)

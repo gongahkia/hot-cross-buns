@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gongahkia/gator/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
 )
 
 func (s Store) activityPath(conversation, revision string) string {

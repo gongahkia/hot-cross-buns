@@ -34,7 +34,7 @@ import AppKit
             }
             visit(root, prefix: ""); return result
         }
-        guard let sourceRoot = source.findEntity(named: "Gator_B") else { throw NSError(domain: "MissingRoot", code: 1) }
+        guard let sourceRoot = source.findEntity(named: "HotCrossBuns_B") else { throw NSError(domain: "MissingRoot", code: 1) }
         FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: ["USD": collect(sourceRoot), "native": collect(native)], options: [.prettyPrinted,.sortedKeys]))
     }
 }

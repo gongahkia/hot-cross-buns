@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (

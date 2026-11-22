@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/inbox"
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestGoalReviewSnapshotIncludesCurrentBranchAndScopedFollowups(t *testing.T) {

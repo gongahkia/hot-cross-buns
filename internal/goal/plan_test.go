@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 func TestGoalPlanPersistsEvidenceAndRejectsStaleChanges(t *testing.T) {

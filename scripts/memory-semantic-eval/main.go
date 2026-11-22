@@ -11,10 +11,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/model"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 type scenario struct {
@@ -100,7 +100,7 @@ func run() (finalErr error) {
 	if err != nil {
 		return err
 	}
-	root, err := os.MkdirTemp("", "gator-semantic-eval-")
+	root, err := os.MkdirTemp("", "hot-cross-buns-semantic-eval-")
 	if err != nil {
 		return err
 	}

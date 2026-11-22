@@ -42,7 +42,7 @@ export function ThemeProvider(props: ParentProps<{ theme?: string }>) {
   return <Context.Provider value={value}>{props.children}</Context.Provider>
 }
 export function useTheme() {
-  const theme = useContext(Context); if (!theme) throw new Error("Missing Gator theme")
+  const theme = useContext(Context); if (!theme) throw new Error("Missing Hot Cross Buns theme")
   return Object.assign(theme, { surface: (_name: string) => theme })
 }
 export function ThemeContextProvider(props: ParentProps<{ context: string }>) { return <>{props.children}</> }

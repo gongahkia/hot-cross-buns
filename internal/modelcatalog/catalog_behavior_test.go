@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/config"
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 func TestCloudSetupFailureRequiresReenteringClearedCredential(t *testing.T) {
@@ -221,7 +221,7 @@ func TestLocalModelPullAndUseUpdateTheActiveSelection(t *testing.T) {
 	}
 	next, _ = m.updateLocalModels(tea.KeyMsg{Type: tea.KeyEnter})
 	m = finishCatalogOperation(t, next.(Model))
-	if !manager.used || m.provider.Value() != "gator-local" || m.model.Value() != "qwen2.5-coder:7b" {
+	if !manager.used || m.provider.Value() != "hot-cross-buns-local" || m.model.Value() != "qwen2.5-coder:7b" {
 		t.Fatalf("local use = used:%v provider:%q model:%q", manager.used, m.provider.Value(), m.model.Value())
 	}
 }
@@ -348,10 +348,10 @@ func (m *lifecycleLocalManager) Use(context.Context, string) (LocalUpdate, error
 	return LocalUpdate{
 		Catalog: m.catalog,
 		CustomProviders: []config.CustomProvider{{
-			ID: "gator-local", BaseURL: "http://127.0.0.1:11434/v1/chat/completions",
+			ID: "hot-cross-buns-local", BaseURL: "http://127.0.0.1:11434/v1/chat/completions",
 			Models: []string{"qwen2.5-coder:7b"}, DefaultModel: "qwen2.5-coder:7b",
 		}},
-		Provider: "gator-local", Model: "qwen2.5-coder:7b",
+		Provider: "hot-cross-buns-local", Model: "qwen2.5-coder:7b",
 	}, nil
 }
 func (m *lifecycleLocalManager) Remove(context.Context, string) (LocalUpdate, error) {

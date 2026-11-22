@@ -1,7 +1,7 @@
 {
   "exactFinalExecutableAndResourcesMatchSuccessfulFixture": {
-    "Contents/MacOS/GatorMac": true,
-    "Contents/Resources/gator-runtime": true,
+    "Contents/MacOS/HotCrossBunsMac": true,
+    "Contents/Resources/hot-cross-buns-runtime": true,
     "Contents/Resources/Presence/completed.gif": true,
     "Contents/Resources/Presence/attention.gif": true
   },

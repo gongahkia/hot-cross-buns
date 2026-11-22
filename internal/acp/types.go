@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	maxPromptBytes  = 512 * 1024
 )
 
-// Config supplies the local Gator instance exposed to an ACP client.
+// Config supplies the local Hot Cross Buns instance exposed to an ACP client.
 // RepositoryPath is intentionally fixed at process start: accepting an
 // arbitrary client cwd would let an editor widen the launched agent's scope.
 type Config struct {

@@ -16,7 +16,7 @@ import (
 // A real child process that accepts a request but never replies. EOF normally
 // exits cleanly; the stubborn variant also ignores EOF to exercise forced stop.
 func TestSidecarProcessHelper(t *testing.T) {
-	mode := os.Getenv("GATOR_SIDECAR_TEST_HELPER")
+	mode := os.Getenv("HOT_CROSS_BUNS_SIDECAR_TEST_HELPER")
 	if mode == "" {
 		return
 	}
@@ -30,7 +30,7 @@ func TestSidecarProcessHelper(t *testing.T) {
 			os.Exit(2)
 		}
 		if request.Method == "snapshot" {
-			_ = os.WriteFile(os.Getenv("GATOR_SIDECAR_TEST_MARKER"), []byte("admitted"), 0o600)
+			_ = os.WriteFile(os.Getenv("HOT_CROSS_BUNS_SIDECAR_TEST_MARKER"), []byte("admitted"), 0o600)
 			if mode == "stubborn" {
 				for {
 					time.Sleep(time.Hour)
@@ -51,7 +51,7 @@ func hungSidecar(t *testing.T, stubborn bool) (*sidecar, string) {
 		mode = "stubborn"
 	}
 	command := exec.Command(os.Args[0], "-test.run=^TestSidecarProcessHelper$")
-	command.Env = append(os.Environ(), "GATOR_SIDECAR_TEST_HELPER="+mode, "GATOR_SIDECAR_TEST_MARKER="+marker)
+	command.Env = append(os.Environ(), "HOT_CROSS_BUNS_SIDECAR_TEST_HELPER="+mode, "HOT_CROSS_BUNS_SIDECAR_TEST_MARKER="+marker)
 	driver, err := startSidecarProcess(context.Background(), command, t.TempDir())
 	if err != nil {
 		t.Fatal(err)

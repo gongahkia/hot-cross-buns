@@ -7,12 +7,12 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build"
+      "/tmp/hot-cross-buns-native-build"
     ],
     "startedUTC": "2026-11-20T06:22:57.064911+00:00",
     "seconds": 1.2716032919997815,
     "exit": 0,
-    "GATOR_TEST_BINARY": "/tmp/Gator-Native-P04E1R2-Verified.app/Contents/Resources/gator-runtime",
+    "HOT_CROSS_BUNS_TEST_BINARY": "/tmp/HotCrossBuns-Native-P04E1R2-Verified.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "7cc9847678f1dbc1a141a17f3aed6671af175a476427833cd5b08bb68172e96a"
   },
   {
@@ -23,13 +23,13 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel"
     ],
     "startedUTC": "2026-11-20T06:22:58.380669+00:00",
     "seconds": 146.43650808397797,
     "exit": 0,
-    "GATOR_TEST_BINARY": "/tmp/Gator-Native-P04E1R2-Verified.app/Contents/Resources/gator-runtime",
+    "HOT_CROSS_BUNS_TEST_BINARY": "/tmp/HotCrossBuns-Native-P04E1R2-Verified.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "7cc9847678f1dbc1a141a17f3aed6671af175a476427833cd5b08bb68172e96a"
   },
   {
@@ -40,7 +40,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",
@@ -52,7 +52,7 @@
     "startedUTC": "2026-11-20T06:25:24.838561+00:00",
     "seconds": 19.409198083012598,
     "exit": 0,
-    "GATOR_TEST_BINARY": "/tmp/Gator-Native-P04E1R2-Verified.app/Contents/Resources/gator-runtime",
+    "HOT_CROSS_BUNS_TEST_BINARY": "/tmp/HotCrossBuns-Native-P04E1R2-Verified.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "7cc9847678f1dbc1a141a17f3aed6671af175a476427833cd5b08bb68172e96a"
   }
 ]

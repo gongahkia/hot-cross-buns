@@ -8,8 +8,8 @@ import (
 	"runtime"
 )
 
-// Requirement is one executable prerequisite Gator can detect and explain.
-// Required describes the feature named by Purpose, not every Gator command.
+// Requirement is one executable prerequisite Hot Cross Buns can detect and explain.
+// Required describes the feature named by Purpose, not every Hot Cross Buns command.
 type Requirement struct {
 	ID           string
 	Name         string
@@ -29,7 +29,7 @@ type Status struct {
 	Path      string
 }
 
-// Catalog returns the checked-in, extensible prerequisite registry. Gator
+// Catalog returns the checked-in, extensible prerequisite registry. Hot Cross Buns
 // intentionally offers instructions only; it never runs a package manager or
 // a remote installer on the developer's behalf.
 func Catalog() []Requirement {
@@ -58,7 +58,7 @@ func Catalog() []Requirement {
 			Applicable: func(os string) bool { return os == "linux" },
 			HelpURL:    "https://github.com/containers/bubblewrap",
 			Instructions: func(string) []string {
-				return []string{"Install the bubblewrap package (for Fedora: sudo dnf install bubblewrap).", "After installation, run 'gator doctor' again to verify strict sandbox availability."}
+				return []string{"Install the bubblewrap package (for Fedora: sudo dnf install bubblewrap).", "After installation, run 'hot-cross-buns doctor' again to verify strict sandbox availability."}
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func Catalog() []Requirement {
 			Applicable: func(os string) bool { return os == "darwin" },
 			HelpURL:    "https://developer.apple.com/documentation/security/app_sandbox",
 			Instructions: func(string) []string {
-				return []string{"sandbox-exec is supplied by macOS. Restore the matching Apple system component, then run 'gator doctor' again to verify strict sandbox availability."}
+				return []string{"sandbox-exec is supplied by macOS. Restore the matching Apple system component, then run 'hot-cross-buns doctor' again to verify strict sandbox availability."}
 			},
 		},
 		{
@@ -82,7 +82,7 @@ func Catalog() []Requirement {
 			Applicable: allPlatforms,
 			HelpURL:    "https://ollama.com/download",
 			Instructions: func(string) []string {
-				return []string{"Install Ollama from its official download page, then return to Gator and refresh the Local model section."}
+				return []string{"Install Ollama from its official download page, then return to Hot Cross Buns and refresh the Local model section."}
 			},
 		},
 		{
@@ -94,7 +94,7 @@ func Catalog() []Requirement {
 			Applicable: allPlatforms,
 			HelpURL:    "https://nodejs.org/en/download",
 			Instructions: func(string) []string {
-				return []string{"Install Node.js 22 or newer if a browser or MCP tool needs it. Gator desktop includes its own application runtime."}
+				return []string{"Install Node.js 22 or newer if a browser or MCP tool needs it. Hot Cross Buns desktop includes its own application runtime."}
 			},
 		},
 	}

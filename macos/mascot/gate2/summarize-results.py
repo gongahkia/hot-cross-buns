@@ -9,10 +9,10 @@ import statistics
 import subprocess
 
 evidence = Path(__file__).resolve().parent.parent / "evidence/p04m-a2-gate2"
-for source, name in [(Path('/tmp/gator-gate2-profile-v2'), 'profile-v2'),
-                     (Path('/tmp/gator-gate2-profile-v3'), 'profile-v3'),
-                     (Path('/tmp/gator-gate2-profile-v4'), 'profile-v4'),
-                     (Path('/tmp/gator-gate2-v10-final'), 'final-v10')]:
+for source, name in [(Path('/tmp/hot-cross-buns-gate2-profile-v2'), 'profile-v2'),
+                     (Path('/tmp/hot-cross-buns-gate2-profile-v3'), 'profile-v3'),
+                     (Path('/tmp/hot-cross-buns-gate2-profile-v4'), 'profile-v4'),
+                     (Path('/tmp/hot-cross-buns-gate2-v10-final'), 'final-v10')]:
     for experiment in source.iterdir():
         if not experiment.is_dir() or experiment.name == 'disposable-home':
             continue
@@ -60,8 +60,8 @@ for name, files in baseline_record['bundles'].items():
     root = Path(name)
     now = {str(p.relative_to(root)): digest(p) for p in root.rglob('*') if p.is_file()}
     bundle_changes[name] = [key for key in files.keys() | now.keys() if files.get(key) != now.get(key)]
-source_bundle = Path('/tmp/Gator-Gate2-FinalCandidate-v10.app')
-delivered = Path('/tmp/Gator-Mascot-P04M-A2-Gate2.app')
+source_bundle = Path('/tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app')
+delivered = Path('/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app')
 bundle_hashes = lambda root: {str(p.relative_to(root)): digest(p) for p in root.rglob('*') if p.is_file()}
 revision = json.loads((delivered / 'Contents/Resources/revision.json').read_text())
 runtime = ['Engine.swift', 'Metrics.swift', 'NativeMesh.swift', 'Presentation.swift', 'Gate2Lab.swift']

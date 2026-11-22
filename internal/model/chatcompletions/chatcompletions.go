@@ -1,5 +1,5 @@
 // Package chatcompletions adapts OpenAI-compatible Chat Completions APIs to
-// Gator's provider-independent turn contract.
+// Hot Cross Buns's provider-independent turn contract.
 package chatcompletions
 
 import (
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/model/providerhttp"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/model/providerhttp"
 )
 
 const maxResponseBytes = 2 * 1024 * 1024
@@ -42,7 +42,7 @@ type Config struct {
 }
 
 // Model is a stateless adapter for OpenAI-compatible Chat Completions APIs.
-// The complete normalized conversation is sent for every turn so Gator owns
+// The complete normalized conversation is sent for every turn so Hot Cross Buns owns
 // resume state and providers do not need server-side conversation storage.
 type Model struct {
 	Config Config

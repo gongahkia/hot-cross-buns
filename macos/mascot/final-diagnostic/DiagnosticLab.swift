@@ -6,7 +6,7 @@ import Darwin
 @main @MainActor final class DiagnosticLab: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     let slot = NSView(frame: NSRect(x: 0,y: 0,width: 112,height: 112))
-    let label = NSTextField(labelWithString: "Isolated final diagnostic — no Gator backend")
+    let label = NSTextField(labelWithString: "Isolated final diagnostic — no Hot Cross Buns backend")
     let start = Date()
     let audit = LifetimeProbe()
     var device: (any MTLDevice)?
@@ -32,7 +32,7 @@ import Darwin
             guard let i = CommandLine.arguments.firstIndex(of:key),i+1<CommandLine.arguments.count else{return fallback}
             return CommandLine.arguments[i+1]
         }
-        output = URL(fileURLWithPath:arg("--output","/tmp/gator-final-diagnostic"))
+        output = URL(fileURLWithPath:arg("--output","/tmp/hot-cross-buns-final-diagnostic"))
         mode = arg("--mode","memory");policy = arg("--policy","retained")
         super.init()
     }
@@ -49,7 +49,7 @@ import Darwin
             guard FileManager.default.createFile(atPath:path.path,contents:nil) else{throw NSError(domain:"CreateSamples",code:1)}
             file=try FileHandle(forWritingTo:path)
             window=NSWindow(contentRect:NSRect(x:0,y:0,width:540,height:250),styleMask:[.titled,.closable],backing:.buffered,defer:false)
-            window.title="Gator Concept B — final diagnostic only";window.isReleasedWhenClosed=false
+            window.title="Hot Cross Buns Concept B — final diagnostic only";window.isReleasedWhenClosed=false
             let stack=NSStackView();stack.orientation = .vertical;stack.spacing=12
             stack.edgeInsets=NSEdgeInsets(top:12,left:12,bottom:12,right:12)
             stack.addArrangedSubview(label);slot.widthAnchor.constraint(equalToConstant:112).isActive=true

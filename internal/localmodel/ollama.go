@@ -215,7 +215,7 @@ func (c Client) Models(ctx context.Context) ([]InstalledModel, error) {
 }
 
 // Pull downloads one curated model and exposes bounded local progress. Ollama
-// resumes interrupted pulls itself; Gator never sends an insecure-pull flag.
+// resumes interrupted pulls itself; Hot Cross Buns never sends an insecure-pull flag.
 func (c Client) Pull(ctx context.Context, model Model, progress func(Progress)) error {
 	payload, err := json.Marshal(struct {
 		Model  string `json:"model"`

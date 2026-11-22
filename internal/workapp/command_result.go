@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 var commandResultTitles = map[string]string{
-	"/help": "Gator commands", "/?": "Gator commands", "/effort": "Effort", "/mode": "Work mode",
+	"/help": "Hot Cross Buns commands", "/?": "Hot Cross Buns commands", "/effort": "Effort", "/mode": "Work mode",
 	"/status": "Current session", "/permissions": "Work authority", "/settings": "Settings",
 	"/agents": "Internal specialists", "/queue": "Queued prompts", "/dequeue": "Queued prompts",
 	"/agenda": "Local agenda", "/clear-queue": "Queued prompts", "/plan": "Goal plan", "/activity": "Activity",
@@ -122,8 +122,8 @@ func (m Model) statusResult() *uisnapshot.Result {
 		work = "Running"
 	}
 	result := &uisnapshot.Result{Kind: "details", Title: "Current session", Fields: []uisnapshot.Field{
-		{Label: "When Gator works", Value: m.workTiming()},
-		{Label: "What Gator may do", Value: m.workAuthority()},
+		{Label: "When Hot Cross Buns works", Value: m.workTiming()},
+		{Label: "What Hot Cross Buns may do", Value: m.workAuthority()},
 		{Label: "Current goal", Value: valueOrNone(m.title)},
 		{Label: "Model", Value: selection}, {Label: "Access", Value: access},
 		{Label: "Workspace", Value: valueOrNone(m.source)},
@@ -165,8 +165,8 @@ func (m Model) statusResult() *uisnapshot.Result {
 
 func (m Model) permissionsResult() *uisnapshot.Result {
 	return &uisnapshot.Result{Kind: "details", Title: "Work authority", Summary: "Workspace snapshots are read-only.", Fields: []uisnapshot.Field{
-		{Label: "When Gator works", Value: m.workTiming()},
-		{Label: "What Gator may do", Value: m.workAuthority()},
+		{Label: "When Hot Cross Buns works", Value: m.workTiming()},
+		{Label: "What Hot Cross Buns may do", Value: m.workAuthority()},
 		{Label: "Workspace", Value: valueOrNone(m.source)},
 		{Label: "Ignored instructions", Value: valueOrNone(strings.Join(m.options.IgnoredInstructionPaths, ", "))},
 		{Label: "Mode", Value: m.options.Mode},

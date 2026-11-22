@@ -1,6 +1,6 @@
 # Rich Work artifacts
 
-Gator renders binary office artifacts from provider-independent semantic
+Hot Cross Buns renders binary office artifacts from provider-independent semantic
 specifications. Models never write raw ZIP or PDF bytes.
 
 ## Documents
@@ -10,10 +10,10 @@ blocks. Supported blocks are headings, paragraphs, callouts, bulleted and
 numbered lists, tables, and page breaks. The same specification renders to
 DOCX or PDF. Built-in themes are `professional`, `minimal`, and `report`.
 
-An optional DOCX template may contain `{{gator:title}}` and `{{gator:body}}`
-placeholders or content controls tagged `gator:title` and `gator:body`.
+An optional DOCX template may contain `{{hot-cross-buns:title}}` and `{{hot-cross-buns:body}}`
+placeholders or content controls tagged `hot-cross-buns:title` and `hot-cross-buns:body`.
 Templates with macros, binary parts, or external relationships are rejected.
-PDF uses Gator's deterministic layout and embedded fonts rather than claiming
+PDF uses Hot Cross Buns's deterministic layout and embedded fonts rather than claiming
 pixel-identical Word conversion.
 
 ## Workbooks

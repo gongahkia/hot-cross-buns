@@ -84,9 +84,9 @@ Metadata identifies scripted model, quantization not applicable, Go runtime vers
 From the repository root:
 
 ```sh
-go build -trimpath -o /tmp/gator-p04l-1-eval ./cmd/gator
-/tmp/gator-p04l-1-eval work eval local-first validate internal/eval/testdata/local-first-v1/profile.json
-/tmp/gator-p04l-1-eval work eval local-first run internal/eval/testdata/local-first-v1/profile.json --architecture A --split development --max-model-requests 256 --timeout-seconds 120 --attempts 1 --report-dir /tmp/gator-local-first-A-dev-NEW
+go build -trimpath -o /tmp/hot-cross-buns-p04l-1-eval ./cmd/hot-cross-buns
+/tmp/hot-cross-buns-p04l-1-eval work eval local-first validate internal/eval/testdata/local-first-v1/profile.json
+/tmp/hot-cross-buns-p04l-1-eval work eval local-first run internal/eval/testdata/local-first-v1/profile.json --architecture A --split development --max-model-requests 256 --timeout-seconds 120 --attempts 1 --report-dir /tmp/hot-cross-buns-local-first-A-dev-NEW
 ```
 
 Repeat explicitly for A/B/C/D and development/held-out with a **new** report directory each time. Development is the default; `all` is an explicitly requested diagnostic, not the default. Each run is capped at 256 scripted requests and 120 seconds, concurrency one; CLI may lower but not raise profile caps. No `--live` is accepted. Do not supply real keys. Regeneration (`python3 internal/eval/testdata/local-first-v1/generate.py`) is an explicit dataset-authoring operation, not needed to run the checked-in corpus.
@@ -95,28 +95,28 @@ Repeat explicitly for A/B/C/D and development/held-out with a **new** report dir
 
 Ollama not detected at checked locations and standard loopback endpoint unavailable; exact installed models, quantization/digests and inference readiness UNKNOWN. Consequently all live local quality, model-load, first-token, throughput, RAM/GPU/KV, pressure and repeated-task results are **NOT TESTED**. No 8 GB hardware acceptance or macOS-version model compatibility result is claimed.
 
-After a separately approved installation/download if needed, begin with one already installed reviewed candidate (`qwen2.5-coder:3b`, `qwen3:4b`, then `qwen3:8b` on 16 GB). Require exact digest/quantization/version inventory and local-only runtime policy first. Use an isolated Gator state/config and fixture workspace, no cloud roles/embeddings/CLI/tools, context 4096, output 32 tokens for initial smoke, one request, 60-second total wall bound. Record existing running models before/after; do not unload someone else's model or change global server settings. A smoke can load weights, so pressure admission still applies.
+After a separately approved installation/download if needed, begin with one already installed reviewed candidate (`qwen2.5-coder:3b`, `qwen3:4b`, then `qwen3:8b` on 16 GB). Require exact digest/quantization/version inventory and local-only runtime policy first. Use an isolated Hot Cross Buns state/config and fixture workspace, no cloud roles/embeddings/CLI/tools, context 4096, output 32 tokens for initial smoke, one request, 60-second total wall bound. Record existing running models before/after; do not unload someone else's model or change global server settings. A smoke can load weights, so pressure admission still applies.
 
 Example **future** local API smoke, only after verifying the named model is already installed and the server cannot forward to cloud: save a fixture request containing `{"model":"qwen3:4b","prompt":"Reply with LOCAL_OK only.","stream":false,"options":{"num_ctx":4096,"num_predict":32}}` to a private file, then:
 
 ```sh
-curl --noproxy '*' --proto '=http' --max-time 60 --fail-with-body --request POST --header 'Content-Type: application/json' --data-binary @/tmp/gator-approved-local-smoke.json http://127.0.0.1:11434/api/generate --output /tmp/gator-approved-local-smoke-result.json
+curl --noproxy '*' --proto '=http' --max-time 60 --fail-with-body --request POST --header 'Content-Type: application/json' --data-binary @/tmp/hot-cross-buns-approved-local-smoke.json http://127.0.0.1:11434/api/generate --output /tmp/hot-cross-buns-approved-local-smoke-result.json
 ```
 
 No redirects, remote endpoint, auto-pull, CLI worker, user prompt or default edit. This command was **not executed**. Ensure private output creation in the approved harness; do not let arbitrary API response/error bodies become general logs. Record API load/prompt/eval counts/durations where returned; streaming first-token timing needs a separate bounded streaming sampler. Upstream [API documentation](https://github.com/ollama/ollama/blob/main/docs/api.md) defines those fields. Inspect local residency/context via [ps](https://docs.ollama.com/api/ps); measure process RSS and physical footprint separately, with matched idle/loaded/active/settled baselines, VM/pressure/swap trends and available GPU tools. Do not infer GPU energy from CPU.
 
-Only after adapter context enforcement and offline boundaries are accepted should L4 run actual Work model-quality cases. Budget proposal: 25 development cases, at most 100 primary model requests, 15 minutes, one local inference at a time, 4K context; stop on critical pressure, sustained swap growth or uncertainty. Calibrate this plan against the one-request smoke first. Use fresh explicit held-out authorization after development changes, preserve attempts/failures and report correct refusal as success where appropriate. A 16 GB end-to-end trial must include ordinary desktop + Gator/native headroom, growing histories/context and unload behavior; 8 GB remains a separate hardware/qualified constrained-environment assessment.
+Only after adapter context enforcement and offline boundaries are accepted should L4 run actual Work model-quality cases. Budget proposal: 25 development cases, at most 100 primary model requests, 15 minutes, one local inference at a time, 4K context; stop on critical pressure, sustained swap growth or uncertainty. Calibrate this plan against the one-request smoke first. Use fresh explicit held-out authorization after development changes, preserve attempts/failures and report correct refusal as success where appropriate. A 16 GB end-to-end trial must include ordinary desktop + Hot Cross Buns/native headroom, growing histories/context and unload behavior; 8 GB remains a separate hardware/qualified constrained-environment assessment.
 
 Paid A/B/C/D execution requires a **new explicit opt-in** identifying provider/model, exact assignment/data scope, maximum primary/delegate invocations, request count where enforceable, wall time, and a supportable cost estimate or clearly unknown cost. External CLI billing request counts cannot currently be inferred from one invocation. No paid benchmark command is authorized by this tranche, and possession of a key is not consent to spend it.
 
 ## Regression verification
 
-Final source tests used environment filtering that removes `GATOR_LIVE_*`, `*_API_KEY`, `OPENAI_ACCESS_TOKEN` and `ANTHROPIC_AUTH_TOKEN` from the test subprocess environment. Tests supply their own inert keys/fake processes where required. No production credential file was opened for this audit.
+Final source tests used environment filtering that removes `HOT_CROSS_BUNS_LIVE_*`, `*_API_KEY`, `OPENAI_ACCESS_TOKEN` and `ANTHROPIC_AUTH_TOKEN` from the test subprocess environment. Tests supply their own inert keys/fake processes where required. No production credential file was opened for this audit.
 
 ```sh
-go test ./internal/eval ./cmd/gator -run TestLocalFirst -count=1
-go test -json -count=1 ./internal/eval ./internal/localmodel ./internal/modelcatalog ./internal/cliagent ./internal/config ./internal/model/... ./internal/agent ./internal/workrun ./cmd/gator
-go test -race -json -count=1 ./internal/eval ./internal/localmodel ./internal/config ./internal/cliagent ./cmd/gator -run 'TestLocalFirst|TestSettingsUpdates|TestNativeProvider|TestCloud|TestNative'
+go test ./internal/eval ./cmd/hot-cross-buns -run TestLocalFirst -count=1
+go test -json -count=1 ./internal/eval ./internal/localmodel ./internal/modelcatalog ./internal/cliagent ./internal/config ./internal/model/... ./internal/agent ./internal/workrun ./cmd/hot-cross-buns
+go test -race -json -count=1 ./internal/eval ./internal/localmodel ./internal/config ./internal/cliagent ./cmd/hot-cross-buns -run 'TestLocalFirst|TestSettingsUpdates|TestNativeProvider|TestCloud|TestNative'
 go test -count=1 ./internal/auth
 go test -race -count=1 -v ./internal/localmodel -run TestLocalFirstAuditLoopbackClientFollowsAnOffHostRedirect
 git diff --check
@@ -143,10 +143,10 @@ Swift/strict Swift 6 and host TypeScript suites were **not repeated**: all nativ
 
 | Files | Purpose |
 |---|---|
-| `cmd/gator/work_eval.go` | Dispatch finite fixture-only subcommand |
-| `cmd/gator/work_eval_local_first.go` | Validate/run existing Work evaluator with matched four-arm identities and bounded effective budgets |
-| `cmd/gator/work_eval_local_first_test.go` | Offline default, no credential leakage to controlled artifacts, rejection/overwrite and aggregate-budget tests |
-| `cmd/gator/local_first_audit_test.go` | Independent-process lost update/revocation restoration, partial deletion publication, external-runtime non-adoption; parent/child helper |
+| `cmd/hot-cross-buns/work_eval.go` | Dispatch finite fixture-only subcommand |
+| `cmd/hot-cross-buns/work_eval_local_first.go` | Validate/run existing Work evaluator with matched four-arm identities and bounded effective budgets |
+| `cmd/hot-cross-buns/work_eval_local_first_test.go` | Offline default, no credential leakage to controlled artifacts, rejection/overwrite and aggregate-budget tests |
+| `cmd/hot-cross-buns/local_first_audit_test.go` | Independent-process lost update/revocation restoration, partial deletion publication, external-runtime non-adoption; parent/child helper |
 | `internal/eval/work.go` | Reuse single loaded dataset byte snapshot; add optional finite decision diagnostic and two grader dispatch cases |
 | `internal/eval/work_json_grader.go` | Register the two focused grader schemas |
 | `internal/eval/local_first.go` | Strict hashed profile/allowlist, finite decision grader and private non-fabricated metadata |

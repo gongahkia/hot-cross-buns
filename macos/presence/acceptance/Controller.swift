@@ -20,7 +20,7 @@ private final class InputAudit {
 }
 private func startInputAudit() {
  Thread {
-  guard let path=ProcessInfo.processInfo.environment["GATOR_PRESENCE_INPUT_AUDIT"] else { return }
+  guard let path=ProcessInfo.processInfo.environment["HOT_CROSS_BUNS_PRESENCE_INPUT_AUDIT"] else { return }
   let audit=InputAudit(path)
   guard CGPreflightListenEventAccess() else { audit.record(["available":false,"reason":"listen permission unavailable; no prompt"]);return }
   let types:[CGEventType] = [.keyDown,.keyUp,.leftMouseDown,.leftMouseUp,.rightMouseDown,.rightMouseUp,.scrollWheel]
@@ -44,7 +44,7 @@ private func startInputAudit() {
    do {
     let request=try JSONSerialization.jsonObject(with:Data(line.utf8)) as! [String:Any]
     let pid=Int32(request["pid"] as! Int), action=request["action"] as! String
-    guard let running=NSRunningApplication(processIdentifier:pid), running.bundleIdentifier=="dev.gator.presence.r1", running.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/gator-native-test-presence-r1-").resolvingSymlinksInPath().path)==true else { throw Failure("refuse nonfixture: \(NSRunningApplication(processIdentifier:pid)?.bundleIdentifier ?? "nil") \(NSRunningApplication(processIdentifier:pid)?.bundleURL?.path ?? "nil")") }
+    guard let running=NSRunningApplication(processIdentifier:pid), running.bundleIdentifier=="dev.hot-cross-buns.presence.r1", running.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/hot-cross-buns-native-test-presence-r1-").resolvingSymlinksInPath().path)==true else { throw Failure("refuse nonfixture: \(NSRunningApplication(processIdentifier:pid)?.bundleIdentifier ?? "nil") \(NSRunningApplication(processIdentifier:pid)?.bundleURL?.path ?? "nil")") }
     let app=AXUIElementCreateApplication(pid); AXUIElementSetMessagingTimeout(app,2)
     let windows=children(app,"AXWindows")
     func window(_ name:String)->AXUIElement? { windows.first { matches($0,name) } ?? windows.compactMap { find($0,name) }.first }
@@ -60,7 +60,7 @@ private func startInputAudit() {
      guard let expected=request["expectedFocus"] as? [String:String], expected==summary(element(app,"AXFocusedUIElement")) else { throw Failure("focus changed; abort input") }
      if action=="press" {
       let target=request["target"] as! String
-      let allowed:[String] = ["Open Original Task","Review Pending Action","Send message","An action needs your review","Back to Conversation","Agent Presence…","Settings…","Conversation","Window","Gator","gator.presence.mode","Emoji only","Emoji + GIF reactions","Off","gator.mascot.animated","gator.mascot.shown","gator.desktopPet.shown","gator.desktopPet.tuck","Quit and Keep Retained Work"]
+      let allowed:[String] = ["Open Original Task","Review Pending Action","Send message","An action needs your review","Back to Conversation","Agent Presence…","Settings…","Conversation","Window","Hot Cross Buns","hot-cross-buns.presence.mode","Emoji only","Emoji + GIF reactions","Off","hot-cross-buns.mascot.animated","hot-cross-buns.mascot.shown","hot-cross-buns.desktopPet.shown","hot-cross-buns.desktopPet.tuck","Quit and Keep Retained Work"]
       guard allowed.contains(target) else { throw Failure("target not in nondecision allowlist") }
       let scope=name=="menu" ? element(app,"AXMenuBar") : window(name)
       guard let scope, let targetElement=find(scope,target) else { throw Failure("missing target \(target)") }

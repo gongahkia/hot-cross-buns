@@ -1,8 +1,8 @@
 exit=0
-Process:         GatorDiagnostic [72690]
-Path:            /private/tmp/Gator-Mascot-P04M-A2-Final-Diagnostic.app/Contents/MacOS/GatorDiagnostic
+Process:         HotCrossBunsDiagnostic [72690]
+Path:            /private/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app/Contents/MacOS/HotCrossBunsDiagnostic
 Load Address:    0x102bec000
-Identifier:      dev.gator.mascot.final.diagnostic
+Identifier:      dev.hot-cross-buns.mascot.final.diagnostic
 Version:         0
 Code Type:       ARM64
 Platform:        macOS

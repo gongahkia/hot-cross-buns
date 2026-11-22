@@ -207,7 +207,7 @@ func TestUntrustedOrChangedProjectNeverInvokesServer(t *testing.T) {
 		t.Fatal("untrusted config contacted a server")
 	}
 	// A display-only manifest edit changes the existing trust digest too.
-	path := filepath.Join(repository, ".gator", "mcp.json")
+	path := filepath.Join(repository, ".hot-cross-buns", "mcp.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

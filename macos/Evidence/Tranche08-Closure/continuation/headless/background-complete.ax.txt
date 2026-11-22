@@ -1,5 +1,5 @@
-AXApplication | Gator |  | 
-AXWindow | Gator – New chat |  | 
+AXApplication | Hot Cross Buns |  |
+AXWindow | Hot Cross Buns – New chat |  |
 AXGroup |  |  | 
 AXDisclosureTriangle |  | Another chat needs attention | 
 AXScrollArea |  |  | 
@@ -23,7 +23,7 @@ AXScrollArea |  | Conversation status and recovery |
 AXStaticText |  |  | Connected
 AXMenuButton |  | Select Model | 
 AXScrollArea |  |  | 
-AXTextArea |  | Message Gator | Foreground draft preserved
+AXTextArea |  | Message Hot Cross Buns | Foreground draft preserved
 AXButton |  | Attach Files | 
 AXMenuButton | Photo | Image attachment options | 
 AXCheckBox |  | Plan first | 
@@ -39,7 +39,7 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | New chat
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

@@ -3,7 +3,7 @@ package telemetry
 import (
 	"context"
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"io"
 	"net/http"
 	"net/http/httptest"

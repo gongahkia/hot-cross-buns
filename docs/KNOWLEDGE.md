@@ -1,50 +1,50 @@
 # Personal knowledge and skills
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
-Gator keeps short facts and decisions in `gator memory`. Longer Markdown notes
+Hot Cross Buns keeps short facts and decisions in `hot-cross-buns memory`. Longer Markdown notes
 and reusable procedures live in a private filesystem knowledge base under the
 resolved state directory:
 
 ```text
-gator/knowledge/
+hot-cross-buns/knowledge/
   notes/note-<id>/meta.json
   notes/note-<id>/content.md
   skills/<name>/meta.json
   skills/<name>/SKILL.md
 ```
 
-Directories are private (`0700`) and files are private (`0600`). Gator accepts
+Directories are private (`0700`) and files are private (`0600`). Hot Cross Buns accepts
 only bounded UTF-8 text, exact generated note IDs or validated skill names, and
 regular files. Symlinks and path traversal are rejected at the store boundary.
 The Markdown is inspectable and may be edited directly; invalid or oversized
-edits fail closed the next time Gator loads that entry. No skill content is
+edits fail closed the next time Hot Cross Buns loads that entry. No skill content is
 executed as a shell command or loaded as a plugin.
 
-For a short memory supported by a local file, use `gator memory add
---source-file PATH TEXT`. Gator stores the path and a fingerprint of the file
+For a short memory supported by a local file, use `hot-cross-buns memory add
+--source-file PATH TEXT`. Hot Cross Buns stores the path and a fingerprint of the file
 (up to 4 MiB). If it changes or disappears, `memory show` reports the source
 status and automatic recall skips that memory. After reviewing the current
-file, use `gator memory correct ID --source-file PATH TEXT` to update both the
+file, use `hot-cross-buns memory correct ID --source-file PATH TEXT` to update both the
 fact and its fingerprint. The fingerprint detects file changes; it does not
 prove that the file supports the memory's claim. Plain `--source REF` remains
 an unverified label.
 
-`gator memory search QUERY` shows lexical terms that matched. At the start of
-Work, Gator combines lexical and semantic recall over eligible memories and
+`hot-cross-buns memory search QUERY` shows lexical terms that matched. At the start of
+Work, Hot Cross Buns combines lexical and semantic recall over eligible memories and
 notes. The default semantic provider is local Ollama `embeddinggemma:latest`.
-Install it explicitly with `gator memory embeddings install --yes` (about
-622 MB), and check readiness with `gator memory embeddings status`. If Ollama
+Install it explicitly with `hot-cross-buns memory embeddings install --yes` (about
+622 MB), and check readiness with `hot-cross-buns memory embeddings status`. If Ollama
 or the model is unavailable, Work continues with lexical recall. Goal scope,
 expiry, and changed source fingerprints are checked before memory indexing.
 Retrieval reasons are retained with each Work decision, but they do not prove a
 fact is true. Current sources still take precedence when they disagree.
 
 Cloud embeddings are optional and separate from the chat model selection:
-`gator memory embeddings set openai --allow-upload` or `gator memory embeddings
-set gemini --allow-upload`. These settings permit Gator to upload eligible
+`hot-cross-buns memory embeddings set openai --allow-upload` or `hot-cross-buns memory embeddings
+set gemini --allow-upload`. These settings permit Hot Cross Buns to upload eligible
 saved memory and note text and the current query to that provider for
-embedding. Use `gator memory embeddings set ollama` to return to local recall.
+embedding. Use `hot-cross-buns memory embeddings set ollama` to return to local recall.
 The private vector index contains embeddings and content hashes rather than
 plain text. It updates changed records incrementally and removes forgotten
 records. Saved source text and instructions never grant tool authority.
@@ -83,15 +83,15 @@ reasoning or proof that a source supports an answer's claim. Feedback ratings
 are retained for review and do not automatically retrain the selected model.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note add --title 'Venue decision' --goal GOAL_ID --source-ref 'source/venue-email.md:12' --body 'Venue B is preferred; verify capacity by Friday.'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note add --title 'Meeting notes' --file ./meeting.md
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note search --goal GOAL_ID 'venue capacity'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note show NOTE_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note edit NOTE_ID --file ./revised-meeting.md
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note edit NOTE_ID --source-ref 'source/revised-venue.md:4'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note edit NOTE_ID --clear-source-refs
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note path NOTE_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator note remove NOTE_ID --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note add --title 'Venue decision' --goal GOAL_ID --source-ref 'source/venue-email.md:12' --body 'Venue B is preferred; verify capacity by Friday.'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note add --title 'Meeting notes' --file ./meeting.md
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note search --goal GOAL_ID 'venue capacity'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note show NOTE_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note edit NOTE_ID --file ./revised-meeting.md
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note edit NOTE_ID --source-ref 'source/revised-venue.md:4'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note edit NOTE_ID --clear-source-refs
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note path NOTE_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns note remove NOTE_ID --yes
 ```
 
 A note is either global or attached to one goal. Goal-scoped notes are never
@@ -103,12 +103,12 @@ labels, not proof that the source still says the same thing; check the current
 source before relying on them. The agent may try up to three alternate terms
 when its first knowledge search misses, and each result shows which query
 matched. This remains lexical search and can miss a different paraphrase or
-return a weak match. Short `gator memory` records retain their separate
+return a weak match. Short `hot-cross-buns memory` records retain their separate
 expiry and correction controls. `knowledge_search` and `knowledge_read` let the
 main agent retrieve both notes and active memories during Work. They accept IDs
 and query text, never arbitrary filesystem paths.
 
-At the start of Work, Gator also puts up to four matching note leads in the
+At the start of Work, Hot Cross Buns also puts up to four matching note leads in the
 model context. Each lead has its note ID, goal/global scope, retrieval reason,
 up to two source labels, and a short excerpt. The full note
 stays in the private store and is available through `knowledge_read`. A lead
@@ -124,13 +124,13 @@ larger files and full metadata options.
 ## Skills
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill create daily-brief --description 'Use for morning briefings' --file ./SKILL.md
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill list
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill show daily-brief
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill edit daily-brief --description 'Use for daily briefings' --file ./revised-SKILL.md
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill disable daily-brief
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill enable daily-brief
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator skill remove daily-brief --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill create daily-brief --description 'Use for morning briefings' --file ./SKILL.md
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill list
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill show daily-brief
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill edit daily-brief --description 'Use for daily briefings' --file ./revised-SKILL.md
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill disable daily-brief
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill enable daily-brief
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill remove daily-brief --yes
 ```
 
 In the TUI, `/skill create NAME | WHEN_TO_USE | BODY` and
@@ -153,25 +153,25 @@ to the main agent, which remains responsible for checking evidence and deciding
 what to tell or ask the user.
 
 Stored notes, skill text, source files, and prior model responses are reference
-data. Their contents cannot change Gator's host-owned authority. The existing
+data. Their contents cannot change Hot Cross Buns's host-owned authority. The existing
 Code specialist still uses its strict process sandbox for any command execution;
 the knowledge tools themselves do not start a process.
 
 ## Review agent suggestions
 
-During Work, Gator may queue a candidate ongoing goal, note, skill, goal-plan edit, or
+During Work, Hot Cross Buns may queue a candidate ongoing goal, note, skill, goal-plan edit, or
 goal-linked recurring check. A goal proposal includes a starting plan and may include an inspect-only recurring check. The
 candidate records its source Work ID and is not used as knowledge until you
 accept it. Review from the terminal UI with `/suggestions` or from the shell:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator suggestion list
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator suggestion show SUGGESTION_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator suggestion accept SUGGESTION_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator suggestion reject SUGGESTION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns suggestion list
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns suggestion show SUGGESTION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns suggestion accept SUGGESTION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns suggestion reject SUGGESTION_ID
 ```
 
-`gator suggestion show` includes `reference_integrity` for note source references
+`hot-cross-buns suggestion show` includes `reference_integrity` for note source references
 and proposed plan evidence. It checks them against the retained, verified Work
 bundle and current local source files. `verified` means the reference points to
 observed material; it does not mean the material supports the suggested claim.

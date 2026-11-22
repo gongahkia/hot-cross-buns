@@ -1,10 +1,10 @@
 {
   "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-  "Contents/MacOS/GatorMac": "495d6729139d1ea1e210be24fc04000810c14cb21d85dce5b24c10852070b209",
+  "Contents/MacOS/HotCrossBunsMac": "495d6729139d1ea1e210be24fc04000810c14cb21d85dce5b24c10852070b209",
   "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-  "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-  "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c",
+  "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+  "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c",
   "Contents/Resources/Presence/attention.gif": "bf00539083313e171ec47ab95a8253bcdfd5b5025c39e39b531d73caef0da07c",
   "Contents/Resources/Presence/completed.gif": "8855aa8b205539a33abe8fe1687a110dbc9ba7f12a2864d26fd85e328c7b9bbb",
-  "Contents/Resources/gator-runtime": "21081c285e4220d4199f4c90047aba0fe956c2018745c436e4de6bd3ac4590fc"
+  "Contents/Resources/hot-cross-buns-runtime": "21081c285e4220d4199f4c90047aba0fe956c2018745c436e4de6bd3ac4590fc"
 }

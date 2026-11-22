@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 // BridgePanelAction is a mouse or native form action against a reviewed view.

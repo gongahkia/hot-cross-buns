@@ -4,30 +4,30 @@ import { mkdtemp, readFile, readdir, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { memoryComparisonMessage } from "./memory-fixture"
 
 type Request = { messages: { role: string; content: string }[] }
 async function until(predicate: () => boolean | Promise<boolean>, label: string) { const end = Date.now() + 15000; while (!await predicate()) { if (Date.now() > end) throw new Error(`Timed out: ${label}`); await Bun.sleep(20) } }
 test("personal memory keyboard corrections retain stale edits, preserve concurrent facts and survive restart", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-memory-")), quote = "I prefer concise answers with bullet points."
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-  const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }, calls: Request[] = []
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-memory-")), quote = "I prefer concise answers with bullet points."
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }, calls: Request[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const input = await request.json() as Request; calls.push(input); const last = input.messages.at(-1)
     const message = memoryComparisonMessage(input) ?? (last?.role !== "tool" && last?.content.includes(quote) ? { role: "assistant", content: null, tool_calls: [{ id: "remember-" + calls.length, type: "function", function: { name: "memory_remember", arguments: JSON.stringify({ subject: "preference.response_length", kind: "preference", quote, scope: "personal", explicit: true }) } }] } : { role: "assistant", content: "Your grounded preference is available." })
     return Response.json({ choices: [{ message, finish_reason: "tool_calls" in message ? "tool_calls" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } })
   } })
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
   cli(["provider", "add", "memory-fixture", "--base-url", `http://127.0.0.1:${server.port}/v1/chat/completions`, "--model", "fixture"]); cli(["config", "set", "default-provider", "memory-fixture"])
   const options = { binary, env, workspace: join(root, "workspace"), userData: join(root, "app") }
-  let client = new GatorClient(new Application(options))
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 38 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
-  const memoryPath = join(env.GATOR_STATE_DIR, "gator/memory")
+  const memoryPath = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/memory")
   const memories = async () => (await Promise.all((await readdir(memoryPath).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return []; throw error })).filter(name => name.endsWith(".json")).map(async name => {
     try { return JSON.parse(await readFile(join(memoryPath, name), "utf8")) }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error }
@@ -46,7 +46,7 @@ test("personal memory keyboard corrections retain stale edits, preserve concurre
     setup.mockInput.pressEscape(); await flush(); await until(() => !!client.state?.chat_memories?.some(memory => memory.text === concurrent), "updated receipt")
     await edit(); setup.mockInput.pressKey("u", { ctrl: true }); await setup.mockInput.typeText("I prefer detailed proposal reviews."); setup.mockInput.pressEnter()
     await until(async () => (await memories())[0]?.text === "I prefer detailed proposal reviews.", "saved correction")
-    const count = calls.length; await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start()
+    const count = calls.length; await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start()
     await until(() => !!client.state?.chat_memories?.some(memory => memory.text === "I prefer detailed proposal reviews."), "restart receipt")
     expect(calls).toHaveLength(count)
     await client.navigate("/memories"); await flush(); setup.mockInput.pressEnter(); await flush(); await setup.mockInput.typeText("Forget"); await flush(); setup.mockInput.pressEnter(); await flush()

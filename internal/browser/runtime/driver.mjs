@@ -9,7 +9,7 @@ import { basename, resolve } from 'node:path';
 const maxTextBytes = 32 * 1024;
 const maxElements = 128;
 const maxArtifactBytes = 8 * 1024 * 1024;
-const scratchDirectory = process.env.GATOR_BROWSER_SCRATCH;
+const scratchDirectory = process.env.HOT_CROSS_BUNS_BROWSER_SCRATCH;
 
 let browser;
 let starting;
@@ -143,15 +143,15 @@ async function applyPolicy(page) {
         return route.connectToServer();
       });
     }
-    // Managed contexts begin with only Gator's initial page. Any new page is
+    // Managed contexts begin with only Hot Cross Buns's initial page. Any new page is
     // a popup, and is immediately closed rather than becoming agent-visible.
     context.on('page', candidate => {
       if (candidate !== page) void candidate.close();
     });
     return;
   }
-  if (page.__gatorPolicyApplied) return;
-  page.__gatorPolicyApplied = true;
+  if (page.__hotCrossBunsPolicyApplied) return;
+  page.__hotCrossBunsPolicyApplied = true;
   await page.route('**/*', async route => {
     const request = route.request();
     if (await safeRequestURL(request.url())) return route.continue();

@@ -1,4 +1,4 @@
-# Gator terminal experience completion checklist
+# Hot Cross Buns terminal experience completion checklist
 
 This tracks the 15-item product/interaction goal from the audit of `7750df414`.
 Completion requires behavior and verification, including the Go/host boundaries;
@@ -102,9 +102,9 @@ provider-item framework, new transport or Swift frontend was implemented during
 this inventory. A scope decision is pending.
 
 Inspected at `4dc5c4d72`: the Go application bridge in
-`cmd/gator/ui_bridge.go`, automation in `cmd/gator/work_headless.go`, public
+`cmd/hot-cross-buns/ui_bridge.go`, automation in `cmd/hot-cross-buns/work_headless.go`, public
 contracts in `app-host/contracts/`, the command catalogue in
-`internal/workapp/commands.go`, controller assembly in `cmd/gator/work_controls.go`,
+`internal/workapp/commands.go`, controller assembly in `cmd/hot-cross-buns/work_controls.go`,
 and `app-host/src/{application,backend,sessions,policy,drafts,files,voice-session}.mjs`.
 This evidence is code inspection, not another live-provider or runtime test.
 
@@ -133,7 +133,7 @@ Two important distinctions follow from the inspected implementation:
   work services, but their product contracts differ.
 - `ui-backend` already runs the Go application without terminal rendering.
   Its state still includes panel/section/key presentation concepts, and service
-  assembly remains in `cmd/gator`. A first Swift conversation/approval/history
+  assembly remains in `cmd/hot-cross-buns`. A first Swift conversation/approval/history
   integration can exercise the existing typed intents before deciding which
   concrete coupling needs extraction. This does not justify a speculative new
   server or generic UI/command framework.
@@ -152,7 +152,7 @@ by the current backend-only objective itself; a revised scope is required.
   support effort. Both now use `work_effort` in the existing canonical conversation
   preference record, with the established low 12/8, standard 24/16 and high 48/32
   Work/Code step presets. No new settings store or execution path is introduced.
-- Existing manual composer/command paths and `gator_app_update` with typed
+- Existing manual composer/command paths and `hot_cross_buns_app_update` with typed
   `work_effort {effort}` use the same Go validation and persistence. Settings
   inspection reports the saved/effective future request budgets, supported
   choices, target conversation, captured current request limits and effect.
@@ -170,13 +170,13 @@ by the current backend-only objective itself; a revised scope is required.
   and notify cached owners without replaying work or moving focus. Refresh updates
   future options while preserving drafts, queued requests and execution ownership.
   Foreground focus and new admission also reload canonical conversation choices.
-- Verification: `GATOR_TEST_BINARY=/tmp/gator-backend-20261113-work-effort-runtime bun run test:backend`
+- Verification: `HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-backend-20261113-work-effort-runtime bun run test:backend`
   from `app-host` passed 25 tests / 599 assertions in 131.98s. Final focused native
   verification after clarifying captured/runtime ceilings and adding private-data
   guards passed all four effort journeys / 38 assertions in 8.10s. These exercise
   manual/chat save, source changes, restart, future execution, a delegated change
   to a busy cached parent and a pending plan's unchanged actual execution budget.
-- Full `go test ./internal/worksession ./internal/workapp ./internal/workrun ./cmd/gator`
+- Full `go test ./internal/worksession ./internal/workapp ./internal/workrun ./cmd/hot-cross-buns`
   passed (94.815s / 82.108s / 173.789s / 294.332s). Focused race checks passed all
   four packages; final guarded-setting race checks passed session/application/
   command (2.417s / 3.700s / 3.201s). Fixtures cover invalid/stale preferences,
@@ -186,7 +186,7 @@ by the current backend-only objective itself; a revised scope is required.
   cached-owner test also checks refresh failure reporting, no event loop, no
   task replay and retained focus/queue ownership. Backend contract plus all four
   headless test files passed TypeScript checking.
-- Logs share `/tmp/gator-backend-20261113-work-effort-`: `repro.log`,
+- Logs share `/tmp/hot-cross-buns-backend-20261113-work-effort-`: `repro.log`,
   `native-initial.log`, `native-expanded.log`, `backend-verified.log`,
   `native-final.log`, `go-full.log`, `race.log`, `guards-final.log`,
   `host-full.log` and `types.log`. Providers/accounts are synthetic loopback
@@ -223,7 +223,7 @@ by the current backend-only objective itself; a revised scope is required.
   exact review before the first execution. Delegated paths retain the parent
   admission scope and independent parent work. Cancellation takes precedence
   over a late setup callback, which cannot revive the cancelled plan.
-- Verification: `GATOR_TEST_BINARY=/tmp/gator-backend-20261113-admission-access-runtime bun run test:backend`
+- Verification: `HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-backend-20261113-admission-access-runtime bun run test:backend`
   from `app-host` passed all 21 tests / 561 assertions in 59.26s. Nine preparation
   cases include first-proposal repair/replacement, removal before delegated
   submission or during routing, unrelated conversation, original-file execution,
@@ -231,13 +231,13 @@ by the current backend-only objective itself; a revised scope is required.
   recovery cases remain in the combined gate. Two fixture mistakes in the added
   unrelated-message case (request field and fixed dialogue position) were
   corrected without changing product checks, deadlines or acceptance criteria.
-- Full `go test ./internal/worksession ./internal/workapp ./cmd/gator` passed
+- Full `go test ./internal/worksession ./internal/workapp ./cmd/hot-cross-buns` passed
   (157.112s / 107.547s / 278.357s); focused `-race` checks passed all three
   (78.110s / 54.461s / 2.645s). Fixtures cover exact preparation identities,
   rejection of previously reviewed/cancelled tasks, retained initial scope and
   allowance, and cancellation before a late setup result is applied. Backend
   contract plus all three headless test files passed TypeScript checking.
-- Logs share `/tmp/gator-backend-20261113-admission-access-`: `repro.log`,
+- Logs share `/tmp/hot-cross-buns-backend-20261113-admission-access-`: `repro.log`,
   `go-focused.log`, `app.log`, `native-initial.log`, `native-all.log`,
   `backend-verified.log`, `backend-final.log`, `go-full.log`, `race.log` and
   `types-final.log`. The final backend log is the corrected passing gate;
@@ -277,7 +277,7 @@ by the current backend-only objective itself; a revised scope is required.
   that limitation as an unconfigured-source prerequisite. Replacement readiness
   requires an actual configured operation usable under original mode/permissions;
   the fresh plan and existing per-operation approval policies still enforce access.
-- Headless native/host evidence: `GATOR_TEST_BINARY=/tmp/gator-backend-20261113-preparation-recovery-runtime bun run test:backend`
+- Headless native/host evidence: `HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-backend-20261113-preparation-recovery-runtime bun run test:backend`
   from `app-host` passed 17 tests / 472 assertions, including five preparation
   cases, repeated pending account review and the existing twelve access-repair
   cases. These are actual Go processes, store/restart boundaries and loopback
@@ -287,12 +287,12 @@ by the current backend-only objective itself; a revised scope is required.
   mutating the journal. Charged prior attempts and their measured remaining
   budgets stay equal across an unstarted repair. Replacement readiness fixtures
   reject denied real reads and write-only replacements for an inspect task.
-- Full `go test ./internal/worksession ./internal/workapp ./internal/workrun ./cmd/gator`
+- Full `go test ./internal/worksession ./internal/workapp ./internal/workrun ./cmd/hot-cross-buns`
   passed (68.773s / 88.060s / 228.739s / 337.748s). Focused `-race` checks passed
   for all four packages after the final preparation-validation refinements
   (66.698s / 21.355s / 5.450s / 2.807s). The host suite passed 139 tests
   with one existing platform skip; backend contract and all three headless test
-  files passed TypeScript checking. Logs share `/tmp/gator-backend-20261113-preparation-recovery-`:
+  files passed TypeScript checking. Logs share `/tmp/hot-cross-buns-backend-20261113-preparation-recovery-`:
   `repro.log`, `delegated-repro.log`, `race-final.log`, `backend-verified.log`,
   `host.log`, `types-verified.log` and `go-full.log`.
 - Tests use synthetic providers, credentials and accounts. No terminal
@@ -332,7 +332,7 @@ by the current backend-only objective itself; a revised scope is required.
   Go fixtures additionally cover revoking an undispatched approval, preserving
   historical approval and excluding cancelled/live/unaccounted states.
 - Implementation: `4af6f796f`. Evidence logs use
-  `/tmp/gator-backend-20261113-access-rereview-`:
+  `/tmp/hot-cross-buns-backend-20261113-access-rereview-`:
   - `repro.log`: two real-Go/host reproductions failed because the pending task's
     access review disappeared. `multiple-repro.log` separately demonstrated a
     locally configured, ready review dropping an account still chosen elsewhere.
@@ -342,7 +342,7 @@ by the current backend-only objective itself; a revised scope is required.
     packages (command 5.580, session 8.582, runner 10.850, app 10.382 seconds),
     including both multi-requirement selection orders and original-review guards.
   - `build-verified.log`: rebuilt the Go executable directly with `go build`.
-    `backend-verified.log`: `GATOR_TEST_BINARY=... bun run test:backend` from
+    `backend-verified.log`: `HOT_CROSS_BUNS_TEST_BINARY=... bun run test:backend` from
     app-host passed 12 tests / 353 assertions in 54.35 seconds, with no terminal
     preload, renderer or keyboard interaction. The delegated journey also rejects
     a later changed scope and re-reviews it while independent parent work stays
@@ -365,7 +365,7 @@ by the current backend-only objective itself; a revised scope is required.
 - `e2b57a5c9` retains typed connector credential failures and begins reviewed
   account binding. `a445d9651` completes descriptor/destination binding and the
   Go/host request-access workflow; terminal UI wiring is excluded.
-- `gator_request_access` records a supported missing account/operation requirement
+- `hot_cross_buns_request_access` records a supported missing account/operation requirement
   without granting it. Denied operations remain unavailable. Once setup is
   requested, later task tools cannot dispatch. Native read credential and HTTP
   401/403 failures can retain an equivalent requirement without trusting prose.
@@ -386,7 +386,7 @@ by the current backend-only objective itself; a revised scope is required.
   access-token refresh keeps its grant identity; an OAuth token with no refresh
   grant remains bound to its actual credential. Delegated tasks retain their
   original parent references and may use only the reviewed scope evolution.
-- Evidence logs use `/tmp/gator-backend-20261113-task-access-`:
+- Evidence logs use `/tmp/hot-cross-buns-backend-20261113-task-access-`:
   - `go-full.log`: all six connector/tools/session/app/runner/CLI packages passed
     (5.022/20.852/88.699/107.412/211.495/311.291 seconds). Subsequent scope and
     account refinements are covered by focused gates and rebuilt native journeys.
@@ -448,9 +448,9 @@ by the current backend-only objective itself; a revised scope is required.
   recovery inputs remain protected during journal/upload cleanup until dismissal.
 - Verification: rebuilt the native Go runtime (`node scripts/build-runtime.mjs`
   from `ui`); `bun run check` passed. All evidence logs for this slice use the
-  `/tmp/gator-backend-20261113-recovery-` prefix.
+  `/tmp/hot-cross-buns-backend-20261113-recovery-` prefix.
   - `go-full.log`: `go test ./internal/agent ./internal/worksession
-    ./internal/workapp ./internal/workrun ./cmd/gator` passed all five packages
+    ./internal/workapp ./internal/workrun ./cmd/hot-cross-buns` passed all five packages
     (4.276/64.316/67.078/218.214/314.285 seconds respectively). Final identity,
     scope and evidence-retention refinements were subsequently covered by
     `final-guards.log`, `dispatch-final.log`, `store-verified.log` and the rebuilt
@@ -515,7 +515,7 @@ finished after only the terminal phase or a mobile scaffold.
   silently opt into this transition, and update-reply scope is kept separate.
   Local/delegated controlled-provider journeys pass alongside the existing plan
   and uncertain-effect flows: **5 tests, 144 assertions**, observed exit 0, in
-  `/tmp/gator-backend-20261113-promote-client-verified.log`. They cover original
+  `/tmp/hot-cross-buns-backend-20261113-promote-client-verified.log`. They cover original
   admission repeats, changed-payload rejection, uploaded originals/additions,
   exact review, unrelated parent work, scope inspection, fresh execution with
   reduced limits, retained drafts and restart without replay. The fixture selects
@@ -527,13 +527,13 @@ finished after only the terminal phase or a mobile scaffold.
   after confirming the original unmodified running task; uncertain writes stop
   the owner. Rollback is one-shot and cannot remove a later fence. Actual service
   tests with the race detector pass in
-  `/tmp/gator-backend-20261113-promote-final-race.log`. Request boundary, promotion,
+  `/tmp/hot-cross-buns-backend-20261113-promote-final-race.log`. Request boundary, promotion,
   explicit retry/queue and router guards pass in
-  `/tmp/gator-backend-20261113-promote-store-final.log`,
-  `/tmp/gator-backend-20261113-promote-retry-final.log` and
-  `/tmp/gator-backend-20261113-promote-final-guards.log`. Full session/app/run/CLI
+  `/tmp/hot-cross-buns-backend-20261113-promote-store-final.log`,
+  `/tmp/hot-cross-buns-backend-20261113-promote-retry-final.log` and
+  `/tmp/hot-cross-buns-backend-20261113-promote-final-guards.log`. Full session/app/run/CLI
   regression passes (63.109 / 93.661 / 183.422 / 280.282 seconds), observed exit 0,
-  in `/tmp/gator-backend-20261113-promote-go-full.log`; later small prevalidation,
+  in `/tmp/hot-cross-buns-backend-20261113-promote-go-full.log`; later small prevalidation,
   one-shot rollback and interrupted-edit refinements have the focused gates above.
   Runtime build and TypeScript checks pass. This is controlled provider/process
   evidence; staged-persistence crash/failure and broader account/permission/coding
@@ -555,23 +555,23 @@ finished after only the terminal phase or a mobile scaffold.
   is not mutated. This is file-selection withdrawal, not erasure of earlier
   processing or conversation history.
   Go scope/plan checks with the race detector pass in
-  `/tmp/gator-backend-20261113-input-removal-go.log`; final replay checks pass in
-  `/tmp/gator-backend-20261113-input-removal-replay.log`. The host policy/upload
+  `/tmp/hot-cross-buns-backend-20261113-input-removal-go.log`; final replay checks pass in
+  `/tmp/hot-cross-buns-backend-20261113-input-removal-replay.log`. The host policy/upload
   gate passes **30 tests** in
-  `/tmp/gator-backend-20261113-input-removal-host-final.log`, including original
+  `/tmp/hot-cross-buns-backend-20261113-input-removal-host-final.log`, including original
   reference retention and malformed-history recovery. Full Go session/app/run/CLI
   regression passes with exit 0 (82.362 / 84.598 / 183.023 / 374.368 seconds) in
-  `/tmp/gator-backend-20261113-input-removal-go-full.log`; this preceded the final
+  `/tmp/hot-cross-buns-backend-20261113-input-removal-go-full.log`; this preceded the final
   review-projection and scoped-replay refinements covered by focused checks.
   Native keyboard fixture checks removal, original-reference retention, stale
   review rejection, exact withdrawal explanation, fresh approval, and actual
   execution receiving the kept file without the removed file's contents. The
   initial concurrent run reached all functional assertions but hit its 45-second
   deadline. The unchanged isolated check passes (1 test, 8 assertions, 5.364
-  seconds) in `/tmp/gator-backend-20261113-input-removal-client-isolated.log`;
+  seconds) in `/tmp/hot-cross-buns-backend-20261113-input-removal-client-isolated.log`;
   no deadline was increased and no check skipped. Final rebuilt replay/native
   verification also passes (1 test, 8 assertions, 4.926 seconds) in
-  `/tmp/gator-backend-20261113-input-removal-replay-client.log`. Runtime build
+  `/tmp/hot-cross-buns-backend-20261113-input-removal-replay-client.log`. Runtime build
   and final TypeScript checks pass. These are
   controlled-provider and native-fixture checks, not physical/live verification.
   Broader running/delegated withdrawal and conversion of non-plan tasks to reviewed
@@ -591,7 +591,7 @@ finished after only the terminal phase or a mobile scaffold.
   original transport identity acknowledges its original payload after evolution;
   reusing it with changed files fails instead of creating or executing work.
   Native controlled-provider/process evidence:
-  `/tmp/gator-backend-20261113-input-scope-final-client.log` passes **5 tests,
+  `/tmp/hot-cross-buns-backend-20261113-input-scope-final-client.log` passes **5 tests,
   114 assertions**, observed exit 0. Local/delegated journeys verify the old run
   sees only its original file, the fresh-reviewed replacement receives both
   versions, original options remain inspectable, additions appear in exact
@@ -600,11 +600,11 @@ finished after only the terminal phase or a mobile scaffold.
   includes pending-action correction and uncertain-effect restart regression.
   Runtime build and TypeScript checks pass. Canonical scope and alias/bounds
   tests pass with the race detector in
-  `/tmp/gator-backend-20261113-input-scope-race-final.log`; admission regressions
-  pass in `/tmp/gator-backend-20261113-input-scope-admission.log`.
+  `/tmp/hot-cross-buns-backend-20261113-input-scope-race-final.log`; admission regressions
+  pass in `/tmp/hot-cross-buns-backend-20261113-input-scope-admission.log`.
   Full session/app/run/CLI regression passes with exit 0 (86.052 / 83.326 /
   160.451 / 233.760 seconds) in
-  `/tmp/gator-backend-20261113-input-scope-go-full.log`; that full run preceded
+  `/tmp/hot-cross-buns-backend-20261113-input-scope-go-full.log`; that full run preceded
   the final original-admission retry and general option-alias guards covered by
   focused gates above. Input removal/replacement selection and conversion of
   non-plan tasks to a reviewed input transition remain open, alongside broader
@@ -619,14 +619,14 @@ finished after only the terminal phase or a mobile scaffold.
   external endpoint receives one exact-approved request before correction cancels
   the call; its uncertain receipt blocks replacement approval both before and
   after process restart. No second request or automatic execution occurs.
-  `/tmp/gator-backend-20261113-running-recovery-client.log`: **3 pass, 0 failures,
+  `/tmp/hot-cross-buns-backend-20261113-running-recovery-client.log`: **3 pass, 0 failures,
   53 assertions**, observed exit 0. Runtime build and TypeScript checks pass.
   A demonstrated cancellation gap is fixed: an explicitly discarded correction
   can still attach the exact original run's accounting while retaining its
   cancelled state. It cannot acquire approval. Real-Service/race cases pass in
-  `/tmp/gator-backend-20261113-running-cancel-race.log` (3.727 seconds).
+  `/tmp/hot-cross-buns-backend-20261113-running-cancel-race.log` (3.727 seconds).
   Full session/run/app regression is running in
-  `/tmp/gator-backend-20261113-running-recovery-go-full.log`.
+  `/tmp/hot-cross-buns-backend-20261113-running-recovery-go-full.log`.
   These are controlled-provider, actual-process and loopback-effect checks;
   they do not establish physical audio or live-account/model quality. Explicit
   input changes, staged-handoff crash/account/permission/coding cases, receipt
@@ -647,22 +647,22 @@ finished after only the terminal phase or a mobile scaffold.
   inspection or restart does not replay them. Typed plan review exposes the
   original budget, remaining step budget and original-attempt provenance.
   The real Service fence/retention test passes in
-  `/tmp/gator-backend-20261113-plan-accounting-service.log`; bounds/exhaustion,
+  `/tmp/hot-cross-buns-backend-20261113-plan-accounting-service.log`; bounds/exhaustion,
   overflow and related gates pass in
-  `/tmp/gator-backend-20261113-plan-accounting-focused.log`. The first native
+  `/tmp/hot-cross-buns-backend-20261113-plan-accounting-focused.log`. The first native
   Go/host/client journey passes (1 test, 16 assertions) in
-  `/tmp/gator-backend-20261113-plan-accounting-client.log`: ordinary correction
+  `/tmp/hot-cross-buns-backend-20261113-plan-accounting-client.log`: ordinary correction
   during approved work, same task, retained evidence, stale review rejected,
   fresh review, reduced actual manifest limits and draft/restart without replay.
   Full session/app/run/artifact regression passes (79.658 / 72.098 / 127.830 /
   4.464 seconds), observed exit 0, in
-  `/tmp/gator-backend-20261113-plan-accounting-full.log`. Focused race gates pass
-  in `/tmp/gator-backend-20261113-plan-accounting-race.log`. The small final review
+  `/tmp/hot-cross-buns-backend-20261113-plan-accounting-full.log`. Focused race gates pass
+  in `/tmp/hot-cross-buns-backend-20261113-plan-accounting-race.log`. The small final review
   projection is covered by focused app checks. Rebuilt client verification passes
-  in `/tmp/gator-backend-20261113-plan-accounting-client-final.log`: 3 tests,
+  in `/tmp/hot-cross-buns-backend-20261113-plan-accounting-client-final.log`: 3 tests,
   58 assertions, including original/remaining budget inspection and pending-action
   correction regression. TypeScript checks pass. Final guards pass in
-  `/tmp/gator-backend-20261113-plan-accounting-final-guards.log`, including the
+  `/tmp/hot-cross-buns-backend-20261113-plan-accounting-final-guards.log`, including the
   final exact-head-epoch check; prior full/native runs preceded that small guard.
   Delegated plan-bound correction, repeated/cancel/crash/account-change paths,
   actual uncertain-effect reconciliation, coding/aggregate-limit journeys and
@@ -672,7 +672,7 @@ finished after only the terminal phase or a mobile scaffold.
 
 - Prior running-plan-fence regression passed with exit 0: session/app/run
   73.458 / 66.849 / 132.381 seconds in
-  `/tmp/gator-backend-20261113-plan-pause-full.log`.
+  `/tmp/hot-cross-buns-backend-20261113-plan-pause-full.log`.
 
 - Plan-bound correction handoff safeguards (13 November, workflow incomplete):
   the canonical store can now revoke an exact running dispatch and retain its
@@ -684,18 +684,18 @@ finished after only the terminal phase or a mobile scaffold.
   tool check and a later approval. A real Service with loopback external action
   proves that approving its old exact interaction after dispatch revocation
   produces zero external effects; replacement review and approval remain denied.
-  `/tmp/gator-backend-20261113-plan-pause-fence-final.log` passes. Restart keeps
+  `/tmp/hot-cross-buns-backend-20261113-plan-pause-fence-final.log` passes. Restart keeps
   an unaccounted run interrupted/unapproved without invoking planning:
-  `/tmp/gator-backend-20261113-plan-pause-restart.log` passes. Related session/app
-  checks pass in `/tmp/gator-backend-20261113-plan-pause-recovery.log`.
+  `/tmp/hot-cross-buns-backend-20261113-plan-pause-restart.log` passes. Related session/app
+  checks pass in `/tmp/hot-cross-buns-backend-20261113-plan-pause-recovery.log`.
   Remaining work: ordinary local/delegated correction admission; drain the actual
   Work owner; retain each original result/receipt; bind only that run's verified
   resulting head; persist and enforce remaining steps, model/token/time budgets;
   expose uncertain-effect reconciliation; prepare and review the replacement;
   verify races, cancellation, failure and restart through the complete client.
   Focused race checks also pass in
-  `/tmp/gator-backend-20261113-plan-pause-race.log`; full Go session/app/run
-  regression is running in `/tmp/gator-backend-20261113-plan-pause-full.log`.
+  `/tmp/hot-cross-buns-backend-20261113-plan-pause-race.log`; full Go session/app/run
+  regression is running in `/tmp/hot-cross-buns-backend-20261113-plan-pause-full.log`.
   Existing unrestricted-steering guards remain. No plan-bound correction
   acceptance criterion is marked complete by this safety boundary alone.
 
@@ -710,12 +710,12 @@ finished after only the terminal phase or a mobile scaffold.
   content for fresh review, marks the new edit failed with a no-replay diagnostic,
   and leaves approval absent. Reopening the parent retains its draft and shows
   superseded/failed/actual-success receipts rather than an acceptance claim.
-  `/tmp/gator-backend-20261113-repeat-delegated-verified.log`: **3 pass, 0 failures,
+  `/tmp/hot-cross-buns-backend-20261113-repeat-delegated-verified.log`: **3 pass, 0 failures,
   83 assertions**, observed exit 0. A natural stale-projection race was rejected
   without changing work; the success journey waits for the child's refreshed
   exact epoch. No production safeguard was weakened to make that test pass.
   The earlier full native plan-correction file also passed, observed exit 0:
-  `/tmp/gator-backend-20261113-repeat-plan-client-full.log`, **23 pass, 0 failures,
+  `/tmp/hot-cross-buns-backend-20261113-repeat-plan-client-full.log`, **23 pass, 0 failures,
   429 assertions**, 93.11 seconds. These are controlled-provider and actual-process
   checks; they do not establish live-model quality, live account operations or
   physical microphone/terminal behavior. All backend workstreams remain open,
@@ -732,26 +732,26 @@ finished after only the terminal phase or a mobile scaffold.
   retained proposal instead of launching it. Local receipt projections refresh
   after reconciliation. No reviewed-plan enforcement or approval gate is removed.
   Controlled Go owner checks pass for three corrections and cancellation in
-  `/tmp/gator-backend-20261113-repeat-owner.log`; initial-cutover and latest owner
-  checks pass in `/tmp/gator-backend-20261113-repeat-cutover-final.log`, and focused
-  race checks pass in `/tmp/gator-backend-20261113-repeat-race.log`. The native
+  `/tmp/hot-cross-buns-backend-20261113-repeat-owner.log`; initial-cutover and latest owner
+  checks pass in `/tmp/hot-cross-buns-backend-20261113-repeat-cutover-final.log`, and focused
+  race checks pass in `/tmp/hot-cross-buns-backend-20261113-repeat-race.log`. The native
   host/client with a controlled model confirms ordinary second correction,
   earlier instruction text, unchanged sources/limits/uploads/task, responsive
   unrelated dialogue, superseded receipt and fresh unapproved result (1 pass,
-  15 assertions): `/tmp/gator-backend-20261113-repeat-client-final.log`.
+  15 assertions): `/tmp/hot-cross-buns-backend-20261113-repeat-client-final.log`.
   TypeScript and runtime builds pass. Full session/app/run regression passes
   (70.238 / 64.355 / 118.976 seconds) in
-  `/tmp/gator-backend-20261113-repeat-full.log`; this preceded the final small
+  `/tmp/hot-cross-buns-backend-20261113-repeat-full.log`; this preceded the final small
   receipt-refresh/initial-handoff changes covered by the focused checks above.
   The full native plan-correction file is running in
-  `/tmp/gator-backend-20261113-repeat-plan-client-full.log`. Delegated repeated
+  `/tmp/hot-cross-buns-backend-20261113-repeat-plan-client-full.log`. Delegated repeated
   correction, provider failure/restart and broader integrated journeys remain
   open. This is controlled-provider/process evidence, not live account/model
   quality or physical audio/terminal verification.
 
 - The prior correction-history full session/app/run regression also passed,
   observed exit 0 (67.062 / 55.241 / 120.941 seconds), in
-  `/tmp/gator-backend-20261113-history-full.log`.
+  `/tmp/hot-cross-buns-backend-20261113-history-full.log`.
 
 - Backend correction-history retention (13 November): later sequential plan
   corrections now retain earlier user instructions, including failed attempts,
@@ -763,10 +763,10 @@ finished after only the terminal phase or a mobile scaffold.
   overflow is rejected explicitly rather than silently dropping constraints.
   Clone isolation, persistence/reload, tamper rejection, stale approval, failed
   correction/retry, duplicate identity and size guards pass in
-  `/tmp/gator-backend-20261113-correction-history-verified.log` and
-  `/tmp/gator-backend-20261113-history-guards.log`. These are controlled Go checks;
+  `/tmp/hot-cross-buns-backend-20261113-correction-history-verified.log` and
+  `/tmp/hot-cross-buns-backend-20261113-history-guards.log`. These are controlled Go checks;
   no physical/live verification is claimed. Full session/app/run regression is
-  running in `/tmp/gator-backend-20261113-history-full.log`. Active-revision
+  running in `/tmp/hot-cross-buns-backend-20261113-history-full.log`. Active-revision
   correction admission and serialization remain open; this fixes the instruction
   retention gap needed for that transition without claiming it implemented.
 
@@ -783,29 +783,29 @@ finished after only the terminal phase or a mobile scaffold.
   stopped operations, full queues and invalid instructions. The real service
   loopback Google test proves zero sends before fresh approval, one corrected
   send, same run, original/replacement decisions and retained manifest records:
-  `/tmp/gator-backend-20261113-action-safety.log` (pass). Host regression:
-  `/tmp/gator-backend-20261113-action-host-full.log` (134 pass, 1 existing skip).
+  `/tmp/hot-cross-buns-backend-20261113-action-safety.log` (pass). Host regression:
+  `/tmp/hot-cross-buns-backend-20261113-action-host-full.log` (134 pass, 1 existing skip).
   Go/host/client local-process journey and exact-approval regression:
-  `/tmp/gator-backend-20261113-action-native-final.log` (2 pass, 30 assertions),
+  `/tmp/hot-cross-buns-backend-20261113-action-native-final.log` (2 pass, 30 assertions),
   including ordinary unrelated dialogue, correction, old-token rejection,
   corrected send, retained draft and restart without replay. These are controlled
   loopback providers and process checks, not physical terminal/audio or live
   account/model evidence. Delegated/local client journeys also pass in
-  `/tmp/gator-backend-20261113-action-delegated.log` (2 pass, 39 assertions):
+  `/tmp/hot-cross-buns-backend-20261113-action-delegated.log` (2 pass, 39 assertions):
   the original requesting owner keeps running, the background owner receives the
   correction, fresh exact approval reaches that owner, and parent draft/restart
   continuity survives. TypeScript checks, bundle/runtime builds, focused CLI
   task-plan reference checks and focused race checks pass. The final full Go
   regression passes (`workapp` cached; `workrun` 118.940 seconds), observed exit 0,
-  in `/tmp/gator-backend-20261113-action-go-verified.log`. The focused combined
-  race gate passes in `/tmp/gator-backend-20261113-action-race-final.log`.
+  in `/tmp/hot-cross-buns-backend-20261113-action-go-verified.log`. The focused combined
+  race gate passes in `/tmp/hot-cross-buns-backend-20261113-action-race-final.log`.
   All seven workstreams remain open.
 
 - Complete initial-correction regression (13 November): the isolated checkout
   at `7c909f99a` (same implementation as main `af242b3f8`) finishes with
   **196 pass, 3 existing skips, 0 failures**, 4,046 assertions across 199 tests /
   78 files, 607.16 seconds, in
-  `/tmp/gator-ux-20261113-preparing-full-tui.log`. The process was observed to exit
+  `/tmp/hot-cross-buns-ux-20261113-preparing-full-tui.log`. The process was observed to exit
   0, and all 1,963 captured source, dependency and runtime hashes match the
   pre-run manifest. Main's runtime rebuild also passes. This verifies the full
   terminal regression through initial-plan corrections; it does not complete
@@ -832,7 +832,7 @@ finished after only the terminal phase or a mobile scaffold.
   only its exact pending correction, without launching replacement work.
   Native affected-flow gate under NO_COLOR/reduced motion: **33 pass, 0 failures,
   664 assertions**, six files, 90.86 seconds, in
-  `/tmp/gator-ux-20261112-preparing-owner-native-final.log`, observed exit 0.
+  `/tmp/hot-cross-buns-ux-20261112-preparing-owner-native-final.log`, observed exit 0.
   Four-size journeys cover original preparation held at a controlled provider,
   ordinary correction/conversation, fresh keyboard approval and actual execution
   with the original private brief while excluding future-draft inputs. They also
@@ -847,7 +847,7 @@ finished after only the terminal phase or a mobile scaffold.
   pass after the last safeguards (workapp 12.730 seconds,
   `preparing-owner-projection-go.log`). Host full regression: **133 pass,
   1 existing skip, 0 failures**, 134 tests / 31.225 seconds. Typecheck, runtime
-  build and bundle pass. Logs use the same `/tmp/gator-ux-20261112-` prefix.
+  build and bundle pass. Logs use the same `/tmp/hot-cross-buns-ux-20261112-` prefix.
   This is native rendering, real Go/store, controlled-provider and isolated
   process-crash evidence; it does not establish physical terminal/audio or live
   account/model-routing quality. Row 1 stays open for the remaining states and
@@ -856,7 +856,7 @@ finished after only the terminal phase or a mobile scaffold.
 - Complete schedule regression and unscheduled commitments (12 November):
   the full terminal suite at `cf930c0c9` was polled to successful exit:
   **178 pass, 3 existing skips, 0 failures**, 3,713 assertions across 181 tests /
-  78 files, 668.58 seconds, in `/tmp/gator-ux-20261112-timing-full-tui.log`.
+  78 files, 668.58 seconds, in `/tmp/hot-cross-buns-ux-20261112-timing-full-tui.log`.
   Production source and tests stayed unchanged throughout the run. The existing
   image-paste, old dictation and managed-browser skips were not changed.
   Subsequent commitment-card work used a separate checkout and its own copied
@@ -902,7 +902,7 @@ finished after only the terminal phase or a mobile scaffold.
   the classifier instead of execution; its failed log was retained and the
   fixture corrected rather than removing the no-extra-work assertion.
   Final focused native gate: **12 pass, 303 assertions**, two files, 28.77 seconds,
-  in `/tmp/gator-ux-20261112-timing-native-clean-final.log`, observed exit 0 under
+  in `/tmp/hot-cross-buns-ux-20261112-timing-native-clean-final.log`, observed exit 0 under
   NO_COLOR and reduced motion. This includes four-size multiple-action reading
   checks. The broader affected-flow gate passed **25 tests, 653 assertions**,
   six files, 135.44 seconds, in `timing-native-final.log`; subsequent changes
@@ -910,7 +910,7 @@ finished after only the terminal phase or a mobile scaffold.
   focused gate. Go application/scheduler full regressions pass (39.709/4.697
   seconds), and CLI goal/follow-up/control/shortcut/timing checks pass (41.379
   seconds), in `timing-go-full.log` / `timing-command-regression.log` beneath the
-  same `/tmp/gator-ux-20261112-` prefix. Go tests also verify frozen snapshot and
+  same `/tmp/hot-cross-buns-ux-20261112-` prefix. Go tests also verify frozen snapshot and
   account/contract preservation, scheduler-counter updates during review,
   cancellation, malformed/impossible schedules, stale and missing identities,
   and daylight-saving transitions. Typecheck, runtime build and bundle pass.
@@ -924,7 +924,7 @@ finished after only the terminal phase or a mobile scaffold.
   observation was revalidated against the terminal log and process table. The
   runner is no longer live and its final summary reports **170 pass, 3 existing
   skips, 0 failures**, 3,437 assertions across 173 tests / 77 files, 553.49
-  seconds, in `/tmp/gator-ux-20261112-goal-controls-full-tui.log`. Source and tests
+  seconds, in `/tmp/hot-cross-buns-ux-20261112-goal-controls-full-tui.log`. Source and tests
   stayed unchanged during the run. This includes the new real-Go goal controls
   and cancelled-read journeys alongside the existing terminal regression. It
   does not replace the final combined acceptance journey, physical audio, or
@@ -961,7 +961,7 @@ finished after only the terminal phase or a mobile scaffold.
   through reordered refreshes and keeps a tall card's title in view.
   Native verification under NO_COLOR and reduced motion: **12 pass, 326
   assertions**, four files, 40.07 seconds, in
-  `/tmp/gator-ux-20261112-goal-controls-native-safe-read.log`, observed exit 0.
+  `/tmp/hot-cross-buns-ux-20261112-goal-controls-native-safe-read.log`, observed exit 0.
   Real Go / controlled-provider journeys at all four sizes cover paused-plan
   inspection, cancelled and confirmed resume, a stale pause rejected after an
   independent CLI correction, fresh pause, restart, multiline/plan drafts,
@@ -1020,15 +1020,15 @@ finished after only the terminal phase or a mobile scaffold.
   affects the first dataset. Selection can intentionally expand the normal
   native window to preserve the selected content. Focused native regression:
   **12 pass, 355 assertions**, four files, 35.83 seconds, under NO_COLOR and
-  reduced motion, in `/tmp/gator-ux-20261112-window-native-final.log`.
+  reduced motion, in `/tmp/hot-cross-buns-ux-20261112-window-native-final.log`.
   After clamping spacer indexes for shrinking snapshots and strengthening the
   draft to multiline, final window journeys pass again: **4 pass, 156 assertions**,
-  22.63 seconds, in `/tmp/gator-ux-20261112-window-native-multiline.log`.
+  22.63 seconds, in `/tmp/hot-cross-buns-ux-20261112-window-native-multiline.log`.
   Both processes were observed to exit 0. Typecheck and frontend bundle pass in
   `window-check-verified.log` / `window-build-verified.log`. Go/host code and
   protocol/approval enforcement are unchanged by this commit. The complete current terminal regression passes: **161 pass, 3 existing skips,
   0 failures**, 3,193 assertions across 164 tests / 75 files, 510.34 seconds,
-  in `/tmp/gator-ux-20261112-window-full-tui.log`, polled to exit 0. Production
+  in `/tmp/hot-cross-buns-ux-20261112-window-full-tui.log`, polled to exit 0. Production
   source and tests stayed unchanged during that run. Row 13 is implemented;
   final combined acceptance remains pending. All fifteen criteria
   remain in scope; this does not complete the goal.
@@ -1068,7 +1068,7 @@ finished after only the terminal phase or a mobile scaffold.
   messages still mount. Bounded rendering and the final integrated journey stay
   open. Final affected-flow regression under NO_COLOR and reduced motion:
   **58 pass, 0 failures**, 1,303 assertions, 18 files, 237.61 seconds; polled to
-  exit 0 in `/tmp/gator-ux-20261112-reading-native-regression.log`. This includes
+  exit 0 in `/tmp/hot-cross-buns-ux-20261112-reading-native-regression.log`. This includes
   ordinary conversation during execution, settings persistence, exact approval,
   original-result editing/replies, memory provenance, queues, voice controls,
   connection recovery, menu restoration and all four reading/composer sizes.
@@ -1078,7 +1078,7 @@ finished after only the terminal phase or a mobile scaffold.
   rejects the same concurrent claim, and the controller test now persists and
   inspects a custom latest binding. Host full regression: **131 pass, 1 existing
   skip, 0 failures**, 132 tests, 18.24 seconds, in
-  `/tmp/gator-ux-20261112-reading-host-full.log`; after adding signed gap offsets,
+  `/tmp/hot-cross-buns-ux-20261112-reading-host-full.log`; after adding signed gap offsets,
   the two reading-store checks pass again in `reading-store-verified.log`.
   Native, host and Go processes were observed to successful exit, and source
   stayed unchanged during the final native run. The complete 155-test terminal
@@ -1109,14 +1109,14 @@ finished after only the terminal phase or a mobile scaffold.
   Controlled real-host reproduction now reports `same_owner=true`,
   `saved_correction=true`, `correction_supplied_to_followup=true`,
   `older_tool_response_supplied=true`, three provider requests. Log:
-  `/tmp/gator-ux-20261112-memory-precedence-fixed.log`.
+  `/tmp/hot-cross-buns-ux-20261112-memory-precedence-fixed.log`.
   Native regression: **11 pass, 351 assertions**, five files, 67.44 seconds,
   covering initial/dynamic knowledge, correction, forgetting, privacy and
   restart at all four sizes. Final native refresh run with NO_COLOR and reduced
   motion: **4 pass, 216 assertions**, 33.87 seconds; actual outbound requests
   contain the correction and withdrawal, the older tool message remains, and
   users inspect both historical and refreshed inputs. Logs:
-  `/tmp/gator-ux-20261112-knowledge-refresh-native-verified.log` and
+  `/tmp/hot-cross-buns-ux-20261112-knowledge-refresh-native-verified.log` and
   `knowledge-refresh-native-final.log`.
   Focused Go checks cover actual context compaction, subsequent reopening,
   historical byte preservation, corrupt/missing/changed-source/expired/foreign/
@@ -1129,7 +1129,7 @@ finished after only the terminal phase or a mobile scaffold.
   After `994e57920`, the complete terminal regression passes: **152 pass,
   3 unchanged skips, 0 failures**, 2,894 assertions across 155 tests / 73 files,
   501.74 seconds. Log:
-  `/tmp/gator-ux-20261112-knowledge-refresh-full-tui.log`, polled to exit 0.
+  `/tmp/hot-cross-buns-ux-20261112-knowledge-refresh-full-tui.log`, polled to exit 0.
   Production source and tests stayed unchanged during the complete run. This is
   controlled-provider/native-render and Go/store evidence, not physical
   terminal/audio or live-account/model-quality evidence. All fifteen criteria
@@ -1159,7 +1159,7 @@ finished after only the terminal phase or a mobile scaffold.
   seconds, at all four required sizes, including run-start and dynamic context,
   correction, reviewed note forgetting, long-note keyboard reading, restored
   filters, hidden-row safety, carried context, preserved drafts and restart.
-  Log: `/tmp/gator-ux-20261112-dynamic-context-native-final.log`.
+  Log: `/tmp/hot-cross-buns-ux-20261112-dynamic-context-native-final.log`.
   Focused Go transaction/context/tool checks pass. Full `workrun` and `workapp`
   regressions pass (107.090 and 39.559 seconds). The initial tools regression
   exposed the valid escaped-metadata bound bug fixed by `86c1b562f`; the full
@@ -1168,13 +1168,13 @@ finished after only the terminal phase or a mobile scaffold.
   22.75 seconds. Typecheck passes. The complete native regression exits with
   **151 pass, 3 existing skips, 1 failure**, 2,830 assertions across 155 tests /
   73 files, 484.40 seconds, in
-  `/tmp/gator-ux-20261112-dynamic-context-full-tui.log`. Source/test files stayed
+  `/tmp/hot-cross-buns-ux-20261112-dynamic-context-full-tui.log`. Source/test files stayed
   frozen during that run. The one failure was the older saved-knowledge journey
   pressing plain E/O/F after those visible controls became Ctrl+E/Ctrl+O/Ctrl+X.
   It now exercises the actual Ctrl controls with every original data/conflict/
   omission/forget/restart assertion and its deadline preserved. Related native
   recheck: **14 pass, 0 failures, 150 assertions**, four files, 18.11 seconds, in
-  `/tmp/gator-ux-20261112-knowledge-ctrl-verified.log`, polled to exit 0. This fixes
+  `/tmp/hot-cross-buns-ux-20261112-knowledge-ctrl-verified.log`, polled to exit 0. This fixes
   the failing check; it is not presented as a second fully green complete run.
   These are native-render/controlled-provider and Go/store checks, not physical
   terminal/audio or live model/account verification. All fifteen criteria remain.
@@ -1187,8 +1187,8 @@ finished after only the terminal phase or a mobile scaffold.
   result: `same_owner=true`, `saved_correction=true`,
   `correction_supplied_to_followup=false`, `older_tool_response_supplied=true`,
   three provider requests. Log:
-  `/tmp/gator-ux-20261112-memory-precedence-diagnostic.log`; reproducible isolated
-  driver: `/tmp/gator-memory-precedence-check.ts`. This is controlled transport
+  `/tmp/hot-cross-buns-ux-20261112-memory-precedence-diagnostic.log`; reproducible isolated
+  driver: `/tmp/hot-cross-buns-memory-precedence-check.ts`. This is controlled transport
   evidence, not a model-quality claim. Next work must make subsequent requests
   receive authoritative scoped corrections/withdrawals, respecting exclusions,
   provenance, goal boundaries and budgets while preserving historical evidence.
@@ -1202,7 +1202,7 @@ finished after only the terminal phase or a mobile scaffold.
   Maximum escaped labels round-trip through loading and correction without
   truncation; oversized metadata still fails. `go test ./internal/knowledge`
   passes in 2.882 seconds. Log:
-  `/tmp/gator-ux-20261112-knowledge-metadata-go.log`.
+  `/tmp/hot-cross-buns-ux-20261112-knowledge-metadata-go.log`.
 
 - Reviewed noise feedback (`08c12a19d`, 12 November): only a successfully acknowledged
   noise rating opens the original update's linked check controls. The user can
@@ -1225,15 +1225,15 @@ finished after only the terminal phase or a mobile scaffold.
   241.08 seconds, polled through exit 0. It includes the new four-size noise and
   answer-context journeys plus memory correction, update receipts/feedback,
   conversational follow-ups, app settings controls, Following and exact result
-  actions. Log: `/tmp/gator-ux-20261112-memory-noise-native-regression.log`.
+  actions. Log: `/tmp/hot-cross-buns-ux-20261112-memory-noise-native-regression.log`.
   Typecheck and focused Go follow-up/app-control tests pass. The before/after
   notification review has a Go assertion for the original check and scope.
   No implementation or test files changed during this native regression.
 
 - Broader verification after memory inspection `cb095fcc4`: both full Go packages
-  pass (`internal/workapp` 36.008 seconds; `cmd/gator` 166.901 seconds).
+  pass (`internal/workapp` 36.008 seconds; `cmd/hot-cross-buns` 166.901 seconds).
   Host suite: **127 pass, 1 existing skip, 0 failures**, 128 tests, 23.35 seconds.
-  Typecheck passes. Logs: `/tmp/gator-ux-20261112-answer-context-go-regression.log`,
+  Typecheck passes. Logs: `/tmp/hot-cross-buns-ux-20261112-answer-context-go-regression.log`,
   `answer-context-host-regression.log`, and `answer-context-typecheck.log`.
   The subsequent scoped follow-up review tests also pass after noise changes.
 
@@ -1259,7 +1259,7 @@ finished after only the terminal phase or a mobile scaffold.
   80×24, 60×20 and 42×14. The real Go/history/memory boundary, controlled model
   endpoint and native rendering exercise correction, exact forget review,
   ongoing-task preservation, independent drafts, restart and stale callback
-  rejection. Log: `/tmp/gator-ux-20261112-answer-context-native-final.log`.
+  rejection. Log: `/tmp/hot-cross-buns-ux-20261112-answer-context-native-final.log`.
   These are controlled-provider/native checks, not physical terminal or live
   model verification. Row 3 remains in progress: scoped reviewed noise feedback
   and the final integrated journey are still required.
@@ -1268,7 +1268,7 @@ finished after only the terminal phase or a mobile scaffold.
   3 unchanged skips, 0 failures**, 2,486 assertions, 143 tests / 70 files, 390.15
   seconds. The process was polled to its successful exit; no implementation/test
   edits occurred during that final run. Typecheck passes in
-  `/tmp/gator-ux-20261112-menu-restoration-final-typecheck.log`.
+  `/tmp/hot-cross-buns-ux-20261112-menu-restoration-final-typecheck.log`.
   All fifteen criteria remain in scope. A green regression does not prove the
   remaining product behavior or the final integrated acceptance journey.
 
@@ -1295,7 +1295,7 @@ finished after only the terminal phase or a mobile scaffold.
   preview → file → result-list Back, exact parent-frame equality and selected
   identity after rows are removed/reordered. With NO_COLOR and reduced motion:
   **8 pass, 92 assertions**, 20.36 seconds, in
-  `/tmp/gator-ux-20261112-menu-restoration-no-color.log`.
+  `/tmp/hot-cross-buns-ux-20261112-menu-restoration-no-color.log`.
   Related result/source/receipt/read/model/command journeys initially passed
   **19 tests, 357 assertions**; the later Following/navigation/queue check passes
   **16 tests, 209 assertions** in `menu-restoration-focused-final.log`.
@@ -1312,7 +1312,7 @@ finished after only the terminal phase or a mobile scaffold.
   `menu-restoration-plan-fixed.log`. Original failure logs are retained.
   The final complete run exits successfully: **140 pass / 3 unchanged skips /
   0 failures**, 2,486 assertions across 143 tests / 70 files in 390.15 seconds.
-  Log: `/tmp/gator-ux-20261112-menu-restoration-complete-tui.log`. No behavior or
+  Log: `/tmp/hot-cross-buns-ux-20261112-menu-restoration-complete-tui.log`. No behavior or
   test files changed during this final run. Commit typecheck also passes. The
   image-paste/old-voice/managed-browser skips remain skips; controlled checks do
   not become physical verification. This is native-render/controlled
@@ -1339,20 +1339,20 @@ finished after only the terminal phase or a mobile scaffold.
   durable request counts and restart assertions remain in the same journey.
   Combined conversation/read-cancellation/composer/command checks: **10 pass,
   335 assertions**, 41.08 seconds, in
-  `/tmp/gator-ux-20261112-delegated-actions-regression.log`.
-  With `NO_COLOR=1 GATOR_REDUCED_MOTION=1`, conversation/composer checks plus
+  `/tmp/hot-cross-buns-ux-20261112-delegated-actions-regression.log`.
+  With `NO_COLOR=1 HOT_CROSS_BUNS_REDUCED_MOTION=1`, conversation/composer checks plus
   four-size dialogue-only render fixtures with Ctrl+K and stale-turn rejection:
   **8 pass, 222 assertions**, 25.27 seconds, in
-  `/tmp/gator-ux-20261112-delegated-actions-verified-native.log`. Typecheck passes.
+  `/tmp/hot-cross-buns-ux-20261112-delegated-actions-verified-native.log`. Typecheck passes.
   Earlier runs exposed test assumptions about wrapped words and restoration
   before the native layout frame; the journey now reads wrapped text and waits
   for that frame before keyboard navigation. A new fixture initially omitted
   its required binary argument; typecheck and the failed render caught it. The
   fixture is isolated to its temporary profile with an unused binary. Logs for
-  earlier failures remain under `/tmp/gator-ux-20261112-delegated-actions-*`.
+  earlier failures remain under `/tmp/hot-cross-buns-ux-20261112-delegated-actions-*`.
   Final isolated-profile fixtures pass **4 tests, 36 assertions**, 5.67 seconds,
   in `delegated-actions-fixtures.log`; commit typecheck passes in
-  `/tmp/gator-ux-20261112-delegated-actions-commit-check.log`.
+  `/tmp/hot-cross-buns-ux-20261112-delegated-actions-commit-check.log`.
   This is controlled-provider/native-render evidence, with explicit render-only
   fixtures. It is not physical terminal, audio or live-account verification.
   Structured connected-item actions, complete navigation/reading restoration,
@@ -1377,11 +1377,11 @@ finished after only the terminal phase or a mobile scaffold.
   the other configured account is never contacted. Draft/review intent and
   sealed manifest bytes remain unchanged. Existing unknown-send and crashed
   dispatch recovery tests also pass: **6 tests, 125 assertions**, 28.83 seconds,
-  in `/tmp/gator-ux-20261112-context-receipts-native-rerun.log`.
+  in `/tmp/hot-cross-buns-ux-20261112-context-receipts-native-rerun.log`.
   Focused Go controller/command tests pass, including latest-only stale manifest
   and foreign-owner rejection, exact Sent matching, manifest replacement and
   permission revocation. Runtime rebuilt; final typecheck passes. Logs:
-  `/tmp/gator-ux-20261112-context-receipts-{go,build,final-go,final-check}.log`.
+  `/tmp/hot-cross-buns-ux-20261112-context-receipts-{go,build,final-go,final-check}.log`.
   The initial native run recorded **2 pass / 4 fail** because the new journey
   searched assistant wording instead of the retained warning card. It now reveals
   the exact run-bound response and uses the real contextual Ctrl shortcut. Initial
@@ -1392,9 +1392,9 @@ finished after only the terminal phase or a mobile scaffold.
   connected-item replies and delegated-result contextual coverage remain under 6.
   Combined receipt/command/approval/read-cancellation regressions: **14 pass,
   306 assertions**, 48.37 seconds, in `context-receipts-regression.log`.
-  With `NO_COLOR=1 GATOR_REDUCED_MOTION=1`, all six receipt journeys pass again:
+  With `NO_COLOR=1 HOT_CROSS_BUNS_REDUCED_MOTION=1`, all six receipt journeys pass again:
   **6 pass, 125 assertions**, 27.46 seconds, in
-  `/tmp/gator-ux-20261112-context-receipts-no-color.log`.
+  `/tmp/hot-cross-buns-ux-20261112-context-receipts-no-color.log`.
 
 - Retained-read cancellation and recovery (`cb07b35fe`, 12 November; builds on the loading
   view retained in `d0ce6e5e0`): native journeys use real Go-created sealed files
@@ -1410,10 +1410,10 @@ finished after only the terminal phase or a mobile scaffold.
   already started host request. Four-size cancellation/recovery plus existing
   result/evidence/reply/generated-file/Office journeys pass together: **11 tests,
   249 assertions**, 85.64 seconds. Typecheck passes. Logs:
-  `/tmp/gator-ux-20261112-read-view-{integrated,final-check}.log`.
+  `/tmp/hot-cross-buns-ux-20261112-read-view-{integrated,final-check}.log`.
   The same four-size cancellation/recovery journeys also pass with `NO_COLOR=1`
-  and `GATOR_REDUCED_MOTION=1`: **4 tests, 100 assertions**, 15.51 seconds,
-  in `/tmp/gator-ux-20261112-read-view-no-color.log`.
+  and `HOT_CROSS_BUNS_REDUCED_MOTION=1`: **4 tests, 100 assertions**, 15.51 seconds,
+  in `/tmp/hot-cross-buns-ux-20261112-read-view-no-color.log`.
   The initial test run failed on expecting `null` where the native lookup returns
   `undefined`; the assertion now follows the observed API. Initial typecheck
   caught the test wrapper's overloaded file signature; forwarding wrappers retain
@@ -1444,21 +1444,21 @@ finished after only the terminal phase or a mobile scaffold.
   42×14: 4 tests, 116 assertions**, including a configured Ctrl+K shortcut,
   source paging, copying, immutable file edits, a rejected other-chat target,
   versioned history-picker restoration, acknowledged done and explicit contextual
-  reply. Log: `/tmp/gator-ux-20261111-result-actions-native-final.log`.
+  reply. Log: `/tmp/hot-cross-buns-ux-20261111-result-actions-native-final.log`.
   Earlier native runs exposed selection of an adjacent notice, hidden/clipped
   narrow hints and assumptions about asynchronous source loading and visible
   menu rows. The selection/hint layout is fixed; the journey waits for actual
   detail/render/receipt transitions and searches a bounded menu rather than
   assuming every item fits. Original test deadlines remain unchanged. Earlier
   `result-actions-native*.log` failures are retained. Typecheck passes in
-  `/tmp/gator-ux-20261111-result-actions-verified-typecheck.log`.
+  `/tmp/hot-cross-buns-ux-20261111-result-actions-verified-typecheck.log`.
   These are native/controlled-provider checks, not physical terminal, audio or
   live account/model verification. Item 6's contextual connected-account receipts
   and delayed-read cancellation/failure journeys remain, as do the other open
   criteria and the full final acceptance journey.
   Related command/composer/update/evidence/branch/generated-file/Office journeys
   pass together: **16 tests, 329 assertions**, 133.70 seconds, in
-  `/tmp/gator-ux-20261111-result-actions-combined.log`. The earlier related run
+  `/tmp/hot-cross-buns-ux-20261111-result-actions-combined.log`. The earlier related run
   recorded **11 pass / 1 fail** because the new footer omitted a remapped command
   shortcut. The footer now retains the actual command binding at wider sizes;
   the existing assertion and deadline remain unchanged. Go configuration tests
@@ -1468,8 +1468,8 @@ finished after only the terminal phase or a mobile scaffold.
   not claim completion of the long-history benchmarks or reading-anchor work.
   After that lookup change, the native four-size result journeys and composer
   regressions pass again: **6 tests, 168 assertions**, 69.11 seconds, in
-  `/tmp/gator-ux-20261111-result-actions-final-native.log`; final typecheck passes
-  in `/tmp/gator-ux-20261111-result-actions-final-check.log`.
+  `/tmp/hot-cross-buns-ux-20261111-result-actions-final-native.log`; final typecheck passes
+  in `/tmp/hot-cross-buns-ux-20261111-result-actions-final-check.log`.
 
 - Result-action backend boundary (`a5403905f`, 11 November): explicit update read/done/reopen
   and paging controls may carry a bounded request nonce and receive their own
@@ -1481,8 +1481,8 @@ finished after only the terminal phase or a mobile scaffold.
   original-conversation checks. No live workspace or account is queried.
   Focused Go chat-update/feedback regressions pass; host policy/evidence tests:
   **35 pass**, no skips. Logs:
-  `/tmp/gator-ux-20261111-result-receipts-go.log` and
-  `/tmp/gator-ux-20261111-result-evidence-host.log`.
+  `/tmp/hot-cross-buns-ux-20261111-result-receipts-go.log` and
+  `/tmp/hot-cross-buns-ux-20261111-result-evidence-host.log`.
   Contextual terminal controls and their integrated journeys are still open;
   this boundary change does not complete item 6.
 
@@ -1492,7 +1492,7 @@ finished after only the terminal phase or a mobile scaffold.
   The command workflow now checks actual saved appearance and absence of an
   extra task submission. All settings/first-task/plan/cached-owner/recovery
   checks pass together with the unchanged command deadline. Log:
-  `/tmp/gator-ux-20261111-terminal-settings-full-tui-verified.log`.
+  `/tmp/hot-cross-buns-ux-20261111-terminal-settings-full-tui-verified.log`.
   The existing image-paste/old-voice/managed-browser skips are retained as skips;
   separate controlled integrations do not become physical verification.
   All fifteen findings remain in scope; this regression does not complete the
@@ -1506,7 +1506,7 @@ finished after only the terminal phase or a mobile scaffold.
   import race without losing old navigation/grouping choices. No active second
   settings store or execution path is introduced. Partial settings transactions
   preserve unrelated acknowledged edits and reject a changed target field.
-  Manual controls and `gator_app_inspect` / `gator_app_update terminal` use this
+  Manual controls and `hot_cross_buns_app_inspect` / `hot_cross_buns_app_update terminal` use this
   boundary. The legacy `theme` setting and CLI theme command use it too, including
   following terminal colors. Unsupported old work-details expansion preferences
   are retained as data rather than advertised as active terminal controls.
@@ -1537,9 +1537,9 @@ finished after only the terminal phase or a mobile scaffold.
   expected the removed extra `/theme` submission. It now checks persisted values
   and no extra task message; both command tests pass with the original deadline.
   NO_COLOR settings/semantic-color journeys pass **9 tests, 159 assertions**.
-  Logs: `/tmp/gator-ux-20261111-terminal-settings-{full-tui,commands,no-color}.log`.
+  Logs: `/tmp/hot-cross-buns-ux-20261111-terminal-settings-{full-tui,commands,no-color}.log`.
   A fresh full terminal run follows this committed implementation.
-  Logs: `/tmp/gator-ux-20261110-terminal-settings-{integrated,host,final-go,
+  Logs: `/tmp/hot-cross-buns-ux-20261110-terminal-settings-{integrated,host,final-go,
   final-typecheck,runtime}.log`. Initial native settings runs recorded 0/4
   because the restoration test used restricted direct navigation and then
   omitted the history row's version suffix; the actual versioned picker now
@@ -1587,7 +1587,7 @@ finished after only the terminal phase or a mobile scaffold.
   561 assertions**. NO_COLOR label/scope checks:
   **4 pass, 38 assertions**. Final TUI typecheck and targeted Go composer/model
   status/first-run/admission-readiness regressions pass. Runtime rebuilt from
-  this checkout. Logs: `/tmp/gator-ux-20261110-setup-{verified-regression,
+  this checkout. Logs: `/tmp/hot-cross-buns-ux-20261110-setup-{verified-regression,
   no-color,commit-typecheck,final-go,final-runtime}.log`.
   Earlier new-test runs recorded 0/5 passes: they exposed a narrow setup label
   truncation and a scrollbar column clipping detail text; both are fixed. The
@@ -1597,7 +1597,7 @@ finished after only the terminal phase or a mobile scaffold.
   sizing recorded **33 pass / 5 fail** because its new dimensions hook import
   was missing; typecheck caught the same error. The import is fixed and the
   fresh 38-test run above passes. Earlier failure logs remain in
-  `/tmp/gator-ux-20261110-setup-{first-task,first-task-rerun,final-regression}.log`.
+  `/tmp/hot-cross-buns-ux-20261110-setup-{first-task,first-task-rerun,final-regression}.log`.
   No deadline or check was skipped.
   These are controlled-provider/native renderer journeys, not physical terminal
   or live-account/model verification. Connected-account first-request setup and
@@ -1622,7 +1622,7 @@ finished after only the terminal phase or a mobile scaffold.
   Focused native/client/composer/queue checks: **25 pass, 314 assertions**;
   related commands/draft sync/editor/product/recovery regressions: **8 pass,
   130 assertions**; host draft storage: **7 pass**; final TUI typecheck passes.
-  Logs: `/tmp/gator-ux-20261110-draft-plan-{native,related,host,final-typecheck}.log`.
+  Logs: `/tmp/hot-cross-buns-ux-20261110-draft-plan-{native,related,host,final-typecheck}.log`.
   The initial client run had one assertion mismatch between an absent optional
   JSON key and an in-memory `undefined`; explicit semantic mode assertions pass
   in the fresh focused run. These are native/controlled-provider checks, not
@@ -1645,8 +1645,8 @@ finished after only the terminal phase or a mobile scaffold.
   current/delegated correction, failure/retry, cancellation, all four sizes with
   a separate multiline/file/plan draft, fresh review, actual execution and restart.
   Related terminal regressions: **12 pass, 237 assertions**; host sessions: **18
-  pass**. Logs: `/tmp/gator-ux-20261110-plan-edit-terminal-regression.log`,
-  `/tmp/gator-ux-20261110-plan-edit-admission-{go,host}.log`; TUI typecheck passes.
+  pass**. Logs: `/tmp/hot-cross-buns-ux-20261110-plan-edit-terminal-regression.log`,
+  `/tmp/hot-cross-buns-ux-20261110-plan-edit-admission-{go,host}.log`; TUI typecheck passes.
   These are controlled-provider/native-renderer journeys, not physical terminal
   or live-account/model verification. This completes pending-review text edits;
   initial-preparation/plan-bound-execution and pending exact-action edits still
@@ -1654,7 +1654,7 @@ finished after only the terminal phase or a mobile scaffold.
 
 - Draft-restoration gap observed while verifying corrections: text and file
   references survive restart, but the next-message plan-first flag is kept only
-  in `GatorClient.planFirst`, outside the retained draft format. Preserve that
+  in `HotCrossBunsClient.planFirst`, outside the retained draft format. Preserve that
   review intent across restart and newer-draft/admission races under item 10.
 
 - Pending-plan correction boundary (`e04c74883`, 10 November): the canonical plan store now
@@ -1664,8 +1664,8 @@ finished after only the terminal phase or a mobile scaffold.
   options, sources and budgets. The original conversation retains the actual
   result, including after owner restart. Read-only conversation references do
   not acquire the new correction capability. Full Go package checks pass:
-  `go test ./internal/worksession ./internal/workapp ./internal/workrun ./cmd/gator`;
-  log `/tmp/gator-ux-20261110-plan-edit-go-full.log`. Native owner/host wiring and
+  `go test ./internal/worksession ./internal/workapp ./internal/workrun ./cmd/hot-cross-buns`;
+  log `/tmp/hot-cross-buns-ux-20261110-plan-edit-go-full.log`. Native owner/host wiring and
   its capacity check are being finished separately; this backend boundary alone
   does not complete item 1 or the full audit.
 
@@ -1674,7 +1674,7 @@ finished after only the terminal phase or a mobile scaffold.
   assertions across 62 files in 249.63 seconds. The command deadline remains
   unchanged; the former preview/context and field-subscription failures pass.
   Runtime rebuilt from this checkout; final TUI typecheck passes. Log:
-  `/tmp/gator-ux-20261110-terminal-full-verified.log`. No source/test changes
+  `/tmp/hot-cross-buns-ux-20261110-terminal-full-verified.log`. No source/test changes
   were made during this fresh run. Existing skipped image-paste, old dictation
   and managed-browser journeys remain skips; focused native voice/browser/file
   evidence elsewhere is not relabeled as physical verification. All fifteen
@@ -1692,7 +1692,7 @@ finished after only the terminal phase or a mobile scaffold.
   skips / 2 fail (97 tests): the preview regression and the new context assertion
   loaded against the already-running process's cached pre-fix provider. It is
   not a clean final regression result. Both cases pass in the fresh focused run:
-  `/tmp/gator-ux-20261110-context-reset-{native,typecheck}.log`. A fresh complete
+  `/tmp/hot-cross-buns-ux-20261110-context-reset-{native,typecheck}.log`. A fresh complete
   run of the committed code follows; no checks were skipped or weakened.
 
 - Shared shortcut projection (10 November): the six always-mounted keyboard-hint
@@ -1705,7 +1705,7 @@ finished after only the terminal phase or a mobile scaffold.
   individual diagnostic timings, not a calibrated long-history benchmark.
   Combined commands, composer, exact approvals, all four queue sizes, and legacy/
   enhanced Ctrl remaps: 11 pass, 188 assertions in 11.54 seconds. Typecheck passes.
-  Logs: `/tmp/gator-ux-20261110-shared-shortcuts-{verified,typecheck}.log`.
+  Logs: `/tmp/hot-cross-buns-ux-20261110-shared-shortcuts-{verified,typecheck}.log`.
   Earlier command failures remain recorded; their relevant rerun now passes.
   A full terminal regression run is still required after this correction.
 
@@ -1723,7 +1723,7 @@ finished after only the terminal phase or a mobile scaffold.
   item 11. Real Go + controlled provider queue/guide/chat-switch/restart journey:
   1 pass, 24 assertions; a queued private file reaches only its intended owner.
   Go config/controller checks and TUI typecheck pass. Logs:
-  `/tmp/gator-ux-20261110-tab-queue-{controls-final,concurrent,config,settings-go,verified-typecheck}.log`.
+  `/tmp/hot-cross-buns-ux-20261110-tab-queue-{controls-final,concurrent,config,settings-go,verified-typecheck}.log`.
   The broader controls run initially failed the existing default 5-second command
   completion test (also reproduced alone); the shared shortcut projection above
   resolves the relevant rerun. Full regression remains required. No deadline
@@ -1741,8 +1741,8 @@ finished after only the terminal phase or a mobile scaffold.
   host session checks: 16 pass; native conversation/plan journeys: 2 pass and 82
   assertions, including all four composer sizes and restart. These use a real Go
   runtime and controlled HTTP model; no physical account/model validation is
-  claimed. Logs: `/tmp/gator-ux-20261110-plan-stop-{final-go,host}.log` and
-  `/tmp/gator-ux-20261110-field-subscriptions-native.log`. Conversational plan
+  claimed. Logs: `/tmp/hot-cross-buns-ux-20261110-plan-stop-{final-go,host}.log` and
+  `/tmp/hot-cross-buns-ux-20261110-field-subscriptions-native.log`. Conversational plan
   correction, pending exact-action changes, and the remaining item 1 journeys
   are still open; cancellation is not evidence that those are complete.
 
@@ -1756,7 +1756,7 @@ finished after only the terminal phase or a mobile scaffold.
   conversation and pending-plan journeys: 2 pass, 82 assertions, 17.52 seconds.
   Earlier stalled runs and inspector-induced Bun crash are diagnostic failures,
   not passing evidence; no timeout, runner, or product fallback was substituted.
-  Logs: `/tmp/gator-ux-20261110-field-subscriptions-{native,regression}.log`.
+  Logs: `/tmp/hot-cross-buns-ux-20261110-field-subscriptions-{native,regression}.log`.
   Long-history benchmarking and the final full journey still remain.
 
 - Start: working tree clean; HEAD `7750df414`; no repository/ancestor AGENTS.md found.

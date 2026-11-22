@@ -113,51 +113,51 @@
       "bytes": 13435,
       "sha256": "614749b04e428ca0c930fb8703a194a2be5738a61ba9f37cc1059eedb64abbe0"
     },
-    "concepts/models/Gator-B.usda": {
+    "concepts/models/HotCrossBuns-B.usda": {
       "bytes": 865504,
       "sha256": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3"
     },
-    "concepts/models/Gator-B.usdz": {
+    "concepts/models/HotCrossBuns-B.usdz": {
       "bytes": 58290,
       "sha256": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca"
     },
-    "concepts/models/Gator-C.usdz": {
+    "concepts/models/HotCrossBuns-C.usdz": {
       "bytes": 36589,
       "sha256": "fd6eb4c891e0a8a59166911f89760f4e2ee5559e481138684c5488d671919e4d"
     },
-    "concepts/models/Gator-C.usda": {
+    "concepts/models/HotCrossBuns-C.usda": {
       "bytes": 710113,
       "sha256": "956cac40b368632c7451357c11d89549d27c0c94bb67e277041f0c67a4ce4607"
     },
-    "concepts/models/Gator-A.usdc": {
+    "concepts/models/HotCrossBuns-A.usdc": {
       "bytes": 36501,
       "sha256": "4fc014c262ec64c1e757f7d3751a538f844323a3a1ad51ef674c03d928d0dc3d"
     },
-    "concepts/models/Gator-B.usdc": {
+    "concepts/models/HotCrossBuns-B.usdc": {
       "bytes": 58124,
       "sha256": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d"
     },
-    "concepts/models/Gator-C.usdc": {
+    "concepts/models/HotCrossBuns-C.usdc": {
       "bytes": 36423,
       "sha256": "71fc1df5080899d352c91ef04f51554ce963e20e7475b20cacc807c71ed962d4"
     },
-    "concepts/models/Gator-A.usda": {
+    "concepts/models/HotCrossBuns-A.usda": {
       "bytes": 727289,
       "sha256": "d9a2d5c709433168e97d0a310ad12a340898d787c506265f611a63cb5565f396"
     },
-    "concepts/models/Gator-B.scn": {
+    "concepts/models/HotCrossBuns-B.scn": {
       "bytes": 99175,
       "sha256": "e0edaeb9255070e54ae5a5fc4a9db8e6ee1d97f61326398b0a95780e28b4067d"
     },
-    "concepts/models/Gator-A.usdz": {
+    "concepts/models/HotCrossBuns-A.usdz": {
       "bytes": 36667,
       "sha256": "89aef6931877d63cd056cdb54f125a09bea722ce9f7ed42ba9bec5e3c4cdb0c6"
     },
-    "concepts/models/Gator-C.scn": {
+    "concepts/models/HotCrossBuns-C.scn": {
       "bytes": 97455,
       "sha256": "6ade1585530e6c086ba792b226679b8e01285d49d2bf63670a07bcd76a45ae1c"
     },
-    "concepts/models/Gator-A.scn": {
+    "concepts/models/HotCrossBuns-A.scn": {
       "bytes": 97813,
       "sha256": "fde035b57b982e3ca31eb8674004bec9d612c46c9ec29bdee55c354e6478e68f"
     },

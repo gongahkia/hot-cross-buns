@@ -1,5 +1,5 @@
-AXApplication | Gator |  | 
-AXWindow | Gator – Prepare controlled fixture scope |  | 
+AXApplication | Hot Cross Buns |  |
+AXWindow | Hot Cross Buns – Prepare controlled fixture scope |  |
 AXGroup |  |  | 
 AXDisclosureTriangle |  | Another chat needs attention | 
 AXScrollArea |  |  | 
@@ -73,7 +73,7 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Prepare controlled fixture scope
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

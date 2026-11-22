@@ -3,12 +3,12 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("local model keyboard reviews download cancellation selection rename and removal against the Go runtime manager", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-local-model-")), config = join(root, "config/gator/config.json"), modelID = "qwen2.5-coder:0.5b"
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-local-model-")), config = join(root, "config/hot-cross-buns/config.json"), modelID = "qwen2.5-coder:0.5b"
   let installed = false, pulls = 0, cancelled = 0, removed = 0, calls = 0
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const path = new URL(request.url).pathname
@@ -26,8 +26,8 @@ test("local model keyboard reviews download cancellation selection rename and re
     if (path === "/v1/chat/completions") { expect((await request.json() as { model: string }).model).toBe(modelID); calls++; return Response.json({ choices: [{ message: { role: "assistant", content: "Local model response." }, finish_reason: "stop" }] }) }
     return new Response("Unknown fixture route", { status: 404 })
   } })
-  await mkdir(join(root, "config/gator"), { recursive: true }); await writeFile(config, JSON.stringify({ version: 4, defaults: {}, custom_providers: [{ id: "gator-local", base_url: `http://127.0.0.1:${server.port}/v1/chat/completions`, models: [modelID], default_model: modelID }] }))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  await mkdir(join(root, "config/hot-cross-buns"), { recursive: true }); await writeFile(config, JSON.stringify({ version: 4, defaults: {}, custom_providers: [{ id: "hot-cross-buns-local", base_url: `http://127.0.0.1:${server.port}/v1/chat/completions`, models: [modelID], default_model: modelID }] }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 38 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const end = Date.now() + 15000; while (!await predicate()) { if (Date.now() > end) throw new Error(label + ": " + JSON.stringify(client.state?.panel)); await flush() } }
@@ -55,7 +55,7 @@ test("local model keyboard reviews download cancellation selection rename and re
     await client.send({ type: "submit", text: "/mode inspect" }); await client.submit(); await until(() => calls === 1 && !client.state?.running, "local model task")
     await client.navigate("/model"); await select("Local model"); setup.mockInput.pressEnter(); await select("Tiny local fixture")
     await review("x", "Confirm removal"); expect(removed).toBe(0); setup.mockInput.pressEnter(); await until(() => removed === 1 && !installed, "explicit model removal")
-    await until(async () => !(JSON.parse(await readFile(config, "utf8")).custom_providers ?? []).some((provider: { id: string }) => provider.id === "gator-local"), "removed managed configuration")
+    await until(async () => !(JSON.parse(await readFile(config, "utf8")).custom_providers ?? []).some((provider: { id: string }) => provider.id === "hot-cross-buns-local"), "removed managed configuration")
     expect(calls).toBe(1)
   } finally { await client.close(); await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }
 }, 60000)

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
 )
 
 func TestUploadedOriginalAndProviderViewComeFromSameBytes(t *testing.T) {

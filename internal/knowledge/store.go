@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 	"io"
 	"os"
 	"path/filepath"
@@ -75,9 +75,9 @@ func Open(stateDir string) (Store, error) {
 	if err := os.MkdirAll(abs, 0700); err != nil {
 		return Store{}, err
 	}
-	gatorDir := filepath.Join(abs, "gator")
-	root := filepath.Join(gatorDir, "knowledge")
-	for _, dir := range []string{gatorDir, root, filepath.Join(root, "notes"), filepath.Join(root, "skills")} {
+	hotCrossBunsDir := filepath.Join(abs, "hot-cross-buns")
+	root := filepath.Join(hotCrossBunsDir, "knowledge")
+	for _, dir := range []string{hotCrossBunsDir, root, filepath.Join(root, "notes"), filepath.Join(root, "skills")} {
 		if err := privateDirectory(dir); err != nil {
 			return Store{}, err
 		}
@@ -159,6 +159,13 @@ func (s Store) LoadNote(id string) (Document, error) {
 func (s Store) LoadSkill(id string) (Document, error) { return s.load("skill", id) }
 
 func (s Store) ListNotes(goalID string) ([]Document, error) {
+	return s.listNotes(goalID, false)
+}
+
+// ListAllNotes supports the trusted profile inspector across goal scopes.
+func (s Store) ListAllNotes() ([]Document, error) { return s.listNotes("", true) }
+
+func (s Store) listNotes(goalID string, allScopes bool) ([]Document, error) {
 	release, err := s.lock(true)
 	if err != nil {
 		return nil, err
@@ -173,7 +180,7 @@ func (s Store) ListNotes(goalID string) ([]Document, error) {
 	}
 	result := documents[:0]
 	for _, d := range documents {
-		if d.GoalID == "" || d.GoalID == goalID {
+		if allScopes || d.GoalID == "" || d.GoalID == goalID {
 			result = append(result, d)
 		}
 	}

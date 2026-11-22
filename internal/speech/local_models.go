@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const LocalProvider = "whisper-local"
@@ -64,7 +64,7 @@ func OpenLocalStore(stateDir string) (*LocalStore, error) {
 	}
 	defer base.Close()
 	relative := ""
-	for _, part := range []string{"gator", "speech", "models"} {
+	for _, part := range []string{"hot-cross-buns", "speech", "models"} {
 		relative = filepath.Join(relative, part)
 		if err := base.Mkdir(relative, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 			return nil, err

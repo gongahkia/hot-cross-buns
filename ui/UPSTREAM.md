@@ -14,19 +14,19 @@ review references, excluded from the TypeScript and production build inputs.
 
 | Source | Treatment |
 | --- | --- |
-| ui/dialog, dialog-select, dialog-prompt, dialog-confirm, select-controller | Retained upstream components and selection behavior. Gator adds opt-in visible disabled choices to dialog-select, with keyboard/mouse activation refused; model availability reasons remain inspectable. |
-| context/keymap, interactivity, clipboard | Retained upstream keymap/mode/selection infrastructure. Plugin keymap types extracted locally; upstream config keybind fallback replaced with Gator's. |
-| ui/layout, border, animation, toast; util/scroll, selection, locale; theme/color | Retained frontend utilities. Gator supplies theme, clipboard, config, and errors. |
-| component/command-palette | Adapted discovery to Gator operations; upstream config/plugin entries excluded. |
-| component/session-tabs-rail | Retained upstream rail control and half-row drawing, fed by Gator sessions. |
-| app, component/session-frame, session-tabs, prompt | Adapted composition/layout and prompt structure. Upstream API, execution, plugins, sharing, telemetry and service startup removed; Gator adapter supplies the data and actions. |
-| context/client, context/data | Replaced with typed Gator client/data projections and managed subscriptions. |
-| routes/session | Gator transcript/result/activity projection replaces upstream schema-bound message rendering. |
-| config, context/theme | Gator-owned preferences and theme adapter. No upstream profile or plugin/config discovery. |
+| ui/dialog, dialog-select, dialog-prompt, dialog-confirm, select-controller | Retained upstream components and selection behavior. Hot Cross Buns adds opt-in visible disabled choices to dialog-select, with keyboard/mouse activation refused; model availability reasons remain inspectable. |
+| context/keymap, interactivity, clipboard | Retained upstream keymap/mode/selection infrastructure. Plugin keymap types extracted locally; upstream config keybind fallback replaced with Hot Cross Buns's. |
+| ui/layout, border, animation, toast; util/scroll, selection, locale; theme/color | Retained frontend utilities. Hot Cross Buns supplies theme, clipboard, config, and errors. |
+| component/command-palette | Adapted discovery to Hot Cross Buns operations; upstream config/plugin entries excluded. |
+| component/session-tabs-rail | Retained upstream rail control and half-row drawing, fed by Hot Cross Buns sessions. |
+| app, component/session-frame, session-tabs, prompt | Adapted composition/layout and prompt structure. Upstream API, execution, plugins, sharing, telemetry and service startup removed; Hot Cross Buns adapter supplies the data and actions. |
+| context/client, context/data | Replaced with typed Hot Cross Buns client/data projections and managed subscriptions. |
+| routes/session | Hot Cross Buns transcript/result/activity projection replaces upstream schema-bound message rendering. |
+| config, context/theme | Hot Cross Buns-owned preferences and theme adapter. No upstream profile or plugin/config discovery. |
 
 Dependency closure: Solid 1.9.15 (including upstream's cleanup patch), OpenTUI
 core/solid/keymap 0.6.8, fuzzysort, remeda, string-width, their locked dependencies,
-and Gator application-host. No `@opencode/core`, client, schema, server, agent,
+and Hot Cross Buns application-host. No `@opencode/core`, client, schema, server, agent,
 plugin, or simulation package is in the production dependency graph. The existing
 Go JSON-lines transport remains private and authoritative.
 
@@ -37,9 +37,9 @@ to be installed here. Solid 1.9.15 matches upstream despite OpenTUI's narrower
 the patch. `bun.lock` is the frontend lockfile; `app-host/package-lock.json` owns
 shared Node-compatible services and Office dependencies. Native platform evidence
 and final distribution selection remain recorded in the migration ledger.
-Gator's host additionally owns PDF.js/native canvas and classic-level for bounded
+Hot Cross Buns's host additionally owns PDF.js/native canvas and classic-level for bounded
 legacy preference import. After changing its manifest, run
-`bun update @gator/application-host` from `ui/` and inspect the lock diff; a forced
+`bun update @hot-cross-buns/application-host` from `ui/` and inspect the lock diff; a forced
 install alone can retain old local-package dependency metadata. Packaging verifies
 the resolved production closure and exercises actual PDF/Office/preferences
 services from the artifact before accepting it.
@@ -56,7 +56,7 @@ post-ellipsis viewport to positive rows. `ui/dialog.tsx` uses top alignment belo
 at 42×14; `tests/hubs.test.tsx` retains this regression and keyboard reachability.
 
 Command navigation adaptation: the imported command palette/selector now hosts
-Gator menu sections, with a back path to the root. Go's command descriptions are
+Hot Cross Buns menu sections, with a back path to the root. Go's command descriptions are
 menu labels, while its slash names feed a bounded inline composer completion
 list through the existing keymap. Tab completes without executing, Enter selects,
 and argument commands remain editable. `tests/commands.test.tsx` covers keyboard,

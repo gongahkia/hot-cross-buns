@@ -1,7 +1,7 @@
 // Package hooks runs explicitly trusted repository lifecycle hooks.
 //
 // Project hooks are executable code. A repository's tracked manifest and every
-// declared executable are hashed as one bundle, and Gator activates the bundle
+// declared executable are hashed as one bundle, and Hot Cross Buns activates the bundle
 // only when that exact hash is present in user-owned settings.
 package hooks
 
@@ -20,12 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
-	manifestPath    = ".gator/hooks.json"
+	manifestPath    = ".hot-cross-buns/hooks.json"
 	manifestVersion = 1
 	maxManifest     = 64 * 1024
 	maxHooks        = 64
@@ -44,7 +44,7 @@ const (
 	Verification   Event = "verification"
 )
 
-// Trust is persisted in user-owned config after `gator config hook trust`. Repository
+// Trust is persisted in user-owned config after `hot-cross-buns config hook trust`. Repository
 // paths are canonical, and Hash is the exact active hook-bundle digest.
 type Trust struct {
 	Repository string `json:"repository"`

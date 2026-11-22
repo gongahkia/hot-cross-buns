@@ -13,13 +13,13 @@ export function launchAgent(config) {
   const keys = ['node', 'entry', 'runtime', 'workspace', 'tokenFile', 'configDir', 'stateDir', 'logFile', 'port', 'origin', 'label'];
   if (!config || Object.keys(config).some(key => !keys.includes(key))) throw new Error('Unknown companion service setting.');
   for (const key of keys.slice(0, 8)) if (!safePath(config[key])) throw new Error(`${key} must be an absolute path without control characters.`);
-  const label = config.label || 'com.gator.companion';
-  if (!/^com\.gator\.companion(?:[.-][a-zA-Z0-9-]+)*$/.test(label)) throw new Error('Use a com.gator.companion service label.');
+  const label = config.label || 'com.hot-cross-buns.companion';
+  if (!/^com\.hot-cross-buns\.companion(?:[.-][a-zA-Z0-9-]+)*$/.test(label)) throw new Error('Use a com.hot-cross-buns.companion service label.');
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) throw new Error('Choose a fixed port from 1 to 65535.');
   if (config.origin && (new URL(config.origin).origin !== config.origin || new URL(config.origin).protocol !== 'https:')) throw new Error('Use an exact HTTPS origin, with no trailing slash.');
   const args = [config.node, config.entry, config.runtime, config.workspace, config.tokenFile, String(config.port)];
-  const environment = { GATOR_CONFIG_DIR: config.configDir, GATOR_STATE_DIR: config.stateDir,
-    PATH: `${dirname(config.node)}:/usr/bin:/bin:/usr/sbin:/sbin`, ...(config.origin ? { GATOR_COMPANION_ORIGIN: config.origin } : {}) };
+  const environment = { HOT_CROSS_BUNS_CONFIG_DIR: config.configDir, HOT_CROSS_BUNS_STATE_DIR: config.stateDir,
+    PATH: `${dirname(config.node)}:/usr/bin:/bin:/usr/sbin:/sbin`, ...(config.origin ? { HOT_CROSS_BUNS_COMPANION_ORIGIN: config.origin } : {}) };
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>

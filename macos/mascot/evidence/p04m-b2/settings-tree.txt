@@ -1,26 +1,26 @@
-AXWindow | Gator Settings |  |  | com_apple_SwiftUI_Settings_window
+AXWindow | Hot Cross Buns Settings |  |  | com_apple_SwiftUI_Settings_window
  AXGroup |  |  |  | 
   AXScrollArea |  |  |  | 
-   AXHeading |  | Gator Mascot |  | 
+   AXHeading |  | Hot Cross Buns Mascot |  |
    AXGroup |  |  |  | 
     AXStaticText |  |  | Show In-Chat Mascot | 
-    AXCheckBox |  |  |  | gator.mascot.shown
+    AXCheckBox |  |  |  | hot-cross-buns.mascot.shown
     AXStaticText |  |  | Mascot Style | 
-    AXPopUpButton |  |  | 3D-rendered | gator.mascot.style
+    AXPopUpButton |  |  | 3D-rendered | hot-cross-buns.mascot.style
     AXStaticText |  |  | Animate Mascot | 
-    AXCheckBox |  |  |  | gator.mascot.animated
+    AXCheckBox |  |  |  | hot-cross-buns.mascot.animated
     AXStaticText |  |  | Short reactions to the current conversation. macOS Reduce Motion takes precedence. | 
    AXHeading |  | Desktop Pet |  | 
    AXGroup |  |  |  | 
     AXStaticText |  |  | Show Desktop Pet | 
-    AXCheckBox |  |  |  | gator.desktopPet.shown
+    AXCheckBox |  |  |  | hot-cross-buns.desktopPet.shown
     AXStaticText |  |  | Display | 
-    AXPopUpButton |  |  | Primary Display | gator.desktopPet.display
-    AXButton |  | Tuck Away Desktop Pet |  | gator.desktopPet.tuck
+    AXPopUpButton |  |  | Primary Display | hot-cross-buns.desktopPet.display
+    AXButton |  | Tuck Away Desktop Pet |  | hot-cross-buns.desktopPet.tuck
     AXStaticText |  |  | Click-through companion for the current conversation. Uses the style and animation settings above, independently of the in-chat mascot. | 
     AXStaticText |  |  | May remain visible in fullscreen or shared screens. Tuck Away hides it until you explicitly turn it on again. | 
  AXButton |  |  |  | 
  AXButton |  |  |  | 
   AXGroup |  |  |  | 
  AXButton |  |  |  | 
- AXStaticText |  |  | Gator Settings | 
+ AXStaticText |  |  | Hot Cross Buns Settings |

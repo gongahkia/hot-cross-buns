@@ -1,6 +1,6 @@
 {
-  "root": "/tmp/gator-native-test-p03-acceptance-xat9_7tw",
-  "app": "/tmp/Gator-Native-Parity-P03-Accepted-Desktop.app",
+  "root": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw",
+  "app": "/tmp/HotCrossBuns-Native-Parity-P03-Accepted-Desktop.app",
   "pid": 31583,
   "original": "work-20261118T064411-ce15bfc5c15ef886",
   "aID": "work-20261118T064511-28d7569231500461",
@@ -15,7 +15,7 @@
       "version": 2,
       "id": "work-20261118T064511-28d7569231500461",
       "title": "New chat",
-      "source_path": "/private/tmp/gator-native-test-p03-acceptance-xat9_7tw/Workspace A",
+      "source_path": "/private/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/Workspace A",
       "snapshot_id": "",
       "created_at": "2026-11-18T06:45:11.067087Z",
       "updated_at": "2026-11-18T06:45:11.067087Z"
@@ -24,7 +24,7 @@
       "version": 2,
       "id": "work-20261118T064411-ba5feacaf1441313",
       "title": "Retained topic 0000",
-      "source_path": "/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace",
+      "source_path": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace",
       "snapshot_id": "snap-fixture",
       "head_revision_id": "rev-catalog-fixture",
       "created_at": "2026-11-18T00:00:00Z",
@@ -34,7 +34,7 @@
       "version": 2,
       "id": "work-20261118T064411-f5eb47586f0bf9d7",
       "title": "Retained topic 0002",
-      "source_path": "/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace",
+      "source_path": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace",
       "snapshot_id": "",
       "created_at": "2026-11-18T00:02:00Z",
       "updated_at": "2026-11-18T00:02:00Z"
@@ -43,7 +43,7 @@
       "version": 2,
       "id": "work-20261118T064549-c3fe983c2eae8b3b",
       "title": "New chat",
-      "source_path": "/private/tmp/gator-native-test-p03-acceptance-xat9_7tw/A deliberately long parent folder for readable truncated workspace paths with spaces and cafe\u0301 \u65e5\u672c/Workspace B",
+      "source_path": "/private/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/A deliberately long parent folder for readable truncated workspace paths with spaces and cafe\u0301 \u65e5\u672c/Workspace B",
       "snapshot_id": "",
       "created_at": "2026-11-18T06:45:49.004872Z",
       "updated_at": "2026-11-18T06:45:49.004872Z"
@@ -52,7 +52,7 @@
       "version": 2,
       "id": "work-20261118T064411-bcad114dfd6ce98e",
       "title": "Retained topic 0003",
-      "source_path": "/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace",
+      "source_path": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace",
       "snapshot_id": "",
       "created_at": "2026-11-18T00:03:00Z",
       "updated_at": "2026-11-18T00:03:00Z"
@@ -61,7 +61,7 @@
       "version": 2,
       "id": "work-20261118T064411-ce15bfc5c15ef886",
       "title": "Retained topic 0005",
-      "source_path": "/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace",
+      "source_path": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace",
       "snapshot_id": "",
       "created_at": "2026-11-18T00:05:00Z",
       "updated_at": "2026-11-18T00:05:00Z"
@@ -70,7 +70,7 @@
       "version": 2,
       "id": "work-20261118T064411-9943ef342f213799",
       "title": "Retained topic 0001",
-      "source_path": "/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace",
+      "source_path": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace",
       "snapshot_id": "",
       "created_at": "2026-11-18T00:01:00Z",
       "updated_at": "2026-11-18T00:01:00Z"
@@ -79,7 +79,7 @@
       "version": 2,
       "id": "work-20261118T064411-7dfc2550da2b5793",
       "title": "Retained topic 0004",
-      "source_path": "/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace",
+      "source_path": "/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace",
       "snapshot_id": "",
       "created_at": "2026-11-18T00:04:00Z",
       "updated_at": "2026-11-18T00:04:00Z"

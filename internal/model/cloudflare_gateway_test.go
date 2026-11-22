@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 func TestCloudflareGatewayRoutesConfiguredNativeProtocols(t *testing.T) {
@@ -51,7 +51,7 @@ func TestCloudflareGatewayRoutesConfiguredNativeProtocols(t *testing.T) {
 				if request.Method != http.MethodPost || request.URL.Path != test.path {
 					t.Fatalf("request = %s %s", request.Method, request.URL.Path)
 				}
-				if request.Header.Get("Authorization") != "Bearer cloudflare-token" || request.Header.Get("Cf-Aig-Gateway-Id") != "gator-gateway" {
+				if request.Header.Get("Authorization") != "Bearer cloudflare-token" || request.Header.Get("Cf-Aig-Gateway-Id") != "hot-cross-buns-gateway" {
 					t.Fatalf("headers = %#v", request.Header)
 				}
 				var body map[string]json.RawMessage
@@ -68,7 +68,7 @@ func TestCloudflareGatewayRoutesConfiguredNativeProtocols(t *testing.T) {
 				Model:                     test.model,
 				BaseURL:                   server.URL + "/ai/v1",
 				CloudflareAccountID:       "account-123",
-				CloudflareGatewayID:       "gator-gateway",
+				CloudflareGatewayID:       "hot-cross-buns-gateway",
 				CloudflareGatewayProtocol: test.protocol,
 				Client:                    server.Client(),
 			})
@@ -89,14 +89,14 @@ func TestCloudflareGatewayRejectsAmbiguousOrMismatchedConfiguration(t *testing.T
 		APIKey:              "cloudflare-token",
 		Model:               "openai/gpt-5.6",
 		CloudflareAccountID: "account-123",
-		CloudflareGatewayID: "gator-gateway",
+		CloudflareGatewayID: "hot-cross-buns-gateway",
 	}
 	for _, test := range []struct {
 		name   string
 		config Config
 		want   string
 	}{
-		{name: "protocol is required", config: base, want: "GATOR_CLOUDFLARE_GATEWAY_PROTOCOL"},
+		{name: "protocol is required", config: base, want: "HOT_CROSS_BUNS_CLOUDFLARE_GATEWAY_PROTOCOL"},
 		{name: "model and protocol disagree", config: func() Config { copy := base; copy.CloudflareGatewayProtocol = "anthropic-messages"; return copy }(), want: "incompatible"},
 		{name: "gateway identifier is required", config: func() Config {
 			copy := base

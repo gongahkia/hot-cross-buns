@@ -1,6 +1,6 @@
 # Terminal loading and navigation audit — 2026-10-29
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -41,7 +41,7 @@ quick actions. Existing working/form indicators and feedback saves appear
 immediately. Operation tracking clears in `finally`, handles overlapping
 operations, and only displays operations owned by the selected chat. Repeated
 unrelated snapshots do not restart the visibility delay. `NO_COLOR` and
-`GATOR_REDUCED_MOTION=1` retain static `⋯` feedback. Labels remain readable without
+`HOT_CROSS_BUNS_REDUCED_MOTION=1` retain static `⋯` feedback. Labels remain readable without
 color or motion. No progress percentages are invented.
 
 ## Ambiguous placements kept static
@@ -53,7 +53,7 @@ color or motion. No progress percentages are invented.
 - Microphone recording and spoken playback: keep their explicit phase labels
   and stop controls. Only transcription uses a loading indicator.
 - External editor/terminal handoff: the external program owns the terminal;
-  Gator must not draw over it.
+  Hot Cross Buns must not draw over it.
 - Cancellation: retain “Stopping…”; it must not look like ordinary execution.
 
 ## Navigation changes reviewed alongside loading
@@ -82,8 +82,8 @@ color or motion. No progress percentages are invented.
 
 | Severity | Location | Before | After | Reason |
 | --- | --- | --- | --- | --- |
-| Medium | `gator/progress.tsx`, `client.ts`, backend bridge | Several slow operations had no visible progress | Shared current-chat operation feedback with explicit backend signals | Distinguish actual work from an unresponsive interface |
-| Medium | `gator/files.tsx`, `path-picker.tsx`, `panel.tsx`, `transcript.tsx` | Plain loading text or no indicator | Shared Dots component at the operation's surface | Consistent motion and lifecycle |
+| Medium | `hot-cross-buns/progress.tsx`, `client.ts`, backend bridge | Several slow operations had no visible progress | Shared current-chat operation feedback with explicit backend signals | Distinguish actual work from an unresponsive interface |
+| Medium | `hot-cross-buns/files.tsx`, `path-picker.tsx`, `panel.tsx`, `transcript.tsx` | Plain loading text or no indicator | Shared Dots component at the operation's surface | Consistent motion and lifecycle |
 | Medium | `component/session-tabs.tsx` | Other running chats used plain status | Spinner for other actively working chats | Show concurrent work without animating retained/paused states |
 | Medium | `component/command-palette.tsx` | Mixed case; uppercasing initially broke hyphenated searches | Uppercase labels with original searchable aliases | Consistency without losing command discovery |
 | Medium | Sidebar and catalog components | Repeated branding, tight rows, fixed sidebar | Search text, row spacing and draggable divider | Reduce clutter and let users allocate width |

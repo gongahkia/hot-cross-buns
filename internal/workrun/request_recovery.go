@@ -2,8 +2,8 @@ package workrun
 
 import (
 	"errors"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func classifyRequestRecovery(err error, readOnly bool) *worksession.RequestRecovery {

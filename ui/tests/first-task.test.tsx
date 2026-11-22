@@ -3,21 +3,21 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
   test(`first task keeps its private draft through failed setup, repair and explicit execution at ${width}×${height}`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "gator-first-request-")), file = join(root, "meeting.txt"), config = join(root, "config/gator/config.json")
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-first-request-")), file = join(root, "meeting.txt"), config = join(root, "config/hot-cross-buns/config.json")
     await writeFile(file, "Meeting note: confirm the venue on Friday. Private original: silver otter.")
     const calls: string[] = []
     const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
       calls.push(await request.text())
       return Response.json({ choices: [{ message: { role: "assistant", content: "Confirm the venue on Friday." }, finish_reason: "stop" }] })
     } })
-    const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config"), OPENAI_API_KEY: "" } }
-    const client = new GatorClient(new Application(options))
+    const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config"), OPENAI_API_KEY: "" } }
+    const client = new HotCrossBunsClient(new Application(options))
     const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
     const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
     const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const end = Date.now() + 10000; while (!await predicate()) { if (Date.now() > end) throw new Error(label + ": " + client.issue + "\n" + setup.captureCharFrame() + "\n" + JSON.stringify(client.state?.panel)); await flush() } }
@@ -85,7 +85,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       await writeFile(file, "Changed source after private import")
       setup.mockInput.pressEnter(); await until(() => !client.state?.running && !!client.state?.messages.some(message => message.text === "Confirm the venue on Friday."), "first useful result")
       expect(calls.length).toBeGreaterThan(0); expect(calls[0]).toContain("silver otter"); expect(calls.join("\n")).not.toContain("Changed source")
-      const journal = JSON.parse(await readFile(join(root, "state/gator/conversations", client.state!.conversation_id!, "requests.json"), "utf8"))
+      const journal = JSON.parse(await readFile(join(root, "state/hot-cross-buns/conversations", client.state!.conversation_id!, "requests.json"), "utf8"))
       expect(journal.requests).toHaveLength(1); expect(journal.requests[0].text).toBe("Summarize this meeting note")
       expect(client.draft.text).toBe(""); expect(client.draft.uploads).toEqual([])
       expect(client.state?.work_details?.connector_ids).toEqual([])
@@ -95,15 +95,15 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
 }
 
 test("missing and changed model credentials recover without losing or replaying the first request", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-first-credential-")), config = join(root, "config/gator")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-first-credential-")), config = join(root, "config/hot-cross-buns")
   let calls = 0
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch() { calls++; return Response.json({ choices: [{ message: { role: "assistant", content: "A useful first answer." }, finish_reason: "stop" }] }) } })
   await mkdir(config, { recursive: true })
   await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "locked", model: "fixture" }, custom_providers: [
-    { id: "locked", base_url: `http://127.0.0.1:${server.port}/chat`, api_key_env: "GATOR_FIRST_TASK_MISSING_KEY", models: ["fixture"], default_model: "fixture" },
+    { id: "locked", base_url: `http://127.0.0.1:${server.port}/chat`, api_key_env: "HOT_CROSS_BUNS_FIRST_TASK_MISSING_KEY", models: ["fixture"], default_model: "fixture" },
     { id: "available", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" },
   ] }))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config"), GATOR_FIRST_TASK_MISSING_KEY: "" } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config"), HOT_CROSS_BUNS_FIRST_TASK_MISSING_KEY: "" } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 80, height: 24 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   const choose = async (text: string) => { setup.mockInput.pressKey("u", { ctrl: true }); await setup.mockInput.typeText(text); await flush(); setup.mockInput.pressEnter(); await flush() }
@@ -113,7 +113,7 @@ test("missing and changed model credentials recover without losing or replaying 
     expect(client.state?.provider).toBe("locked"); expect(client.state?.composer?.readiness?.state).toBe("needs_setup")
     await setup.mockInput.typeText("Help with my first task"); setup.mockInput.pressEnter(); await flush()
     await choose("Why setup is needed")
-    expect(setup.captureCharFrame().replace(/\s+/g, " ")).toContain("GATOR_FIRST_TASK_MISSING_KEY")
+    expect(setup.captureCharFrame().replace(/\s+/g, " ")).toContain("HOT_CROSS_BUNS_FIRST_TASK_MISSING_KEY")
     setup.mockInput.pressEscape(); await flush()
     expect(calls).toBe(0); expect(client.draft.text).toBe("Help with my first task")
     await choose("Choose an already configured model"); await choose("Choose model"); await choose("fixture")
@@ -124,7 +124,7 @@ test("missing and changed model credentials recover without losing or replaying 
     // retain the draft and publish the real issue instead of trusting the UI.
     const path = join(config, "config.json"), original = JSON.parse(await readFile(path, "utf8"))
     const changed = structuredClone(original)
-    changed.custom_providers.find((provider: { id: string }) => provider.id === "available").api_key_env = "GATOR_FIRST_TASK_MISSING_KEY"
+    changed.custom_providers.find((provider: { id: string }) => provider.id === "available").api_key_env = "HOT_CROSS_BUNS_FIRST_TASK_MISSING_KEY"
     await writeFile(path, JSON.stringify(changed))
     setup.mockInput.pressEnter(); await until(() => !!client.issue && !client.pending.size)
     expect(client.state?.composer?.readiness?.state).toBe("needs_setup")
@@ -138,7 +138,7 @@ test("missing and changed model credentials recover without losing or replaying 
     expect(client.state?.composer?.readiness?.state).toBe("configured"); expect(calls).toBe(0)
     setup.mockInput.pressEnter(); await until(() => !client.state?.running && !!client.state?.messages.some(message => message.text === "A useful first answer."))
     expect(calls).toBeGreaterThan(0); expect(client.draft.text).toBe("")
-    const journal = JSON.parse(await readFile(join(root, "state/gator/conversations", client.state!.conversation_id!, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(root, "state/hot-cross-buns/conversations", client.state!.conversation_id!, "requests.json"), "utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].text).toBe("Help with my first task")
   } finally { await client.close(); await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }
 }, 30000)

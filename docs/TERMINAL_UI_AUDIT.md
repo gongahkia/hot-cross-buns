@@ -1,6 +1,6 @@
 # Terminal UI audit — 18 October 2026
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -13,8 +13,8 @@ This audit covers every interactive screen projected by `worktui.BridgeState`,
 `modelcatalog.UISnapshot`, and rendered by `ui/src/main.tsx`. The reference is
 the imported [`@claude-code-kit` 0.4.0 package](https://github.com/Minnzen/claude-code-kit) and its conversational layout,
 keyboard behavior, picker rows, and prompt placement. That package is an
-independent Claude Code inspired kit, not Anthropic's frontend. Gator retains
-its green color and its work product commands. `gator doctor` now uses a
+independent Claude Code inspired kit, not Anthropic's frontend. Hot Cross Buns retains
+its green color and its work product commands. `hot-cross-buns doctor` now uses a
 one-shot Node-rendered report; `/doctor` uses the same report component in chat.
 
 ## Screen inventory and findings
@@ -33,14 +33,14 @@ one-shot Node-rendered report; `/doctor` uses the same report component in chat.
 | History list and detail | Retained runs, artifacts, feedback, and review actions were projected consistently. | Keep the common list/detail layout and scrolling. |
 | Learnings list and detail | Provenance and explicit approval controls were projected consistently. The add/edit form was visually identical to a list. | Give the learning form the same bounded focus surface as model forms. |
 | Save/apply transfer confirmation | Confirmation data and keyboard actions were projected, but the screen looked like a list. | Use the green bordered focus surface with its evidence summary and explicit confirmation footer. |
-| External editor and connector handoff | React unmounts while an external terminal process runs, then resumes from Go state. | Retained; this is a handoff, not a Gator screen. |
+| External editor and connector handoff | React unmounts while an external terminal process runs, then resumes from Go state. | Retained; this is a handoff, not a Hot Cross Buns screen. |
 | Doctor diagnostics | The standalone command had a Go spinner and formatter while `/doctor` appeared as plain chat text. | Node renders both from the same report component; Go retains only the diagnostic checks. The standalone command exits after showing results. |
 
 ## Shared interaction checks
 
 | Severity | Location | Before | After | Why |
 | --- | --- | --- | --- | --- |
-| High | `cmd/gator/work_interactive.go`, `internal/worktui/view.go` | Missing Node or `GATOR_NATIVE_TUI=1` launched a second Go interface. | One React renderer; clear Node 22+ startup error. | One interaction model is easier to learn and test. |
+| High | `cmd/hot-cross-buns/work_interactive.go`, `internal/worktui/view.go` | Missing Node or `HOT_CROSS_BUNS_NATIVE_TUI=1` launched a second Go interface. | One React renderer; clear Node 22+ startup error. | One interaction model is easier to learn and test. |
 | High | `internal/modelcatalog/panel_snapshot.go` | Active download status and installer logs disappeared when using React. | Progress and installer output are included in the snapshot. | A user must see what is happening during a long installation. |
 | Medium | `ui/src/main.tsx` home and panels | An empty transcript used space and panels hid the composer location. | Home omits the empty list; panels keep a muted composer anchor. | The next input stays discoverable. |
 | Medium | `ui/src/main.tsx` forms | Forms and confirmations looked like ordinary lists; dividers wrapped inside bordered widths. | Bounded green focus surfaces, field cursor cue, width-aware dividers. | Editing and approval now read as distinct actions. |
@@ -53,9 +53,9 @@ one-shot Node-rendered report; `/doctor` uses the same report component in chat.
   Ctrl+D exits, and slash suggestions stay above the prompt.
 - **Focus and color:** One green focus indicator appears on a selected row.
   Text and form values use neutral text; secondary labels are muted. The kit's
-  cyan `Select` and `ListItem` were not used because they cannot take Gator's
+  cyan `Select` and `ListItem` were not used because they cannot take Hot Cross Buns's
   green accent without a fork.
-- **Typography and icons:** The kit's monospace text carries the UI. `🐊 Gator`
+- **Typography and icons:** The kit's monospace text carries the UI. `🐊 Hot Cross Buns`
   marks identity and is not repeated inside every row. Other glyphs indicate
   state or a keyboard focus target.
 - **Geometry:** Chat and panels reserve the composer at the bottom. Lists keep
@@ -74,14 +74,14 @@ one-shot Node-rendered report; `/doctor` uses the same report component in chat.
 - PTY smoke check of the first-run home, model choice, cloud catalog, and
   credential form. The form displayed a green border and the composer anchor;
   Ctrl+D exited cleanly from both chat and a panel.
-- With Node removed from `PATH`, both interactive startup and `gator doctor`
+- With Node removed from `PATH`, both interactive startup and `hot-cross-buns doctor`
   exit with the Node 22+ installation message. Headless commands still work.
 - Static inspection of every `Panel.Kind`, launcher mode, model submode,
   history and learning detail, transfer confirmation, and React rendering path.
 
 **Verdict:** Every interactive screen is now rendered by React and follows the
 shared prompt, panel, focus, and green color conventions in
-`docs/DESIGN_SYSTEM.md`. The audit checks Gator's own UI against the imported
+`docs/DESIGN_SYSTEM.md`. The audit checks Hot Cross Buns's own UI against the imported
 kit's patterns. It does not establish pixel parity with the proprietary Claude
 Code CLI.
 
@@ -98,17 +98,17 @@ their resolution; a stale request is marked as no longer pending.
 
 ## Palette, search, diagnostics, and control follow-up
 
-| Surface | Kit reference | Gator implementation and reason |
+| Surface | Kit reference | Hot Cross Buns implementation and reason |
 | --- | --- | --- |
 | Home and conversation | `WelcomeScreen`, `MessageList`, `Markdown`, `Spinner`, `Divider`, `StatusLine` | Uses these components directly. All accents now read the saved palette from bridge state. |
-| Prompt and slash suggestions | `PromptInput` and its suggestions | Keeps the bottom prompt, history, multiline keys, and suggestions above it. A Gator adapter uses grapheme-aware cursor editing and palette-aware focus; the kit prompt uses JavaScript character offsets. Fast text plus Return is handled as one submission. |
-| Transcript search | Kit search overlay near the prompt | Gator searches visible typed cards and deliverables as well as prose; Ctrl+N/Ctrl+P navigate matches. The Go result schema remains the source of truth. |
-| Pickers, models, history, inbox, jobs, and learnings | `Select`, `ListItem`, `Byline`, `KeyboardShortcutHint` | Gator renders rows in the kit's single-focus style and uses the kit hint components. Go retains selection and action state. The kit's `Select` and `ListItem` hardcode cyan, so their row implementations are not used. |
-| Forms and transfer confirmations | Kit `Dialog` | Gator keeps a centered, bordered focus surface with kit-style hints. Go retains Esc and Enter ownership for model, approval, and transfer state; the kit dialog's local Esc handler would duplicate those actions. |
-| Doctor and command results | Kit transcript and Markdown primitives | Go emits semantic fields, items, sections, and tones. React renders one result body for `/doctor` and standalone `gator doctor`; no text-regex color inference remains. The standalone spinner starts in the saved theme. |
+| Prompt and slash suggestions | `PromptInput` and its suggestions | Keeps the bottom prompt, history, multiline keys, and suggestions above it. A Hot Cross Buns adapter uses grapheme-aware cursor editing and palette-aware focus; the kit prompt uses JavaScript character offsets. Fast text plus Return is handled as one submission. |
+| Transcript search | Kit search overlay near the prompt | Hot Cross Buns searches visible typed cards and deliverables as well as prose; Ctrl+N/Ctrl+P navigate matches. The Go result schema remains the source of truth. |
+| Pickers, models, history, inbox, jobs, and learnings | `Select`, `ListItem`, `Byline`, `KeyboardShortcutHint` | Hot Cross Buns renders rows in the kit's single-focus style and uses the kit hint components. Go retains selection and action state. The kit's `Select` and `ListItem` hardcode cyan, so their row implementations are not used. |
+| Forms and transfer confirmations | Kit `Dialog` | Hot Cross Buns keeps a centered, bordered focus surface with kit-style hints. Go retains Esc and Enter ownership for model, approval, and transfer state; the kit dialog's local Esc handler would duplicate those actions. |
+| Doctor and command results | Kit transcript and Markdown primitives | Go emits semantic fields, items, sections, and tones. React renders one result body for `/doctor` and standalone `hot-cross-buns doctor`; no text-regex color inference remains. The standalone spinner starts in the saved theme. |
 
 The kit's Markdown renderer reads its own dark theme for inline code and links.
-Gator synchronizes that public theme object with its saved palette and remounts
+Hot Cross Buns synchronizes that public theme object with its saved palette and remounts
 Markdown when the theme changes. This adapter is tested against the pinned
 kit version.
 

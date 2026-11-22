@@ -14,12 +14,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func canonicalSourcePath(value string) string {
@@ -112,7 +112,7 @@ func migrationMetadata(rel string) bool {
 	return false
 }
 func migrateProfile(ctx context.Context, profile string, p RestorePlan, apply bool) ([]RestoreSource, int, int, error) {
-	rootPath := filepath.Join(profile, "gator")
+	rootPath := filepath.Join(profile, "hot-cross-buns")
 	sources := map[string]RestoreSource{}
 	checks, runs := 0, 0
 	paths := []string{}
@@ -253,7 +253,7 @@ func migrateProfile(ctx context.Context, profile string, p RestorePlan, apply bo
 				destination := replaceRoot(value, p.Origin, p.Target)
 				// Empty private goal sources have no archived files, but remain usable.
 				private := replaceRoot(destination, p.Target, profile)
-				if destination != value && (strings.Contains(filepath.ToSlash(private), "/gator/goals/sources/") || filepath.Base(private) == "empty-workspace") {
+				if destination != value && (strings.Contains(filepath.ToSlash(private), "/hot-cross-buns/goals/sources/") || filepath.Base(private) == "empty-workspace") {
 					if err = os.MkdirAll(private, 0700); err != nil {
 						return nil, 0, 0, err
 					}
@@ -334,7 +334,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 		// is absent after extraction. Recreate it only when no head is claimed;
 		// conversations referring to missing revisions must still fail validation.
 		if c.HeadRevision == "" {
-			if err = os.MkdirAll(filepath.Join(profile, "gator", "conversations", c.ID, "revisions"), 0700); err != nil {
+			if err = os.MkdirAll(filepath.Join(profile, "hot-cross-buns", "conversations", c.ID, "revisions"), 0700); err != nil {
 				return err
 			}
 		}
@@ -348,7 +348,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 			}
 		}
 		for _, r := range revisions {
-			if !withinPath(filepath.Join(final, "gator", "workspaces"), r.BundlePath) {
+			if !withinPath(filepath.Join(final, "hot-cross-buns", "workspaces"), r.BundlePath) {
 				return errors.New("restored revision points outside private Work")
 			}
 			bundle := replaceRoot(r.BundlePath, final, profile)
@@ -366,7 +366,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 			}
 		}
 	}
-	err = filepath.WalkDir(filepath.Join(profile, "gator", "conversations"), func(path string, entry fs.DirEntry, err error) error {
+	err = filepath.WalkDir(filepath.Join(profile, "hot-cross-buns", "conversations"), func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
@@ -376,7 +376,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 		if entry.IsDir() {
 			return nil
 		}
-		rel, _ := filepath.Rel(filepath.Join(profile, "gator", "conversations"), path)
+		rel, _ := filepath.Rel(filepath.Join(profile, "hot-cross-buns", "conversations"), path)
 		parts := strings.Split(filepath.ToSlash(rel), "/")
 		if len(parts) == 2 && parts[1] == "conversation.json" {
 			_, err = sessions.Load(parts[0])
@@ -423,7 +423,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 			if _, err = hex.DecodeString(entry.SHA256); err != nil {
 				return errors.New("snapshot has an invalid blob digest")
 			}
-			for _, relative := range []string{filepath.Join("gator", "snapshots", "blobs", entry.SHA256), filepath.Join("gator", "snapshots", "trees", m.TreeID, filepath.FromSlash(entry.Path))} {
+			for _, relative := range []string{filepath.Join("hot-cross-buns", "snapshots", "blobs", entry.SHA256), filepath.Join("hot-cross-buns", "snapshots", "trees", m.TreeID, filepath.FromSlash(entry.Path))} {
 				if checked[relative] {
 					continue
 				}
@@ -444,7 +444,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 			}
 		}
 	}
-	return filepath.WalkDir(filepath.Join(profile, "gator", "workspaces"), func(path string, entry fs.DirEntry, err error) error {
+	return filepath.WalkDir(filepath.Join(profile, "hot-cross-buns", "workspaces"), func(path string, entry fs.DirEntry, err error) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
@@ -459,7 +459,7 @@ func validateRestoredProfile(ctx context.Context, profile, final string) error {
 		}
 		// Only a workspace root manifest is a sealed bundle, never an output file
 		// whose user-selected name happens to be manifest.json.
-		rel, _ := filepath.Rel(filepath.Join(profile, "gator", "workspaces"), path)
+		rel, _ := filepath.Rel(filepath.Join(profile, "hot-cross-buns", "workspaces"), path)
 		if len(strings.Split(filepath.ToSlash(rel), "/")) != 3 {
 			return nil
 		}

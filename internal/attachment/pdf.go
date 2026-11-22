@@ -20,7 +20,7 @@ const (
 
 // PDFExtraction is a bounded, page-addressable representation of a PDF text
 // layer. RequiresOCR is evidence that some pages contain images but no usable
-// text; Gator does not pretend that native extraction is OCR.
+// text; Hot Cross Buns does not pretend that native extraction is OCR.
 type PDFExtraction struct {
 	PageCount   int          `json:"page_count"`
 	Pages       []PDFPage    `json:"pages"`

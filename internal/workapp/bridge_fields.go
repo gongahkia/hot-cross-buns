@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 // Validate the complete submitted form before changing any draft field. Native

@@ -59,7 +59,7 @@ func (m Model) updateCredentialStatuses(msg credentialStatusesMsg) (tea.Model, t
 
 func (m Model) updateCredentialRemoved(msg credentialRemovedMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
-		m.notice = notice{text: "Remove Gator credential: " + msg.err.Error(), kind: noticeError}
+		m.notice = notice{text: "Remove Hot Cross Buns credential: " + msg.err.Error(), kind: noticeError}
 		return m, nil
 	}
 	delete(m.localModels.credentials, msg.result.StoreKey)
@@ -143,7 +143,7 @@ func (m Model) updateLocalModelStatus(msg localModelStatusMsg) (tea.Model, tea.C
 		} else if m.ollamaMissing() {
 			m.notice = notice{text: "Ollama is not installed. Open the Local section for installation help.", kind: noticeInfo}
 		} else {
-			m.notice = notice{text: "Local runtime is unavailable. Open the Local section to choose whether Gator should start Ollama.", kind: noticeInfo}
+			m.notice = notice{text: "Local runtime is unavailable. Open the Local section to choose whether Hot Cross Buns should start Ollama.", kind: noticeInfo}
 		}
 	} else {
 		m.localModels.startDismissed = false
@@ -198,9 +198,9 @@ func (m Model) updateLocalModelDone(msg localModelDoneMsg) (tea.Model, tea.Cmd) 
 		m.applyLocalCatalog(*msg.done.catalog)
 	}
 	if action == localModelStarting {
-		m.notice = notice{text: "Ollama is running under this Gator session. Choose a local model to download or use.", kind: noticeSuccess}
+		m.notice = notice{text: "Ollama is running under this Hot Cross Buns session. Choose a local model to download or use.", kind: noticeSuccess}
 	} else {
-		m.notice = notice{text: "Local model download finished. Press u to select it for Gator.", kind: noticeSuccess}
+		m.notice = notice{text: "Local model download finished. Press u to select it for Hot Cross Buns.", kind: noticeSuccess}
 	}
 	return m, nil
 }
@@ -250,7 +250,7 @@ func (m Model) updateLocalInstallerAuthorizationDone(msg localInstallerAuthoriza
 	installer, ok := m.localModels.manager.(LocalInstaller)
 	if !ok {
 		m.localModels.installation = nil
-		m.notice = notice{text: "This Gator build cannot run the Ollama installer. Use the official source shown here.", kind: noticeError}
+		m.notice = notice{text: "This Hot Cross Buns build cannot run the Ollama installer. Use the official source shown here.", kind: noticeError}
 		return m, nil
 	}
 	m.localModels.installation = nil

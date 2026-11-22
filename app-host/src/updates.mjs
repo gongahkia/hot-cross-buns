@@ -1,10 +1,10 @@
 import { EventEmitter } from "node:events";
 
-export const releaseURL = "https://github.com/gongahkia/gator/releases";
+export const releaseURL = "https://github.com/gongahkia/hot-cross-buns/releases";
 
 export function updateBlockReason(snapshot) {
   const state = snapshot?.state;
-  if (!state || snapshot.connection !== "connected") return "Reconnect to Gator before restarting for an update.";
+  if (!state || snapshot.connection !== "connected") return "Reconnect to Hot Cross Buns before restarting for an update.";
   if (state.receipt_busy) return "Wait for the receipt check before restarting.";
   if (snapshot.terminalBusy || state.external) return "Finish the current sign-in or reviewed action first.";
   if (snapshot.sessionSwitching) return "Wait for this chat to open before restarting.";
@@ -48,8 +48,8 @@ export class Updates extends EventEmitter {
   async #restoreAfterFailure() {
     if (this.#restoring) return this.#restoring;
     this.#restoring = (async () => {
-      try { await this.#rollback?.(); this.#set({ phase: "ready", reason: "The installer could not start. Gator reconnected without resubmitting work. Try again or use the releases page." }); }
-      catch { this.#set({ phase: "ready", reason: "The installer could not start. Reconnect to Gator before trying again. Saved conversations and drafts are retained." }); }
+      try { await this.#rollback?.(); this.#set({ phase: "ready", reason: "The installer could not start. Hot Cross Buns reconnected without resubmitting work. Try again or use the releases page." }); }
+      catch { this.#set({ phase: "ready", reason: "The installer could not start. Reconnect to Hot Cross Buns before trying again. Saved conversations and drafts are retained." }); }
       finally { this.#rollback = undefined; }
     })();
     try { await this.#restoring; } finally { this.#restoring = undefined; }
@@ -86,7 +86,7 @@ export class Updates extends EventEmitter {
         catch { await this.#restoreAfterFailure(); }
       }
     } catch {
-      this.#set({ phase: request.action === "install" ? "ready" : "error", reason: request.action === "install" ? "Gator could not prepare to restart. Check Recovery for background work, then try again. Your saved work is retained." : "The update could not complete. Try again, or open the releases page." });
+      this.#set({ phase: request.action === "install" ? "ready" : "error", reason: request.action === "install" ? "Hot Cross Buns could not prepare to restart. Check Recovery for background work, then try again. Your saved work is retained." : "The update could not complete. Try again, or open the releases page." });
     } finally { this.#busy = false; }
     return this.snapshot();
   }

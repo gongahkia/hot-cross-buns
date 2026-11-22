@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 // Activity is a bounded projection of currently running Work records and their
@@ -62,7 +62,7 @@ func ReadActivity(stateDir string) (Activity, error) {
 			LiveStatus: record.LiveStatus, StartedAt: record.StartedAt,
 			Tasks: []ActivityTask{}, PendingDecisions: []ActivityDecision{},
 		}
-		tasks, err := orchestrator.ReadTasks(filepath.Join(stateDir, "gator", "tasks", record.ID))
+		tasks, err := orchestrator.ReadTasks(filepath.Join(stateDir, "hot-cross-buns", "tasks", record.ID))
 		if err != nil {
 			return Activity{}, fmt.Errorf("read specialists for Work run %s: %w", record.ID, err)
 		}

@@ -13,7 +13,7 @@ import (
 )
 
 func TestCreateChatOnceConcurrentProcesses(t *testing.T) {
-	if root := os.Getenv("GATOR_TEST_CREATE_CHAT_ROOT"); root != "" {
+	if root := os.Getenv("HOT_CROSS_BUNS_TEST_CREATE_CHAT_ROOT"); root != "" {
 		store, err := Open(root)
 		if err != nil {
 			panic(err)
@@ -33,7 +33,7 @@ func TestCreateChatOnceConcurrentProcesses(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			command := exec.Command(os.Args[0], "-test.run=^TestCreateChatOnceConcurrentProcesses$")
-			command.Env = append(os.Environ(), "GATOR_TEST_CREATE_CHAT_ROOT="+root)
+			command.Env = append(os.Environ(), "HOT_CROSS_BUNS_TEST_CREATE_CHAT_ROOT="+root)
 			out, err := command.CombinedOutput()
 			if err != nil {
 				failures <- err

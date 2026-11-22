@@ -3,14 +3,14 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("saved guidance uses typed choices and full text, retains scope on edit, filters status and survives restart", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-guidance-"))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-guidance-"))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 40 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -41,7 +41,7 @@ test("saved guidance uses typed choices and full text, retains scope on edit, fi
     await client.navigate("/learnings"); await flush(); await filter("Active"); await until(() => !client.state?.panel?.rows?.length, "empty active filter")
     await filter("Disabled"); await until(() => client.state?.panel?.rows?.length === 1, "disabled filter"); setup.mockInput.pressEnter(); await flush(); setup.mockInput.pressKey("a")
     await until(() => client.state?.panel?.summary?.some(field => field.label === "Status" && field.value === "active") === true, "re-enabled guidance")
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await client.navigate("/learnings"); await flush()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await client.navigate("/learnings"); await flush()
     expect(client.state?.panel?.rows).toHaveLength(1); setup.mockInput.pressEnter(); await until(() => client.state?.panel?.title === "Guidance details", "restored guidance details"); await flush()
     expect(client.state?.panel?.blocks?.find(block => block.title === "Guidance")?.lines).toEqual([updated])
     expect(client.context).toBe(context); expect(client.draft.text).toBe("Keep my unsent guidance draft"); expect(client.state?.messages).toHaveLength(0)

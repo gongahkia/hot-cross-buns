@@ -1,6 +1,6 @@
 package modelcatalog
 
-import "github.com/gongahkia/gator/internal/uisnapshot"
+import "github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 
 // SelectBridgeRow changes focus only. Desktop activation still calls Update
 // with the same key as the terminal, preserving confirmations and validation.

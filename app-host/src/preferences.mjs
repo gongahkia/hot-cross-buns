@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 export const frontendDefaults = () => ({ sidebarCollapsed: true, theme: "terminal", groupChatsByFolder: false, workDetailsSections: { outputs: true, context: false, connections: false, workspace: false } });
-const keys = { theme: "gator:terminal-theme", sidebarCollapsed: "gator:sidebar-collapsed", groupChatsByFolder: "gator:group-topics-by-folder", workDetailsSections: "gator:work-details-sections" };
+const keys = { theme: "hot-cross-buns:terminal-theme", sidebarCollapsed: "hot-cross-buns:sidebar-collapsed", groupChatsByFolder: "hot-cross-buns:group-topics-by-folder", workDetailsSections: "hot-cross-buns:work-details-sections" };
 const fingerprint = stat => [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(":");
-const valid = value => value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).every(key => Object.hasOwn(keys, key)) && Object.entries(value).every(([key, item]) => key === "theme" ? ["terminal", "gator", "light", "contrast", "mono"].includes(item) : key === "workDetailsSections" ? item && typeof item === "object" && !Array.isArray(item) && Object.keys(item).every(key => ["outputs", "context", "connections", "workspace"].includes(key)) && Object.values(item).every(value => typeof value === "boolean") : typeof item === "boolean");
+const valid = value => value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).every(key => Object.hasOwn(keys, key)) && Object.entries(value).every(([key, item]) => key === "theme" ? ["terminal", "hot-cross-buns", "light", "contrast", "mono"].includes(item) : key === "workDetailsSections" ? item && typeof item === "object" && !Array.isArray(item) && Object.keys(item).every(key => ["outputs", "context", "connections", "workspace"].includes(key)) && Object.values(item).every(value => typeof value === "boolean") : typeof item === "boolean");
 export { valid as validFrontendPreferences };
 
 // Copy just the LevelDB files, then open/recover the copy. Opening the original
@@ -44,7 +44,7 @@ async function legacyPreferences(userData) {
     for (const [name, legacy] of Object.entries(keys)) {
       // Chromium stores an origin + NUL + string encoding marker + DOM key.
       for (const encoding of [1, 0]) {
-        const key = Buffer.concat([Buffer.from("_gator://app\0"), Buffer.from([encoding]), Buffer.from(legacy, encoding ? "latin1" : "utf16le")]);
+        const key = Buffer.concat([Buffer.from("_hot-cross-buns://app\0"), Buffer.from([encoding]), Buffer.from(legacy, encoding ? "latin1" : "utf16le")]);
         const bytes = await database.get(key);
         if (!bytes) continue;
         if (bytes.length > 8192 || ![0, 1].includes(bytes[0])) throw new Error("Invalid retained frontend preference encoding.");

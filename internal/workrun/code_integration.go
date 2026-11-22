@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/patch"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 	"os"
 	"path/filepath"
 	"sync"
@@ -87,10 +87,10 @@ func (c *codeIntegration) Execute(ctx context.Context, raw json.RawMessage) (age
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
-	if err := os.MkdirAll(filepath.Join(c.request.StateDir, "gator", "candidates", c.request.RunID), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Join(c.request.StateDir, "hot-cross-buns", "candidates", c.request.RunID), 0700); err != nil {
 		return agent.ToolResult{}, err
 	}
-	if err := os.WriteFile(filepath.Join(c.request.StateDir, "gator", "candidates", c.request.RunID, candidate.ID+".json"), data, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(c.request.StateDir, "hot-cross-buns", "candidates", c.request.RunID, candidate.ID+".json"), data, 0600); err != nil {
 		return agent.ToolResult{}, err
 	}
 	report := struct {

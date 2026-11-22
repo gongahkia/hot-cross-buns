@@ -1,8 +1,8 @@
 {
-  "name": "gator-browser-runtime",
+  "name": "hot-cross-buns-browser-runtime",
   "private": true,
   "version": "1.0.0",
-  "description": "Pinned local Playwright runtime for Gator browser sessions",
+  "description": "Pinned local Playwright runtime for Hot Cross Buns browser sessions",
   "dependencies": {
     "playwright": "1.56.1"
   }

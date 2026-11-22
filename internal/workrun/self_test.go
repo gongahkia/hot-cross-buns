@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 )
 
 func readApplicationState(t *testing.T, prompt string) map[string]any {
 	t.Helper()
 	_, data, found := strings.Cut(prompt, applicationStateHeader)
 	if !found {
-		t.Fatal("model was not given Gator's current app state")
+		t.Fatal("model was not given Hot Cross Buns's current app state")
 	}
 	var state map[string]any
 	if err := json.NewDecoder(strings.NewReader(data)).Decode(&state); err != nil {
@@ -99,8 +99,8 @@ func TestConversationReceivesCurrentAppKnowledgeAfterModelChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.ConversationID = first.ConversationID
-	request.Provider = "gator-local/current-model"
-	request.Objective = "Which model are you using now, and how do I change it in Gator?"
+	request.Provider = "hot-cross-buns-local/current-model"
+	request.Objective = "Which model are you using now, and how do I change it in Hot Cross Buns?"
 	if _, err := executor.Execute(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
@@ -110,13 +110,13 @@ func TestConversationReceivesCurrentAppKnowledgeAfterModelChange(t *testing.T) {
 	firstState := readApplicationState(t, model.requests[0].System)
 	current := model.requests[1]
 	currentState := readApplicationState(t, current.System)
-	if firstState["provider_model"] != "gateway/old-model" || currentState["provider_model"] != "gator-local/current-model" {
+	if firstState["provider_model"] != "gateway/old-model" || currentState["provider_model"] != "hot-cross-buns-local/current-model" {
 		t.Fatalf("app state was stale: first=%v current=%v", firstState, currentState)
 	}
 	if currentState["snapshot_id"] != first.SnapshotID || currentState["effective_mode"] != "inspect" || currentState["external_actions"] != "forbid" {
 		t.Fatalf("app state did not reflect the actual run: %v", currentState)
 	}
-	for _, guide := range []string{"personal agent", "Ctrl+P opens searchable commands", "/model", "Correct earlier assistant replies", "Use gator_app_update", "available tools"} {
+	for _, guide := range []string{"personal agent", "Ctrl+P opens searchable commands", "/model", "Correct earlier assistant replies", "Use hot_cross_buns_app_update", "available tools"} {
 		if !strings.Contains(current.System, guide) {
 			t.Errorf("conversation omitted app guidance %q", guide)
 		}
@@ -130,7 +130,7 @@ func TestConversationReceivesCurrentAppKnowledgeAfterModelChange(t *testing.T) {
 }
 
 func TestApplicationUsesTerminalIdentity(t *testing.T) {
-	t.Setenv("GATOR_UI_FRONTEND", "terminal")
+	t.Setenv("HOT_CROSS_BUNS_UI_FRONTEND", "terminal")
 	prompt := applicationContext(Request{Provider: "fixture/current"})
 	if strings.Contains(prompt, "Electron") || !strings.Contains(prompt, "OpenCode-derived") || !strings.Contains(prompt, "Ctrl+P opens searchable commands") {
 		t.Fatal("application help did not describe the terminal")

@@ -1,7 +1,7 @@
 # Explicit desktop regression only; never part of routine headless verification.
 import json, pathlib, re, subprocess, sys, time
 pid = str(int(sys.argv[1])); tool = sys.argv[2]
-metadata = json.loads(pathlib.Path('/tmp/gator-uiux-remediation-session.json').read_text())
+metadata = json.loads(pathlib.Path('/tmp/hot-cross-buns-uiux-remediation-session.json').read_text())
 assert int(pid) == metadata['desktopPID'], 'Only the current disposable session is allowed'
 def call(*args):return subprocess.check_output([tool,pid,*args],text=True)
 def offset():

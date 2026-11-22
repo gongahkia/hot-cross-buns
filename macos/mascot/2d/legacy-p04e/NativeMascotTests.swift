@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 import Testing
-@testable import GatorMac
-@testable import GatorCore
+@testable import HotCrossBunsMac
+@testable import HotCrossBunsCore
 
 private var mascotAssetRoot: URL {
     URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("mascot/2d/assets")
@@ -13,7 +13,7 @@ private var mascotAssetRoot: URL {
     #expect(NativeMascotPreference.appearance("live-3d") == .rendered)
 }
 @Test @MainActor func mascotPreferencesPersistUsingNativeAppStorage() throws {
-    let name="gator.mascot.test."+UUID().uuidString
+    let name="hot-cross-buns.mascot.test."+UUID().uuidString
     let defaults=try #require(UserDefaults(suiteName:name)); defer{defaults.removePersistentDomain(forName:name)}
     struct Preferences {
         @AppStorage var shown: Bool
@@ -29,7 +29,7 @@ private var mascotAssetRoot: URL {
     first.shown=false;first.animated=false;first.style="classic"
     let reopened=Preferences(defaults)
     #expect(!reopened.shown && !reopened.animated && reopened.style=="classic")
-    #expect((defaults.persistentDomain(forName:name) ?? [:]).keys.filter{$0.hasPrefix("gator.")}.sorted()==[NativeMascotPreference.animated,NativeMascotPreference.shown,NativeMascotPreference.style].sorted())
+    #expect((defaults.persistentDomain(forName:name) ?? [:]).keys.filter{$0.hasPrefix("hot-cross-buns.")}.sorted()==[NativeMascotPreference.animated,NativeMascotPreference.shown,NativeMascotPreference.style].sorted())
 }
 @Test func mascotStatePrecedenceAndOwnerReplacement() {
     var state=NativeMascotStateMachine()
@@ -67,7 +67,7 @@ private var mascotAssetRoot: URL {
 }
 @Test @MainActor func mascotProjectionDoesNotStartAnOwnerOrMutateItsDraft() {
     let folder=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    let app=GatorApplicationState(configuration:.init(runtime:URL(fileURLWithPath:"/not/a/runtime"),workspace:folder),nativeDraftDirectory:folder,profile:"mascot-test")
+    let app=HotCrossBunsApplicationState(configuration:.init(runtime:URL(fileURLWithPath:"/not/a/runtime"),workspace:folder),nativeDraftDirectory:folder,profile:"mascot-test")
     _=NativeMascotProjection.signal(app)
     #expect(!app.started && app.connectionStatus == .idle && app.draftText.isEmpty && app.pendingSubmission == nil)
     #expect(!FileManager.default.fileExists(atPath:folder.path))
@@ -137,7 +137,7 @@ private var mascotAssetRoot: URL {
     #expect(await player.store.bytes==0)
 }
 @Test func mascotProductionSourceHasNoLive3DOrExecutionDependency() throws {
-    let sources=mascotAssetRoot.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources/GatorMac")
+    let sources=mascotAssetRoot.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources/HotCrossBunsMac")
     for name in ["NativeMascotModel.swift","NativeMascotPlayback.swift","NativeMascotView.swift","NativeMascotPreferences.swift"] {
         let text=try String(contentsOf:sources.appendingPathComponent(name),encoding:.utf8)
         for forbidden in ["import RealityKit","import SceneKit","import WebKit",".send(",".newConversation(",".respondToApproval("] { #expect(!text.contains(forbidden)) }

@@ -1,8 +1,8 @@
 # Local Work capability matrix
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
-Gator Work is local-first. A Work run writes only to its staged output until a
+Hot Cross Buns Work is local-first. A Work run writes only to its staged output until a
 separate review/publish boundary is used. It is not a hosted workstation or a
 cloud continuation product.
 
@@ -11,10 +11,10 @@ cloud continuation product.
 | DOCX, XLSX, PDF | Semantic writers and deterministic artifact validation | Existing staged-output contract |
 | PPTX | Create decks with text, notes, and fade/push/wipe transitions; inspect and apply bounded text/title/body/note/reorder/add/delete edits to source decks | Untouched OOXML parts are copied through. VBA, embedded objects, media, and unsupported animation data are never read, executed, authored, or regenerated. |
 | Public web research | Fetch selected HTTPS sources and discover pages with host-selected TinyFish, Exa, Tavily or Brave search | Queries go to the configured provider; exact selected-origin filtering applies. Snippets are discovery leads, not retained factual evidence. Keys alone grant no site access. See [configuration and boundaries](WEB-SEARCH.md). |
-| Controlled browser | `gator browser start` or `attach`, followed by a selected session and `gator work --browser-session SESSION` | Only selected tabs and approved origins are visible. Every mutation has a fresh approval. A `gator-local` model cannot receive this capability. |
-| macOS desktop | `gator desktop start --app BUNDLE_ID --retain-provider-state`, then `gator work --provider openai --desktop-session SESSION` | The foreground app must match the session allowlist before every action. Pointer input starts from a fresh window screenshot and uses only that screenshot's coordinates. System Settings, Terminal, iTerm, Keychain, Finder, clipboard shortcuts, file dialogs, modifiers, and secure fields are blocked. Every activation, click, double-click, drag, move, scroll, keypress, and typed value has a fresh approval. |
+| Controlled browser | `hot-cross-buns browser start` or `attach`, followed by a selected session and `hot-cross-buns work --browser-session SESSION` | Only selected tabs and approved origins are visible. Every mutation has a fresh approval. A `hot-cross-buns-local` model cannot receive this capability. |
+| macOS desktop | `hot-cross-buns desktop start --app BUNDLE_ID --retain-provider-state`, then `hot-cross-buns work --provider openai --desktop-session SESSION` | The foreground app must match the session allowlist before every action. Pointer input starts from a fresh window screenshot and uses only that screenshot's coordinates. System Settings, Terminal, iTerm, Keychain, Finder, clipboard shortcuts, file dialogs, modifiers, and secure fields are blocked. Every activation, click, double-click, drag, move, scroll, keypress, and typed value has a fresh approval. |
 | OpenAI computer use | OpenAI Responses structured `computer` calls drive the macOS desktop session | Only an explicit `openai` Work invocation with a desktop session enables it. The local model and non-OpenAI providers do not receive desktop/CUA tools. A batch can use screenshot, click, double-click, drag, move, scroll, type, keypress, and wait; unsupported actions fail closed. Screenshots are window-only, transient, and stripped from retained Work replay. `--retain-provider-state` is required: it permits the provider's response-chain state only for this local desktop session, and its continuation IDs are never retained in Work replay. |
-| Scheduling | `gator job launchagent install` on macOS or `gator job systemd install` on Linux installs a per-user service for the local supervisor | Runs while the host and user manager are active. It is not cloud/laptop-off scheduling. Scheduled jobs have no desktop/CUA session fields and therefore cannot automate apps. |
+| Scheduling | `hot-cross-buns job launchagent install` on macOS or `hot-cross-buns job systemd install` on Linux installs a per-user service for the local supervisor | Runs while the host and user manager are active. It is not cloud/laptop-off scheduling. Scheduled jobs have no desktop/CUA session fields and therefore cannot automate apps. |
 | Cloud/shared organization work | Not implemented | No hosted execution, cross-device continuation, shared workspace, admin plane, or cloud audit service. |
 
 ## PPTX editing guarantees
@@ -25,7 +25,7 @@ immutable: an edited deck is emitted as a new staged `.pptx` artifact. It
 preserves unmodified package-part bytes semantically, but no ZIP rewriter can
 promise byte-for-byte identity for container metadata. PowerPoint visual review
 is optional and outside the structural writer; use it to review an output that
-contains application-specific content not represented in Gator's typed edit
+contains application-specific content not represented in Hot Cross Buns's typed edit
 surface.
 
 New deck media import and arbitrary animation authoring are intentionally not
@@ -36,18 +36,18 @@ or an embedded object it does not understand.
 ## Practical start
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser install
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser start --visual-capture
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser install
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser start --visual-capture
 # Select its tab and approve the needed origin, then:
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work --browser-session BROWSER_SESSION --artifact brief.pptx "Create a product brief deck"
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work --browser-session BROWSER_SESSION --artifact brief.pptx "Create a product brief deck"
 
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator desktop start --app com.microsoft.Powerpoint --retain-provider-state
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work --provider openai --desktop-session DESKTOP_SESSION --artifact review.md "Review the approved presentation window"
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns desktop start --app com.microsoft.Powerpoint --retain-provider-state
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work --provider openai --desktop-session DESKTOP_SESSION --artifact review.md "Review the approved presentation window"
 ```
 
 The desktop command requires macOS Accessibility permission. Screenshot access
 may additionally require the operating system's Screen Recording permission.
-Gator fails closed if either required operation is unavailable. Desktop control
+Hot Cross Buns fails closed if either required operation is unavailable. Desktop control
 also requires a cgo-enabled macOS build; the release workflow now builds
 macOS archives natively with cgo so this feature remains available. A custom
 `CGO_ENABLED=0` macOS build fails closed with a specific diagnostic.

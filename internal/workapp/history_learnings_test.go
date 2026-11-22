@@ -7,11 +7,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/delivery"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/delivery"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestGlobalHistoryUsesCanonicalStoreForAllWorkDetailAndReview(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGlobalHistoryUsesCanonicalStoreForAllWorkDetailAndReview(t *testing.T) 
 	if _, err := learnings.RecordObservation(learning.ObservationInput{ID: "observation-history-ui", Signal: learning.UserCorrected, WorkID: "work-completed", Summary: "Use concise sections."}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := learnings.Create(learning.Create{ID: "learning-history-ui", Type: learning.Preference, Key: "report-style", Content: "Use concise sections.", Scope: learning.Scope{Kind: learning.Project, Value: project}, Origin: learning.Inferred, Confidence: 80, Provenance: learning.Provenance{WorkIDs: []string{"work-completed"}, EvidenceRefs: []string{"gator/observations/observation-history-ui.json"}}}); err != nil {
+	if _, err := learnings.Create(learning.Create{ID: "learning-history-ui", Type: learning.Preference, Key: "report-style", Content: "Use concise sections.", Scope: learning.Scope{Kind: learning.Project, Value: project}, Origin: learning.Inferred, Confidence: 80, Provenance: learning.Provenance{WorkIDs: []string{"work-completed"}, EvidenceRefs: []string{"hot-cross-buns/observations/observation-history-ui.json"}}}); err != nil {
 		t.Fatal(err)
 	}
 	var reviewPath string
@@ -187,7 +187,7 @@ func TestLearningsUseCanonicalStoreForStatusProvenanceApprovalReversalAndEdit(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := store.Create(learning.Create{ID: "learning-candidate-ui", Type: learning.Preference, Key: "package-manager", Content: "Use pnpm.", Scope: learning.Scope{Kind: learning.Project, Value: project}, Origin: learning.Inferred, Confidence: 91, Provenance: learning.Provenance{WorkIDs: []string{"work-correction"}, EvidenceRefs: []string{"gator/observations/observation-correction.json"}}})
+	candidate, err := store.Create(learning.Create{ID: "learning-candidate-ui", Type: learning.Preference, Key: "package-manager", Content: "Use pnpm.", Scope: learning.Scope{Kind: learning.Project, Value: project}, Origin: learning.Inferred, Confidence: 91, Provenance: learning.Provenance{WorkIDs: []string{"work-correction"}, EvidenceRefs: []string{"hot-cross-buns/observations/observation-correction.json"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

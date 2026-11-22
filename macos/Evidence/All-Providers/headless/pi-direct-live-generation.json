@@ -1,7 +1,7 @@
 {
   "cli": "Pi 1.5.2 standalone",
   "passed": true,
-  "responseText": "Gator Pi integration received this message.",
+  "responseText": "Hot Cross Buns Pi integration received this message.",
   "model": "gpt-5.6-terra",
   "exitCode": 0,
   "elapsedMS": 1778,

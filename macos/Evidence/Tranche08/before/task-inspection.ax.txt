@@ -1,11 +1,11 @@
-AXApplication | Gator |  | 
+AXApplication | Hot Cross Buns |  |
 AXWindow |  |  | 
 AXGroup |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Show me a readable native conversation
 AXButton |  | Inspect Current Task | 
 AXPopUpButton | More |  | 
-AXButton |  | Open full Gator window | 
+AXButton |  | Open full Hot Cross Buns window |
 AXHeading |  | Task details | 
 AXButton |  | Back to Conversation | 
 AXScrollArea |  |  | 
@@ -23,7 +23,7 @@ I found three useful things to keep in view. The draft remains yours to review.
 ## A small example
 
 ```swift
-let message = "Hello, Gator"
+let message = "Hello, Hot Cross Buns"
 print(message)
 ```
 
@@ -47,9 +47,9 @@ AXStaticText |  |  | Engine connected
 AXStaticText |  |  | fixture / fixture
 AXStaticText |  |  | Request: completed
 AXDisclosureTriangle |  | Model processing · configuration, not a connectivity test | 
-AXWindow | Gator |  | 
+AXWindow | Hot Cross Buns |  |
 AXGroup |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Show me a readable native conversation
 AXButton |  | Inspect Current Task | 
 AXPopUpButton | More |  | 
@@ -70,7 +70,7 @@ I found three useful things to keep in view. The draft remains yours to review.
 ## A small example
 
 ```swift
-let message = "Hello, Gator"
+let message = "Hello, Hot Cross Buns"
 print(message)
 ```
 
@@ -99,6 +99,6 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

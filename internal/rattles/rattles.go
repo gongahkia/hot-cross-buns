@@ -1,5 +1,5 @@
 // Package rattles provides the small, shared terminal activity treatment used
-// by Gator's interactive surfaces.
+// by Hot Cross Buns's interactive surfaces.
 //
 // The frame sequence and interval are ported from vyfor/rattles' Braille Dots
 // preset. The upstream crate is Rust and intentionally rendering-agnostic, so

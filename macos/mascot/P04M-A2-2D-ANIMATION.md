@@ -1,8 +1,8 @@
-# P04M-A2 — lightweight animated Gator appearances
+# P04M-A2 — lightweight animated Hot Cross Buns appearances
 
 Date: 19 November 2026. Decision: **PASS for the lightweight playback gate and development integration**, with the operator/platform limits below. This supersedes the proposed live RealityKit *production* approach, not its historical measurements. No live 3D renderer is integrated.
 
-Development candidate: `/tmp/Gator-Native-P04M-2D.app`.
+Development candidate: `/tmp/HotCrossBuns-Native-P04M-2D.app`.
 
 ## Outcome and scope
 
@@ -11,7 +11,7 @@ Two selectable appearances are implemented:
 - **3D-rendered:** transparent PNG frames authored offline from the approved Concept B USDZ, including its actual jaw, pupil and eyelid articulation. Production displays raster frames; it does not load a 3D model.
 - **Classic 2D:** a separately drawn original Core Graphics illustration with a round head, broad muzzle, nostrils, small teeth, cream eyes and lower jaw. It is not a filter of the 3D artwork.
 
-Native Settings provides Show Gator Mascot, Mascot Style and Animate Mascot. The default is visible, animated, 3D-rendered. Reduce Motion takes precedence. The presentation is decorative and cannot admit or authorize work. No desktop pet, queue feature, provider change, icon change or other parity increment is implemented.
+Native Settings provides Show Hot Cross Buns Mascot, Mascot Style and Animate Mascot. The default is visible, animated, 3D-rendered. Reduce Motion takes precedence. The presentation is decorative and cannot admit or authorize work. No desktop pet, queue feature, provider change, icon change or other parity increment is implemented.
 
 ![Both original appearances](2d/previews/styles.png)
 
@@ -20,15 +20,15 @@ Native Settings provides Show Gator Mascot, Mascot Style and Animate Mascot. The
 | 3D-rendered | ![Rendered responding](2d/previews/rendered-responding.gif) |
 | Classic 2D | ![Classic responding](2d/previews/classic-responding.gif) |
 
-These GIFs are previews, not production playback or recordings of Gator.
+These GIFs are previews, not production playback or recordings of Hot Cross Buns.
 
 ## Baseline and preservation
 
 Initial HEAD: `70d096576e6675f8648eb8f1dd1cf552f0d606dc`; initial status was clean. HEAD later advanced externally to `662f5825d81aea1ff4b9f991dbb314746564d31a`. No commit, reset or checkout was performed for this task. New work and external changes were preserved.
 
-The initial [baseline manifest](evidence/p04m-a2-2d/baseline.json) hashes 2,017 existing paths and four prior bundles. The [final integrity manifest](evidence/p04m-a2-2d/final-integrity.json) verifies the preserved bundles and the new bundle's contents. Among those protected source/evidence paths, only ConversationView.swift, GatorApp.swift and build-dev-app.sh changed. GatorCore, original 3D authoring sources, previous renderer experiments and previous evidence remain byte-identical. Go and host application code were not changed.
+The initial [baseline manifest](evidence/p04m-a2-2d/baseline.json) hashes 2,017 existing paths and four prior bundles. The [final integrity manifest](evidence/p04m-a2-2d/final-integrity.json) verifies the preserved bundles and the new bundle's contents. Among those protected source/evidence paths, only ConversationView.swift, HotCrossBunsApp.swift and build-dev-app.sh changed. HotCrossBunsCore, original 3D authoring sources, previous renderer experiments and previous evidence remain byte-identical. Go and host application code were not changed.
 
-Preserved bundles include `/tmp/Gator-Native-Parity-P04.app`, Renderer-Lab, Gate2 and Final-Diagnostic. GatorHead.png, GatorMenuBar.png and AppIcon.icns in the new candidate are byte-identical to accepted P04.
+Preserved bundles include `/tmp/HotCrossBuns-Native-Parity-P04.app`, Renderer-Lab, Gate2 and Final-Diagnostic. HotCrossBunsHead.png, HotCrossBunsMenuBar.png and AppIcon.icns in the new candidate are byte-identical to accepted P04.
 
 ## Offline asset pipeline
 
@@ -36,11 +36,11 @@ Authoring sources:
 
 - [AnimationRecipe.swift](2d/source/AnimationRecipe.swift): explicit poses and finite durations.
 - [Export.swift](2d/source/Export.swift): original USDZ loading, rig posing, transparent offline output and Classic drawing export.
-- [ClassicGator.swift](2d/source/ClassicGator.swift): editable vector geometry, palette and expression drawing.
+- [ClassicHotCrossBuns.swift](2d/source/ClassicHotCrossBuns.swift): editable vector geometry, palette and expression drawing.
 - [export.sh](2d/source/export.sh): strict Swift 6/macOS 15-targeted authoring executable; exports into a fresh temporary directory for review.
 - [previews.py](2d/source/previews.py): regenerates disposable GIF previews using installed ImageMagick.
 
-Canonical input is `macos/mascot/validation/Assets/Gator-B.usdz`, SHA-256 `f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca`. Original USDA/USDZ/scene sources are preserved. The authoring exporter loads the original USDZ with its imported PBR materials, verifies all 26 material instances use back-face culling, and applies the existing rig. It avoids the reconstructed native-material path responsible for the earlier back-face/material discrepancy. It does not claim that the rejected reconstructed-material renderer now has exact parity.
+Canonical input is `macos/mascot/validation/Assets/HotCrossBuns-B.usdz`, SHA-256 `f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca`. Original USDA/USDZ/scene sources are preserved. The authoring exporter loads the original USDZ with its imported PBR materials, verifies all 26 material instances use back-face culling, and applies the existing rig. It avoids the reconstructed native-material path responsible for the earlier back-face/material discrepancy. It does not claim that the rejected reconstructed-material renderer now has exact parity.
 
 Only this authoring tool uses RealityKit/Metal. It renders at 224×224 with the existing transparent offscreen/MSAA authoring engine; production has no dependency on this tool or its 3D frameworks.
 
@@ -64,7 +64,7 @@ PNG sequences were chosen over APNG/GIF at runtime: exact finite playback/cancel
 
 ## Isolated playback gate — passed before production edits
 
-The gate application is `/tmp/Gator-Mascot-2D-Playback-Gate-Final.app`. The reusable player was moved into GatorMac only after [the timestamped acceptance record](evidence/p04m-a2-2d/playback-gate-acceptance.json) was written. Its two runtime source files remain byte-identical to the [accepted source copies](evidence/p04m-a2-2d/gate-source/):
+The gate application is `/tmp/HotCrossBuns-Mascot-2D-Playback-Gate-Final.app`. The reusable player was moved into HotCrossBunsMac only after [the timestamped acceptance record](evidence/p04m-a2-2d/playback-gate-acceptance.json) was written. Its two runtime source files remain byte-identical to the [accepted source copies](evidence/p04m-a2-2d/gate-source/):
 
 - NativeMascotPlayback.swift: `22f1660e66f5418830971132c6d0a8168445632a4e945e50653a0fc0964743ea`
 - NativeMascotModel.swift: `39c06e215aeb7d03860e52f4af31e75cbd324d834032430fc5a821929a03b4ee`
@@ -101,7 +101,7 @@ Historical rejected live-3D results were about +40.61 MiB settled and +144.69 Mi
 
 ## Playback architecture and lifecycle
 
-[NativeMascotModel.swift](../Sources/GatorMac/NativeMascotModel.swift) contains finite style/clip specifications, presentation signals and a small reducer. [NativeMascotPlayback.swift](../Sources/GatorMac/NativeMascotPlayback.swift) contains the bounded image actor, finite Core Animation player and native view wrapper.
+[NativeMascotModel.swift](../Sources/HotCrossBunsMac/NativeMascotModel.swift) contains finite style/clip specifications, presentation signals and a small reducer. [NativeMascotPlayback.swift](../Sources/HotCrossBunsMac/NativeMascotPlayback.swift) contains the bounded image actor, finite Core Animation player and native view wrapper.
 
 - Only the current clip for the selected style is decoded. No full-library preload or per-token USDZ/PNG import.
 - CAKeyframeAnimation changes layer contents discretely, plays once, and returns to the specified static frame. There is no high-frequency application timer or display link.
@@ -115,7 +115,7 @@ Initial test corrections are preserved in evidence: an immediate weak-deallocati
 
 ## Public state mapping and authority
 
-[NativeMascotView.swift](../Sources/GatorMac/NativeMascotView.swift) reads only the selected GatorApplicationState. Its owner key combines context and generation. An owner change resets presentation history and does not celebrate an already-retained completion.
+[NativeMascotView.swift](../Sources/HotCrossBunsMac/NativeMascotView.swift) reads only the selected HotCrossBunsApplicationState. Its owner key combines context and generation. An owner change resets presentation history and does not celebrate an already-retained completion.
 
 Precedence:
 
@@ -128,15 +128,15 @@ Precedence:
 
 Only public `activity.entries` whose kind is `text` contribute to the streaming revision. Private reasoning, tool arguments, raw internal JSON and approval tokens are not animation inputs. Completed text alone, an acknowledgement or elapsed time cannot establish a completion. Static positive expression may remain after its finite completion gesture; no repeated celebration loop runs.
 
-This is a visual text-stream metaphor, not speech or lip synchronization. Other owners' work does not replace the selected owner's expression or foreground conversation. The component has no message, approval, queue, provider or session-start capability. GatorCore, Go authority, archives, attachments, closing transaction and subprocess shutdown were not modified.
+This is a visual text-stream metaphor, not speech or lip synchronization. Other owners' work does not replace the selected owner's expression or foreground conversation. The component has no message, approval, queue, provider or session-start capability. HotCrossBunsCore, Go authority, archives, attachments, closing transaction and subprocess shutdown were not modified.
 
 ## Native preferences and layout
 
-[NativeMascotPreferences.swift](../Sources/GatorMac/NativeMascotPreferences.swift) uses existing native `@AppStorage`/UserDefaults presentation preferences:
+[NativeMascotPreferences.swift](../Sources/HotCrossBunsMac/NativeMascotPreferences.swift) uses existing native `@AppStorage`/UserDefaults presentation preferences:
 
-- `gator.mascot.shown`
-- `gator.mascot.style`: `rendered` / `classic`
-- `gator.mascot.animated`
+- `hot-cross-buns.mascot.shown`
+- `hot-cross-buns.mascot.style`: `rendered` / `classic`
+- `hot-cross-buns.mascot.animated`
 
 Unknown style values fall back to 3D-rendered, not rejected live 3D. These settings are not conversation archives, model settings or Go configuration. Conversation → Mascot Appearance…, the More menu and standard Settings expose the form. Disabling Show removes the native presentation; disabling Animate displays the selected style's static expression. The system Reduce Motion environment always overrides Animate.
 
@@ -148,7 +148,7 @@ The view rejects hit testing, is not a first responder and is accessibility-hidd
 
 ## Targeted desktop observations
 
-The test copy used a unique bundle ID, `dev.gator.mascot.2d.acceptance`, in a private `gator-native-test-mascot-*` temporary directory. Executable/runtime/assets matched the packaged candidate; only Info.plist's bundle identifier differed. HOME, state, config, native data and workspace were disposable. The allowlisted environment used an inert key and a loopback-only Responses fixture. Its code contains no outbound client/effect endpoint. The Go process was the actual bundled runtime behind the existing fixture-only transparent observer.
+The test copy used a unique bundle ID, `dev.hot-cross-buns.mascot.2d.acceptance`, in a private `hot-cross-buns-native-test-mascot-*` temporary directory. Executable/runtime/assets matched the packaged candidate; only Info.plist's bundle identifier differed. HOME, state, config, native data and workspace were disposable. The allowlisted environment used an inert key and a loopback-only Responses fixture. Its code contains no outbound client/effect endpoint. The Go process was the actual bundled runtime behind the existing fixture-only transparent observer.
 
 Actual window recordings, with no desktop or audio capture:
 
@@ -174,7 +174,7 @@ Actual window recordings, with no desktop or audio capture:
 | Plan-specific desktop review | NOT REPEATED individually. Shared review-collapse policy and existing headless plan/security regressions passed. |
 | Physical VoiceOver, IME, Increased Contrast/larger-text variants | NOT TESTED. |
 
-Focus interference was real: early in the disposable session, inputs “h”, “hi”, “hmmm” not entered by the agent created fixture work. Later the foreground moved between Gator and other applications and some accessibility references temporarily disappeared. The user confirmed a free desktop interval; guarded sequential checks were then completed. Input probes refused to type into an unrelated frontmost application. Immediate capture during occlusion or asynchronous load could show blank/previous content. Those captures/probe failures are not treated as demonstrated application failures. No focus-policy or keyboard-shortcut production rewrite was made.
+Focus interference was real: early in the disposable session, inputs “h”, “hi”, “hmmm” not entered by the agent created fixture work. Later the foreground moved between Hot Cross Buns and other applications and some accessibility references temporarily disappeared. The user confirmed a free desktop interval; guarded sequential checks were then completed. Input probes refused to type into an unrelated frontmost application. Immediate capture during occlusion or asynchronous load could show blank/previous content. Those captures/probe failures are not treated as demonstrated application failures. No focus-policy or keyboard-shortcut production rewrite was made.
 
 The first approval fixture incorrectly returned JSON to a streaming request, producing a truthful retained Go failure. The fixture was corrected to emit a terminal SSE response; the subsequent pending-review check passed. This was not a production/provider fix.
 
@@ -192,15 +192,15 @@ Commands ran headlessly except the explicitly described native lab/desktop captu
 
 | Command | Result |
 | --- | --- |
-| `swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel --filter mascot` | 16 new tests passed after correcting test compilation errors. |
-| `swift build --package-path macos --scratch-path /tmp/gator-native-build` | PASS. |
-| `GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P04.app/Contents/Resources/gator-runtime swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel` | **243 tests passed**, 141.923 s; baseline 227 + 16 new mascot tests. |
-| `swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter mascot` | All package/test sources compiled strictly; 16 mascot tests passed. |
+| `swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel --filter mascot` | 16 new tests passed after correcting test compilation errors. |
+| `swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build` | PASS. |
+| `HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P04.app/Contents/Resources/hot-cross-buns-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel` | **243 tests passed**, 141.923 s; baseline 227 + 16 new mascot tests. |
+| `swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter mascot` | All package/test sources compiled strictly; 16 mascot tests passed. |
 | Strict standalone CheckPlayback compiled from NativeMascotModel/Playback and lab/CheckPlayback.swift; run with 2d/assets root | **63 checks passed**, no windows or backend processes. |
 | Final isolated native lab | **26 assertions passed**, two styles actually animated, ten lifecycle cycles, no retired views after task release. |
-| `go test ./cmd/gator ./internal/workapp ./internal/worksession ./internal/workspace ./internal/workactivity ./internal/modelcatalog ./internal/auth ./internal/config` | **Eight packages passed**, seven cached and workactivity executed. |
+| `go test ./cmd/hot-cross-buns ./internal/workapp ./internal/worksession ./internal/workspace ./internal/workactivity ./internal/modelcatalog ./internal/auth ./internal/config` | **Eight packages passed**, seven cached and workactivity executed. |
 | Node 26.7.0 `--test app-host/tests/{native,sessions,drafts,reading-state,backend}.test.mjs` | **41 passed**. Initial shell Node 20.19.5 run had 40 pass / one PDF dependency failure (`Promise.withResolvers` unavailable); switching to the already installed Node 26 resolved the environment mismatch. No dependency installed or host code changed. |
-| `GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-P04M-2D.app bash macos/scripts/build-dev-app.sh` | PASS: Swift app, current Go runtime, resources, plist validation. |
+| `HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-P04M-2D.app bash macos/scripts/build-dev-app.sh` | PASS: Swift app, current Go runtime, resources, plist validation. |
 
 Logs: [full Swift](evidence/p04m-a2-2d/swift-full.log), [strict Swift](evidence/p04m-a2-2d/swift-strict.log), [Go](evidence/p04m-a2-2d/go-regression.log), [host Node 26](evidence/p04m-a2-2d/host-regression-node26.log), [package](evidence/p04m-a2-2d/package.log).
 
@@ -212,16 +212,16 @@ The package still targets macOS 15. New Core Animation, ImageIO, AppKit, Setting
 
 Production changes:
 
-- New `macos/Sources/GatorMac/NativeMascotModel.swift`: styles, finite clips, preferences, public presentation reducer.
+- New `macos/Sources/HotCrossBunsMac/NativeMascotModel.swift`: styles, finite clips, preferences, public presentation reducer.
 - New `NativeMascotPlayback.swift`: bounded async decoder, native player, visibility/teardown.
 - New `NativeMascotView.swift`: public projection, reading preference, reserved header and native wrapper.
 - New `NativeMascotPreferences.swift`: small native appearance form.
 - `ConversationView.swift`: header placement, presentation-only reading observation and settings entry.
-- `GatorApp.swift`: Settings scene and menu entry.
+- `HotCrossBunsApp.swift`: Settings scene and menu entry.
 - `macos/scripts/build-dev-app.sh`: copies PNG/manifest assets into bundle Resources/Mascot.
-- New `macos/Tests/GatorMacTests/NativeMascotTests.swift`: 16 tests.
+- New `macos/Tests/HotCrossBunsMacTests/NativeMascotTests.swift`: 16 tests.
 
-Authoring/validation additions are under `macos/mascot/2d/{source,assets,previews,lab,acceptance}`; evidence is under `macos/mascot/evidence/p04m-a2-2d/`. The accepted playback files were moved from the isolated 2d/playback staging directory to GatorMac, not maintained as two implementations. The lab build now compiles those same production runtime files. [Complete new-file inventory](evidence/p04m-a2-2d/changed-files.json).
+Authoring/validation additions are under `macos/mascot/2d/{source,assets,previews,lab,acceptance}`; evidence is under `macos/mascot/evidence/p04m-a2-2d/`. The accepted playback files were moved from the isolated 2d/playback staging directory to HotCrossBunsMac, not maintained as two implementations. The lab build now compiles those same production runtime files. [Complete new-file inventory](evidence/p04m-a2-2d/changed-files.json).
 
 The bundle includes exactly the generated PNGs/manifest and existing app/runtime resources. [Linked-library evidence](evidence/p04m-a2-2d/production-linked-libraries.txt) has no RealityKit, SceneKit or WebKit. No USDZ/USDA/USDC/scene file is bundled. The desktop test copy ran entirely from a temporary installed location; asset loading uses Bundle.main, not source-checkout paths. An unbundled `swift run` does not include these images, so the mascot is omitted; runtime configuration is also required by the existing unbundled workflow. The dev-app script is the supported complete bundle workflow.
 

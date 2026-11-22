@@ -18,10 +18,10 @@ func resolvedKey(config Config, provider Provider, environment string) (string, 
 	if config.Credentials != nil {
 		credential, found, err := config.Credentials.Read(string(provider))
 		if err != nil {
-			return "", "", fmt.Errorf("read Gator credential for %q: %w", provider, err)
+			return "", "", fmt.Errorf("read Hot Cross Buns credential for %q: %w", provider, err)
 		}
 		if found && credential.IsAPIKey() {
-			return credential.Key, "gator-store", nil
+			return credential.Key, "hot-cross-buns-store", nil
 		}
 	}
 	return os.Getenv(environment), "environment", nil

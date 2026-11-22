@@ -6,8 +6,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 type quietChecksView struct {
@@ -82,7 +82,7 @@ func (m *Model) saveQuietReview(verdict, note string) {
 	}
 	entry := v.Audit.Entries[v.Detail]
 	if verdict == "missed" && note == "" {
-		m.sectionNotice = "Describe the change Gator should have reported."
+		m.sectionNotice = "Describe the change Hot Cross Buns should have reported."
 		return
 	}
 	if err := m.config.ReviewQuietCheck(v.JobID, entry.Attempt.ID, verdict, note, entry.Review.Revision()); err != nil {
@@ -113,7 +113,7 @@ func (m Model) quietChecksPanel() uisnapshot.Panel {
 		p.ActionIdentity = strings.Join([]string{v.JobID, entry.Attempt.ID, entry.Review.Revision()}, "\x00")
 		p.Title = "Review a quiet check"
 		p.Subtitle = entry.Attempt.StartedAt.Local().Format("2 Jan 2006, 15:04")
-		p.Blocks = []uisnapshot.Block{{Title: "What Gator concluded", Role: "content", Lines: []string{entry.Attempt.Summary}}}
+		p.Blocks = []uisnapshot.Block{{Title: "What Hot Cross Buns concluded", Role: "content", Lines: []string{entry.Attempt.Summary}}}
 		if decision := entry.Attempt.WatchDecision; decision != nil {
 			p.Blocks[0].Lines = []string{decision.Summary, decision.Rationale}
 			if len(decision.Evidence) > 0 {
@@ -125,7 +125,7 @@ func (m Model) quietChecksPanel() uisnapshot.Panel {
 			p.Blocks = append(p.Blocks, uisnapshot.Block{Title: "Your feedback", Lines: []string{entry.Review.Note}})
 		}
 		if v.Editing {
-			p.Kind, p.Title = "quiet-review-form", "What did Gator miss?"
+			p.Kind, p.Title = "quiet-review-form", "What did Hot Cross Buns miss?"
 			p.Rows = []uisnapshot.Row{{Label: "Change that should have been reported", Input: &uisnapshot.Input{Kind: "text", Value: v.Note, Limit: 512, Multiline: true, Help: "Describe the missed change using the sources available at the time."}}}
 			p.Hints = []uisnapshot.Hint{{Shortcut: "Enter", Action: "save feedback"}, {Shortcut: "Esc", Action: "cancel"}}
 		} else {
@@ -136,7 +136,7 @@ func (m Model) quietChecksPanel() uisnapshot.Panel {
 		}
 		return p
 	}
-	p.Blocks = []uisnapshot.Block{{Title: "Checks that stayed quiet", Lines: []string{"Review whether Gator should have interrupted you. Only completed, evaluated checks appear here; skipped or failed checks are not quiet decisions.", fmt.Sprintf("%d quiet checks · %d reviewed · %d marked missed. These counts do not measure recall without reviewing the relevant source changes.", v.Audit.Total, v.Audit.Correct+v.Audit.Missed, v.Audit.Missed)}}}
+	p.Blocks = []uisnapshot.Block{{Title: "Checks that stayed quiet", Lines: []string{"Review whether Hot Cross Buns should have interrupted you. Only completed, evaluated checks appear here; skipped or failed checks are not quiet decisions.", fmt.Sprintf("%d quiet checks · %d reviewed · %d marked missed. These counts do not measure recall without reviewing the relevant source changes.", v.Audit.Total, v.Audit.Correct+v.Audit.Missed, v.Audit.Missed)}}}
 	identity := []string{v.JobID}
 	for _, entry := range v.Audit.Entries {
 		identity = append(identity, entry.Attempt.ID, entry.Review.Revision())

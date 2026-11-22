@@ -5,16 +5,16 @@ Assistant file references and explicit evidence references render as compact num
 ## Supported evidence
 
 - Local `source/...` references continue to resolve within the answer’s exact run. The sidebar distinguishes cited lines from verified tool read ranges, including partial first/final columns. The live workspace is never used as a fallback.
-- `[Title](gator-evidence:ACTUAL_ID)` resolves a sealed manifest evidence ID, supporting retained web captures and connected-service responses. The agent prompt requires actual tool/catalogue IDs and prohibits invented ones.
+- `[Title](hot-cross-buns-evidence:ACTUAL_ID)` resolves a sealed manifest evidence ID, supporting retained web captures and connected-service responses. The agent prompt requires actual tool/catalogue IDs and prohibits invented ones.
 - A normal web URL becomes a citation only when it uniquely matches a retained evidence record. Multiple captures of one URL or connector operation require an exact evidence ID; no latest/active fallback is allowed.
-- Source metadata includes the backend-generated locator/kind, bounded label and capture timestamp when available. Normalized web previews recorded in the private replay can be shown as the preview actually received by Gator. They are labeled separately from exact raw-byte read ranges.
+- Source metadata includes the backend-generated locator/kind, bounded label and capture timestamp when available. Normalized web previews recorded in the private replay can be shown as the preview actually received by Hot Cross Buns. They are labeled separately from exact raw-byte read ranges.
 - Binary attachments without a retained text extraction and PDFs without trustworthy page mappings explicitly report unavailable/unsupported capture. This feature does not infer page numbers from model text or implement PDF-page mapping. Connected response excerpts are retained data, not proof that every field was inspected.
 
 User prompts and code blocks keep their text; a user’s file path is not replaced with an authoritative assistant citation. Source output is rendered as React text, including HTML-looking content. There are no remote images, favicon requests, automatic network fetches, model calls, or memory writes involved in displaying a citation.
 
 ## Existing authority and storage
 
-`desktop/electron/source-preview.mjs` uses the existing sealed Work manifest/evidence snapshots. `gator:source-catalog` exposes only bounded metadata for the current conversation/run; `gator:source-preview` validates references, snapshot paths, manifest/content digests and the selected owner again before returning text. Both use the existing trusted-window IPC boundary. No second evidence store or source authentication scheme was added.
+`desktop/electron/source-preview.mjs` uses the existing sealed Work manifest/evidence snapshots. `hot-cross-buns:source-catalog` exposes only bounded metadata for the current conversation/run; `hot-cross-buns:source-preview` validates references, snapshot paths, manifest/content digests and the selected owner again before returning text. Both use the existing trusted-window IPC boundary. No second evidence store or source authentication scheme was added.
 
 Catalogues are limited to 256 references and approximately 60 KiB. Metadata loading is deferred until the answer nears the visible viewport. Previews read at most 512 KiB of retained source and return at most 400 lines / 64 KiB. Hover cards show at most 1,200 characters, preferring the cited/read passage or a clearly labeled observed normalized preview. Original URLs are limited to validated HTTP(S) links without URL credentials, opened only by explicit user action.
 

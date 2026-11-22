@@ -1,4 +1,4 @@
-// Design-only procedural geometry. No GatorCore, bridge, credentials or live state.
+// Design-only procedural geometry. No HotCrossBunsCore, bridge, credentials or live state.
 import AppKit
 import SceneKit
 import Metal
@@ -18,8 +18,8 @@ struct Direction {
     let ridgeCount: Int
 }
 let directions = [
-    Direction(id:"A",title:"Round Gator",skin:0x4B946A,snout:0x75B084,jaw:0xB4CF9D,head:SCNVector3(1,1,0.86),muzzle:SCNVector3(0.79,0.26,0.39),eyeX:0.34,eyeY:0.49,eyeWidth:0.21,eyeHeight:0.26,muzzleZ:0.77,ridgeCount:2),
-    Direction(id:"B",title:"Soft 3D Gator",skin:0x3E835F,snout:0x67A47B,jaw:0xADCC94,head:SCNVector3(1.03,0.94,0.84),muzzle:SCNVector3(0.88,0.29,0.49),eyeX:0.40,eyeY:0.51,eyeWidth:0.22,eyeHeight:0.26,muzzleZ:0.79,ridgeCount:3),
+    Direction(id:"A",title:"Round Hot Cross Buns",skin:0x4B946A,snout:0x75B084,jaw:0xB4CF9D,head:SCNVector3(1,1,0.86),muzzle:SCNVector3(0.79,0.26,0.39),eyeX:0.34,eyeY:0.49,eyeWidth:0.21,eyeHeight:0.26,muzzleZ:0.77,ridgeCount:2),
+    Direction(id:"B",title:"Soft 3D Hot Cross Buns",skin:0x3E835F,snout:0x67A47B,jaw:0xADCC94,head:SCNVector3(1.03,0.94,0.84),muzzle:SCNVector3(0.88,0.29,0.49),eyeX:0.40,eyeY:0.51,eyeWidth:0.22,eyeHeight:0.26,muzzleZ:0.79,ridgeCount:3),
     Direction(id:"C",title:"Expressive Mini",skin:0x5EAE92,snout:0x83C2A7,jaw:0xC8DDB7,head:SCNVector3(0.99,1.02,0.85),muzzle:SCNVector3(0.74,0.24,0.36),eyeX:0.29,eyeY:0.47,eyeWidth:0.23,eyeHeight:0.31,muzzleZ:0.78,ridgeCount:1)
 ]
 func material(_ hex: UInt32, roughness: CGFloat = 0.72, unlit: Bool = false) -> SCNMaterial {
@@ -56,7 +56,7 @@ final class Character {
     var upper:[SCNNode]=[],lower:[SCNNode]=[],pupils:[SCNNode]=[],closedLines:[SCNNode]=[]
     var cavity:SCNNode!,tongue:SCNNode!
     init(_ d:Direction) {
-        spec=d;root.name="Gator_\(d.id)";head.name="Head_Pivot";root.addChildNode(head)
+        spec=d;root.name="HotCrossBuns_\(d.id)";head.name="Head_Pivot";root.addChildNode(head)
         let skin=material(d.skin),snout=material(d.snout),lowerSkin=material(d.jaw),ink=material(0x173C2F,unlit:true),white=material(0xFAF9EB,roughness:0.35)
         ball("Round_Head",SCNVector3(0,0.03,0),d.head,skin,head,segments:36)
         // The short broad muzzle, low nostrils and two tiny rounded teeth carry
@@ -150,7 +150,7 @@ func triangleIndices(_ e:SCNGeometryElement)->[Int] {
 }
 func vector(_ v:SCNVector3)->String {String(format:"(%.6f, %.6f, %.6f)",v.x,v.y,v.z)}
 func exportUSD(_ character:Character,_ url:URL)throws->[String:Int] {
-    var lines=["#usda 1.0","(","    defaultPrim = \"Gator_\(character.spec.id)\"","    upAxis = \"Y\"","    metersPerUnit = 1", ")"]
+    var lines=["#usda 1.0","(","    defaultPrim = \"HotCrossBuns_\(character.spec.id)\"","    upAxis = \"Y\"","    metersPerUnit = 1", ")"]
     var meshes=0,triangles=0,vertices=0
     func emit(_ node:SCNNode,_ depth:Int) {
         let p=String(repeating:"    ",count:depth),name=node.name ?? "Part"
@@ -194,8 +194,8 @@ func nodePath(_ node:SCNNode)->String {
             }
             stage.character.pose(open:0,blink:0);stage.character.root.eulerAngles.y=0
             for pixels in [16,24,32,48,64,96] {try writePNG(stage.image(size:pixels),dir.appendingPathComponent("size-\(pixels).png"))}
-            let counts=try exportUSD(stage.character,output.appendingPathComponent("models/Gator-\(d.id).usda"));stats[d.id]=counts
-            _ = stage.scene.write(to:output.appendingPathComponent("models/Gator-\(d.id).scn"),options:nil,delegate:nil,progressHandler:nil)
+            let counts=try exportUSD(stage.character,output.appendingPathComponent("models/HotCrossBuns-\(d.id).usda"));stats[d.id]=counts
+            _ = stage.scene.write(to:output.appendingPathComponent("models/HotCrossBuns-\(d.id).scn"),options:nil,delegate:nil,progressHandler:nil)
         }
         // One deterministic 4-second geometry animation, with a separate static
         // reduced-motion frame. These PNGs/GIF are previews, never the model.

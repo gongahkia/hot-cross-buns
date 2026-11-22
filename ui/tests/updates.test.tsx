@@ -5,27 +5,27 @@ import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
 import type { ScrollBoxRenderable } from "@opentui/core"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 const zero = "0001-01-01T00:00:00Z"
 const hasTime = (value?: string) => !!value && value !== zero
 async function until(predicate: () => boolean | Promise<boolean>, label: string, timeout = 15000) { const end = Date.now() + timeout; while (!await predicate()) { if (Date.now() > end) throw new Error("Timed out: " + label); await Bun.sleep(20) } }
 test("chat updates keep delivery, read, done, acknowledged feedback and retained replies independent", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-updates-")), calls: string[] = []
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-updates-")), calls: string[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) { calls.push(await request.text()); return Response.json({ choices: [{ message: { role: "assistant", content: `Retained reply ${calls.length}.` }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 } }) } })
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-  const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }, options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }, options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
   cli(["provider", "add", "updates-fixture", "--base-url", `http://127.0.0.1:${server.port}/v1/chat/completions`, "--model", "fixture"]); cli(["config", "set", "default-provider", "updates-fixture"])
-  let host = new Application(options), client = new GatorClient(host)
+  let host = new Application(options), client = new HotCrossBunsClient(host)
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 40 })
   let setup = await render(), release = () => {}
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   const choose = async (text: string) => { await setup.mockInput.typeText(text); await flush(); setup.mockInput.pressEnter(); await flush() }
   const action = async (title: string, action?: string) => { await client.navigate("/updates"); await flush(); await choose(title); if (action) await choose(action) }
-  const inbox = join(env.GATOR_STATE_DIR, "gator/inbox"), entryPath = (id: string) => join(inbox, id + ".json"), read = async (id: string) => JSON.parse(await readFile(entryPath(id), "utf8"))
+  const inbox = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/inbox"), entryPath = (id: string) => join(inbox, id + ".json"), read = async (id: string) => JSON.parse(await readFile(entryPath(id), "utf8"))
   try {
     await client.start(); const origin = client.state!.conversation_id!
     await client.send({ type: "submit", text: "/mode inspect" }); await client.edit("Plan the offsite"); await client.submit()
@@ -86,14 +86,14 @@ test("chat updates keep delivery, read, done, acknowledged feedback and retained
     await action("Offsite venue", "Reply in original chat"); await until(() => client.draft.reply_to_update_id === "inbox-offsite", "reply context ready"); await client.edit("Use the second option")
     await client.openConversation(other, client.state!.recent_id!); expect(client.draft.reply_to_update_id).toBeUndefined(); expect(client.draft.text).toBe("Other chat draft")
     await client.openConversation(origin, client.state!.recent_id!); expect(client.draft.reply_to_update_id).toBe("inbox-offsite")
-    await client.close(); await setup.dispose(); host = new Application(options); client = new GatorClient(host); setup = await render(); await client.start()
+    await client.close(); await setup.dispose(); host = new Application(options); client = new HotCrossBunsClient(host); setup = await render(); await client.start()
     expect(client.draft.text).toBe("Use the second option"); expect(client.draft.reply_to_update_id).toBe("inbox-offsite")
     await until(() => client.state?.chat_updates?.find(update => update.id === "inbox-offsite")?.rating === "noise", "restored feedback")
     expect(client.state?.chat_updates?.find(update => update.id === "inbox-offsite")?.rating).toBe("noise"); expect(calls).toHaveLength(1)
     await client.send({ type: "submit", text: "/mode inspect" }); await client.submit()
     await until(() => !client.state?.running && calls.length === 2, "explicit reply")
     expect(calls[1]).toContain("selected_update_id"); expect(calls[1]).toContain("inbox-offsite"); expect(calls[1]).not.toContain("PRIVATE OTHER CHAT")
-    const journal = JSON.parse(await readFile(join(env.GATOR_STATE_DIR, "gator/conversations", origin, "requests.json"), "utf8")), reply = journal.requests.find((request: { text: string }) => request.text === "Use the second option")
+    const journal = JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", origin, "requests.json"), "utf8")), reply = journal.requests.find((request: { text: string }) => request.text === "Use the second option")
     expect(reply.options.ReplyToUpdateID).toBe("inbox-offsite")
     await client.send({ type: "upload_submit", upload: { request_id: reply.client_id, context: "conversation:" + origin, text: reply.text, files: [], reply_to_update_id: "inbox-offsite" } }); expect(calls).toHaveLength(2)
     await flush()
@@ -106,19 +106,19 @@ test("chat updates keep delivery, read, done, acknowledged feedback and retained
 }, 60000)
 
 test("update paging only acknowledges visible cards and check health stays with its owning chat", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-check-health-"))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }, client = new GatorClient(new Application(options))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-check-health-"))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }, client = new HotCrossBunsClient(new Application(options))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   const choose = async (text: string) => { await setup.mockInput.typeText(text); await flush(); setup.mockInput.pressEnter(); await flush() }
   try {
     await client.start(); const origin = client.state!.conversation_id!
     await client.edit("Keep independent draft"); await client.navigate("/saved"); await flush()
-    const inbox = join(env.GATOR_STATE_DIR, "gator/inbox"); await mkdir(inbox, { recursive: true })
+    const inbox = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/inbox"); await mkdir(inbox, { recursive: true })
     for (let index = 0; index < 53; index++) await writeFile(join(inbox, `inbox-${index}.json`), JSON.stringify({ version: 1, id: `inbox-${index}`, kind: "job", title: `Update ${index}`, summary: "Retained exact result " + index, status: "completed", origin_conversation_id: origin, job_id: "job-fixture", created_at: new Date(Date.now() - 60000 + index * 1000).toISOString() }))
-    const added = execFileSync(binary, ["job", "add", "Project deadline", "--schedule", "*/15 * * * *", "--source", options.workspace, "--mode", "inspect", "--", "Check project deadline"], { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
-    const id = added.match(/Added job (job-[a-zA-Z0-9-]+)/)![1], jobs = join(env.GATOR_STATE_DIR, "gator/jobs"), definitionPath = join(jobs, "definitions", id + ".json"), now = Date.now()
+    const added = execFileSync(binary, ["job", "add", "Project deadline", "--schedule", "*/15 * * * *", "--source", options.workspace, "--mode", "inspect", "--", "Check project deadline"], { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
+    const id = added.match(/Added job (job-[a-zA-Z0-9-]+)/)![1], jobs = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs"), definitionPath = join(jobs, "definitions", id + ".json"), now = Date.now()
     const definition = JSON.parse(await readFile(definitionPath, "utf8")); await writeFile(definitionPath, JSON.stringify({ ...definition, origin_conversation_id: origin, created_at: new Date(now - 7200000).toISOString() }))
     await writeFile(join(jobs, "availability.json"), JSON.stringify({ LastSeen: new Date(now - 1200000).toISOString(), Gaps: [{ From: new Date(now - 3600000).toISOString(), To: new Date(now - 1200000).toISOString() }] }))
     await mkdir(join(jobs, "history", id), { recursive: true }); await writeFile(join(jobs, "history", id, "attempt-limited.json"), JSON.stringify({ version: 2, id: "attempt-limited", job_id: id, status: "limited", summary: "Daily model request limit reached", started_at: new Date(now - 1000).toISOString(), finished_at: new Date(now).toISOString() }))

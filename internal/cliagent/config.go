@@ -1,11 +1,11 @@
-// Package cliagent adapts explicit user-configured coding CLIs to Gator's
+// Package cliagent adapts explicit user-configured coding CLIs to Hot Cross Buns's
 // specialist supervisor. Each invocation owns a private copy and OS sandbox.
 package cliagent
 
 import (
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -77,12 +77,12 @@ func ValidateAll(configs []Config) error {
 func (c Config) Arguments(edit bool) []string {
 	switch c.Kind {
 	case "codex":
-		// Gator establishes the strict OS sandbox before executing this argv.
+		// Hot Cross Buns establishes the strict OS sandbox before executing this argv.
 		// Nested Seatbelt cannot initialize on macOS. The child's sandbox mode
-		// does not relax Gator's enforced read/write envelope.
+		// does not relax Hot Cross Buns's enforced read/write envelope.
 		args := []string{"exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--sandbox", "danger-full-access", "-c", `approval_policy="never"`, "--disable", "multi_agent", "--color", "never"}
 		if c.BaseURL != "" {
-			args = append(args, "-c", `model_provider="gator"`, "-c", `model_providers.gator.name="Gator selected endpoint"`, "-c", "model_providers.gator.base_url="+strconv.Quote(c.BaseURL), "-c", `model_providers.gator.env_key="CODEX_API_KEY"`, "-c", `model_providers.gator.wire_api="responses"`)
+			args = append(args, "-c", `model_provider="hot-cross-buns"`, "-c", `model_providers.hot-cross-buns.name="Hot Cross Buns selected endpoint"`, "-c", "model_providers.hot-cross-buns.base_url="+strconv.Quote(c.BaseURL), "-c", `model_providers.hot-cross-buns.env_key="CODEX_API_KEY"`, "-c", `model_providers.hot-cross-buns.wire_api="responses"`)
 		}
 		if c.Model != "" {
 			args = append(args, "--model", c.Model)

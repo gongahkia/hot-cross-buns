@@ -5,7 +5,7 @@
   "exitCode": 0,
   "elapsedMS": 1893,
   "passed": true,
-  "responseText": "Gator OpenCode integration received this message.",
+  "responseText": "Hot Cross Buns OpenCode integration received this message.",
   "eventTypes": [
     "step_start",
     "text",

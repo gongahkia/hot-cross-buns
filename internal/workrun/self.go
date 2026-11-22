@@ -6,17 +6,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/productguide"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/productguide"
 )
 
 // Keep this guide aligned with desktop/src/SettingsNavigation.tsx,
 // desktop/src/DesktopHelp.tsx, and desktop/src/WorkDetails.tsx. It is bundled
 // application knowledge, so app help never depends on a user's workspace
-// containing Gator's source or on an external documentation service.
+// containing Hot Cross Buns's source or on an external documentation service.
 const applicationGuide = terminalApplicationGuide
 
-const applicationStateHeader = "Current Gator run state (host-reported, read-only):\n"
+const applicationStateHeader = "Current Hot Cross Buns run state (host-reported, read-only):\n"
 
 // This is an allowlist, not a serialization of Request or the user's settings.
 // Credentials, endpoints, private profile paths, and attachment contents must

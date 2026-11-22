@@ -18,6 +18,6 @@
     "url": "https://github.com/TheBoredTeam/boring.notch",
     "commit": "b7611bbf32c627a3427408fc142486900d71a23f",
     "license": "GPL-3.0",
-    "usage": "Interaction reference; original Gator implementation; no new dependency or source import"
+    "usage": "Interaction reference; original Hot Cross Buns implementation; no new dependency or source import"
   }
 }

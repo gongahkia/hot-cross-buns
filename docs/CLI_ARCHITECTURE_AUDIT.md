@@ -1,13 +1,13 @@
 # CLI architecture audit
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
 
 **Historical record.** The standalone CLI and terminal renderer were retired on 22 October 2026. See [the desktop decision](DESKTOP-PRIMARY.md) and [current development instructions](DEVELOPMENT.md). Original observations below are retained.
 
-Recorded 2026-10-18. The question is whether Gator should keep its Go Work
+Recorded 2026-10-18. The question is whether Hot Cross Buns should keep its Go Work
 engine but move the user-facing CLI and terminal UI to Rust, Python, or another
 language. The product target is an efficient, persistent personal agent in the
 terminal, with local state, goals, knowledge, tools, and explicit approval.
@@ -16,7 +16,7 @@ terminal, with local state, goals, knowledge, tools, and explicit approval.
 
 **Keep the CLI and terminal UI in Go for now.** A port does not have an
 evidence-backed user benefit that outweighs the migration and integration
-cost. This is a decision about Gator's current code and measurements, not a
+cost. This is a decision about Hot Cross Buns's current code and measurements, not a
 general claim that Go is the best TUI language. A separate client can still be
 built against a stronger versioned protocol if a measured need appears.
 
@@ -24,15 +24,15 @@ built against a stronger versioned protocol if a measured need appears.
 
 | Layer | Current boundary | Consequence for a port |
 | --- | --- | --- |
-| Entry point and commands | `cmd/gator/main.go` dispatches CLI, TUI, jobs, goals, memory, notes, skills, provider setup, and Work. `cmd/gator` has about 14,834 non-test Go lines. | The command package includes application assembly and product operations, not just argument parsing. Replacing it means exposing those operations over an API or duplicating them. |
+| Entry point and commands | `cmd/hot-cross-buns/main.go` dispatches CLI, TUI, jobs, goals, memory, notes, skills, provider setup, and Work. `cmd/hot-cross-buns` has about 14,834 non-test Go lines. | The command package includes application assembly and product operations, not just argument parsing. Replacing it means exposing those operations over an API or duplicating them. |
 | Interactive UI | `internal/worktui` has about 4,241 non-test Go lines. `internal/modelcatalog` has about 3,264. Both use Bubble Tea and Lip Gloss. | A new UI language would rewrite mature interaction flows, approval handling, model setup, and tests. |
 | Work engine | `internal/workrun` has about 3,499 non-test Go lines. `configuredWorkService` assembles model, connectors, memory, learnings, goals, browser, and specialists in Go. | Work is separable in principle, but the UI currently calls Go closures and stores directly. |
-| Machine interface | `gator work-rpc` is a versioned JSON-lines interface for one Work run, streaming events and approvals. | It is a useful future client seam, but it does not expose the full goal, memory, jobs, model setup, or TUI management surface. It currently does not accept `CodePolicy` or `steer_task`. |
+| Machine interface | `hot-cross-buns work-rpc` is a versioned JSON-lines interface for one Work run, streaming events and approvals. | It is a useful future client seam, but it does not expose the full goal, memory, jobs, model setup, or TUI management surface. It currently does not accept `CodePolicy` or `steer_task`. |
 | Packaging | Release builds target Linux and macOS, arm64 and amd64. The core CLI is one Go executable; the optional browser controller uses a Node sidecar. | A second-language UI adds another build, runtime or binary, and an IPC lifecycle to support. |
 
 The counts above were generated with `rg --files` and `wc -l` over production
 Go files. They are a migration-size estimate, not a complexity score. The
-current path is UI callbacks in `cmd/gator/work_interactive.go` →
+current path is UI callbacks in `cmd/hot-cross-buns/work_interactive.go` →
 `configuredWorkService` → `workrun.Service` → local stores, providers, and
 approved tools. Approval and cancellation events return through Go channels
 to the Bubble Tea model. The Work RPC path is separate and narrower.
@@ -43,7 +43,7 @@ to the Bubble Tea model. The Work RPC path is separate and narrower.
 | --- | --- | --- |
 | Keep Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea) | Existing UI, Go-native concurrency and direct calls, one core executable, current tests and release targets. Bubble Tea supports full-window applications and event-driven updates. | The TUI and application assembly need cleaner boundaries; Go is not guaranteed to minimize memory or render latency. |
 | Rust with [Ratatui](https://ratatui.rs/) | Capable low-level terminal UI and a plausible path to lower client memory if a complete prototype proves it. | Rewrite the TUI and command surface; introduce a second executable and bidirectional IPC, or a difficult FFI boundary; rebuild approval, cancellation, and state-management tests. No integrated memory or usability comparison exists. |
-| Python with [Textual](https://textual.textualize.io/guide/app/) | Rich widgets and fast UI iteration; potentially useful for rapid prototypes. | Requires a Python runtime/package or bundling, plus the same IPC and product-surface rewrite. No integrated startup, RAM, distribution, or task-quality evidence shows a win for Gator's low-resource goal. |
+| Python with [Textual](https://textual.textualize.io/guide/app/) | Rich widgets and fast UI iteration; potentially useful for rapid prototypes. | Requires a Python runtime/package or bundling, plus the same IPC and product-surface rewrite. No integrated startup, RAM, distribution, or task-quality evidence shows a win for Hot Cross Buns's low-resource goal. |
 
 Framework capability comes from the linked maintainers' documentation. The
 cost and fit judgments are inferences from this repository's current
@@ -89,7 +89,7 @@ cannot justify a language migration or a low-RAM marketing claim.
    `steer_task` and most persistent-agent commands. Any new frontend should
    first close these API gaps, then test approval, cancellation, reconnect,
    and state migrations against the Go CLI with the same task corpus.
-3. **CLI and app assembly are mixed.** `cmd/gator` owns terminal presentation,
+3. **CLI and app assembly are mixed.** `cmd/hot-cross-buns` owns terminal presentation,
    command parsing, and state/service assembly. The TUI config contains many
    callbacks directly bound to Go stores. Extracting a small application
    facade inside Go would reduce coupling and help either a future TUI

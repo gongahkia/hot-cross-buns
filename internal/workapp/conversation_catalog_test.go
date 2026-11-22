@@ -11,7 +11,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func catalogAction(t *testing.T, m Model, action, text string, row *int) Model {
@@ -34,7 +34,7 @@ func TestDesktopCatalogPagesSearchesAndOrganizesTheReviewedChat(t *testing.T) {
 	at := time.Now().UTC()
 	for i := 0; i < 65; i++ {
 		id := fmt.Sprintf("work-catalog-%02d", i)
-		root := filepath.Join(dir, "gator", "conversations", id)
+		root := filepath.Join(dir, "hot-cross-buns", "conversations", id)
 		if err = os.MkdirAll(filepath.Join(root, "revisions"), 0700); err != nil {
 			t.Fatal(err)
 		}

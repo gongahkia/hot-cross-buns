@@ -13,10 +13,10 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
 )
 
 const researchRequestLimit = 32

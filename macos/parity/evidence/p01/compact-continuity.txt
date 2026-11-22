@@ -1,9 +1,9 @@
 resize 820 740 -> 0
 press Close Find -> press Close Find: 0
 press AXMenuItem::Show Menu Bar Icon -> press AXMenuItem::Show Menu Bar Icon: 0
-press Gator, Ready -> press Gator, Ready: 0
+press Hot Cross Buns, Ready -> press Hot Cross Buns, Ready: 0
 frames -> window  (791.0, 35.0) (440.0, 620.0)
-window Gator – New chat (325.0, 125.0) (820.0, 740.0)
+window Hot Cross Buns – New chat (325.0, 125.0) (820.0, 740.0)
 25365 {
     Height = 620;
     Width = 440;
@@ -27,7 +27,7 @@ Retained note A-050 at (373.0, 232.94871520996094) size (149.0, 19.0512847900390
 Retained note A-051 at (373.0, 511.94873046875) size (146.5, 19.05126953125)
 Retained note A-052 at (373.0, 790.94873046875) size (148.5, 19.05126953125)
 Retained note A-053 at (373.0, 1069.94873046875) size (149.0, 19.05126953125)
-press Open full Gator window -> press Open full Gator window: 0
+press Open full Hot Cross Buns window -> press Open full Hot Cross Buns window: 0
 heads -> Jump to Latest at (943.5, 451.0) size (135.5, 24.0)
 Retained note A-049 at (811.0, -174.22222900390625) size (149.5, 19.22222900390625)
 Retained note A-050 at (811.0, 142.77777862548828) size (149.0, 19.22222137451172)

@@ -2,13 +2,13 @@
 Building for debugging...
 [0/6] Write sources
 [2/6] Write swift-version--58304C5D6DBC2206.txt
-[4/8] Emitting module GatorMac
-[5/8] Compiling GatorMac LocalModelInspectionView.swift
+[4/8] Emitting module HotCrossBunsMac
+[5/8] Compiling HotCrossBunsMac LocalModelInspectionView.swift
 [5/10] Write Objects.LinkFileList
-[6/10] Linking GatorMac
-[7/10] Applying GatorMac
-[9/12] Compiling GatorMacTests LocalModelInspectionTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/LocalModelInspectionTests.swift:44:18: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+[6/10] Linking HotCrossBunsMac
+[7/10] Applying HotCrossBunsMac
+[9/12] Compiling HotCrossBunsMacTests LocalModelInspectionTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/LocalModelInspectionTests.swift:44:18: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 42 |         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: index % 2 == 0 ? 820 : 560, height: 640), styleMask: [.titled], backing: .buffered, defer: false)
 43 |         window.isReleasedWhenClosed = false
 44 |         weak var probe = window
@@ -17,13 +17,13 @@ Building for debugging...
 46 |         host.appearance = NSAppearance(named: index % 2 == 0 ? .aqua : .darkAqua)
 
 [#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
-[10/12] Emitting module GatorMacTests
+[10/12] Emitting module HotCrossBunsMacTests
 [10/12] Write Objects.LinkFileList
-[11/12] Linking GatorNativePackageTests
+[11/12] Linking HotCrossBunsNativePackageTests
 Build complete! (2.55s)
 Test Suite 'Selected tests' started at 2026-11-21 09:43:38.948.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-21 09:43:38.949.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-21 09:43:38.949.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-21 09:43:38.949.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-21 09:43:38.949.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-21 09:43:38.949.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

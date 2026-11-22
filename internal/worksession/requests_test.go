@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 func requestTestStore(t *testing.T) (Store, string, string) {
@@ -155,7 +155,7 @@ func TestExecutionOwnerIsExclusiveAndReleasedOnProcessExit(t *testing.T) {
 	probe := func(want string) {
 		t.Helper()
 		command := exec.Command(os.Args[0], "-test.run=^TestRequestOwnerChild$")
-		command.Env = append(os.Environ(), "GATOR_REQUEST_TEST_ROOT="+dir, "GATOR_REQUEST_TEST_CHAT="+id, "GATOR_REQUEST_TEST_WANT="+want)
+		command.Env = append(os.Environ(), "HOT_CROSS_BUNS_REQUEST_TEST_ROOT="+dir, "HOT_CROSS_BUNS_REQUEST_TEST_CHAT="+id, "HOT_CROSS_BUNS_REQUEST_TEST_WANT="+want)
 		if out, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("execution child: %v\n%s", err, out)
 		}
@@ -180,7 +180,7 @@ func TestExecutionOwnerIsExclusiveAndReleasedOnProcessExit(t *testing.T) {
 }
 
 func TestRequestOwnerChild(t *testing.T) {
-	root := os.Getenv("GATOR_REQUEST_TEST_ROOT")
+	root := os.Getenv("HOT_CROSS_BUNS_REQUEST_TEST_ROOT")
 	if root == "" {
 		return
 	}
@@ -188,8 +188,8 @@ func TestRequestOwnerChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lease, err := s.AcquireExecution(os.Getenv("GATOR_REQUEST_TEST_CHAT"))
-	if os.Getenv("GATOR_REQUEST_TEST_WANT") == "busy" {
+	lease, err := s.AcquireExecution(os.Getenv("HOT_CROSS_BUNS_REQUEST_TEST_CHAT"))
+	if os.Getenv("HOT_CROSS_BUNS_REQUEST_TEST_WANT") == "busy" {
 		if !errors.Is(err, filelock.ErrWouldBlock) {
 			t.Fatalf("expected live owner: %v", err)
 		}

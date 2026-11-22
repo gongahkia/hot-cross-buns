@@ -2,8 +2,8 @@ import { expect, test } from "bun:test"
 import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { ThemeProvider, terminalPalette, presetPalette } from "../src/context/theme"
-import { ConnectionStatus } from "../src/gator/connection-status"
-import { displayDate, folderLabel } from "../src/gator/display"
+import { ConnectionStatus } from "../src/hot-cross-buns/connection-status"
+import { displayDate, folderLabel } from "../src/hot-cross-buns/display"
 
 test("connection dots keep semantic terminal palette slots and a readable label", async () => {
   const [connection, setConnection] = createSignal("starting")
@@ -31,15 +31,15 @@ test("connection dots keep semantic terminal palette slots and a readable label"
 test("display labels omit missing dates and shorten both Windows and Mac paths", () => {
   expect(displayDate("0001-01-01T00:00:00Z")).toBe("")
   expect(displayDate("not a timestamp")).toBe("")
-  expect(folderLabel("C:\\Users\\Alex\\work\\Gator\\")).toBe("Gator")
-  expect(folderLabel("/Users/Alex/work/Gator/")).toBe("Gator")
+  expect(folderLabel("C:\\Users\\Alex\\work\\Hot Cross Buns\\")).toBe("Hot Cross Buns")
+  expect(folderLabel("/Users/Alex/work/Hot Cross Buns/")).toBe("Hot Cross Buns")
   expect(displayDate("2025-03-14T12:00:00Z", new Date("2026-10-29T12:00:00Z"))).toContain("2025")
 })
 
 
 test("explicit theme presets color terminal surfaces while the default and NO_COLOR preserve native colors", () => {
   expect(presetPalette("terminal", false).background.base.intent).toBe("default")
-  for (const name of ["gator", "light", "contrast", "mono"]) {
+  for (const name of ["hot-cross-buns", "light", "contrast", "mono"]) {
     expect(presetPalette(name, false).background.base.intent).not.toBe("default")
     expect(presetPalette(name, false).text.base.intent).not.toBe("default")
     expect(presetPalette(name, true).background.base.intent).toBe("default")

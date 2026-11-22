@@ -15,8 +15,8 @@ import (
 type Backend string
 
 const (
-	Work Backend = "gator_work"
-	PTY  Backend = "gator_pty"
+	Work Backend = "hot_cross_buns_work"
+	PTY  Backend = "hot_cross_buns_pty"
 	Tmux Backend = "external_tmux"
 	// Ghostty is a reserved T0 wire value retained for contract compatibility.
 	// No adapter, enrollment, discovery or control is implemented or planned.
@@ -40,7 +40,7 @@ const (
 
 // Binding is an exact authority boundary, not a display name or PID selector.
 // Owner identifies the actual execution owner/backend instance. Generation is a
-// Gator-issued epoch that changes on replacement, restart, or re-enrollment.
+// Hot Cross Buns-issued epoch that changes on replacement, restart, or re-enrollment.
 // Incarnation adds native backend evidence (e.g. application start identity),
 // when available; it must never be inferred from titles or pane ordering.
 type Binding struct {

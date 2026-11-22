@@ -46,7 +46,7 @@ state. The supervisor remains the authority for actual liveness and cancellation
 - `go test -race ./internal/orchestrator ./internal/workapp ./internal/workrun`
   passed. After the cancellation-warning change, `go test -race
   ./internal/workapp` passed again.
-- `go test ./cmd/gator -run 'Test(UIBridge|BridgeKey|.*[Aa]gent)' -count=1`
+- `go test ./cmd/hot-cross-buns -run 'Test(UIBridge|BridgeKey|.*[Aa]gent)' -count=1`
   passed; `go vet` passed for those four Go packages.
 - `npm run check`, desktop runtime/UI builds and `npm test` passed. The desktop
   suite reported 31 passed/1 existing skip; application-host reported 81 passed/1
@@ -59,15 +59,15 @@ state. The supervisor remains the authority for actual liveness and cancellation
   control. They also cover cancel/reopen draft retention, focus return, keyboard
   submission, draft recovery after worker/parent completion, light/dark layouts,
   820×740 layout and reduced motion. Reproduce:
-  `GATOR_E2E_BACKGROUND=1 npx playwright test specialist-controls.spec.ts
+  `HOT_CROSS_BUNS_E2E_BACKGROUND=1 npx playwright test specialist-controls.spec.ts
   dynamic-agents.spec.ts --workers=1 --retries=0
   --output=node_modules/.cache/specialist-controls-release` from `desktop/`.
-- Full `go test ./internal/workapp ./internal/orchestrator ./cmd/gator` has one
+- Full `go test ./internal/workapp ./internal/orchestrator ./cmd/hot-cross-buns` has one
   unrelated failure in the paused Search work: `TestUsageDisplayUsesSharedAccountingAndKeepsReviewedPolicy`
   expects seven usage categories, while the working tree now exposes eight.
   Agent packages pass. That test and the paused Search changes are left untouched.
 - An isolated checkout of exactly the staged specialist changes passed
-  `go test ./cmd/gator ./internal/workapp ./internal/orchestrator
+  `go test ./cmd/hot-cross-buns ./internal/workapp ./internal/orchestrator
   ./internal/workrun`, including the full CLI suite (191.7 s), without the paused
   Search edits. This verifies that the feature commit stands on its own.
 - No paid model or search calls were made for this follow-up. Local HTTP fixtures

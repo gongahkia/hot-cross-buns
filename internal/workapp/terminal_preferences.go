@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
 )
 
 type TerminalPreferencesState struct {

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 )
 
 // WatchDataset is a temporal replay. Ground truth stays outside the watched

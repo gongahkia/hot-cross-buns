@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 )
 
 func controlFixture(t *testing.T) ControlReceipt {
@@ -68,8 +68,8 @@ func TestSemanticAdmissionConcurrentDuplicatesConflictAndUncertainty(t *testing.
 	}
 }
 func TestSemanticReceiptProcessDeathNeverReclaims(t *testing.T) {
-	if os.Getenv("GATOR_SEMANTIC_CRASH") == "1" {
-		store, err := Open(os.Getenv("GATOR_SEMANTIC_STATE"))
+	if os.Getenv("HOT_CROSS_BUNS_SEMANTIC_CRASH") == "1" {
+		store, err := Open(os.Getenv("HOT_CROSS_BUNS_SEMANTIC_STATE"))
 		if err != nil {
 			os.Exit(2)
 		}
@@ -83,7 +83,7 @@ func TestSemanticReceiptProcessDeathNeverReclaims(t *testing.T) {
 	}
 	state := t.TempDir()
 	child := exec.Command(os.Args[0], "-test.run=^TestSemanticReceiptProcessDeathNeverReclaims$")
-	child.Env = append(os.Environ(), "GATOR_SEMANTIC_CRASH=1", "GATOR_SEMANTIC_STATE="+state)
+	child.Env = append(os.Environ(), "HOT_CROSS_BUNS_SEMANTIC_CRASH=1", "HOT_CROSS_BUNS_SEMANTIC_STATE="+state)
 	if err := child.Run(); err == nil {
 		t.Fatal("crash fixture did not exit")
 	}

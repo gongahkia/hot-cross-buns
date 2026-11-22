@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestPreviewBundleReturnsMediaAwareSafeText(t *testing.T) {

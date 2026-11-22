@@ -138,7 +138,7 @@ func TestRedeliveryDoesNotReplaceCorruptEntry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(state, "gator", "inbox", "broken.json")
+	path := filepath.Join(state, "hot-cross-buns", "inbox", "broken.json")
 	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}

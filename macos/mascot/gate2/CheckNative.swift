@@ -8,7 +8,7 @@ import RealityKit
         let original = try await Entity(contentsOf: asset)
         let archive = try await NativeMeshArchive.read(cache)
         let native = try await archive.entity()
-        guard let source = original.findEntity(named: "Gator_B") else { throw NSError(domain: "OriginalRootMissing", code: 1) }
+        guard let source = original.findEntity(named: "HotCrossBuns_B") else { throw NSError(domain: "OriginalRootMissing", code: 1) }
         var comparisons = 0
         func visit(_ first: Entity, _ second: Entity) throws {
             guard first.name == second.name, first.children.count == second.children.count,

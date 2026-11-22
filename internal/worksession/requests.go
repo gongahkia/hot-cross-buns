@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 // Requests retain user admission independently of model replay and revisions.

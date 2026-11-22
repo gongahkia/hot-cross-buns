@@ -1,4 +1,4 @@
-// Package acp implements Gator's stdio Agent Client Protocol v1 surface.
+// Package acp implements Hot Cross Buns's stdio Agent Client Protocol v1 surface.
 //
 // ACP is a protocol edge: every prompt is normal Work. It translates ACP
 // session and streaming conventions without owning an execution, history, or
@@ -18,12 +18,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/model"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // New constructs a strict, local ACP server. The supplied Work factory is the
@@ -152,7 +152,7 @@ func (s *Server) initialize(request inbound) error {
 		return fmt.Errorf("initialize parameters: %w", err)
 	}
 	if params.ProtocolVersion != protocolVersion {
-		s.sendError(responseID(request.ID), -32000, fmt.Sprintf("unsupported ACP protocol version %d; Gator supports v%d", params.ProtocolVersion, protocolVersion))
+		s.sendError(responseID(request.ID), -32000, fmt.Sprintf("unsupported ACP protocol version %d; Hot Cross Buns supports v%d", params.ProtocolVersion, protocolVersion))
 		return nil
 	}
 	s.mu.Lock()
@@ -172,7 +172,7 @@ func (s *Server) initialize(request inbound) error {
 			"auth":                map[string]any{},
 		},
 		"authMethods": []any{},
-		"agentInfo":   map[string]any{"name": "gator", "version": s.config.AgentVersion},
+		"agentInfo":   map[string]any{"name": "hot-cross-buns", "version": s.config.AgentVersion},
 	})
 	return nil
 }
@@ -196,7 +196,7 @@ func (s *Server) newSession(request inbound) error {
 		return errors.New("ACP additionalDirectories are not supported by canonical Work")
 	}
 	if len(params.MCPServers) != 0 {
-		return errors.New("client-supplied MCP servers are not accepted; trust project .gator/mcp.json with gator mcp trust")
+		return errors.New("client-supplied MCP servers are not accepted; trust project .hot-cross-buns/mcp.json with hot-cross-buns mcp trust")
 	}
 	provider, modelName, err := s.resolveModel()
 	if err != nil {
@@ -409,7 +409,7 @@ func (s *Server) setMode(request inbound) error {
 		session.mode = action.Inspect
 	case "execute":
 		if len(session.verification) == 0 {
-			return errors.New("execute mode requires a verification policy; start gator agent acp with --verify or use a supported project test runner")
+			return errors.New("execute mode requires a verification policy; start hot-cross-buns agent acp with --verify or use a supported project test runner")
 		}
 		session.mode = action.Draft
 	default:
@@ -466,7 +466,7 @@ func (s *Server) resumeSession(request inbound) error {
 		return errors.New("ACP additionalDirectories are not supported by canonical Work")
 	}
 	if len(params.MCPServers) != 0 {
-		return errors.New("client-supplied MCP servers are not accepted; trust project .gator/mcp.json with gator mcp trust")
+		return errors.New("client-supplied MCP servers are not accepted; trust project .hot-cross-buns/mcp.json with hot-cross-buns mcp trust")
 	}
 	s.mu.Lock()
 	session, found := s.sessions[params.SessionID]
@@ -644,7 +644,7 @@ func (s *Server) sendLifecycleEvent(sessionID string, event agent.Event) {
 }
 
 func lifecycleEventTitle(event agent.Event) (string, string) {
-	prefix, kind := "Gator", "lifecycle"
+	prefix, kind := "Hot Cross Buns", "lifecycle"
 	switch event.Kind {
 	case agent.EventSubagent:
 		prefix, kind = "Subagent", "subagent"
@@ -691,7 +691,7 @@ func (s *Server) validateCWD(cwd string) error {
 		return fmt.Errorf("open ACP cwd: %w", err)
 	}
 	if root.Path() != s.repository {
-		return fmt.Errorf("ACP cwd %q is outside the repository this Gator process was started for", cwd)
+		return fmt.Errorf("ACP cwd %q is outside the repository this Hot Cross Buns process was started for", cwd)
 	}
 	return nil
 }
@@ -716,7 +716,7 @@ func (s *Server) newSessionID() (string, error) {
 }
 
 func (s *Server) nextID(prefix string) string {
-	return fmt.Sprintf("gator-%s-%d", prefix, s.next.Add(1))
+	return fmt.Sprintf("hot-cross-buns-%s-%d", prefix, s.next.Add(1))
 }
 
 func (s *Server) sendResult(id json.RawMessage, result any) {

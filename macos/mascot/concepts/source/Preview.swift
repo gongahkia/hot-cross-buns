@@ -7,11 +7,11 @@ import SceneKit
     var window:NSWindow!
     var pending:Task<Void,Never>?
     var reduced=NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    let label=NSTextField(labelWithString:"Fixture states — not connected to Gator")
+    let label=NSTextField(labelWithString:"Fixture states — not connected to Hot Cross Buns")
     static func main(){let app=NSApplication.shared;let delegate=Preview();app.delegate=delegate;app.setActivationPolicy(.regular);app.run();withExtendedLifetime(delegate){}}
     func applicationDidFinishLaunching(_ note:Notification){
         window=NSWindow(contentRect:NSRect(x:0,y:0,width:470,height:470),styleMask:[.titled,.closable,.miniaturizable],backing:.buffered,defer:false)
-        window.title="Gator B — isolated 3D concept";window.delegate=self;window.isReleasedWhenClosed=false
+        window.title="Hot Cross Buns B — isolated 3D concept";window.delegate=self;window.isReleasedWhenClosed=false
         NSLayoutConstraint.activate([view.widthAnchor.constraint(equalToConstant:400),view.heightAnchor.constraint(equalToConstant:340)])
         view.scene=stage.scene;view.pointOfView=stage.camera;view.backgroundColor = .clear;view.rendersContinuously=false;view.preferredFramesPerSecond=30;view.antialiasingMode = .multisampling4X
         let box=NSStackView();box.orientation = .vertical;box.spacing=12;box.edgeInsets=NSEdgeInsets(top:12,left:12,bottom:12,right:12);box.addArrangedSubview(view);box.addArrangedSubview(label)

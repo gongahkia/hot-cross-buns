@@ -1,4 +1,4 @@
-# Gator native parity P03 — AS05 workspace selection
+# Hot Cross Buns native parity P03 — AS05 workspace selection
 
 Date: 2026-11-18. Scope: AS05 only. This is selected native parity increment P03, not native migration Tranche 09. P01/P02 remain supported; no P04 work is authorized or started.
 
@@ -17,10 +17,10 @@ The implementation was interrupted once by the repeated P03 request and resumed 
 Verified current code:
 
 - `internal/workapp/commands.go`, `/source`: calls `Config.ResolveSource`; when the resolved string differs, managed mode requests `BridgeSessionRequest{New:true, Source:resolved}`. Same source retains the conversation. The native workflow deliberately does not expose terminal instruction-ignore/source-refresh subcommands.
-- `cmd/gator/work_interactive.go`: `ResolveSource` calls canonical `workspace.Open`, resolving relative paths against runtime configuration for the terminal. Native selection requires an absolute path and calls that same resolver.
+- `cmd/hot-cross-buns/work_interactive.go`: `ResolveSource` calls canonical `workspace.Open`, resolving relative paths against runtime configuration for the terminal. Native selection requires an absolute path and calls that same resolver.
 - `internal/workspace/root.go`: `Open` obtains an absolute path, evaluates symlinks, stats the canonical directory and rejects nonexistent/file paths. Existing descriptor-rooted containment and instruction policies remain unchanged.
 - `internal/workapp/conversation.go`: `beginChat` creates the durable conversation identity first, resets messages, queue and request-specific options, and retains the new source through the canonical session store. Restore uses the conversation's retained source.
-- Native launch keeps `Process.currentDirectoryURL = configuration.workspace`; managed `startSource` is supplied separately as `GATOR_UI_START_SOURCE`. The Go child validates that source before startup. No `GATOR_NATIVE_WORKSPACE` or private state/upload root is rewritten.
+- Native launch keeps `Process.currentDirectoryURL = configuration.workspace`; managed `startSource` is supplied separately as `HOT_CROSS_BUNS_UI_START_SOURCE`. The Go child validates that source before startup. No `HOT_CROSS_BUNS_NATIVE_WORKSPACE` or private state/upload root is rewritten.
 - Existing snapshot capture/materialization under `internal/snapshot` remains the Work authority. The picker does not refresh snapshots or read file contents. Read-only means the existing Work snapshot policy; it does not chmod the selected project.
 
 Go currently compares canonical resolved source strings with its retained source. Native uses that same rule, rather than imposing a competing filesystem identity policy on historical records. A historical source stored with a different symlink spelling can therefore follow Go's existing new-conversation rule.
@@ -94,21 +94,21 @@ Final commands, counts, results, available screenshots and candidate integrity a
 ### Headless commands and results
 
 ```sh
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-GATOR_TEST_BINARY=/tmp/gator-p03-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel
-GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P03.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P03.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-p03-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P03.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P03.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'workspace|actualGoManagedDialogue'
-go test ./cmd/gator ./internal/workapp ./internal/worksession ./internal/workspace
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/worksession ./internal/workspace
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test \
   app-host/tests/native.test.mjs app-host/tests/sessions.test.mjs \
   app-host/tests/drafts.test.mjs app-host/tests/reading-state.test.mjs \
   app-host/tests/backend.test.mjs
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Parity-P03.app bash macos/scripts/build-dev-app.sh
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Parity-P03.app bash macos/scripts/build-dev-app.sh
 python3 macos/parity/evidence/p03/verify-integrity.py
 git diff --check
 ```
@@ -120,7 +120,7 @@ git diff --check
 | Earlier complete suite | 212 PASS before two additional boundary tests; then 214 PASS, 136.889 seconds. The latter used the earlier runtime, so the final packaged run above is the acceptance result. |
 | Strict Swift 6, warnings-as-errors, final filesystem implementation | **16 selected PASS**, 12.554 seconds; all production/test sources compiled. [Log](evidence/p03/swift-strict-final.log). |
 | Broad strict P01/P02/P03 selection before final traversal-probe correction | 44 PASS, 82.172 seconds. [Log](evidence/p03/swift-strict-p01-p02-p03.log). |
-| Go cmd/gator | PASS, 30.489 seconds. |
+| Go cmd/hot-cross-buns | PASS, 30.489 seconds. |
 | Go workapp | PASS, 7.604 seconds. |
 | Go worksession / workspace | PASS, cached. [Four-package log](evidence/p03/go-regression.log). |
 | Host native/session/draft/reading/backend | **41 PASS**, zero failed/skipped/cancelled; 3.539 seconds, installed Node 26.7.0. [Log](evidence/p03/host-regression.log). |
@@ -143,25 +143,25 @@ One final packaged-fixture handoff measured **86.789 ms** from selection request
 | --- | --- |
 | `internal/workapp/bridge_workspace.go` | Finite read-only asynchronous resolver, request/completion identity, canonical source/new-owner evidence, bounded path and access validation. |
 | `internal/workapp/app.go`, `bridge.go`, `update.go` | Pending/result fields, display projection and completion dispatch. Existing P02 load-issue field preserved. |
-| `cmd/gator/ui_bridge.go` | Typed workspace frame dispatch; no command parser. |
-| `macos/Sources/GatorCore/NativeWorkspaceSelection.swift` | Typed request/result, exact identity/generation/source checks and request-specific wait. |
+| `cmd/hot-cross-buns/ui_bridge.go` | Typed workspace frame dispatch; no command parser. |
+| `macos/Sources/HotCrossBunsCore/NativeWorkspaceSelection.swift` | Typed request/result, exact identity/generation/source checks and request-specific wait. |
 | `ManagedSessionProtocol.swift` | Private finite workspace host command. |
 | `ManagedSessionCoordinator.swift` | Shared picker ticket, stale-owner guard, existing new-owner transition, destination validation, failure/review state and origin retention. Existing closing barrier and task admission remain. |
-| `macos/Sources/GatorMac/NativeWorkspacePicker.swift` | Standard asynchronous directory panel, scoped-access lifetime, shared Choose action and contextual workspace status. |
-| `ConversationView.swift`, `GatorApp.swift` | Existing toolbar/Conversation/More entry points and restrained workspace context. |
-| `macos/Tests/GatorCoreTests/NativeWorkspaceTests.swift` | Ten deterministic state/ownership/protocol regressions. |
+| `macos/Sources/HotCrossBunsMac/NativeWorkspacePicker.swift` | Standard asynchronous directory panel, scoped-access lifetime, shared Choose action and contextual workspace status. |
+| `ConversationView.swift`, `HotCrossBunsApp.swift` | Existing toolbar/Conversation/More entry points and restrained workspace context. |
+| `macos/Tests/HotCrossBunsCoreTests/NativeWorkspaceTests.swift` | Ten deterministic state/ownership/protocol regressions. |
 | `NativeWorkspaceIntegrationTests.swift` | Four actual-Go temporary filesystem, persistence, move-at-start and independent-instance tests. |
 | `ManagedSessionTests.swift` | Finite workspace mock/gate support only. |
 | `ManagedGoIntegrationTests.swift` | Existing background Work test extended with explicit workspace isolation assertions. |
-| `macos/Tests/GatorMacTests/NativeWorkspacePickerTests.swift` | Headless configuration assertions; panel is not displayed. |
-| `internal/workapp/bridge_workspace_test.go`, `cmd/gator/ui_bridge_test.go` | Six Go contract/permission tests including ack-before-resolution; canonical filesystem and stale results. |
+| `macos/Tests/HotCrossBunsMacTests/NativeWorkspacePickerTests.swift` | Headless configuration assertions; panel is not displayed. |
+| `internal/workapp/bridge_workspace_test.go`, `cmd/hot-cross-buns/ui_bridge_test.go` | Six Go contract/permission tests including ack-before-resolution; canonical filesystem and stale results. |
 | This report and `evidence/p03/` | Commands, logs, integrity and disposable desktop reproduction/evidence. |
 
-`NativeDraftStore`, `GatorApplicationState`, `GoBridgeConnection`, `BridgePipeIO`, `NativeUploadStore`, P01 search/reading implementations and the three safety regression files are byte-preserved. Existing P02 source/load corrections and evidence remain separate in the worktree; they are not claimed as P03 edits. No archive schema, database, coordinator, transport server, dependency, credentials or provider configuration was added.
+`NativeDraftStore`, `HotCrossBunsApplicationState`, `GoBridgeConnection`, `BridgePipeIO`, `NativeUploadStore`, P01 search/reading implementations and the three safety regression files are byte-preserved. Existing P02 source/load corrections and evidence remain separate in the worktree; they are not claimed as P03 edits. No archive schema, database, coordinator, transport server, dependency, credentials or provider configuration was added.
 
 ## 8. Desktop evidence and remaining limits
 
-The candidate was launched through a byte-identical separate-preference-domain copy, `/tmp/Gator-Native-Parity-P03-Desktop.app`, using profile `/tmp/gator-native-test-p03-60anfx0w` and temporary fixture folders. The provider is unreachable loopback `127.0.0.1:9`; no desktop message was sent and no live user project was selected.
+The candidate was launched through a byte-identical separate-preference-domain copy, `/tmp/HotCrossBuns-Native-Parity-P03-Desktop.app`, using profile `/tmp/hot-cross-buns-native-test-p03-60anfx0w` and temporary fixture folders. The provider is unreachable loopback `127.0.0.1:9`; no desktop message was sent and no live user project was selected.
 
 | Desktop check | Actual observation |
 | --- | --- |
@@ -188,7 +188,7 @@ Physical VoiceOver, IME, actual macOS 15, OS preference variants, network/remova
 - A failed startup can leave a durable empty conversation in Go's catalog. It is not silently deleted or replayed. The UI requires retained-conversation review after an attempted unconfirmed handoff.
 - The current development workflow does not persist security-scoped bookmarks or implement a sandboxed child permission broker. Sandboxed distribution would require separate verification; folder selection is not general tool authorization.
 
-Final development candidate: `/tmp/Gator-Native-Parity-P03.app`. P01 and P02 bundles are byte-preserved. Swift and Go executable hashes match the tested desktop copy; the bundled Go binary also matches a fresh current-source build. No signing/notarization or distribution work was performed.
+Final development candidate: `/tmp/HotCrossBuns-Native-Parity-P03.app`. P01 and P02 bundles are byte-preserved. Swift and Go executable hashes match the tested desktop copy; the bundled Go binary also matches a fresh current-source build. No signing/notarization or distribution work was performed.
 
 **P03 is not fully accepted until the outstanding targeted desktop checks are completed.** The implementation and headless verification are ready for that review. P04 was not started.
 
@@ -196,7 +196,7 @@ Final development candidate: `/tmp/Gator-Native-Parity-P03.app`. P01 and P02 bun
 
 See [P03 desktop acceptance](P03-DESKTOP-ACCEPTANCE.md) for the complete final evidence, focus diagnosis and limits.
 
-**Final P03 verdict: PASS for `/tmp/Gator-Native-Parity-P03-Accepted.app`.** The original `/tmp/Gator-Native-Parity-P03.app` and previous bundles are preserved. Earlier sections describe the original implementation/evidence; this closure records the subsequent focused correction.
+**Final P03 verdict: PASS for `/tmp/HotCrossBuns-Native-Parity-P03-Accepted.app`.** The original `/tmp/HotCrossBuns-Native-Parity-P03.app` and previous bundles are preserved. Earlier sections describe the original implementation/evidence; this closure records the subsequent focused correction.
 
 Actual desktop testing found a reproducible Unicode source-spelling defect: composed/decomposed macOS paths could cause destination verification to reject a valid new owner. It failed both a real-Go Swift regression and a Go unit regression before correction. The native Go resolver now confirms directory identity with `os.SameFile` when source spellings differ and retains the exact current source for a same-directory selection; Swift checks wire-byte consistency. Directory identity remains Go-owned. No source snapshot, execution, approval, archive, coordinator, transport or Quit implementation was changed.
 

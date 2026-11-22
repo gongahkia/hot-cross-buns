@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/patch"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestDeliverArtifactsPersistsAppliedEffectsAcrossReload(t *testing.T) {

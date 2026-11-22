@@ -1,8 +1,8 @@
-# Gator orchestration
+# Hot Cross Buns orchestration
 
 ## Decision
 
-Gator uses a user-facing manager with bounded specialists exposed as tools.
+Hot Cross Buns uses a user-facing manager with bounded specialists exposed as tools.
 This is the common architecture across the official guidance for [OpenAI agent
 orchestration](https://openai.github.io/openai-agents-python/multi_agent/),
 [OpenCode agents](https://opencode.ai/docs/agents/), [Claude Code
@@ -11,14 +11,14 @@ subagents](https://docs.langchain.com/oss/javascript/langchain/multi-agent/subag
 There is no single cross-language industry-standard library behind those
 products; the stable part is the manager-as-tools pattern.
 
-The implementation lives in `internal/orchestrator` and uses Gator's existing
+The implementation lives in `internal/orchestrator` and uses Hot Cross Buns's existing
 Go `agent.Model`, `agent.Tool`, event, permission, snapshot, and manifest
-contracts. Gator does not add LangGraph or Google ADK as a second runtime.
+contracts. Hot Cross Buns does not add LangGraph or Google ADK as a second runtime.
 LangGraph's own reference now recommends direct tool-calling supervisors over
 the separate `langgraph-supervisor` helper, and [Google ADK for
-Go](https://github.com/google/adk-go) would duplicate the agent loop Gator
+Go](https://github.com/google/adk-go) would duplicate the agent loop Hot Cross Buns
 already owns. A second runtime would split provider behavior, approvals,
-logging, and evidence without adding a capability Gator currently lacks.
+logging, and evidence without adding a capability Hot Cross Buns currently lacks.
 
 ## Runtime shape
 
@@ -26,14 +26,14 @@ logging, and evidence without adding a capability Gator currently lacks.
 user objective
       |
       v
-Gator manager ────────────────────> final answer + sealed artifacts
+Hot Cross Buns manager ────────────────────> final answer + sealed artifacts
       |
       +── delegate_agents (bounded budget, up to 3 parallel tasks)
               |
               +── source_researcher  (read-only frozen source)
               +── artifact_reviewer  (read-only source and staged output)
               +── goal_reviewer      (read-only goal history and knowledge)
-              +── code               (isolated Gator Code worktree)
+              +── code               (isolated Hot Cross Buns Code worktree)
 ```
 
 The manager owns the conversation, decides whether delegation is useful,
@@ -69,7 +69,7 @@ Work's `code` child is `HostedSpecialist("code", ...)`. It runs `internal/codeex
 | --- | --- | --- | --- | --- |
 | `source_researcher` | LLM | A focused source question benefits from separate context | Read/list/search the immutable `source/...` snapshot | Concise findings with exact paths and uncertainty |
 | `artifact_reviewer` | LLM | Staged output needs independent contract review | Read frozen source, prior output, and staged output; call `artifact_status` | Prioritized defects and validation evidence |
-| `code` | Hosted | The Work objective contains a bounded implementation task | Run Gator Code against a private Git repository copied from the exact source snapshot | Summary, changed paths, and a retained `.patch` artifact |
+| `code` | Hosted | The Work objective contains a bounded implementation task | Run Hot Cross Buns Code against a private Git repository copied from the exact source snapshot | Summary, changed paths, and a retained `.patch` artifact |
 | `claim_verifier` | LLM | Claims need independent quotation checks | Selected evidence catalog | Unsupported and conflicting claims; quote match is not entailment |
 | `connected_researcher` | LLM | Selected services or allowed web need a separate read | Read-only connector/web evidence | Evidence IDs and missing-source disclosure |
 | `spreadsheet_analyst` | LLM | Tables or documents need cell-level inspection | `inspect_table`, `extract_document` on frozen source | Row/cell evidence without writes |
@@ -119,18 +119,18 @@ without a measured need.
 Settings `work_roles` version-1 entries select per-role provider/model pairs and
 narrow step limits. Configured routing is recorded in effective policy and task
 evidence. A shared request/token/wall budget covers the entire tree and retries.
-TUI and Work headless controls inspect the same live tasks. `gator work tasks RUN`
+TUI and Work headless controls inspect the same live tasks. `hot-cross-buns work tasks RUN`
 inspects retained records without taking ownership. Completed parent-revision
 tasks can be explicitly continued by global ID; interrupted outcomes require
-inspection. `gator work activity` joins running Work records, retained
+inspection. `hot-cross-buns work activity` joins running Work records, retained
 specialist checkpoints, and pending decision IDs in one read-only CLI view;
 stale run records are labeled and their task status is only a checkpoint.
 Interactive `/activity` shows this Work view alongside the selected goal's
 checks, or shows Work alone when no goal is selected.
-`gator work cancel-task RUN_ID TASK_ID` requests cancellation of an
+`hot-cross-buns work cancel-task RUN_ID TASK_ID` requests cancellation of an
 active specialist and its descendants from another terminal; it does not stop
 the parent Work run. Inspect its retained status to confirm cancellation.
-`gator work steer-task RUN_ID TASK_ID TEXT` queues a bounded instruction for an
+`hot-cross-buns work steer-task RUN_ID TASK_ID TEXT` queues a bounded instruction for an
 active LLM specialist. The runner applies it at the next model boundary if
 the specialist continues. Hosted Code specialists reject live steering.
 See [current bounds](WORK_DEPTH.md), [migration/recovery](WORK_DEPTH_MIGRATIONS.md),

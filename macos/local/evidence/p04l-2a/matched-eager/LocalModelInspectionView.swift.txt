@@ -1,5 +1,5 @@
 import SwiftUI
-import GatorCore
+import HotCrossBunsCore
 
 struct LocalModelInspectionView: View {
     let setup: NativeProviderSetup
@@ -43,7 +43,7 @@ struct LocalModelInspectionView: View {
                 }
                 Text("Configured, locally ready and live verified are distinct. This view never live-tests a model. Selected models affect future requests; an active request keeps its captured model.").font(.caption).foregroundStyle(.secondary)
             }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
-        }.accessibilityIdentifier("gator.models.local")
+        }.accessibilityIdentifier("hot-cross-buns.models.local")
     }
     private func runtime(_ status: NativeLocalStatus) -> some View {
         VStack(alignment: .leading, spacing: 8) {

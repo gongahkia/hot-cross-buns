@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 var ErrBusy = errors.New("work is using private data; finish or stop it before exporting or deleting data")
@@ -13,7 +13,7 @@ var ErrBusy = errors.New("work is using private data; finish or stop it before e
 // Guard prevents data export or removal from racing a writer. Exclusive
 // maintenance never interrupts existing work; callers can retry when it ends.
 func Guard(stateDir string, exclusive bool) (func(), error) {
-	root := filepath.Join(stateDir, "gator")
+	root := filepath.Join(stateDir, "hot-cross-buns")
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, err
 	}

@@ -1,23 +1,23 @@
 # Full Work evaluation
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
-`gator work eval` evaluates target `work.v1` through the actual Work service,
+`hot-cross-buns work eval` evaluates target `work.v1` through the actual Work service,
 manager, supervisor, Code adapter, tools, contracts, history, and delivery
-store. It is Gator's only product evaluation runtime.
+store. It is Hot Cross Buns's only product evaluation runtime.
 
 ## Local experiments
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval validate internal/eval/testdata/work-v1/dataset.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/work-v1/dataset.json \
-  --id enabled --attempts 2 --report-dir /tmp/gator-enabled
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/work-v1/dataset.json \
-  --id holdout --split held-out --attempts 2 --report-dir /tmp/gator-holdout
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/work-v1/dataset.json \
-  --id disabled --attempts 2 --delegation=false --report-dir /tmp/gator-disabled
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval compare /tmp/gator-disabled/experiment.json /tmp/gator-enabled/experiment.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval show /tmp/gator-enabled/experiment.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval validate internal/eval/testdata/work-v1/dataset.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/work-v1/dataset.json \
+  --id enabled --attempts 2 --report-dir /tmp/hot-cross-buns-enabled
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/work-v1/dataset.json \
+  --id holdout --split held-out --attempts 2 --report-dir /tmp/hot-cross-buns-holdout
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/work-v1/dataset.json \
+  --id disabled --attempts 2 --delegation=false --report-dir /tmp/hot-cross-buns-disabled
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval compare /tmp/hot-cross-buns-disabled/experiment.json /tmp/hot-cross-buns-enabled/experiment.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval show /tmp/hot-cross-buns-enabled/experiment.json
 ```
 
 Use a new report directory for each experiment. For example,
@@ -41,7 +41,7 @@ follow-ups with frozen project configuration, live approvals/control, scheduling
 crash boundaries, and apply-time conflicts.
 
 The separate [User Work benchmark](USER_WORK_BENCHMARK.md) contains eight
-non-coding tasks with small realistic source folders. It probes whether Gator
+non-coding tasks with small realistic source folders. It probes whether Hot Cross Buns
 can finish source comparison, action extraction, exact arithmetic, table
 reconciliation, uncertainty handling, untrusted-source handling, continuation,
 and CSV cleanup. Its scripted turns calibrate the harness and graders; live
@@ -108,10 +108,10 @@ entailment and cost are not inferred from those counters.
 ## Budgeted live execution
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/work-v1/dataset.json \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/work-v1/dataset.json \
   --id live-baseline --live --provider PROVIDER --model MODEL \
   --max-model-requests 256 --timeout-seconds 1800 --attempts 2 \
-  --report-dir /tmp/gator-live-baseline
+  --report-dir /tmp/hot-cross-buns-live-baseline
 ```
 
 Provider, model, request budget, and wall budget are mandatory with `--live`.
@@ -131,11 +131,11 @@ and evidence, not the producing agent's private transcript. Nonzero scores must
 cite text actually present in the judging input.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval judge-rubric /tmp/gator-live-baseline/experiment.json \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval judge-rubric /tmp/hot-cross-buns-live-baseline/experiment.json \
   --live --rubric internal/eval/testdata/work-v1/synthesis-rubric.json \
   --provider JUDGE_PROVIDER --model JUDGE_MODEL \
   --max-model-requests 32 --timeout-seconds 300 --output /tmp/judgements.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval calibrate-rubric /tmp/judgements.json /tmp/human-scores.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval calibrate-rubric /tmp/judgements.json /tmp/human-scores.json
 ```
 
 `judge-rubric --live` explicitly sends retained textual artifact/evidence content
@@ -148,7 +148,7 @@ calibration or live synthesis-quality result is claimed by the local corpus.
 
 ## Optional export
 
-`GATOR_OTLP_ENDPOINT` enables bounded metadata-only OTLP HTTP/JSON export at the
+`HOT_CROSS_BUNS_OTLP_ENDPOINT` enables bounded metadata-only OTLP HTTP/JSON export at the
 end of Work. Parent/child, model attempts, tools, and sealing are represented in
 local trace v1. Prompts, arguments, source contents, and private replay are
 excluded. The trace retains exporter errors; exporter failure does not replace
@@ -157,7 +157,7 @@ explicit. The OTLP endpoint can target a compatible collector, including a
 Langfuse pipeline, without another custom runtime.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval export-langsmith /tmp/gator-enabled/experiment.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval export-langsmith /tmp/hot-cross-buns-enabled/experiment.json
 ```
 
 This command requires `LANGSMITH_API_KEY`; `LANGSMITH_ENDPOINT` can override the

@@ -19,7 +19,7 @@ printf '%s\n' '{"decision":"allow","message":"checked"}'
 	if len(digest) != 64 {
 		t.Fatalf("hook hash = %q", digest)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "hooks", "allow"), []byte("#!/bin/sh\nprintf '%s\\n' '{\"decision\":\"deny\"}'\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "hooks", "allow"), []byte("#!/bin/sh\nprintf '%s\\n' '{\"decision\":\"deny\"}'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	changed, err := BundleHash(repository)
@@ -75,7 +75,7 @@ printf '%s\n' '{"decision":"allow"}'
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "hooks", "allow"), []byte("#!/bin/sh\nprintf '%s\\n' '{\"decision\":\"allow\",\"message\":\"changed\"}'\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "hooks", "allow"), []byte("#!/bin/sh\nprintf '%s\\n' '{\"decision\":\"allow\",\"message\":\"changed\"}'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	engine, err := Load(repository, repository, digest)
@@ -90,7 +90,7 @@ printf '%s\n' '{"decision":"allow"}'
 func hookRepository(t *testing.T, script string) string {
 	t.Helper()
 	repository := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repository, ".gator", "hooks"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repository, ".hot-cross-buns", "hooks"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	manifest := `{
@@ -99,13 +99,13 @@ func hookRepository(t *testing.T, script string) string {
     "name": "guard",
     "event": "pre_tool_use",
     "tool": "apply_patch",
-    "command": [".gator/hooks/allow"]
+    "command": [".hot-cross-buns/hooks/allow"]
   }]
 }`
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "hooks.json"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "hooks.json"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "hooks", "allow"), []byte(script), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "hooks", "allow"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return repository

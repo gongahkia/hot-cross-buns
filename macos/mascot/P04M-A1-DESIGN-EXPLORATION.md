@@ -1,8 +1,8 @@
-# P04M-A1 — original Gator mascot exploration
+# P04M-A1 — original Hot Cross Buns mascot exploration
 
-**Design checkpoint only. No concept is selected or integrated.** Recommendation: **B, Soft 3D Gator**, with a slightly offset, reserved in-chat header placement. It has the clearest alligator cue: a broad, blunt, short snout. A is the simplest round companion; C favors expressive eyes. These are design judgments, not a blind recognition study.
+**Design checkpoint only. No concept is selected or integrated.** Recommendation: **B, Soft 3D Hot Cross Buns**, with a slightly offset, reserved in-chat header placement. It has the clearest alligator cue: a broad, blunt, short snout. A is the simplest round companion; C favors expressive eyes. These are design judgments, not a blind recognition study.
 
-![Three original Gator concepts](concepts/comparison.png)
+![Three original Hot Cross Buns concepts](concepts/comparison.png)
 
 ## What was actually created
 
@@ -19,12 +19,12 @@ Starting HEAD: `12ee4a43b6677f4d01a4ab6882951a35d09ac678`, with the existing P04
 | Existing surface | Current source evidence and design consequence |
 |---|---|
 | Full chat | `ConversationView.swift`: toolbar, workspace context, optional transcript Find, activity, transcript/empty state or exact review, notices, composer. Place the mascot **inside a reserved region below navigation/workspace/Find/activity**, never over those controls. |
-| Full-window sizing | `GatorApp.swift` declares 540×480 minimum, 820×740 default. Mascot must collapse rather than consume a fixed large fraction of a small/long-chat window. |
+| Full-window sizing | `HotCrossBunsApp.swift` declares 540×480 minimum, 820×740 default. Mascot must collapse rather than consume a fixed large fraction of a small/long-chat window. |
 | Compact menu-bar chat | 440×620, compact header/More controls, workspace, messages/status/composer. It has no ordinary window traffic lights. The compact studies preserve that distinction. |
 | Inspection/review | Full task inspection remains a sheet; exact approvals, plans and recovery have owner-bound content. Mascot is decorative and shrinks/freezes during review. Existing readable warnings/controls remain authoritative. |
 | Reading position | Existing `NativeReadingPositions` and stable transcript identities remain untouched. Future mascot size changes must not reset reading anchors, force following or invoke Jump to Latest. |
-| Notch | `NotchQuickAccess.swift` uses a screen/notch-aware AppKit panel, current Gator template mark and existing public activity. No character or interaction is added there now. |
-| Branding | Existing alligator `GatorHead.png`, template `GatorMenuBar.png` and generated app icon remain unchanged. A full-body character is unnecessary. |
+| Notch | `NotchQuickAccess.swift` uses a screen/notch-aware AppKit panel, current Hot Cross Buns template mark and existing public activity. No character or interaction is added there now. |
+| Branding | Existing alligator `HotCrossBunsHead.png`, template `HotCrossBunsMenuBar.png` and generated app icon remain unchanged. A full-body character is unnecessary. |
 | Colors/type | Native system surfaces/SF typography; current accent is approximately **#296E4F light / #6BC79C dark**. Character materials complement this palette without recoloring status semantics. |
 | Deployment/build | Swift tools 6.1, Swift 6, macOS **15 minimum**, no package dependencies. All prototype executables compile separately with `-target arm64-apple-macosx15.0`; the production Package.swift and build tooling are unchanged. |
 
@@ -32,7 +32,7 @@ Initial/final source hashes cover existing Swift/Go/host source, resources, test
 
 ## Three character concepts
 
-### A — Round Gator
+### A — Round Hot Cross Buns
 
 A nearly circular jade head, wide-set oval eyes, a short soft muzzle, two tiny rounded teeth and two low crown scutes. Calm, welcoming and deliberately simple. It is the closest to a quiet round companion while retaining reptile cues.
 
@@ -42,9 +42,9 @@ A nearly circular jade head, wide-set oval eyes, a short soft muzzle, two tiny r
 - **Motion range:** independent blink/lids and pupil look; approximately 0–29° jaw hinge range, with the open study around 24°; restrained 2–4° head tilt. Small idle motion should leave the circular silhouette stable.
 - **Advantages:** simplest silhouette; generous white eye/pupil contrast; compact and empty-state friendly; few visual accents.
 - **Limitations:** the round muzzle is less specifically alligator-like than B's blunt snout. At 16–24 px, teeth/scutes disappear and the animal category becomes ambiguous. Mouth-corner/smile topology needs final sculpt refinement.
-- **Files:** [front neutral](concepts/A/front-neutral.png), [quarter neutral](concepts/A/quarter-neutral.png), [front open](concepts/A/front-open.png), [quarter open](concepts/A/quarter-open.png), [USDZ](concepts/models/Gator-A.usdz), [editable USDA](concepts/models/Gator-A.usda).
+- **Files:** [front neutral](concepts/A/front-neutral.png), [quarter neutral](concepts/A/quarter-neutral.png), [front open](concepts/A/front-open.png), [quarter open](concepts/A/quarter-open.png), [USDZ](concepts/models/HotCrossBuns-A.usdz), [editable USDA](concepts/models/HotCrossBuns-A.usda).
 
-### B — Soft 3D Gator — recommended
+### B — Soft 3D Hot Cross Buns — recommended
 
 A compact rounded head with a broad, rounded-rectangle snout, small eye cushions, three low scutes and a pale independently hinged jaw. Two small rounded teeth are visible without becoming a toothy grin. Its slightly wider profile carries more alligator identity than a green sphere alone.
 
@@ -54,9 +54,9 @@ A compact rounded head with a broad, rounded-rectangle snout, small eye cushions
 - **Motion range:** independent left/right eye hierarchy and upper/lower lids; pupil look; jaw 0–29°, small mouth-cavity scale/tongue visibility, and a few degrees of head tilt. The current prototype uses rigid parts, not a full skeletal or blendshape face rig.
 - **Advantages:** strongest broad U-shaped alligator snout; readable jaw separation; most useful 3/4 view; clear path to an expressive reusable character.
 - **Limitations:** more authored mesh parts and silhouette detail than A/C. The primitive snout/jaw intersections need refinement before production; this is not a finished watertight sculpt. At tiny sizes the tooth/scute detail still cannot carry identity alone.
-- **Files:** [front neutral](concepts/B/front-neutral.png), [quarter neutral](concepts/B/quarter-neutral.png), [front open](concepts/B/front-open.png), [quarter open](concepts/B/quarter-open.png), [USDZ](concepts/models/Gator-B.usdz), [editable USDA](concepts/models/Gator-B.usda).
+- **Files:** [front neutral](concepts/B/front-neutral.png), [quarter neutral](concepts/B/quarter-neutral.png), [front open](concepts/B/front-open.png), [quarter open](concepts/B/quarter-open.png), [USDZ](concepts/models/HotCrossBuns-B.usdz), [editable USDA](concepts/models/HotCrossBuns-B.usda).
 
-### C — Expressive Mini Gator
+### C — Expressive Mini Hot Cross Buns
 
 A mint-green sphere with taller, closer-set eyes, subtly asymmetric upper lids and a smaller soft muzzle. Its face is more curious and playful; the body silhouette remains restrained. One low crown accent avoids a dinosaur crest.
 
@@ -66,7 +66,7 @@ A mint-green sphere with taller, closer-set eyes, subtly asymmetric upper lids a
 - **Motion range:** independent upper/lower lids make asymmetry/winks possible; pupil look and short jaw opening; very small head rotation. Avoid permanent squinting or a theatrical looping face.
 - **Advantages:** largest scope for personality through a few eye controls; simple sphere; slightly fewer authored triangles than A/B.
 - **Limitations:** mint/eye styling can drift toward a generic frog if snout/teeth cues are reduced too far. Eye asymmetry becomes difficult to read at 24–32 px. Boundary-overlap placement is more brittle than a reserved slot.
-- **Files:** [front neutral](concepts/C/front-neutral.png), [quarter neutral](concepts/C/quarter-neutral.png), [front open](concepts/C/front-open.png), [quarter open](concepts/C/quarter-open.png), [USDZ](concepts/models/Gator-C.usdz), [editable USDA](concepts/models/Gator-C.usda).
+- **Files:** [front neutral](concepts/C/front-neutral.png), [quarter neutral](concepts/C/quarter-neutral.png), [front open](concepts/C/front-open.png), [quarter open](concepts/C/quarter-open.png), [USDZ](concepts/models/HotCrossBuns-C.usdz), [editable USDA](concepts/models/HotCrossBuns-C.usda).
 
 ### Shared palette and asset rules
 
@@ -86,7 +86,7 @@ Proposed normal chat **canvas** sizes: about 72 points full-window and 44 compac
 
 ## Placement exploration
 
-The previews are **offline layout studies drawn from current source**, with synthetic chat text. They are not screenshots of an implemented Gator UI, and do not prove focus/scroll/approval behavior.
+The previews are **offline layout studies drawn from current source**, with synthetic chat text. They are not screenshots of an implemented Hot Cross Buns UI, and do not prove focus/scroll/approval behavior.
 
 | Placement | Preview | Assessment |
 |---|---|---|
@@ -115,7 +115,7 @@ Appearance/QoL proposals **not implemented**: consistent reserved whitespace; ce
 
 ## Personality, motion and safe state mapping
 
-No state adapter is connected to Gator in this checkpoint. The prototype uses explicit fixture controls. A future **pure presentation projection** may read existing public state; it is not an execution coordinator.
+No state adapter is connected to Hot Cross Buns in this checkpoint. The prototype uses explicit fixture controls. A future **pure presentation projection** may read existing public state; it is not an execution coordinator.
 
 | State | Proposed expression/motion | Boundaries |
 |---|---|---|
@@ -140,7 +140,7 @@ The mascot cannot send prompts, submit work, approve, reconnect, replay or mutat
 |---|---|---|
 | RealityKit / RealityView | Deployment-target-15 probe compiles; native SwiftUI content/entity update interface. AppKit can host SwiftUI. | Convenient compatibility path. Its state-update closure is not proof that the engine stops rendering when idle. Actual on-screen idle behavior is not measured here. [Apple RealityView](https://developer.apple.com/documentation/realitykit/realityview/). |
 | **RealityKit / RealityRenderer + small MetalKit host** | Local SDK declares macOS 15; the target-15 probe actually renders B. `MTKView` is an AppKit view and can be wrapped in `NSViewRepresentable`. | **Preferred production pilot** for explicit draw-on-demand control. Use system RealityKit, not a custom 3D engine; prove compositing/lifecycle before integrating. [Apple RealityRenderer](https://developer.apple.com/documentation/realitykit/realityrenderer), [MetalKit drawing modes](https://developer.apple.com/documentation/metalkit/mtkview). |
-| SceneKit / SCNRenderer / SCNView | Used successfully for this isolated model/animation/rendering lab; target 15 compiles. `rendersContinuously=false` is available. | Authoring/prototype only. Apple now marks SceneKit deprecated and directs new work toward RealityKit. Do not silently adopt it as Gator's new production renderer. [Apple SceneKit](https://developer.apple.com/documentation/scenekit), [on-demand SCNView](https://developer.apple.com/documentation/scenekit/scnview/renderscontinuously). |
+| SceneKit / SCNRenderer / SCNView | Used successfully for this isolated model/animation/rendering lab; target 15 compiles. `rendersContinuously=false` is available. | Authoring/prototype only. Apple now marks SceneKit deprecated and directs new work toward RealityKit. Do not silently adopt it as Hot Cross Buns's new production renderer. [Apple SceneKit](https://developer.apple.com/documentation/scenekit), [on-demand SCNView](https://developer.apple.com/documentation/scenekit/scnview/renderscontinuously). |
 | Raw Metal geometry/shaders | Native, but requires maintaining camera/material/lighting/rendering logic. | Unnecessary custom engine work for this character. RealityRenderer can provide the engine. |
 | SwiftUI vector animation | Native 2D fallback with a few simple shapes/paths. | Useful if 3D fails the later power/lifecycle gate. It lacks true perspective/lighting and would require its own pose construction; no equal-quality runtime-overhead claim is made without measurement. |
 | Cached transparent poster | Ordinary native image produced from the approved geometry. | Best reduced-motion/hidden/inactive fallback and consistent identity. A poster is explicitly 2D, even though its source is 3D. |
@@ -156,13 +156,13 @@ macOS 15 was **not physically run**: current host is macOS 26.5.2 / Swift 6.3.3 
 - [B animation GIF](concepts/prototype/B-motion.gif) and [MP4](concepts/prototype/B-motion.mp4): four seconds / 80 frames / 20 fps, demonstrating blink → jaw opening → smooth attention transition → neutral. It is an animation-range demonstration, **not a proposed continuous production loop or silent speech**.
 - [Reduced-motion poster](concepts/prototype/reduced-motion.png): the exact cached neutral first frame, static.
 - [Procedural model/render source](concepts/source/MascotLab.swift), [standalone native preview](concepts/source/Preview.swift), [RealityKit/macOS-15 probe](concepts/source/RealityKitProbe.swift), [validator](concepts/source/Validate.swift).
-- The native preview **compiles but was not launched/operator-tested**. Its fixture buttons drive the same B geometry; it uses no continuous timer, pauses on deactivation/minimizing, reads the current Reduce Motion preference and offers a static-mode checkbox. It is not an always-on-top pet or a Gator window.
+- The native preview **compiles but was not launched/operator-tested**. Its fixture buttons drive the same B geometry; it uses no continuous timer, pauses on deactivation/minimizing, reads the current Reduce Motion preference and offers a static-mode checkbox. It is not an always-on-top pet or a Hot Cross Buns window.
 - [Asset validation](concepts/evidence/asset-validation.json): 18 exact-size small renders, transparent corners, opaque and fractional-alpha body/edge pixels; 80 distinct preview frames; eye-bright pixels fall from 1,782 neutral to 93 in the closed blink; cached reduced-motion poster equals neutral. Distinct frame hashes alone are not treated as proof of useful animation—the blink/mouth keyframes were also visually inspected.
 - USDA → binary USD → USDZ parses and `usdchecker` reports **Success** for A/B/C. The local Apple checker also prints duplicate-connectable-behavior plugin diagnostics; retained in [A](concepts/evidence/usd-A.log), [B](concepts/evidence/usd-B.log), [C](concepts/evidence/usd-C.log). This is not a clean production asset certification.
 - A preliminary `usdzip -c` attempt on the text layer terminated with exit 138; the final pipeline uses binary USD packaging plus separate checking and actual RealityKit import/render. No tooling was installed to work around it.
 - Visual refinement corrected lid triangle orientation and removed unwanted mouth-seam intersections. Validation also caught that an independently re-rendered neutral poster was not byte-identical to the first frame; the static fallback now deliberately reuses the cached neutral image instead of depending on re-render identity.
 
-Rebuild everything locally, without launching Gator or installing dependencies:
+Rebuild everything locally, without launching Hot Cross Buns or installing dependencies:
 
 ```sh
 bash macos/mascot/concepts/source/rebuild.sh
@@ -181,7 +181,7 @@ The complete production Swift/Go/host suites were **not rerun for this design-on
 | 96×96 | 0.09888 s | 0.02716 s | 0.824 ms |
 | 256×256 | 0.13410 s | 0.05116 s | 1.118 ms |
 
-A four-second **offline no-render hold** accumulated about **0.000412 seconds process CPU**. It contains no on-screen view/draw loop and is **not evidence that RealityView or Gator idle costs the same**. GPU duration, watts/battery, steady on-screen idle, decoded-memory residency, multiple windows and long-session growth were not measured. The RealityKit smoke/import times include framework/asset warm-up effects and are not an in-app performance benchmark.
+A four-second **offline no-render hold** accumulated about **0.000412 seconds process CPU**. It contains no on-screen view/draw loop and is **not evidence that RealityView or Hot Cross Buns idle costs the same**. GPU duration, watts/battery, steady on-screen idle, decoded-memory residency, multiple windows and long-session growth were not measured. The RealityKit smoke/import times include framework/asset warm-up effects and are not an in-app performance benchmark.
 
 Authored geometry, including neutral-hidden details:
 

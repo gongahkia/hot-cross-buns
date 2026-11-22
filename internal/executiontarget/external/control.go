@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/companionaccess"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/executiontarget/tmux"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/companionaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget/tmux"
 )
 
 type Action struct {

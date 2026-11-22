@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 var ControlID = regexp.MustCompile(`^[a-f0-9]{32}$`)

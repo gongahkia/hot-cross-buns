@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gongahkia/gator/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
 )
 
 // View is an empty Bubble Tea adapter; the React terminal UI owns all rendering.
@@ -94,7 +94,7 @@ func normalizeTheme(value string) string {
 	case "mono":
 		return "mono"
 	default:
-		return "gator"
+		return "hot-cross-buns"
 	}
 }
 

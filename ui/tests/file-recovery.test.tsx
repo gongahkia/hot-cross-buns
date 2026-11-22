@@ -4,15 +4,15 @@ import { TextareaRenderable } from "@opentui/core"
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("file comparison and restoration keep full versions while stale recovered edits never overwrite a newer save", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-file-recovery-")), source = join(root, "long-notes.md"), original = "# Notes\n" + "Complete context retained.\n".repeat(300) + "Original final paragraph."
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-file-recovery-")), source = join(root, "long-notes.md"), original = "# Notes\n" + "Complete context retained.\n".repeat(300) + "Original final paragraph."
   await writeFile(source, original)
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -32,7 +32,7 @@ test("file comparison and restoration keep full versions while stale recovered e
     expect((await view()).text).toBe(original); expect(await readFile(source, "utf8")).toBe(original)
     setup.mockInput.pressKey("\x1b[F"); await setup.mockInput.pasteBracketedText("\nUncommitted recovery text."); await until(async () => !!(await view()).draft?.text?.includes("Uncommitted recovery text."), "retained file edit draft")
     setup.mockInput.pressEscape(); await flush(); expect(setup.captureCharFrame()).toContain("Unsaved file edits"); await choose("Keep edit draft and close")
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await open()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await open()
     expect(editor().plainText).toBe(original + "\nUncommitted recovery text."); expect(client.draft.text).toBe("Keep independent composer")
     const before = await view(); await client.host.file({ action: "save", context, ref, expected: before.current, edit: { text: "Concurrent latest saved version." } })
     setup.mockInput.pressKey("s", { ctrl: true }); await until(() => !!client.issue, "stale file save refusal"); await flush()

@@ -2,7 +2,7 @@ package tmux
 
 import (
 	"context"
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,8 +14,8 @@ import (
 // Explicit opt-in. Every mutating fixture command addresses only the fresh
 // test-created private socket. Production exposes none of these commands.
 func TestLiveIsolatedTmux(t *testing.T) {
-	if os.Getenv("GATOR_TMUX_LIVE") != "1" {
-		t.Skip("opt in with GATOR_TMUX_LIVE=1; isolated test-created server only")
+	if os.Getenv("HOT_CROSS_BUNS_TMUX_LIVE") != "1" {
+		t.Skip("opt in with HOT_CROSS_BUNS_TMUX_LIVE=1; isolated test-created server only")
 	}
 	bin, err := exec.LookPath("tmux")
 	if err != nil {
@@ -109,32 +109,32 @@ func TestLiveIsolatedTmux(t *testing.T) {
 	}
 	c.ReviewCurrent = nil
 	fixture("set-option", "-su", "command-alias[100]")
-	fixture("set-option", "-s", "command-alias[100]", "capture-pane=invalid-gator-command")
+	fixture("set-option", "-s", "command-alias[100]", "capture-pane=invalid-hot-cross-buns-command")
 	if _, err := c.Capture(ctx, native, 20); err == nil {
 		t.Fatal("malformed alias accepted")
 	}
 	fixture("set-option", "-su", "command-alias[100]")
-	fixture("set-option", "-g", "@gator_hook_called", "no")
-	fixture("set-hook", "-g", "after-capture-pane", "set-option -g @gator_hook_called yes")
+	fixture("set-option", "-g", "@hot_cross_buns_hook_called", "no")
+	fixture("set-hook", "-g", "after-capture-pane", "set-option -g @hot_cross_buns_hook_called yes")
 	if _, err := c.Capture(ctx, native, 20); err == nil {
 		t.Fatal("capture with executable hook allowed")
 	}
-	if fixture("show-option", "-gv", "@gator_hook_called") != "no" {
+	if fixture("show-option", "-gv", "@hot_cross_buns_hook_called") != "no" {
 		t.Fatal("read fired a mutation hook")
 	}
 	fixture("set-hook", "-gu", "after-capture-pane")
-	fixture("set-hook", "-g", "command-error", "set-option -g @gator_hook_called yes")
+	fixture("set-hook", "-g", "command-error", "set-option -g @hot_cross_buns_hook_called yes")
 	fixture("kill-pane", "-t", native.Pane)
 	if _, err := c.Capture(ctx, native, 20); err == nil {
 		t.Fatal("missing pane substituted")
 	}
-	if fixture("show-option", "-gv", "@gator_hook_called") != "no" {
+	if fixture("show-option", "-gv", "@hot_cross_buns_hook_called") != "no" {
 		t.Fatal("missing-pane read fired error hook")
 	}
 }
 
 func TestLiveFiniteKeyEncoding(t *testing.T) {
-	if os.Getenv("GATOR_TMUX_LIVE") != "1" {
+	if os.Getenv("HOT_CROSS_BUNS_TMUX_LIVE") != "1" {
 		t.Skip("isolated native key fixture opt-in")
 	}
 	bin, err := exec.LookPath("tmux")

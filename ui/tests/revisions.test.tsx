@@ -3,12 +3,12 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("revision navigation preserves ancestry and drafts and reopening from another directory keeps original source access", async () => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "gator-terminal-revisions-"))), workspace = join(root, "original"), other = join(root, "other"), config = join(root, "config/gator")
+  const root = await realpath(await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-revisions-"))), workspace = join(root, "original"), other = join(root, "other"), config = join(root, "config/hot-cross-buns")
   await mkdir(workspace); await mkdir(other); await mkdir(config, { recursive: true })
   await writeFile(join(workspace, "note.md"), "Original workspace evidence"); await writeFile(join(other, "note.md"), "Launch directory secret must not enter restored chat")
   const requests: { messages: { role: string; content: string }[] }[] = []
@@ -20,17 +20,17 @@ test("revision navigation preserves ancestry and drafts and reopening from anoth
     return Response.json({ choices: [{ message, finish_reason: read ? "stop" : "tool_calls" }], usage: { total_tokens: 20 } })
   } })
   await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace, env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace, env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const until = async (predicate: () => boolean, label: string) => { const end = Date.now() + 15000; while (!predicate()) { if (Date.now() > end) throw new Error(label + ": " + client.issue + "\n" + setup.captureCharFrame()); await flush() } }
-  const command = async (group: string, label: string) => { setup.mockInput.pressKey("p", { ctrl: true }); await flush(); await setup.mockInput.typeText(group); await flush(); setup.mockInput.pressEnter(); await flush(); expect(setup.captureCharFrame()).toContain(`GATOR › ${group.toUpperCase()}`); await setup.mockInput.typeText(label); await flush(); setup.mockInput.pressEnter(); await flush() }
+  const command = async (group: string, label: string) => { setup.mockInput.pressKey("p", { ctrl: true }); await flush(); await setup.mockInput.typeText(group); await flush(); setup.mockInput.pressEnter(); await flush(); expect(setup.captureCharFrame()).toContain(`HOT CROSS BUNS › ${group.toUpperCase()}`); await setup.mockInput.typeText(label); await flush(); setup.mockInput.pressEnter(); await flush() }
   try {
     await client.start(); await client.send({ type: "submit", text: "/mode inspect" }); await client.edit("Read the original note."); await client.submit(); await until(() => !client.state?.running && answers === 1, "first revision")
     const id = client.state!.conversation_id!, snapshot = client.state?.work_details?.snapshot_id
-    const selected = async () => JSON.parse(await readFile(join(root, "state/gator/conversations", id, "conversation.json"), "utf8")).head_revision_id as string
+    const selected = async () => JSON.parse(await readFile(join(root, "state/hot-cross-buns/conversations", id, "conversation.json"), "utf8")).head_revision_id as string
     const first = await selected(); expect(first).toBeTruthy()
     expect(JSON.stringify(requests)).toContain("Original workspace evidence")
     await writeFile(join(workspace, "note.md"), "Explicitly refreshed source evidence")
@@ -41,7 +41,7 @@ test("revision navigation preserves ancestry and drafts and reopening from anoth
     await command("Chats", "Move to the previous conversation revision"); await until(() => JSON.stringify(client.state?.messages).includes("Grounded result 1.") && !JSON.stringify(client.state?.messages).includes("Grounded result 2."), "previous revision")
     expect(JSON.stringify(client.state?.messages)).toContain("Grounded result 1."); expect(JSON.stringify(client.state?.messages)).not.toContain("Grounded result 2."); expect(client.draft.text).toBe("Keep revision navigation draft"); expect(await selected()).toBe(first)
     await command("Chats", "Move to the next conversation revision"); await until(() => JSON.stringify(client.state?.messages).includes("Grounded result 2."), "next revision"); expect(JSON.stringify(client.state?.messages)).toContain("Grounded result 2."); expect(requests).toHaveLength(count)
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application({ ...options, workspace: other })); setup = await render(); await client.start(); await flush()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application({ ...options, workspace: other })); setup = await render(); await client.start(); await flush()
     expect(client.state?.conversation_id).toBe(id); expect(client.state?.source).toBe(workspace); expect(await selected()).toBe(second); expect(client.draft.text).toBe("Keep revision navigation draft"); expect(requests).toHaveLength(count)
     expect(JSON.stringify(requests)).not.toContain("Launch directory secret")
   } finally { await client.close(); if (!setup.renderer.isDestroyed) await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }

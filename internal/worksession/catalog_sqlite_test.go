@@ -24,7 +24,7 @@ func indexedPage(t *testing.T, s Store, query ConversationQuery) ConversationPag
 }
 
 func TestCatalogFileURIPreservesUnixAndWindowsPaths(t *testing.T) {
-	for _, test := range []struct{ path, want string }{{"/tmp/a file?#.sqlite", "file:///tmp/a%20file%3F%23.sqlite"}, {"C:/Users/Ada Lovelace/Gator/cache.sqlite", "file:///C:/Users/Ada%20Lovelace/Gator/cache.sqlite"}} {
+	for _, test := range []struct{ path, want string }{{"/tmp/a file?#.sqlite", "file:///tmp/a%20file%3F%23.sqlite"}, {"C:/Users/Ada Lovelace/Hot Cross Buns/cache.sqlite", "file:///C:/Users/Ada%20Lovelace/Hot%20Cross%20Buns/cache.sqlite"}} {
 		uri := catalogURL(test.path)
 		if uri.String() != test.want || uri.Host != "" || uri.RawQuery != "" {
 			t.Fatal("cache path became an authority or query", uri.String(), test.want)
@@ -64,7 +64,7 @@ func TestSQLiteCatalogReconcilesHistoryWithoutIndexingPrivateReplay(t *testing.T
 	if strings.Contains(text, "private-") || !strings.Contains(text, "JADE") {
 		t.Fatal("incorrect indexed projection", text)
 	}
-	path := filepath.Join(dir, "gator", "cache", catalogIndexName)
+	path := filepath.Join(dir, "hot-cross-buns", "cache", catalogIndexName)
 	data, err := os.ReadFile(path)
 	if err != nil || !strings.HasPrefix(string(data), "SQLite format 3\x00") {
 		t.Fatal("not a persistent SQLite database", err)
@@ -136,7 +136,7 @@ func TestSQLiteCatalogIncludesCurrentAdmissionAndForgetsDiscardedText(t *testing
 func TestSQLiteCatalogRepairsOnlyDisposableCorruptionAndFallsBack(t *testing.T) {
 	s, id, dir := requestTestStore(t)
 	indexedPage(t, s, ConversationQuery{})
-	path := filepath.Join(dir, "gator", "cache", catalogIndexName)
+	path := filepath.Join(dir, "hot-cross-buns", "cache", catalogIndexName)
 	if err := os.WriteFile(path, []byte("broken SQLite index"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestSQLiteCatalogDoesNotFollowCacheSymlinks(t *testing.T) {
 	}
 	s, _, dir := requestTestStore(t)
 	outside := t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(dir, "gator", "cache")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(dir, "hot-cross-buns", "cache")); err != nil {
 		t.Fatal(err)
 	}
 	page, err := s.PageConversations(ConversationQuery{})

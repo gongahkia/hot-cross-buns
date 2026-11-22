@@ -1,4 +1,4 @@
-// Package config stores non-secret Gator settings.
+// Package config stores non-secret Hot Cross Buns settings.
 package config
 
 import (
@@ -12,20 +12,20 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/hooks"
-	"github.com/gongahkia/gator/internal/lsp"
-	"github.com/gongahkia/gator/internal/mcp"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/hooks"
+	"github.com/gongahkia/hot-cross-buns/internal/lsp"
+	"github.com/gongahkia/hot-cross-buns/internal/mcp"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
 )
 
 const version = 4
 
 // Settings is the single user-owned configuration document. Credentials do
-// not belong here; they remain in Gator's private auth store.
+// not belong here; they remain in Hot Cross Buns's private auth store.
 type WorkRole struct {
 	Version  int    `json:"version"`
 	Name     string `json:"name"`
@@ -45,7 +45,7 @@ type Settings struct {
 	Theme          string            `json:"theme,omitempty"`
 	TUI            TUISettings       `json:"tui,omitzero"`
 	// ProviderEndpoints stores explicit non-secret endpoint overrides by
-	// provider ID. Credentials remain exclusively in Gator's auth store.
+	// provider ID. Credentials remain exclusively in Hot Cross Buns's auth store.
 	ProviderEndpoints map[string]string `json:"provider_endpoints,omitempty"`
 	// ProviderOptions stores provider-specific non-secret settings such as an
 	// Azure resource, Cloudflare account ID, or Vertex project and location.
@@ -54,7 +54,7 @@ type Settings struct {
 	Extensions      []Extension                  `json:"extensions,omitempty"`
 	CustomProviders []CustomProvider             `json:"custom_providers,omitempty"`
 	// ModelAliases changes only a model's local display label. Its key is the
-	// stable provider:model identity; Gator always sends the real model ID.
+	// stable provider:model identity; Hot Cross Buns always sends the real model ID.
 	ModelAliases         map[string]string          `json:"model_aliases,omitempty"`
 	ExtensionTrusts      []ExtensionTrust           `json:"extension_trusts,omitempty"`
 	HookTrusts           []hooks.Trust              `json:"hook_trusts,omitempty"`
@@ -126,7 +126,7 @@ type Defaults struct {
 }
 
 // Extension records whether a globally installed extension is available to
-// native runs. Extension files live in Gator's data directory, not config.json.
+// native runs. Extension files live in Hot Cross Buns's data directory, not config.json.
 type Extension struct {
 	ID      string `json:"id"`
 	Enabled bool   `json:"enabled"`
@@ -194,18 +194,18 @@ func (s Settings) OptionsForProvider(provider string) map[string]string {
 	return options
 }
 
-// ResolveDir resolves Gator's configuration root. An explicit override and
-// GATOR_CONFIG_DIR are useful for tests and managed installations.
+// ResolveDir resolves Hot Cross Buns's configuration root. An explicit override and
+// HOT_CROSS_BUNS_CONFIG_DIR are useful for tests and managed installations.
 func ResolveDir(override string) (string, error) {
 	if strings.TrimSpace(override) != "" {
 		return absoluteDirectory(override)
 	}
-	if configured := os.Getenv("GATOR_CONFIG_DIR"); strings.TrimSpace(configured) != "" {
+	if configured := os.Getenv("HOT_CROSS_BUNS_CONFIG_DIR"); strings.TrimSpace(configured) != "" {
 		return absoluteDirectory(configured)
 	}
 
 	if root, err := state.ResolveDir(""); err == nil {
-		marker := filepath.Join(root, "gator", "data-control", "restored.json")
+		marker := filepath.Join(root, "hot-cross-buns", "data-control", "restored.json")
 		if info, err := os.Lstat(marker); err == nil && info.Mode().IsRegular() {
 			return filepath.Join(root, "config"), nil
 		}
@@ -218,7 +218,7 @@ func ResolveDir(override string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("resolve local application data: %w", err)
 		}
-		return filepath.Join(base, "Gator", "config"), nil
+		return filepath.Join(base, "Hot Cross Buns", "config"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -236,7 +236,7 @@ func New(configurationRoot string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	return Store{path: filepath.Join(root, "gator", "config.json")}, nil
+	return Store{path: filepath.Join(root, "hot-cross-buns", "config.json")}, nil
 }
 
 // DefaultStore opens the standard user settings location.
@@ -291,7 +291,7 @@ func (s Store) Load() (Settings, error) {
 
 // Save atomically publishes the entire settings document. Callers normally
 // load, change one field, then save so the document stays understandable when
-// inspected or managed outside Gator.
+// inspected or managed outside Hot Cross Buns.
 func (s Store) Save(settings Settings) error {
 	if strings.TrimSpace(s.path) == "" {
 		return errors.New("configuration store is not initialized")
@@ -369,7 +369,7 @@ func validate(settings Settings) error {
 	if len(settings.Defaults.Provider) > 128 || len(settings.Defaults.Model) > 512 {
 		return errors.New("configuration default exceeds its size limit")
 	}
-	if settings.Theme != "" && settings.Theme != "terminal" && settings.Theme != "gator" && settings.Theme != "contrast" && settings.Theme != "mono" && settings.Theme != "light" {
+	if settings.Theme != "" && settings.Theme != "terminal" && settings.Theme != "hot-cross-buns" && settings.Theme != "contrast" && settings.Theme != "mono" && settings.Theme != "light" {
 		return fmt.Errorf("unknown theme %q", settings.Theme)
 	}
 	if settings.TUI.StatusLine != nil {
@@ -478,7 +478,7 @@ func validate(settings Settings) error {
 			return errors.New("too many local model digest bindings")
 		}
 		for tag, digest := range provider.ModelDigests {
-			if provider.ID != "gator-local" || len(tag) == 0 || len(tag) > 512 || strings.ContainsAny(tag, "\x00\r\n") || !validSHA256(digest) {
+			if provider.ID != "hot-cross-buns-local" || len(tag) == 0 || len(tag) > 512 || strings.ContainsAny(tag, "\x00\r\n") || !validSHA256(digest) {
 				return errors.New("invalid managed local model digest binding")
 			}
 		}

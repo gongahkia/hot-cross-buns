@@ -1,7 +1,7 @@
 package workapp
 
 import (
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 	"path/filepath"
 	"strings"
 
@@ -31,7 +31,7 @@ func (m Model) openPrimaryConversation() (tea.Model, tea.Cmd) {
 	next, _ := m.runLocalCommand("/new")
 	m = next.(Model)
 	m.primary, m.primaryID = true, id
-	m.source, m.title = m.primarySource, "Gator"
+	m.source, m.title = m.primarySource, "Hot Cross Buns"
 	if id != "" {
 		m.home = false
 		m.restoreConversation(id, "")

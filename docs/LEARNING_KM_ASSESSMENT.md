@@ -1,6 +1,6 @@
 # Learning and knowledge management: current assessment
 
-30 October 2026. Recommendation: retain Gator’s local agent foundation and
+30 October 2026. Recommendation: retain Hot Cross Buns’s local agent foundation and
 validate learning, writing and project knowledge as its primary workflows.
 A shared team knowledge platform is a separate expansion, not a smaller build.
 This assessment does not authorize or implement that platform.
@@ -15,7 +15,7 @@ plan; the direction remains a hypothesis rather than a validated market.
 A conversational companion that helps someone understand a subject, develops
 useful notes, writes with clear structure and good taste, and maintains current
 project understanding with other people. Eventually this includes a shared
-editable knowledge base and Jira-like source integrations. Gator should explain
+editable knowledge base and Jira-like source integrations. Hot Cross Buns should explain
 what the project currently knows, with visible evidence and uncertainty.
 
 ## Evidence obtained
@@ -28,7 +28,7 @@ the quality of the resulting prose. No user accounts or real team data were used
 
 | Probe | Observed result | What it establishes |
 | --- | --- | --- |
-| Explain a misconception, then give feedback | Gator completed the lesson and revision with correct source arithmetic and a fresh question | A bounded teaching interaction works; learning retention is unmeasured |
+| Explain a misconception, then give feedback | Hot Cross Buns completed the lesson and revision with correct source arithmetic and a fresh question | A bounded teaching interaction works; learning retention is unmeasured |
 | Collate project notes, then apply a date correction | Markdown and JSON preserved current dates, owners and unapproved status | Source synthesis and artifact continuation work in this fixture |
 | Write and shorten a public draft | A 128-word final Markdown draft kept approval qualifiers and excluded internal details | Basic writing/revision and structure work; taste still needs review |
 | Update an existing saved project note | Agent queued a note proposal; original note stayed unchanged | A proposal is not an applied knowledge update |
@@ -45,14 +45,14 @@ future details will be shared. There is no demonstrated general prose advantage.
 The initial learning follow-up was ambiguous about whether the learner was
 answering the original example or a changed-base-rate practice question. The
 baseline’s different calculation was valid for its own question. That comparison
-must not be used to claim a Gator accuracy advantage. A focused rerun explicitly
-names the original example: **both Gator and direct chat then calculate 24.62%
-correctly**, explain the denominators and give a fresh question. Gator passes the
+must not be used to claim a Hot Cross Buns accuracy advantage. A focused rerun explicitly
+names the original example: **both Hot Cross Buns and direct chat then calculate 24.62%
+correctly**, explain the denominators and give a fresh question. Hot Cross Buns passes the
 same content checks. Original results and the review amendment are retained.
 
 ## Time and resource use
 
-| First complete run, both turns | Gator | Same-model text baseline |
+| First complete run, both turns | Hot Cross Buns | Same-model text baseline |
 | --- | ---: | ---: |
 | Provider calls | 33 | 6 |
 | Total elapsed | 122.5 seconds | 29.8 seconds |
@@ -61,14 +61,14 @@ same content checks. Original results and the review amendment are retained.
 | Tool errors / manual interventions | 0 / 0 | No tools |
 | Real deliverable files | Yes | Draft text only |
 
-Gator used about 38 times as many reported tokens in this small run. These are
-not equivalent tool workloads: Gator reads files, retains state, creates and
+Hot Cross Buns used about 38 times as many reported tokens in this small run. These are
+not equivalent tool workloads: Hot Cross Buns reads files, retains state, creates and
 validates artifacts, and revises staged outputs. The baseline receives files
 inline and returns text. The figures still expose substantial workflow overhead
 that must earn its cost through practical value. Monetary cost and caching
 discounts were not measured. One trial per task cannot establish stable latency.
 
-The clarified teaching rerun used 10 Gator calls and 24.8 seconds across its two
+The clarified teaching rerun used 10 Hot Cross Buns calls and 24.8 seconds across its two
 turns; direct chat used two calls and 10.8 seconds. These are repeat-run evidence,
 not replacements for the original task timings.
 
@@ -108,7 +108,7 @@ knowledge. These are architectural changes beyond a new prompt or connector.
 
 “Source of truth” should mean accepted, versioned project knowledge with source,
 owner, freshness and unresolved conflicts. Jira can remain authoritative for its
-ticket fields while Gator maintains and explains the project understanding.
+ticket fields while Hot Cross Buns maintains and explains the project understanding.
 A generated synthesis must not silently override the source or invent approval.
 
 ## Direction recommendation
@@ -121,7 +121,7 @@ Use a compact writing route and inspect the current broad tool/context overhead.
 
 Keep a broader shared workspace as a later option, after the personal workflow
 proves useful. The current evidence supports a narrower product focus, not a
-rewrite into a team platform. It also does not establish that Gator should become
+rewrite into a team platform. It also does not establish that Hot Cross Buns should become
 only a web-search product: these probes used provided files, not open web search.
 The foreground web catalog currently exposes selected-origin fetching; general
 search discovery needs separate evaluation and product plumbing.

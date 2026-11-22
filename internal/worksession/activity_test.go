@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
 )
 
 func TestActivitySidecarPreservesRevisionSchemaAndSurvivesRestore(t *testing.T) {

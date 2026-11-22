@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/terminal"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/terminal"
 )
 
 // TerminalToolOptions controls additive terminal capabilities that are only
@@ -59,7 +59,7 @@ type terminalStart struct {
 func (t terminalStart) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
 		Name:        "terminal_start",
-		Description: "Start a persistent pseudo-terminal task in the isolated worktree. Provide exactly one of argv (no shell) or command (bash -lc, or sh -c if bash is unavailable). Starting a terminal task follows the strict sandbox/network policy and requires developer approval unless this exact argv was already allowed for the thread. The task has bounded lifetime and scrollback and is cancelled when the run ends unless terminal_detach receives separate developer approval in an interactive Gator session. Use terminal_read for output, terminal_write for separately approved input, terminal_list for state, and terminal_stop to cancel it.",
+		Description: "Start a persistent pseudo-terminal task in the isolated worktree. Provide exactly one of argv (no shell) or command (bash -lc, or sh -c if bash is unavailable). Starting a terminal task follows the strict sandbox/network policy and requires developer approval unless this exact argv was already allowed for the thread. The task has bounded lifetime and scrollback and is cancelled when the run ends unless terminal_detach receives separate developer approval in an interactive Hot Cross Buns session. Use terminal_read for output, terminal_write for separately approved input, terminal_list for state, and terminal_stop to cancel it.",
 		Parameters:  schema(`{"type":"object","additionalProperties":false,"properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1},"command":{"type":"string"}}}`),
 	}
 }
@@ -201,7 +201,7 @@ type terminalDetach struct {
 func (t terminalDetach) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
 		Name:        "terminal_detach",
-		Description: "Keep one existing running terminal task alive after this agent run finishes. This requires a separate developer approval because it extends a process beyond the run. The task stays in its exact existing sandbox and worktree, keeps bounded output, lasts at most two hours, and remains available only while this interactive Gator process is running. It is not a daemon or a way to access the host shell.",
+		Description: "Keep one existing running terminal task alive after this agent run finishes. This requires a separate developer approval because it extends a process beyond the run. The task stays in its exact existing sandbox and worktree, keeps bounded output, lasts at most two hours, and remains available only while this interactive Hot Cross Buns process is running. It is not a daemon or a way to access the host shell.",
 		Parameters:  schema(`{"type":"object","additionalProperties":false,"required":["id"],"properties":{"id":{"type":"string","minLength":1}}}`),
 	}
 }

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 func TestExternalReceiptsParticipateInBackupDeletionAndUncertainRetention(t *testing.T) {
@@ -58,10 +58,10 @@ func TestExternalReceiptsParticipateInBackupDeletionAndUncertainRetention(t *tes
 	}
 	found := false
 	for path := range backup.Files {
-		if strings.HasPrefix(path, "gator/external-actions/") && strings.HasSuffix(path, ".json") {
+		if strings.HasPrefix(path, "hot-cross-buns/external-actions/") && strings.HasSuffix(path, ".json") {
 			found = true
 		}
-		if strings.HasPrefix(path, "gator/external-actions/") && strings.HasSuffix(path, ".lock") {
+		if strings.HasPrefix(path, "hot-cross-buns/external-actions/") && strings.HasSuffix(path, ".lock") {
 			t.Fatal("backup retained a live capability lease", path)
 		}
 	}

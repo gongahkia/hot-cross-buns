@@ -1,4 +1,4 @@
-// Package presentation owns Gator's bounded PPTX creation, inspection, and
+// Package presentation owns Hot Cross Buns's bounded PPTX creation, inspection, and
 // conservative editing surface. It deliberately edits only well-understood
 // PresentationML parts; every other package part (including VBA, media,
 // embedded objects, and unsupported animation data) is copied through.
@@ -187,7 +187,7 @@ func InspectPPTX(contents []byte) (Preview, error) {
 		}
 	}
 	if len(deck.files["ppt/vbaProject.bin"].contents) > 0 {
-		preview.Warnings = append(preview.Warnings, "Contains a VBA project; Gator preserved it without reading, executing, or editing it.")
+		preview.Warnings = append(preview.Warnings, "Contains a VBA project; Hot Cross Buns preserved it without reading, executing, or editing it.")
 	}
 	if deck.hasUnsupportedAnimations() {
 		preview.Warnings = append(preview.Warnings, "Contains animation data; unsupported animation details are preserved unchanged.")
@@ -465,7 +465,7 @@ func (d *deck) addSlide(value Slide) error {
 	d.files[fmt.Sprintf("ppt/slides/_rels/slide%d.xml.rels", number)] = newPart("", []byte(slideRelationships(number, value.Notes != "", relativePartTarget(partPath, layout))))
 	if value.Notes != "" {
 		if _, exists := d.files["ppt/notesMasters/notesMaster1.xml"]; !exists {
-			return errors.New("adding notes requires a deck with a notes master; preserve existing notes or use a Gator-created deck")
+			return errors.New("adding notes requires a deck with a notes master; preserve existing notes or use a Hot Cross Buns-created deck")
 		}
 		d.files[fmt.Sprintf("ppt/notesSlides/notesSlide%d.xml", number)] = newPart("", []byte(notesSlideXML(value.Notes)))
 		d.files[fmt.Sprintf("ppt/notesSlides/_rels/notesSlide%d.xml.rels", number)] = newPart("", []byte(notesRelationships(number)))
@@ -953,5 +953,5 @@ func themeXML(theme string) string {
 	if theme == "report" {
 		primary, accent = "1F4E79", "5B9BD5"
 	}
-	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Gator"><a:themeElements><a:clrScheme name="Gator"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="222222"/></a:dk2><a:lt2><a:srgbClr val="F5F7FA"/></a:lt2><a:accent1><a:srgbClr val="` + primary + `"/></a:accent1><a:accent2><a:srgbClr val="` + accent + `"/></a:accent2><a:accent3><a:srgbClr val="70AD47"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4><a:accent5><a:srgbClr val="ED7D31"/></a:accent5><a:accent6><a:srgbClr val="A5A5A5"/></a:accent6><a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme><a:fontScheme name="Gator"><a:majorFont><a:latin typeface="Aptos Display"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="Gator">` + themeStyleLists() + `</a:fmtScheme></a:themeElements></a:theme>`
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Hot Cross Buns"><a:themeElements><a:clrScheme name="Hot Cross Buns"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="222222"/></a:dk2><a:lt2><a:srgbClr val="F5F7FA"/></a:lt2><a:accent1><a:srgbClr val="` + primary + `"/></a:accent1><a:accent2><a:srgbClr val="` + accent + `"/></a:accent2><a:accent3><a:srgbClr val="70AD47"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4><a:accent5><a:srgbClr val="ED7D31"/></a:accent5><a:accent6><a:srgbClr val="A5A5A5"/></a:accent6><a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme><a:fontScheme name="Hot Cross Buns"><a:majorFont><a:latin typeface="Aptos Display"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="Hot Cross Buns">` + themeStyleLists() + `</a:fmtScheme></a:themeElements></a:theme>`
 }

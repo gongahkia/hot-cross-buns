@@ -1,6 +1,6 @@
 # T3.1: reviewed tmux backend trust
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -14,7 +14,7 @@ Final scope: see [T4.5 consolidation](EXECUTION-TARGETS-T4.5.md). This is a
 historical tranche record. Current scope is owned Work supervision and optional
 external tmux; Ghostty T5/T6 are permanently removed from the current roadmap.
 
-Gator accepts a locally reviewed, user-trusted backend model. It issues intended
+Hot Cross Buns accepts a locally reviewed, user-trusted backend model. It issues intended
 read operations; it does not prove that arbitrary server configuration cannot
 translate them into mutations. Review is neither enrollment nor device authority.
 The implementation uses the existing private external target catalog and the
@@ -26,7 +26,7 @@ The installed native version is tmux 3.8. In upstream 3.8 `cmd-parse.y`,
 `cmd_parse_build_command` calls `cmd_parse_expand_alias` before `cmd_parse` resolves
 built-ins. `cmd.c:cmd_get_alias` compares configured names without excluding
 canonical command names. Thus even `if-shell` can be shadowed. There is no
-alias-free guarantee for Gator's supported CLI command path. `-N` prevents server
+alias-free guarantee for Hot Cross Buns's supported CLI command path. `-N` prevents server
 startup, while `-f /dev/null` does not erase a running server's configuration.
 Control mode is not a bypass and static file inspection cannot attest runtime
 state. We deliberately do not inspect aliases through an untrusted parser.
@@ -74,11 +74,11 @@ accepts a replacement.
 Use the companion's existing profile and an already running private socket:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux candidates --reviewed-read-config /absolute/path/to/tmux /private/path/socket
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux list
-node companion/external-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux unreview TARGET_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux candidates --reviewed-read-config /absolute/path/to/tmux /private/path/socket
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux list
+node companion/external-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux unreview TARGET_ID
 ```
 
 The flag explicitly accepts the selected backend's runtime configuration and
@@ -97,14 +97,14 @@ revocation/owner rotation checks, independently of review.
 
 ## Guarantee and limits
 
-Gator requests only fixed guarded list/display/capture reads, never changes tmux
+Hot Cross Buns requests only fixed guarded list/display/capture reads, never changes tmux
 options or aliases, starts no server, installs no hooks, selects no pane, resizes
 nothing and sends no input. Existing output/deadline/HTTP limits are preserved.
 The UI describes snapshots as originating from locally trusted backends and does
 not present them as attested safe configuration or trusted approval evidence.
 
 Runtime aliases can change after review without changing process/socket identity.
-Gator does NOT automatically detect such changes safely. Known changes require
+Hot Cross Buns does NOT automatically detect such changes safely. Known changes require
 local `unreview` before the change, followed by review/new enrollment if desired.
 Undetectable runtime changes remain an accepted limitation of the user-trusted
 backend model. Likewise, a malicious same-user process can alter private state,
@@ -138,8 +138,8 @@ Run `go test ./internal/executiontarget/...`,
 `npm test --prefix app-host`, `npm run check --prefix desktop`,
 `npm test --prefix desktop`, `npm run check --prefix ui`.
 
-Native opt-in: `GATOR_TMUX_LIVE=1 go test ./internal/executiontarget/... -count=1`.
-Companion: `GATOR_TMUX_LIVE=1 node --test companion/auth.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/external.test.mjs companion/recovery.test.mjs companion/server.test.mjs companion/health.test.mjs`.
+Native opt-in: `HOT_CROSS_BUNS_TMUX_LIVE=1 go test ./internal/executiontarget/... -count=1`.
+Companion: `HOT_CROSS_BUNS_TMUX_LIVE=1 node --test companion/auth.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/external.test.mjs companion/recovery.test.mjs companion/server.test.mjs companion/health.test.mjs`.
 Chromium: `node --test companion/client.test.mjs companion/inspection-client.test.mjs companion/mutation-client.test.mjs companion/external-client.test.mjs`.
 Bun tests run only when Bun is already installed. Automated/native fixture tests
 are not physical-phone acceptance or native Linux/WSL acceptance.
@@ -169,7 +169,7 @@ makes claim A (intended reads), not claim B (configuration cannot transform them
 
 Files added: `internal/executiontarget/tmux/review.go`, this document.
 Files adapted: tmux `controller.go`, `controller_test.go`, `live_test.go`;
-external `catalog.go`, `catalog_test.go`; `cmd/gator/companion_external.go`;
+external `catalog.go`, `catalog_test.go`; `cmd/hot-cross-buns/companion_external.go`;
 `companion/external.test.mjs`, `companion/public/index.html`,
 `companion/README.md`, `docs/EXECUTION-TARGETS-T3.md`.
 Existing unrelated work was preserved. No changes to Onibi, toolchains, project

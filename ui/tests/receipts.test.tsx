@@ -4,13 +4,13 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promis
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 async function until(predicate: () => boolean | Promise<boolean>, label: string) { const end = Date.now() + 15000; while (!await predicate()) { if (Date.now() > end) throw new Error("Timed out: " + label); await Bun.sleep(20) } }
 async function fixture(holdSend = false, width = 120, height = 42) {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-receipts-")), requests: string[] = []
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-receipts-")), requests: string[] = []
   let releaseSend = () => {}, releaseRead = () => {}, messageID = "", holdRead = false
   const readGate = new Promise<void>(resolve => { releaseRead = resolve })
   const gate = new Promise<void>(resolve => { releaseSend = resolve })
@@ -32,13 +32,13 @@ async function fixture(holdSend = false, width = 120, height = 42) {
     const message = send ? { role: "assistant", tool_calls: [{ id: "send-one", type: "function", function: { name: "connector_google_gmail_send", arguments: JSON.stringify({ payload: { from: "me@example.com", to: "venue@example.com", subject: "Venue update", body: "Please review the new date." } }) } }] } : { role: "assistant", content: "The send outcome is not confirmed. Verify Sent before trying again." }
     return Response.json({ choices: [{ message, finish_reason: send ? "tool_calls" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
   } })
-  await mkdir(join(root, "config/gator"), { recursive: true })
+  await mkdir(join(root, "config/hot-cross-buns"), { recursive: true })
   const base = `http://127.0.0.1:${server.port}`
-  await writeFile(join(root, "config/gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Local fixture", kind: "google_workspace", resource: base, authentication: "none" }] }))
-  const configPath = join(root, "config/gator/config.json"), settings = JSON.parse(await readFile(configPath, "utf8"))
+  await writeFile(join(root, "config/hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Local fixture", kind: "google_workspace", resource: base, authentication: "none" }] }))
+  const configPath = join(root, "config/hot-cross-buns/config.json"), settings = JSON.parse(await readFile(configPath, "utf8"))
   settings.connectors.push({ ...settings.connectors[0], id: "google-other", name: "Other fixture account", resource: base + "/other" }); await writeFile(configPath, JSON.stringify(settings))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), options = { binary, userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), options = { binary, userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
@@ -48,7 +48,7 @@ async function fixture(holdSend = false, width = 120, height = 42) {
     holdRead() { holdRead = true }, releaseRead,
     async denyRead(deny: boolean) { const current = JSON.parse(await readFile(configPath, "utf8")); current.connector_permissions = deny ? [{ connector_id: "google", operation: "gmail_get", read: "deny" }] : []; await writeFile(configPath, JSON.stringify(current)) },
     async start() { await client.start() },
-    async restart() { await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start() },
+    async restart() { await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start() },
     async prepare() {
       await client.send({ type: "submit", text: "/mode act" }); await client.send({ type: "submit", text: "/connector add google" })
       await until(() => !!client.state?.work_details?.connector_ids.includes("google"), "connector scope")
@@ -85,7 +85,7 @@ test.skipIf(process.platform === "win32")("a crashed approved dispatch reopens o
   try {
     await f.start(); await f.prepare(); const owner = f.client.state!.conversation_id!
     await f.client.edit("Unsent after dispatch")
-    const root = join(f.root, "state/gator/external-actions"), runs = await readdir(root), run = runs.find(name => !name.startsWith("."))!, files = await readdir(join(root, run)), receipt = JSON.parse(await readFile(join(root, run, files.find(name => name.endsWith(".json"))!), "utf8"))
+    const root = join(f.root, "state/hot-cross-buns/external-actions"), runs = await readdir(root), run = runs.find(name => !name.startsWith("."))!, files = await readdir(join(root, run)), receipt = JSON.parse(await readFile(join(root, run, files.find(name => name.endsWith(".json"))!), "utf8"))
     expect(receipt.conversation_id).toBe(owner); expect(receipt.phase).toBe("executing"); expect(receipt.action.status).toBe("unknown")
     const children = execFileSync("ps", ["-axo", "pid=,ppid=,command="], { encoding: "utf8" }).split("\n").map(line => line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/)).filter(match => match && Number(match[2]) === process.pid && match[3].includes(f.binary) && match[3].includes("ui-backend"))
     expect(children).toHaveLength(1); process.kill(Number(children[0]![1]), "SIGKILL")

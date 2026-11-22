@@ -5,17 +5,17 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { createHash } from "node:crypto"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { pdfFixture, pngFixture } from "../../app-host/tests/pdf-fixture.mjs"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 async function until(predicate: () => boolean, label: string) { const end = Date.now() + 15000; while (!predicate()) { if (Date.now() > end) throw new Error(`Timed out: ${label}`); await Bun.sleep(20) } }
 test("native terminal decodes image pixels and distinct PDF pages without Electron or remote requests", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-pixels-")), imagePath = join(root, "picture.png"), pdfPath = join(root, "pages.pdf")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-pixels-")), imagePath = join(root, "picture.png"), pdfPath = join(root, "pages.pdf")
   await writeFile(pdfPath, pdfFixture())
   await writeFile(imagePath, pngFixture())
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 36 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const visual = () => { const node = setup.renderer.root.findDescendantById("file-visual-preview"); return node instanceof ImageRenderable ? node : undefined }

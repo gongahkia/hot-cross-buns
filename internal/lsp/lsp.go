@@ -1,5 +1,5 @@
 // Package lsp exposes explicitly trusted local Language Server Protocol
-// code-intelligence servers as bounded Gator tools.
+// code-intelligence servers as bounded Hot Cross Buns tools.
 package lsp
 
 import (
@@ -17,12 +17,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
-	manifestPath                    = ".gator/lsp.json"
+	manifestPath                    = ".hot-cross-buns/lsp.json"
 	manifestVersion                 = 1
 	maxManifest                     = 64 * 1024
 	maxExecutable                   = 128 * 1024 * 1024

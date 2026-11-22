@@ -7,7 +7,7 @@ import { createCompanion } from './server.mjs';
 import { checkListener } from './doctor.mjs';
 
 test('idle crash recovery is read-only, rate-limited, and health never starts a worker', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-recovery-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-recovery-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
   let companion, latest, starts = 0, actions = 0, now = 1000000;
   try {
     await writeFile(tokenFile, token + '\n', { mode: 0o600 });
@@ -46,7 +46,7 @@ test('idle crash recovery is read-only, rate-limited, and health never starts a 
 
 test('active work, approvals, and unconfirmed admission cannot restart automatically', async () => {
   for (const state of [{ running: true }, { pending_approval: { id: 1 } }, { queue: [{ text: 'pending' }] }, {}]) {
-    const root = await mkdtemp(join(tmpdir(), 'gator-recovery-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-recovery-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
     let companion, latest, starts = 0;
     try {
       await writeFile(tokenFile, token + '\n', { mode: 0o600 });

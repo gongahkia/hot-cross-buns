@@ -10,13 +10,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/inbox"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/workhome"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestHomeComposerStartsConversationAndRetainsResult(t *testing.T) {
@@ -345,10 +345,10 @@ func TestRequestedConversationRestoresTranscriptCardsAndSelectedRevision(t *test
 				OutputPath: "/retained/rev-two/output", LastBundle: bundle,
 				Messages: []TranscriptMessage{
 					{Role: "You", Text: "Draft the report"},
-					{Role: "Gator", Text: "The first draft is ready."},
+					{Role: "Hot Cross Buns", Text: "The first draft is ready."},
 					{Role: "Deliverables", Bundle: &BundleSummary{Path: "/retained/rev-one", Artifacts: []ArtifactSummary{{Path: "report.md", Valid: true}}}},
 					{Role: "You", Text: "Revise the executive summary"},
-					{Role: "Gator", Text: "The revised report is ready."},
+					{Role: "Hot Cross Buns", Text: "The revised report is ready."},
 					{Role: "Deliverables", Bundle: &bundle},
 				},
 			}, nil
@@ -379,7 +379,7 @@ func TestRevisionNavigationReloadsSelectedThreadAndBundle(t *testing.T) {
 		return ConversationState{
 			Title: "Report", SourcePath: "/source", RevisionID: revision, SnapshotID: "snap-" + revision,
 			OutputPath: bundle.Path + "/output", LastBundle: bundle,
-			Messages: []TranscriptMessage{{Role: "You", Text: "Prompt " + revision}, {Role: "Gator", Text: "Answer " + revision}, {Role: "Deliverables", Bundle: &bundle}},
+			Messages: []TranscriptMessage{{Role: "You", Text: "Prompt " + revision}, {Role: "Hot Cross Buns", Text: "Answer " + revision}, {Role: "Deliverables", Bundle: &bundle}},
 		}
 	}
 	model := New(Config{
@@ -435,7 +435,7 @@ func TestConversationPickerRefreshesRetainedConversationList(t *testing.T) {
 			return []worksession.Conversation{{ID: "work-new", Title: "Newly retained", SourcePath: "/source"}}, nil
 		},
 		LoadConversation: func(id string) (ConversationState, error) {
-			return ConversationState{Title: "Newly retained", SourcePath: "/source", RevisionID: "rev-new", Messages: []TranscriptMessage{{Role: "Gator", Text: id}}}, nil
+			return ConversationState{Title: "Newly retained", SourcePath: "/source", RevisionID: "rev-new", Messages: []TranscriptMessage{{Role: "Hot Cross Buns", Text: id}}}, nil
 		},
 	})
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyCtrlX})
@@ -730,7 +730,7 @@ func TestCopyPromptsForTheResponseOrDeliverableSummary(t *testing.T) {
 		CurrentFolder: "/work",
 		Copy:          func(text string) error { copied = append(copied, text); return nil },
 	})
-	model.messages = []message{{role: "Gator", text: "First response"}, {role: "Gator", text: "Latest response"}}
+	model.messages = []message{{role: "Hot Cross Buns", text: "First response"}, {role: "Hot Cross Buns", text: "Latest response"}}
 	model.lastBundle = BundleSummary{Path: "/state/bundle", Artifacts: []ArtifactSummary{{Path: "brief.md", Valid: true}}}
 	model.input = "/copy"
 	updated, command := model.Update(tea.KeyMsg{Type: tea.KeyEnter})

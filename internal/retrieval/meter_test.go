@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
 )
 
 type requestEmbedder struct{ calls int }

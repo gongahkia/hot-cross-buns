@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 )
 
 func (s Store) lock(_ bool) (func(), error) {

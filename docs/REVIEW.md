@@ -1,16 +1,16 @@
 # Review surfaces
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Current Work candidate review and explicit code application: [WORK_DEPTH.md](WORK_DEPTH.md).
 
-Gator reviews only a retained run worktree. Staging, feedback, and browser
+Hot Cross Buns reviews only a retained run worktree. Staging, feedback, and browser
 review never write to the checkout from which the run was started. Export and
 apply remain the explicit handoff to that checkout.
 
 ## Terminal review
 
-After a run, open `/review`. Gator loads one bounded review snapshot split into
+After a run, open `/review`. Hot Cross Buns loads one bounded review snapshot split into
 three scopes:
 
 - `1` — all changes relative to the run's recorded base commit
@@ -35,14 +35,14 @@ whole-file command.
 
 To request a precise revision, move to focused lines, press `v` to set the
 range start, move to its end, and press `r`. Enter an instruction and press
-`Ctrl+R`. Gator saves a private structured record containing the selected
+`Ctrl+R`. Hot Cross Buns saves a private structured record containing the selected
 file, current hunk identity, line numbers, before/after excerpts, and request,
 then sends it as a constrained continuation of the retained thread. The code
 excerpt is labeled untrusted context in that follow-up; the agent is told to
 inspect the current worktree before editing.
 
-`e` shows the unchanged explicit `gator work export`, `gator work apply --check`, and
-`gator work apply` handoff commands. Gator's `git_diff` tool also includes staged
+`e` shows the unchanged explicit `hot-cross-buns work export`, `hot-cross-buns work apply --check`, and
+`hot-cross-buns work apply` handoff commands. Hot Cross Buns's `git_diff` tool also includes staged
 changes, so a later continuation does not silently lose an index-only change.
 
 `/review TARGET` loads a retained thread ID, unique prefix, or run-record
@@ -58,8 +58,8 @@ protocol.
 Use a separate foreground local server for a retained run:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work review RUN_RECORD_PATH --listen 127.0.0.1:0
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work review RUN_RECORD_PATH --open
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work review RUN_RECORD_PATH --listen 127.0.0.1:0
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work review RUN_RECORD_PATH --open
 ```
 
 The command prints a one-use URL. Opening it exchanges the URL credential for a
@@ -68,8 +68,8 @@ without the credential. The browser page provides the same all/unstaged/staged
 file and hunk navigation, raw file patches, explicit stage/unstage
 confirmations, and range-scoped feedback. Browser feedback is saved beside the
 retained Work evidence and returns the exact constrained continuation text for
-review and copying. Continued work uses `gator work resume CONVERSATION` and
-Gator revision history.
+review and copying. Continued work uses `hot-cross-buns work resume CONVERSATION` and
+Hot Cross Buns revision history.
 
 This is intentionally not a general agent API or an RPC client. The review
 listener accepts literal loopback peers only, binds only literal loopback
@@ -85,13 +85,13 @@ the retained patch to the active checkout.
 
 ## Work code application
 
-`gator work review RUN_ID --preview` verifies the Work bundle and displays selected
+`hot-cross-buns work review RUN_ID --preview` verifies the Work bundle and displays selected
 Code candidates, their baseline tree and patches, changed paths, and aggregate
 verification results. Failed integration evidence remains visible.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work apply RUN_ID --code-patch code/SELECTED.patch --to ./target --check
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work apply RUN_ID --code-patch code/SELECTED.patch --to ./target
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work apply RUN_ID --code-patch code/SELECTED.patch --to ./target --check
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work apply RUN_ID --code-patch code/SELECTED.patch --to ./target
 ```
 
 Only the explicitly selected verified candidate is applied. Preflight checks the

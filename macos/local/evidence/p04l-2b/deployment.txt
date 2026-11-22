@@ -1,4 +1,4 @@
-/tmp/Gator-Native-P04L2B-Models.app/Contents/MacOS/GatorMac:
+/tmp/HotCrossBuns-Native-P04L2B-Models.app/Contents/MacOS/HotCrossBunsMac:
 Load command 11
       cmd LC_BUILD_VERSION
   cmdsize 32

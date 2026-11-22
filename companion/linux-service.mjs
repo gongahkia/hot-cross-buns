@@ -19,15 +19,15 @@ export function userService(config) {
   if (config.origin !== undefined && (typeof config.origin !== 'string' || new URL(config.origin).origin !== config.origin || new URL(config.origin).protocol !== 'https:')) throw new Error('Use an exact HTTPS origin, with no trailing slash.');
   const args = [config.node, config.entry, config.runtime, config.workspace, config.tokenFile, config.port];
   const environment = {
-    GATOR_CONFIG_DIR: config.configDir, GATOR_STATE_DIR: config.stateDir,
-    GATOR_COMPANION_ORIGIN: config.origin || '',
+    HOT_CROSS_BUNS_CONFIG_DIR: config.configDir, HOT_CROSS_BUNS_STATE_DIR: config.stateDir,
+    HOT_CROSS_BUNS_COMPANION_ORIGIN: config.origin || '',
     PATH: `${posix.dirname(config.node)}:/usr/local/bin:/usr/bin:/bin`,
   };
   // WorkingDirectory is a raw path, unlike ExecStart/Environment. A final slash
   // keeps trailing spaces or a literal backslash from becoming unit syntax.
   const workingDirectory = config.workspace.replace(/%/g, '%%') + '/';
   return `[Unit]
-Description=Gator companion listener
+Description=Hot Cross Buns companion listener
 
 [Service]
 Type=exec

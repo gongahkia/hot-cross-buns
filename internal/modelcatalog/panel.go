@@ -98,7 +98,7 @@ func (p *ModelCatalogPanel) focused() bool {
 func (p *ModelCatalogPanel) confirmationFooter(confirmation localModelConfirmation) string {
 	switch confirmation {
 	case localModelConfirmStart:
-		return "enter/y start with Gator  ·  n/esc start myself"
+		return "enter/y start with Hot Cross Buns  ·  n/esc start myself"
 	case localModelConfirmInstall:
 		return "enter/y installation help  ·  n/esc install myself"
 	case localModelConfirmRunInstallation:

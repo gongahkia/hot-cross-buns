@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 func TestMeetOnlyNarrowsRunPolicy(t *testing.T) {
@@ -38,7 +38,7 @@ func TestMeetRejectsWidening(t *testing.T) {
 
 func TestLoadWithProfileRejectsUnknownPolicyFields(t *testing.T) {
 	repository := t.TempDir()
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "profiles": [{"name": "reviewer", "instructions": "review", "policy": {"allow": true}}]
 }`)

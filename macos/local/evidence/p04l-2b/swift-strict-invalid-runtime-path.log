@@ -1,98 +1,98 @@
 [0/1] Planning build
 Building for debugging...
 [0/6] Write swift-version--58304C5D6DBC2206.txt
-[2/28] Compiling GatorCore NativeMessageContent.swift
-[3/28] Compiling GatorCore NativeMessageReaction.swift
-[4/28] Compiling GatorCore NativePlanExecution.swift
-[5/30] Compiling GatorCore NativeRecoveryPreparation.swift
-[6/30] Compiling GatorCore NativeTaskReview.swift
-[7/30] Compiling GatorCore NativeTranscriptSearch.swift
-[8/30] Compiling GatorCore NativeDraftStore.swift
-[9/30] Compiling GatorCore NativeLocalSelection.swift
-[10/30] Compiling GatorCore NativeLocalStatus.swift
-[11/30] Compiling GatorCore NativeUploadStore.swift
-[12/30] Compiling GatorCore NativeWorkspaceSelection.swift
-[13/30] Compiling GatorCore NativeProviderProtocol.swift
-[14/30] Compiling GatorCore NativeProviderSetup.swift
-[15/30] Compiling GatorCore NativeRecovery.swift
-[16/30] Compiling GatorCore NativeCatalogProtocol.swift
-[17/30] Compiling GatorCore NativeConversationCatalog.swift
-[18/30] Compiling GatorCore NativeDraftAttachments.swift
-[19/30] Compiling GatorCore GoBridgeConnection.swift
-[20/30] Compiling GatorCore ManagedSessionCoordinator.swift
-[21/30] Compiling GatorCore ManagedSessionProtocol.swift
-[22/30] Emitting module GatorCore
-[23/30] Compiling GatorCore BridgePipeIO.swift
-[24/30] Compiling GatorCore BridgeProtocol.swift
-[25/30] Compiling GatorCore GatorApplicationState.swift
-[26/105] Compiling GatorMac NativeReadingPositions.swift
-[27/105] Compiling GatorMac NativeStatusMessage.swift
-[28/105] Compiling GatorMac NativeStreamingPresentation.swift
-[29/105] Compiling GatorMac NativeStreamingReveal.swift
-[30/105] Compiling GatorMac NativeThinkingPulse.swift
-[31/110] Compiling GatorMac NativeMessageBody.swift
-[32/110] Compiling GatorMac NativeMessageReactionView.swift
-[33/110] Compiling GatorMac NativeMotionPresentation.swift
-[34/110] Compiling GatorMac NativeMotionVisibility.swift
-[35/110] Compiling GatorMac NativeProviderSecretEntry.swift
-[36/110] Emitting module GatorMac
-[37/110] Compiling GatorMac NativeErrorDisclosure.swift
-[38/110] Compiling GatorMac NativeMascotModel.swift
-[39/110] Compiling GatorMac NativeMascotPlayback.swift
-[40/110] Compiling GatorMac NativeMascotPreferences.swift
-[41/110] Compiling GatorMac NativeMascotView.swift
-[42/110] Compiling GatorMac ExactDecisionButton.swift
-[43/110] Compiling GatorMac ExactReviewContent.swift
-[44/110] Compiling GatorMac GatorApp.swift
-[45/110] Compiling GatorMac LocalModelInspectionView.swift
-[46/110] Compiling GatorMac MenuBarVisibilityToggle.swift
-[47/110] Compiling GatorMac NativeAcceptanceDiagnostics.swift
-[48/110] Compiling GatorMac NativeTranscriptFind.swift
-[49/110] Compiling GatorMac NativeWindowConfiguration.swift
-[50/110] Compiling GatorMac NativeWorkspacePicker.swift
-[51/110] Compiling GatorMac NotchQuickAccess.swift
-[52/110] Compiling GatorMac PlanReviewContent.swift
-[53/110] Compiling GatorMac NativeAccessibilityStatus.swift
-[54/110] Compiling GatorMac NativeAttachmentActions.swift
-[55/110] Compiling GatorMac NativeComposer.swift
-[56/110] Compiling GatorMac NativeComposerPresentation.swift
-[57/110] Compiling GatorMac NativeDesktopPet.swift
-[58/110] Compiling GatorMac NativeDropInput.swift
-[79/115] Compiling GatorMac ConversationView.swift
-[84/115] Compiling GatorMac AppDelegate.swift
-[85/115] Compiling GatorMac ApprovalReviewView.swift
-[86/115] Compiling GatorMac AttachmentSelectionView.swift
-[87/115] Compiling GatorMac ComposerView.swift
-[88/115] Compiling GatorMac ConversationCatalogView.swift
-[94/115] Emitting module GatorCoreTests
-[95/115] Compiling GatorCoreTests NativeWorkspaceTests.swift
-[96/115] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
-[97/115] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
-[98/115] Compiling GatorCoreTests RecoveryPreparationTests.swift
-[99/115] Compiling GatorCoreTests resource_bundle_accessor.swift
-[102/115] Compiling GatorMac RecoveryInspectorContent.swift
-[103/115] Compiling GatorMac RecoveryPreparationView.swift
-[104/115] Compiling GatorMac TaskInspectorView.swift
-[110/114] Linking GatorMac
-[111/114] Applying GatorMac
-[113/128] Compiling GatorMacTests NativeReactionGoTests.swift
-[114/128] Compiling GatorMacTests NativeStreamingTests.swift
-[115/128] Compiling GatorMacTests NativeMessageReactionTests.swift
-[116/128] Compiling GatorMacTests NativeMotionGoTests.swift
-[117/128] Compiling GatorMacTests NativeWorkspacePickerTests.swift
-[118/128] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[119/128] Compiling GatorMacTests NativeUIUXRemediationTests.swift
-[120/129] Compiling GatorMacTests NotchGeometryTests.swift
-[121/129] Compiling GatorMacTests NativeMotionRenderTests.swift
-[122/129] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[123/129] Compiling GatorMacTests NativeInputTests.swift
-[124/129] Compiling GatorMacTests NativeMascotTests.swift
-[125/129] Emitting module GatorMacTests
-[126/129] Compiling GatorMacTests LocalModelInspectionTests.swift
-[127/129] Compiling GatorMacTests NativeDesktopPetTests.swift
-[128/131] Emitting module GatorNativePackageTests
-[129/131] Compiling GatorNativePackageTests runner.swift
-[129/130] Linking GatorNativePackageTests
+[2/28] Compiling HotCrossBunsCore NativeMessageContent.swift
+[3/28] Compiling HotCrossBunsCore NativeMessageReaction.swift
+[4/28] Compiling HotCrossBunsCore NativePlanExecution.swift
+[5/30] Compiling HotCrossBunsCore NativeRecoveryPreparation.swift
+[6/30] Compiling HotCrossBunsCore NativeTaskReview.swift
+[7/30] Compiling HotCrossBunsCore NativeTranscriptSearch.swift
+[8/30] Compiling HotCrossBunsCore NativeDraftStore.swift
+[9/30] Compiling HotCrossBunsCore NativeLocalSelection.swift
+[10/30] Compiling HotCrossBunsCore NativeLocalStatus.swift
+[11/30] Compiling HotCrossBunsCore NativeUploadStore.swift
+[12/30] Compiling HotCrossBunsCore NativeWorkspaceSelection.swift
+[13/30] Compiling HotCrossBunsCore NativeProviderProtocol.swift
+[14/30] Compiling HotCrossBunsCore NativeProviderSetup.swift
+[15/30] Compiling HotCrossBunsCore NativeRecovery.swift
+[16/30] Compiling HotCrossBunsCore NativeCatalogProtocol.swift
+[17/30] Compiling HotCrossBunsCore NativeConversationCatalog.swift
+[18/30] Compiling HotCrossBunsCore NativeDraftAttachments.swift
+[19/30] Compiling HotCrossBunsCore GoBridgeConnection.swift
+[20/30] Compiling HotCrossBunsCore ManagedSessionCoordinator.swift
+[21/30] Compiling HotCrossBunsCore ManagedSessionProtocol.swift
+[22/30] Emitting module HotCrossBunsCore
+[23/30] Compiling HotCrossBunsCore BridgePipeIO.swift
+[24/30] Compiling HotCrossBunsCore BridgeProtocol.swift
+[25/30] Compiling HotCrossBunsCore HotCrossBunsApplicationState.swift
+[26/105] Compiling HotCrossBunsMac NativeReadingPositions.swift
+[27/105] Compiling HotCrossBunsMac NativeStatusMessage.swift
+[28/105] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
+[29/105] Compiling HotCrossBunsMac NativeStreamingReveal.swift
+[30/105] Compiling HotCrossBunsMac NativeThinkingPulse.swift
+[31/110] Compiling HotCrossBunsMac NativeMessageBody.swift
+[32/110] Compiling HotCrossBunsMac NativeMessageReactionView.swift
+[33/110] Compiling HotCrossBunsMac NativeMotionPresentation.swift
+[34/110] Compiling HotCrossBunsMac NativeMotionVisibility.swift
+[35/110] Compiling HotCrossBunsMac NativeProviderSecretEntry.swift
+[36/110] Emitting module HotCrossBunsMac
+[37/110] Compiling HotCrossBunsMac NativeErrorDisclosure.swift
+[38/110] Compiling HotCrossBunsMac NativeMascotModel.swift
+[39/110] Compiling HotCrossBunsMac NativeMascotPlayback.swift
+[40/110] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[41/110] Compiling HotCrossBunsMac NativeMascotView.swift
+[42/110] Compiling HotCrossBunsMac ExactDecisionButton.swift
+[43/110] Compiling HotCrossBunsMac ExactReviewContent.swift
+[44/110] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[45/110] Compiling HotCrossBunsMac LocalModelInspectionView.swift
+[46/110] Compiling HotCrossBunsMac MenuBarVisibilityToggle.swift
+[47/110] Compiling HotCrossBunsMac NativeAcceptanceDiagnostics.swift
+[48/110] Compiling HotCrossBunsMac NativeTranscriptFind.swift
+[49/110] Compiling HotCrossBunsMac NativeWindowConfiguration.swift
+[50/110] Compiling HotCrossBunsMac NativeWorkspacePicker.swift
+[51/110] Compiling HotCrossBunsMac NotchQuickAccess.swift
+[52/110] Compiling HotCrossBunsMac PlanReviewContent.swift
+[53/110] Compiling HotCrossBunsMac NativeAccessibilityStatus.swift
+[54/110] Compiling HotCrossBunsMac NativeAttachmentActions.swift
+[55/110] Compiling HotCrossBunsMac NativeComposer.swift
+[56/110] Compiling HotCrossBunsMac NativeComposerPresentation.swift
+[57/110] Compiling HotCrossBunsMac NativeDesktopPet.swift
+[58/110] Compiling HotCrossBunsMac NativeDropInput.swift
+[79/115] Compiling HotCrossBunsMac ConversationView.swift
+[84/115] Compiling HotCrossBunsMac AppDelegate.swift
+[85/115] Compiling HotCrossBunsMac ApprovalReviewView.swift
+[86/115] Compiling HotCrossBunsMac AttachmentSelectionView.swift
+[87/115] Compiling HotCrossBunsMac ComposerView.swift
+[88/115] Compiling HotCrossBunsMac ConversationCatalogView.swift
+[94/115] Emitting module HotCrossBunsCoreTests
+[95/115] Compiling HotCrossBunsCoreTests NativeWorkspaceTests.swift
+[96/115] Compiling HotCrossBunsCoreTests PresenceApprovalClosureTests.swift
+[97/115] Compiling HotCrossBunsCoreTests RecoveryPreparationIntegrationTests.swift
+[98/115] Compiling HotCrossBunsCoreTests RecoveryPreparationTests.swift
+[99/115] Compiling HotCrossBunsCoreTests resource_bundle_accessor.swift
+[102/115] Compiling HotCrossBunsMac RecoveryInspectorContent.swift
+[103/115] Compiling HotCrossBunsMac RecoveryPreparationView.swift
+[104/115] Compiling HotCrossBunsMac TaskInspectorView.swift
+[110/114] Linking HotCrossBunsMac
+[111/114] Applying HotCrossBunsMac
+[113/128] Compiling HotCrossBunsMacTests NativeReactionGoTests.swift
+[114/128] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+[115/128] Compiling HotCrossBunsMacTests NativeMessageReactionTests.swift
+[116/128] Compiling HotCrossBunsMacTests NativeMotionGoTests.swift
+[117/128] Compiling HotCrossBunsMacTests NativeWorkspacePickerTests.swift
+[118/128] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[119/128] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
+[120/129] Compiling HotCrossBunsMacTests NotchGeometryTests.swift
+[121/129] Compiling HotCrossBunsMacTests NativeMotionRenderTests.swift
+[122/129] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[123/129] Compiling HotCrossBunsMacTests NativeInputTests.swift
+[124/129] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[125/129] Emitting module HotCrossBunsMacTests
+[126/129] Compiling HotCrossBunsMacTests LocalModelInspectionTests.swift
+[127/129] Compiling HotCrossBunsMacTests NativeDesktopPetTests.swift
+[128/131] Emitting module HotCrossBunsNativePackageTests
+[129/131] Compiling HotCrossBunsNativePackageTests runner.swift
+[129/130] Linking HotCrossBunsNativePackageTests
 Build complete! (16.62s)
 Test Suite 'All tests' started at 2026-11-21 11:22:35.991.
 Test Suite 'All tests' passed at 2026-11-21 11:22:35.992.
@@ -134,11 +134,11 @@ Test Suite 'All tests' passed at 2026-11-21 11:22:35.992.
 ✔ Test safetyCleanExitReapsDirectOwnerAndFinishesAllIO() passed after 0.493 seconds.
 ◇ Test safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
 ◇ Test case passing 1 argument mode → "stdout" to safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
-GATOR_SAFETY_SHUTDOWN mode=stdout elapsed=0.306613875 seconds
+HOT_CROSS_BUNS_SAFETY_SHUTDOWN mode=stdout elapsed=0.306613875 seconds
 ◇ Test case passing 1 argument mode → "stderr" to safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
-GATOR_SAFETY_SHUTDOWN mode=stderr elapsed=0.30557375 seconds
+HOT_CROSS_BUNS_SAFETY_SHUTDOWN mode=stderr elapsed=0.30557375 seconds
 ◇ Test case passing 1 argument mode → "both" to safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
-GATOR_SAFETY_SHUTDOWN mode=both elapsed=0.304836167 seconds
+HOT_CROSS_BUNS_SAFETY_SHUTDOWN mode=both elapsed=0.304836167 seconds
 ✔ Test safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) with 3 test cases passed after 1.944 seconds.
 ◇ Test safetyUnexpectedDirectExitIsDetectedDespiteInheritedStdoutAndStderr() started.
 ✔ Test safetyUnexpectedDirectExitIsDetectedDespiteInheritedStdoutAndStderr() passed after 0.650 seconds.
@@ -240,12 +240,12 @@ GATOR_SAFETY_SHUTDOWN mode=both elapsed=0.304836167 seconds
 ◇ Test realGoFreshNativeOwnerHasDurableIdentityBeforeFirstDraftWithoutStartingWork() started.
 ✔ Test realGoFreshNativeOwnerHasDurableIdentityBeforeFirstDraftWithoutStartingWork() passed after 0.404 seconds.
 ◇ Test catalogActualGoPagesScopesOlderSelectionRenameConflictAndOwnerDrafts() started.
-GATOR_P02_RENAME requestToConfirmedCachedOwnerTitle=0.052938292 seconds
+HOT_CROSS_BUNS_P02_RENAME requestToConfirmedCachedOwnerTitle=0.052938292 seconds
 ✔ Test catalogActualGoPagesScopesOlderSelectionRenameConflictAndOwnerDrafts() passed after 11.967 seconds.
 ◇ Test catalogActualGoSmallHundredsAndLargeBoundedMeasurementsAndFallback() started.
-GATOR_P02_GO_BENCH records=12 titleRequestToResult=0.037930375 seconds workContentRequestToResult=0.018087584 seconds pageItems=12 titleFallback=false contentFallback=false incomplete=false
-GATOR_P02_GO_BENCH records=310 titleRequestToResult=1.028498417 seconds workContentRequestToResult=0.030685333 seconds pageItems=50 titleFallback=false contentFallback=false incomplete=false
-GATOR_P02_GO_BENCH records=1500 titleRequestToResult=5.128983916 seconds workContentRequestToResult=5.1722041249999995 seconds pageItems=50 titleFallback=true contentFallback=true incomplete=false
+HOT_CROSS_BUNS_P02_GO_BENCH records=12 titleRequestToResult=0.037930375 seconds workContentRequestToResult=0.018087584 seconds pageItems=12 titleFallback=false contentFallback=false incomplete=false
+HOT_CROSS_BUNS_P02_GO_BENCH records=310 titleRequestToResult=1.028498417 seconds workContentRequestToResult=0.030685333 seconds pageItems=50 titleFallback=false contentFallback=false incomplete=false
+HOT_CROSS_BUNS_P02_GO_BENCH records=1500 titleRequestToResult=5.128983916 seconds workContentRequestToResult=5.1722041249999995 seconds pageItems=50 titleFallback=true contentFallback=true incomplete=false
 ✔ Test catalogActualGoSmallHundredsAndLargeBoundedMeasurementsAndFallback() passed after 52.911 seconds.
 ◇ Test catalogManagedNonRecentOpenReusesOwnersPreservesDraftsAndNeverReconnectsDisconnectedOwner() started.
 ✔ Test catalogManagedNonRecentOpenReusesOwnersPreservesDraftsAndNeverReconnectsDisconnectedOwner() passed after 0.409 seconds.
@@ -264,7 +264,7 @@ GATOR_P02_GO_BENCH records=1500 titleRequestToResult=5.128983916 seconds workCon
 ◇ Test catalogDecodingPreservesEmptyPagesCoverageAndRejectsDuplicateRows() started.
 ✔ Test catalogDecodingPreservesEmptyPagesCoverageAndRejectsDuplicateRows() passed after 0.001 seconds.
 ◇ Test catalogBoundedSwiftProjectionAndSelectionMeasurements() started.
-GATOR_P02_SWIFT_BENCH pageSize=50 projection100=0.049577583 seconds selection1000=0.005948917 seconds
+HOT_CROSS_BUNS_P02_SWIFT_BENCH pageSize=50 projection100=0.049577583 seconds selection1000=0.005948917 seconds
 ✔ Test catalogBoundedSwiftProjectionAndSelectionMeasurements() passed after 0.056 seconds.
 ◇ Test catalogTitleValidationUsesByteLimitAndRejectsControlCharacters() started.
 ✔ Test catalogTitleValidationUsesByteLimitAndRejectsControlCharacters() passed after 0.001 seconds.
@@ -295,7 +295,7 @@ GATOR_P02_SWIFT_BENCH pageSize=50 projection100=0.049577583 seconds selection100
 ◇ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() started.
 ✔ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() passed after 0.250 seconds.
 ◇ Test nativeStreamingSnapshotHandlingBenchmark() started.
-GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=253.34811210632324 medianPerSnapshotMS=8.444937070210775
+HOT_CROSS_BUNS_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=253.34811210632324 medianPerSnapshotMS=8.444937070210775
 ✔ Test nativeStreamingSnapshotHandlingBenchmark() passed after 1.315 seconds.
 ◇ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() started.
 ✔ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() passed after 0.001 seconds.
@@ -336,13 +336,13 @@ GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=217
 ◇ Test markdownOrdinalsAndNonListPunctuationStayLiteral() started.
 ✔ Test markdownOrdinalsAndNonListPunctuationStayLiteral() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":0.57303905487060547,"messages":50,"transcriptMedianMS":0.036954879760742188},{"bytes":240934,"decodeMedianMS":5.4010152816772461,"messages":500,"transcriptMedianMS":0.33807754516601562},{"bytes":964934,"decodeMedianMS":20.724058151245117,"messages":2000,"transcriptMedianMS":1.3090372085571289}],"kind":"native-presentation","peakRSSBytes":51232768,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":0.57303905487060547,"messages":50,"transcriptMedianMS":0.036954879760742188},{"bytes":240934,"decodeMedianMS":5.4010152816772461,"messages":500,"transcriptMedianMS":0.33807754516601562},{"bytes":964934,"decodeMedianMS":20.724058151245117,"messages":2000,"transcriptMedianMS":1.3090372085571289}],"kind":"native-presentation","peakRSSBytes":51232768,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 0.213 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"36206  37088   0.0\n36207  37040   0.0\n36208  36944   0.0\n36209  37264   0.0\n","timeToConnectedMS":[68.495035171508789,54.407000541687012,67.081093788146973,63.338041305541992]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"36206  37088   0.0\n36207  37040   0.0\n36208  36944   0.0\n36209  37264   0.0\n","timeToConnectedMS":[68.495035171508789,54.407000541687012,67.081093788146973,63.338041305541992]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 3.826 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=72.55899906158447 peakRSSBytes=55558144
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=72.55899906158447 peakRSSBytes=55558144
 ✔ Test nativeThumbnailBenchmark() passed after 0.287 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.048 seconds.
@@ -439,7 +439,7 @@ retained approved without dispatch true
 ◇ Test exactTaskIdentityCombinesFailedRequestAndPlanWithoutTextMatching() started.
 ✔ Test exactTaskIdentityCombinesFailedRequestAndPlanWithoutTextMatching() passed after 0.001 seconds.
 ◇ Test realGoActionCorrectionKeepsChildOwnerAndRequiresFreshExactApproval() started.
-✘ Test realGoActionCorrectionKeepsChildOwnerAndRequiresFreshExactApproval() recorded an issue at NativeReviewIntegrationTests.swift:87:2: Caught error: Error Domain=NSCocoaErrorDomain Code=4 "The file “gator-runtime” doesn’t exist." UserInfo={NSFilePath=/tmp/Gator-Native-P04L2B-Models.app/Contents/Resources/gator-runtime}
+✘ Test realGoActionCorrectionKeepsChildOwnerAndRequiresFreshExactApproval() recorded an issue at NativeReviewIntegrationTests.swift:87:2: Caught error: Error Domain=NSCocoaErrorDomain Code=4 "The file “hot-cross-buns-runtime” doesn’t exist." UserInfo={NSFilePath=/tmp/HotCrossBuns-Native-P04L2B-Models.app/Contents/Resources/hot-cross-buns-runtime}
 ✘ Test realGoActionCorrectionKeepsChildOwnerAndRequiresFreshExactApproval() failed after 0.053 seconds with 1 issue.
 ◇ Test realGoPlanRevisionDistinguishesAdmissionFromReplacementAndRejectsOldReview() started.
 ✘ Test realGoPlanRevisionDistinguishesAdmissionFromReplacementAndRejectsOldReview() recorded an issue at NativeReviewIntegrationTests.swift:138:2: Caught error: BridgeFailure(message: "Managed Go integration timed out: review fixture ready")
@@ -498,9 +498,9 @@ retained approved without dispatch true
 ◇ Test transcriptSearchRejectsStaleGenerationConversationDeletionAndChangedContent() started.
 ✔ Test transcriptSearchRejectsStaleGenerationConversationDeletionAndChangedContent() passed after 0.001 seconds.
 ◇ Test transcriptSearchBenchmarks() started.
-GATOR_P01_BENCH messages=50 build=0.000169792 seconds query20=0.0056805 seconds absent20=0.003764167 seconds resolve1000=0.000530917 seconds liveResolve100=0.000723916 seconds
-GATOR_P01_BENCH messages=500 build=0.001596333 seconds query20=0.056462625 seconds absent20=0.03735375 seconds resolve1000=0.000519667 seconds liveResolve100=0.005018667 seconds
-GATOR_P01_BENCH messages=2000 build=0.006249584 seconds query20=0.219033 seconds absent20=0.146712792 seconds resolve1000=0.0005645 seconds liveResolve100=0.01848775 seconds
+HOT_CROSS_BUNS_P01_BENCH messages=50 build=0.000169792 seconds query20=0.0056805 seconds absent20=0.003764167 seconds resolve1000=0.000530917 seconds liveResolve100=0.000723916 seconds
+HOT_CROSS_BUNS_P01_BENCH messages=500 build=0.001596333 seconds query20=0.056462625 seconds absent20=0.03735375 seconds resolve1000=0.000519667 seconds liveResolve100=0.005018667 seconds
+HOT_CROSS_BUNS_P01_BENCH messages=2000 build=0.006249584 seconds query20=0.219033 seconds absent20=0.146712792 seconds resolve1000=0.0005645 seconds liveResolve100=0.01848775 seconds
 ✔ Test transcriptSearchBenchmarks() passed after 0.508 seconds.
 ◇ Test nativeCopiesArePrivateImmutableUniqueAndAtomic() started.
 ✔ Test nativeCopiesArePrivateImmutableUniqueAndAtomic() passed after 0.003 seconds.
@@ -525,17 +525,17 @@ GATOR_P01_BENCH messages=2000 build=0.006249584 seconds query20=0.219033 seconds
 ✘ Test workspaceActualGoCanonicalFoldersDraftsCatalogAndRestartIdentity() recorded an issue at NativeWorkspaceIntegrationTests.swift:11:2: Caught error: BridgeFailure(message: "Managed Go integration timed out: workspace original ready")
 ✘ Test workspaceActualGoCanonicalFoldersDraftsCatalogAndRestartIdentity() failed after 16.834 seconds with 1 issue.
 ◇ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() started.
-✘ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → GatorCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
+✘ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → HotCrossBunsCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
 ✘ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() failed after 1.609 seconds with 1 issue.
 ◇ Test workspaceActualGoFolderMovedBetweenValidationAndStartupKeepsPreviousOwner() started.
-✘ Test workspaceActualGoFolderMovedBetweenValidationAndStartupKeepsPreviousOwner() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → GatorCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
+✘ Test workspaceActualGoFolderMovedBetweenValidationAndStartupKeepsPreviousOwner() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → HotCrossBunsCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
 ✘ Test workspaceActualGoFolderMovedBetweenValidationAndStartupKeepsPreviousOwner() failed after 1.584 seconds with 1 issue.
 ◇ Test workspaceActualGoIndependentInstancesKeepDistinctConversationSourcesAndDrafts() started.
-✘ Test workspaceActualGoIndependentInstancesKeepDistinctConversationSourcesAndDrafts() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → GatorCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
-✘ Test workspaceActualGoIndependentInstancesKeepDistinctConversationSourcesAndDrafts() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → GatorCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
+✘ Test workspaceActualGoIndependentInstancesKeepDistinctConversationSourcesAndDrafts() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → HotCrossBunsCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
+✘ Test workspaceActualGoIndependentInstancesKeepDistinctConversationSourcesAndDrafts() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → HotCrossBunsCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
 ✘ Test workspaceActualGoIndependentInstancesKeepDistinctConversationSourcesAndDrafts() failed after 1.586 seconds with 2 issues.
 ◇ Test workspaceActualGoUnicodeNormalizationDoesNotRejectTheConfirmedDestination() started.
-✘ Test workspaceActualGoUnicodeNormalizationDoesNotRejectTheConfirmedDestination() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → GatorCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
+✘ Test workspaceActualGoUnicodeNormalizationDoesNotRejectTheConfirmedDestination() recorded an issue at NativeWorkspaceTests.swift:6:21: Expectation failed: (app → HotCrossBunsCore.ManagedSessionCoordinator).beginWorkspaceChoice() → nil
 ✘ Test workspaceActualGoUnicodeNormalizationDoesNotRejectTheConfirmedDestination() failed after 1.582 seconds with 1 issue.
 ◇ Test workspaceRequestEncodesPathAsDataAndResultIdentity() started.
 ✔ Test workspaceRequestEncodesPathAsDataAndResultIdentity() passed after 0.001 seconds.
@@ -564,7 +564,7 @@ GATOR_P01_BENCH messages=2000 build=0.006249584 seconds query20=0.219033 seconds
 ✘ Test realGoPrepareRetryAdmitsOnlyProposalAndSeparateApprovalExecutesExactlyOnce() recorded an issue at RecoveryPreparationIntegrationTests.swift:84:2: Caught error: BridgeFailure(message: "Managed Go integration timed out: preparation fixture ready")
 ✘ Test realGoPrepareRetryAdmitsOnlyProposalAndSeparateApprovalExecutesExactlyOnce() failed after 15.083 seconds with 1 issue.
 ◇ Test realGoAccessSelectionRevalidatesStaleScopeAndPreparesWithoutWrites() started.
-✘ Test realGoAccessSelectionRevalidatesStaleScopeAndPreparesWithoutWrites() recorded an issue at RecoveryPreparationIntegrationTests.swift:106:2: Caught error: Error Domain=NSCocoaErrorDomain Code=4 "The file “gator-runtime” doesn’t exist." UserInfo={NSFilePath=/tmp/Gator-Native-P04L2B-Models.app/Contents/Resources/gator-runtime}
+✘ Test realGoAccessSelectionRevalidatesStaleScopeAndPreparesWithoutWrites() recorded an issue at RecoveryPreparationIntegrationTests.swift:106:2: Caught error: Error Domain=NSCocoaErrorDomain Code=4 "The file “hot-cross-buns-runtime” doesn’t exist." UserInfo={NSFilePath=/tmp/HotCrossBuns-Native-P04L2B-Models.app/Contents/Resources/hot-cross-buns-runtime}
 ✘ Test realGoAccessSelectionRevalidatesStaleScopeAndPreparesWithoutWrites() failed after 0.131 seconds with 1 issue.
 ◇ Test realGoPreparationInterruptionRetainsPendingIdentityAndNeverReplays() started.
 ✘ Test realGoPreparationInterruptionRetainsPendingIdentityAndNeverReplays() recorded an issue at RecoveryPreparationIntegrationTests.swift:139:2: Caught error: BridgeFailure(message: "Managed Go integration timed out: preparation fixture ready")
@@ -645,8 +645,8 @@ GATOR_P01_BENCH messages=2000 build=0.006249584 seconds query20=0.219033 seconds
 ✔ Test ownerSwitchReplacesNativeCompositionContextAndKeepsCallbacksWithOriginalOwner() passed after 0.097 seconds.
 ◇ Test windowPresentationKeepsSwiftUISceneIdentityAndMapsBothSurfaces() started.
 ✔ Test windowPresentationKeepsSwiftUISceneIdentityAndMapsBothSurfaces() passed after 0.004 seconds.
-◇ Test reopeningGatorWithoutVisibleWindowsUsesTheExistingConversationScene() started.
-✔ Test reopeningGatorWithoutVisibleWindowsUsesTheExistingConversationScene() passed after 0.001 seconds.
+◇ Test reopeningHotCrossBunsWithoutVisibleWindowsUsesTheExistingConversationScene() started.
+✔ Test reopeningHotCrossBunsWithoutVisibleWindowsUsesTheExistingConversationScene() passed after 0.001 seconds.
 ◇ Test mascotStatePrecedenceAndOwnerReplacement() started.
 ✔ Test mascotStatePrecedenceAndOwnerReplacement() passed after 0.001 seconds.
 ◇ Test mascotDoesNotCelebrateUnconfirmedOrFailedWork() started.

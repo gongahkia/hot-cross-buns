@@ -12,17 +12,17 @@ const example = { node: '/usr/local/bin/node', entry: '/private/companion/main.m
 test('service plan binds exact argv/profile without embedding credentials', () => {
   const xml = launchAgent({ ...example, workspace: '/private/work & review <one>', origin: 'https://host.example' });
   assert.ok(xml.includes('<string>/private/work &amp; review &lt;one&gt;</string>'));
-  assert.ok(xml.includes('<key>GATOR_CONFIG_DIR</key><string>/private/config</string>'));
+  assert.ok(xml.includes('<key>HOT_CROSS_BUNS_CONFIG_DIR</key><string>/private/config</string>'));
   assert.ok(xml.includes('<key>Umask</key><integer>63</integer>'));
-  assert.equal(xml.includes('<key>GATOR_GOOGLE_DESKTOP_CLIENT_SECRET</key>'), false);
+  assert.equal(xml.includes('<key>HOT_CROSS_BUNS_GOOGLE_DESKTOP_CLIENT_SECRET</key>'), false);
   for (const change of [{ port: 0 }, { port: 65536 }, { runtime: 'relative' }, { tokenFile: '/path\0bad' }, { label: 'com.apple.other' }, { origin: 'http://remote.example' }, { origin: 'https://host.example/path' }, { secret: 'not-supported' }]) assert.throws(() => launchAgent({ ...example, ...change }));
 });
 
 test('native launchd starts, restarts and removes an isolated companion listener', {
-  skip: process.platform !== 'darwin' || process.env.GATOR_COMPANION_LAUNCHD_TEST !== '1', timeout: 60000,
+  skip: process.platform !== 'darwin' || process.env.HOT_CROSS_BUNS_COMPANION_LAUNCHD_TEST !== '1', timeout: 60000,
 }, async () => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'gator-launchd-')));
-  const label = `com.gator.companion.test-${randomUUID()}`, domain = `gui/${process.getuid()}`, target = `${domain}/${label}`;
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'hot-cross-buns-launchd-')));
+  const label = `com.hot-cross-buns.companion.test-${randomUUID()}`, domain = `gui/${process.getuid()}`, target = `${domain}/${label}`;
   const plist = join(root, 'service.plist'), tokenFile = join(root, 'access.token'), token = 'a'.repeat(64);
   let loaded = false;
   try {

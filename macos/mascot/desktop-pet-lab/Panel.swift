@@ -50,7 +50,7 @@ import AppKit
         guard let screen,let frame=PetGeometry.position(on:screen,placement:placement) else{hide();return}
         if panel == nil{
             let window=PetPanel(contentRect:frame,styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
-            window.title="Gator Desktop Pet — isolated";window.identifier=NSUserInterfaceItemIdentifier("pet")
+            window.title="Hot Cross Buns Desktop Pet — isolated";window.identifier=NSUserInterfaceItemIdentifier("pet")
             window.backgroundColor = .clear;window.isOpaque=false;window.hasShadow=false;window.isRestorable=false;window.animationBehavior = .none
             window.hidesOnDeactivate=false;window.isReleasedWhenClosed=false;window.isMovable=false
             window.level = .floating;window.isFloatingPanel=true;window.becomesKeyOnlyIfNeeded=true;window.worksWhenModal=false
@@ -62,7 +62,7 @@ import AppKit
                 guard let self,let screen=self.screen,let bounds=PetGeometry.clampedDrag(origin,on:screen) else{return}
                 self.panel?.setFrame(bounds,display:true);self.record?("drag-without-activation")
             }
-            target.setAccessibilityLabel("Open Gator chat — isolated fixture");target.setAccessibilityRole(.button)
+            target.setAccessibilityLabel("Open Hot Cross Buns chat — isolated fixture");target.setAccessibilityRole(.button)
             root.addSubview(target);window.contentView=root;panel=window;canvas=picture;hit=target
         }
         applyInteraction();panel?.setFrame(frame,display:true)

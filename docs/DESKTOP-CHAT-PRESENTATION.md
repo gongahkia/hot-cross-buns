@@ -1,6 +1,6 @@
 # Conversational chat presentation
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -9,7 +9,7 @@ Decision recorded 22 October 2026. The user selected **A / A / A** in the
 three design questions: Tide, hybrid activity, and all three additional
 improvements (dated chat search, contextual files, and activity polish).
 
-Keep Gator's dark neutral surfaces, sage accent, typography, Lucide icons,
+Keep Hot Cross Buns's dark neutral surfaces, sage accent, typography, Lucide icons,
 command palette, existing review flows and React/CSS stack.
 
 ## Surfaces
@@ -64,7 +64,7 @@ approvals, routing, scheduling or budgets.
 - The live desktop bridge and durable revision use the same projector. No
   existing telemetry channel gains narration payloads.
 
-Gator currently has no provider thinking event in this contract. The interface
+Hot Cross Buns currently has no provider thinking event in this contract. The interface
 shows public narration and tools; there is no synthetic thinking trace. Rich
 file viewers, full-content history search, computer control, context occupancy
 meters and connector authorization controls remain separate capabilities.
@@ -91,7 +91,7 @@ React 19, native CSS and Web Animations; no additional UI framework.
 | Typography | Landing greeting, public narration, date headings, search matches, file metadata, elapsed times | Existing tokens and font stack; wrapping and tabular durations retained. |
 | Surfaces | Activity disclosures, date rows, file rail, source previews, empty/error states | 40 px desktop controls; structural separators; exact retained file identities. |
 | Animations | Ambient field, working mark, shimmer, interruptible disclosure, rail transitions | Reduced motion, 10% playback inspection, closing controls made inert immediately. |
-| Icons | Lucide tools/search/files/check/failure icons and existing Gator symbol | Existing 1.5 px currentColor styling and explicit text states. |
+| Icons | Lucide tools/search/files/check/failure icons and existing Hot Cross Buns symbol | Existing 1.5 px currentColor styling and explicit text states. |
 | Performance | Glyph atlas, canvas clock, capped activity, bounded details, search | Canvas outside React, 20 fps, DPR capped at 2, hidden-page pause, observer cleanup; no token-driven entrance animation. |
 
 | Severity | Location | Before | After | Why |
@@ -108,7 +108,7 @@ React 19, native CSS and Web Animations; no additional UI framework.
 | Candidate | Reason |
 | --- | --- |
 | Click ripples or a permanent ASCII picker | The user explicitly removed click ripples and selected one pattern. |
-| Copying Chakra/Framer, fonts or company branding | Gator already has a coherent React/CSS system and mascot. |
+| Copying Chakra/Framer, fonts or company branding | Hot Cross Buns already has a coherent React/CSS system and mascot. |
 | Thinking labels or inferred context percentages | The current data does not support these claims. |
 | Rich Office/PDF viewers | Existing retained previews support text/Markdown and metadata; other viewers require additional capabilities. |
 
@@ -122,8 +122,8 @@ All checks use isolated profiles and local fixture providers.
 | `npm run build:runtime` and `npm run build:ui` in `desktop` | Runtime and UI build successfully. |
 | `electron-builder --dir --publish never` from `desktop` | Current macOS x64 application rebuilt; signing remains the existing manual-development configuration. |
 | `go test ./internal/workactivity ./internal/worksession ./internal/workapp ./internal/workrun` | Passes, including bounded projection, tool pairing, retained sidecars, malformed display data and display-write failure. |
-| `go test ./cmd/gator -run TestLoadWorkTUIConversation` and targeted interactive-work tests | Passes, including selected-ancestry restoration and older revisions. |
-| `go vet` for the four affected internal packages and `cmd/gator` | Passes; `worksession` checked again after the sidecar refinement. |
+| `go test ./cmd/hot-cross-buns -run TestLoadWorkTUIConversation` and targeted interactive-work tests | Passes, including selected-ancestry restoration and older revisions. |
+| `go vet` for the four affected internal packages and `cmd/hot-cross-buns` | Passes; `worksession` checked again after the sidecar refinement. |
 | `npm test --prefix desktop` | 27 passed, one Windows-native test skipped on macOS. |
 | Packaged `npm run test:e2e -- --reporter=line` | All 21 tests passed, including real runner events and reopening after a full process restart with no additional model requests. |
 | Final targeted packaged checks | Search retry, literal highlighting, dates and keyboard selection; settled Files overlay and focus return; stopped/empty activity and disclosure/search integration rechecked. |
@@ -175,7 +175,7 @@ The following records the earlier removal for rollback context.
 22 October 2026. The user removed the standalone **New topic** entry because it
 competed with the continuing main chat. Retire its sidebar button, Cmd/Ctrl+N,
 command-palette entry, slash suggestions and help references together. Empty
-conversation greetings now use Gator's common introduction. Existing saved
+conversation greetings now use Hot Cross Buns's common introduction. Existing saved
 conversations and their independent drafts remain accessible. Folder changes
 retain their existing source boundaries; the runtime reset path remains an
 internal service.
@@ -184,7 +184,7 @@ Full scoped review with the existing interface skill (React and native CSS):
 
 | Category | Evidence inspected | Result |
 | --- | --- | --- |
-| Typography | Empty-chat heading, subtitle, help and draft titles | Common Gator introduction and existing tokens. |
+| Typography | Empty-chat heading, subtitle, help and draft titles | Common Hot Cross Buns introduction and existing tokens. |
 | Surfaces | Sidebar, saved-conversation navigation and help | Remove the redundant control and its unused margin. |
 | Animations | Sidebar layout and disclosure guards | No motion added or changed; 10% playback not repeated for this removal. |
 | Icons | Sidebar imports and surviving navigation | Remove the unused Plus icon; retain the existing icon system. |
@@ -193,7 +193,7 @@ Full scoped review with the existing interface skill (React and native CSS):
 | Severity | Location | Before | After | Why |
 | --- | --- | --- | --- | --- |
 | MEDIUM | `desktop/src/App.tsx:74`, `DesktopHelp.tsx:20`, `styles.css:119` | New topic button, shortcut and reset command advertised alongside the main chat | Remove the duplicate entry points, shortcut help, unused icon and spacing | Keep the main conversation as the clear starting point. |
-| LOW | `desktop/src/App.tsx:256`, `useDrafts.ts:52` | An alternate blank-chat introduction and New topic draft label | Common Gator introduction and neutral Conversation draft label | Match the simplified conversation model. |
+| LOW | `desktop/src/App.tsx:256`, `useDrafts.ts:52` | An alternate blank-chat introduction and New topic draft label | Common Hot Cross Buns introduction and neutral Conversation draft label | Match the simplified conversation model. |
 
 Considered and rejected: deleting retained topics or source-reset infrastructure
 would lose existing scope boundaries; repurposing Cmd/Ctrl+N to reset the main
@@ -259,8 +259,8 @@ Verification:
   passed. The build retains the existing highlight/Lucide warnings.
 - From `desktop`, `./node_modules/.bin/electron-builder --dir --publish never`
   rebuilt the macOS app successfully.
-- With `GATOR_DESKTOP_TEST_EXECUTABLE` pointing to the rebuilt
-  `desktop/release/mac/Gator.app/Contents/MacOS/Gator`, ran
+- With `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE` pointing to the rebuilt
+  `desktop/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns`, ran
   `npm run test:e2e --prefix desktop -- activity.spec.ts files.spec.ts work-details.spec.ts desktop.spec.ts --grep 'public activity interleaves|real runner narration|contextual files reuse|compact work details|desktop uses real Go state|review presentation preserves' --reporter=line --output=node_modules/.cache/quiet-replies-results`.
   Five checks passed. The full Go-state check initially closed an already-open,
   remembered Sources section; corrected the test to assert its persisted state.
@@ -317,7 +317,7 @@ assistive-technology checks were not repeated.
 22 October 2026. The user ended the reference exploration and declined further
 ports except the composer model and reasoning picker recorded below. The Tide
 and hybrid activity features above were already implemented; this decision
-does not remove existing Gator functionality.
+does not remove existing Hot Cross Buns functionality.
 
 Cleanup completed on the development Mac:
 
@@ -334,7 +334,7 @@ Cleanup completed on the development Mac:
 
 Reference locations inspected:
 
-| Surface | InvestmentGini reference | Gator counterpart |
+| Surface | InvestmentGini reference | Hot Cross Buns counterpart |
 | --- | --- | --- |
 | Landing atmosphere | `src/components/PageBackground/PageBackground.tsx` | `desktop/src/AsciiWaves.tsx`; the approved Tide field already exists |
 | Completed activity and prose | `ChatMessageResponseDisplay/CollapsedReasoningSteps.tsx`, `ThinkingAnalysisMessage.tsx`, `HistoricalChatMessages.tsx` under `src/pages/ProjectDetailPage/ChatPage/` | `desktop/src/ActivityTimeline.tsx`; retain public activity and the canonical answer without duplicating it |
@@ -346,21 +346,21 @@ These locations remain reference history, not a backlog of additional UI ports.
 ## Composer model and work-effort picker
 
 22 October 2026. The user selected InvestmentGini's compact model picker as a
-reference for Gator's chat composer, using two supplied screenshots:
+reference for Hot Cross Buns's chat composer, using two supplied screenshots:
 
 - A composer pill shows the selected model and reasoning effort. Opening it
   shows the effort label, a model dropdown, a discrete effort slider, and a
   reset control.
 - Choosing the model opens a second view in the same popover, with a back
   control, models grouped by provider, and a clear selected-row checkmark.
-- Adapt the pattern to Gator's existing palette, typography and icons. Use
-  Gator's actual configured models and supported reasoning levels; the sample
+- Adapt the pattern to Hot Cross Buns's existing palette, typography and icons. Use
+  Hot Cross Buns's actual configured models and supported reasoning levels; the sample
   provider/model names and available effort stops are reference content.
 - Reference InvestmentGini's frontend implementation as needed.
 
 **Authorized and implemented on 22 October 2026.** This is the only additional
 InvestmentGini UI port selected by the user. Other proposed ports remain declined.
-The implementation uses Gator's real work-effort settings rather than presenting
+The implementation uses Hot Cross Buns's real work-effort settings rather than presenting
 unsupported provider thinking levels.
 
 
@@ -410,13 +410,13 @@ Considered and rejected:
 
 | Candidate | Reason |
 | --- | --- |
-| Copy InvestmentGini's provider thinking labels/levels | Gator exposes work budgets, not those provider parameters; presenting them would misstate the behavior |
-| Import its Chakra/Framer styling or provider-logo system | Gator already has native CSS, theme tokens, Lucide and motion helpers |
+| Copy InvestmentGini's provider thinking labels/levels | Hot Cross Buns exposes work budgets, not those provider parameters; presenting them would misstate the behavior |
+| Import its Chakra/Framer styling or provider-logo system | Hot Cross Buns already has native CSS, theme tokens, Lucide and motion helpers |
 | Continuously animate particles in the effort bar | Repeated decorative motion adds attention cost to a frequently used control |
 
 Verification:
 
-- `go test ./internal/workapp ./cmd/gator -count=1` passed.
+- `go test ./internal/workapp ./cmd/hot-cross-buns -count=1` passed.
 - Targeted composer tests cover budgets, reset, draft preservation, persisted
   model callbacks, rejected stale/busy/unavailable requests, save failures,
   display aliases, private metadata exclusion and bounded choices.
@@ -439,7 +439,7 @@ Verification:
 - `npm run pack --prefix desktop` rebuilt the local macOS app; the existing
   highlight/Lucide and bundle-size notices remain build warnings.
 - The final picker scenario also passed against the rebuilt packaged
-  `desktop/release/mac/Gator.app` (one check, 9.7 seconds), including the real
+  `desktop/release/mac/HotCrossBuns.app` (one check, 9.7 seconds), including the real
   save-failure and retry path.
 
 **Verdict: Approve for the exercised macOS scope.** Windows/Linux execution and
@@ -474,7 +474,7 @@ the preparation label also avoids moving the composer for a native dialog.
 
 Reference: the user's screenshot supplies the visual direction. Official
 [ChatGPT dictation guidance](https://learn.chatgpt.com/docs/prompting) confirms
-the speech-to-editable-composer interaction; the implementation uses Gator's
+the speech-to-editable-composer interaction; the implementation uses Hot Cross Buns's
 existing transcription services.
 
 | Category | Evidence inspected | Result |
@@ -570,11 +570,11 @@ resize redraw; comparing after layout settled passed. Screenshots were inspected
 
 **Verdict: Approve for this macOS scope.** Windows/Linux and screen-reader
 execution were not repeated. File preview/editing remains a separate proposal
-in [Files inside Gator chat](INLINE-FILES-RESEARCH.md), pending user verification.
+in [Files inside Hot Cross Buns chat](INLINE-FILES-RESEARCH.md), pending user verification.
 
 ## Follow-up: independent chats with shared personal memory
 
-22 October 2026. The approved product model is one Gator identity across several
+22 October 2026. The approved product model is one Hot Cross Buns identity across several
 chats. New chat and Cmd/Ctrl+N return, launch reopens the last selected chat,
 and a fresh working context keeps access to shared personal memory. Existing
 chat styles, command palette, files, queue and progressive disclosure remain.
@@ -604,7 +604,7 @@ new audit of every settings page or a native Windows/Linux review.
 | MEDIUM | `desktop/src/App.tsx:289` | Empty retained chats displayed the generic New chat header | Use the retained conversation title | Stable labels make saved-chat navigation understandable. |
 | MEDIUM | `desktop/src/App.tsx:360` | A raw reset command, with slash-prefixed palette queries producing no match | New chat label; accept both `/new` and `new chat` search | Visible command syntax and actual discovery should agree. |
 | MEDIUM | `desktop/src/Attachments.tsx:31`, composer paste handler | Copying a screenshot could not attach its image bytes | Paste stages the image in the existing preview/remove workflow; errors retain the text and attachments | Make clipboard intake predictable, reviewable and consistent with chosen files. |
-| MEDIUM | `internal/workapp/recall.go:149`, `cmd/gator/work_context.go:37` | Retrieval configuration without automatic-learning status or chat provenance | Learn from chats On/Off, a reversible control and source-chat/corrected labels | Users can understand and change what carries across chats without another dashboard. |
+| MEDIUM | `internal/workapp/recall.go:149`, `cmd/hot-cross-buns/work_context.go:37` | Retrieval configuration without automatic-learning status or chat provenance | Learn from chats On/Off, a reversible control and source-chat/corrected labels | Users can understand and change what carries across chats without another dashboard. |
 
 Considered but rejected:
 
@@ -621,11 +621,11 @@ execution are outside this scoped review.
 ### Verification and verdict
 
 - `go test ./internal/workapp ./internal/workrun ./internal/lifecycle ./internal/config ./internal/memory ./internal/tools ./internal/worksession -timeout 120s`: passed.
-- `go test ./cmd/gator -timeout 180s`: passed. Subsequent foreground-capsule/exclusion changes passed `go test ./cmd/gator -run 'Test.*Memory|TestChatProfile' -timeout 90s` and `go test ./internal/memory ./internal/tools -timeout 90s`.
+- `go test ./cmd/hot-cross-buns -timeout 180s`: passed. Subsequent foreground-capsule/exclusion changes passed `go test ./cmd/hot-cross-buns -run 'Test.*Memory|TestChatProfile' -timeout 90s` and `go test ./internal/memory ./internal/tools -timeout 90s`.
 - `npm run check --prefix desktop`: passed. `npm test --prefix desktop`: 44 passed, with the Windows-native handoff test skipped on macOS.
 - `npm run pack --prefix desktop`: built the unsigned macOS app. Independently compared 21 packaged Electron/UI files and the bundled Go runtime with their build inputs; all bytes matched.
 - Source desktop regressions passed for attachment/queue ownership, cancellation/errors, inline text/version recovery, native Office edits, shared memory and native paste. Two navigation findings from the regression pass (slash search and empty-chat titles) were fixed and passed in the package.
-- Packaged Electron checks passed for recent-chat/draft navigation, real Go state/forms/restart, interruptible motion, cross-chat memory and forgetting/learning controls, native image paste/preview/send/restart, and Gator/contrast/mono themes at 1440/800 px with reduced motion and collapsed navigation. The memory restart fixture was rerun successfully after waiting for the new conversation ID before recording it; this corrected an asynchronous test race.
+- Packaged Electron checks passed for recent-chat/draft navigation, real Go state/forms/restart, interruptible motion, cross-chat memory and forgetting/learning controls, native image paste/preview/send/restart, and Hot Cross Buns/contrast/mono themes at 1440/800 px with reduced motion and collapsed navigation. The memory restart fixture was rerun successfully after waiting for the new conversation ID before recording it; this corrected an asynchronous test race.
 - Native Cmd/Ctrl+V used a generated PNG. Prior OS clipboard contents stayed inside the test main process and were restored immediately. No real provider credentials or user profiles were used. Plain accompanying text and unsupported-image errors preserved the draft; send carried the staged PNG bytes through the actual Go runtime.
 - Visually inspected the normal/narrow paste screenshots, contrast/monochrome compact screens and 10% sidebar-transition midpoint. Existing focus indicators, 40 px New chat target, restrained disclosure and responsive layout remain consistent.
 
@@ -681,9 +681,9 @@ are outside this scoped macOS review.
 ### Verification and verdict
 
 - `npm run check --prefix desktop` and `npm run build:ui --prefix desktop`: passed.
-- `npm run test:e2e --prefix desktop -- chat-search.spec.ts polish.spec.ts desktop.spec.ts inline-files.spec.ts --grep 'dated chat search|text fields use quiet|motion is interruptible|Word Excel' --reporter=line`: four source-app scenarios passed. They cover row geometry at 1440/800 px, keyboard discovery and focus return, quiet focus in Gator/contrast/mono, native forms, Markdown and native Office/CSV editing, plus 10% motion reversal/reduced motion.
+- `npm run test:e2e --prefix desktop -- chat-search.spec.ts polish.spec.ts desktop.spec.ts inline-files.spec.ts --grep 'dated chat search|text fields use quiet|motion is interruptible|Word Excel' --reporter=line`: four source-app scenarios passed. They cover row geometry at 1440/800 px, keyboard discovery and focus return, quiet focus in Hot Cross Buns/contrast/mono, native forms, Markdown and native Office/CSV editing, plus 10% motion reversal/reduced motion.
 - `npm run pack --prefix desktop`: built the unsigned macOS app. Compared 21 Electron/UI files and the runtime with the packaged bytes; all matched.
-- `GATOR_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/Gator.app/Contents/MacOS/Gator" npm run test:e2e --prefix desktop -- chat-search.spec.ts polish.spec.ts --grep 'dated chat search|text fields use quiet' --reporter=line`: two packaged scenarios passed.
+- `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns" npm run test:e2e --prefix desktop -- chat-search.spec.ts polish.spec.ts --grep 'dated chat search|text fields use quiet' --reporter=line`: two packaged scenarios passed.
 - Visually inspected aligned rows with wrapped titles at 800 px, focused Saved knowledge/native form fields, the compact inline editor and the 10% sidebar midpoint. Search is absent from sidebar navigation. Text fields have no green outline or duplicate frame; normal structural borders, caret and responsive layout remain clear.
 
 **Verdict: Approve for the scoped macOS changes.** Not verified: native

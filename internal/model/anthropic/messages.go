@@ -1,4 +1,4 @@
-// Package anthropic implements Gator's adapter for the Anthropic Messages API.
+// Package anthropic implements Hot Cross Buns's adapter for the Anthropic Messages API.
 package anthropic
 
 import (
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/model/providerhttp"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/model/providerhttp"
 )
 
 const (

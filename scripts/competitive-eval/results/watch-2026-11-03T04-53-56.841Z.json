@@ -10,7 +10,7 @@
             "run_id": "attempt-20261103T045401-a79c791ab1c081af-try-1",
             "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
             "revision_id": "attempt-20261103T045401-a79c791ab1c081af-try-1",
-            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/cbf260820c9c082f05742f6ad16205cf/attempt-20261103T045401-a79c791ab1c081af-try-1"
+            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/cbf260820c9c082f05742f6ad16205cf/attempt-20261103T045401-a79c791ab1c081af-try-1"
           }
         ],
         "version": 2,
@@ -24,7 +24,7 @@
         "status": "completed",
         "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
         "revision_id": "attempt-20261103T045401-a79c791ab1c081af-try-1",
-        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/cbf260820c9c082f05742f6ad16205cf/attempt-20261103T045401-a79c791ab1c081af-try-1",
+        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/cbf260820c9c082f05742f6ad16205cf/attempt-20261103T045401-a79c791ab1c081af-try-1",
         "summary": "Prepared the baseline update.md for review; the client review deadline is 20 November 2026, with no reported blockers and budget still unapproved. [evidence: source/project.md:1-5; goal plan step step-35ea2ea9653fb7dc]",
         "result_sha256": "05a7fb5f3b0cc22c3ae508bbf1f11fdd9bdfe594ea04168aedafba0ae3ddf92a",
         "input_sha256": "4fe7e1a40da85ec2bb394126e1e565c6997f8df4fd8274eb2957fa6ae0627176",
@@ -168,7 +168,7 @@
             "run_id": "attempt-20261103T045418-c63acc6b365af249-try-1",
             "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
             "revision_id": "attempt-20261103T045418-c63acc6b365af249-try-1",
-            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/5c6cd198181889967eda6b132d110883/attempt-20261103T045418-c63acc6b365af249-try-1"
+            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/5c6cd198181889967eda6b132d110883/attempt-20261103T045418-c63acc6b365af249-try-1"
           }
         ],
         "version": 2,
@@ -182,7 +182,7 @@
         "status": "completed",
         "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
         "revision_id": "attempt-20261103T045418-c63acc6b365af249-try-1",
-        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/5c6cd198181889967eda6b132d110883/attempt-20261103T045418-c63acc6b365af249-try-1",
+        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/5c6cd198181889967eda6b132d110883/attempt-20261103T045418-c63acc6b365af249-try-1",
         "summary": "No material project change; the only source update is explicitly cosmetic, so the retained baseline draft remains unchanged. [quiet rationale references unverified; review Work run]",
         "result_sha256": "759967218104911f801f5a63edc4b8e75e35029b74144072bc38f05f117ebc29",
         "input_sha256": "cbd95f52e035e8566d975c560aafc79acf29f67c662544326280ba577cc59a88",
@@ -247,7 +247,7 @@
             "run_id": "attempt-20261103T045436-6737bb630e70ce13-try-1",
             "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
             "revision_id": "attempt-20261103T045436-6737bb630e70ce13-try-1",
-            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045436-6737bb630e70ce13-try-1"
+            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045436-6737bb630e70ce13-try-1"
           }
         ],
         "version": 2,
@@ -261,7 +261,7 @@
         "status": "completed",
         "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
         "revision_id": "attempt-20261103T045436-6737bb630e70ce13-try-1",
-        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045436-6737bb630e70ce13-try-1",
+        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045436-6737bb630e70ce13-try-1",
         "summary": "Updated update.md because client review moved to 17 November 2026 and missing venue photos are now a blocker. [evidence: source/project.md:1-5; goal plan step step-35ea2ea9653fb7dc] [other references unverified; review Work run]",
         "result_sha256": "da71a8356016b6aadfa094a1e8b3c7149674a79da7dc299344834acc18937f0f",
         "input_sha256": "9cf5d0ec617c65dfe954575d8364cecfee84812609fb623b43324658fd655322",
@@ -437,7 +437,7 @@
             "run_id": "attempt-20261103T045453-557b9036f94d494f-try-1",
             "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
             "revision_id": "attempt-20261103T045453-557b9036f94d494f-try-1",
-            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045453-557b9036f94d494f-try-1"
+            "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045453-557b9036f94d494f-try-1"
           }
         ],
         "version": 2,
@@ -451,7 +451,7 @@
         "status": "completed",
         "conversation_id": "work-20261103T045401-6c0f89b8c2b39353",
         "revision_id": "attempt-20261103T045453-557b9036f94d494f-try-1",
-        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/gator/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045453-557b9036f94d494f-try-1",
+        "bundle_path": "/private/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/TestLiveProjectWatch926977066/001/hot-cross-buns/workspaces/9fa1831810f310045327614787336c94/attempt-20261103T045453-557b9036f94d494f-try-1",
         "summary": "No material change since the last update; the 17 November deadline, missing-photo blocker, and unapproved budget are unchanged. [quiet rationale references unverified; review Work run]",
         "result_sha256": "bda9d16d0e17d6591ca04610a0ac82e0887253b323289ebf39deaf87e022838b",
         "input_sha256": "9cf5d0ec617c65dfe954575d8364cecfee84812609fb623b43324658fd655322",

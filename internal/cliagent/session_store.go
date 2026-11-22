@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 var ErrSessionReconciliation = errors.New("CLI session owner stopped with uncertain work; reconcile before resuming")
@@ -137,7 +137,7 @@ func openSession(directory, id string, binding SessionBinding) (*sessionLease, e
 			return nil, err
 		}
 	} else if !sessionIDPattern.MatchString(id) {
-		return nil, errors.New("invalid Gator CLI session ID")
+		return nil, errors.New("invalid Hot Cross Buns CLI session ID")
 	}
 	info, err := store.Lstat(id)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {

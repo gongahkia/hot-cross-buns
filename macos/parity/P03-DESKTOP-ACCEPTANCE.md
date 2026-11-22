@@ -6,18 +6,18 @@ Date: 2026-11-18. Scope: acceptance of existing workspace selection only. No P04
 
 Starting HEAD: `07675f2c5dac1fc336446116a0cecc5cf38efb94`. Existing P02/P03 implementation, reports and local changes were preserved. [Acceptance baseline](evidence/p03-desktop/baseline.json) records the worktree status and hashes before this closure.
 
-Original candidate: `/tmp/Gator-Native-Parity-P03.app`. It was exercised through `/tmp/Gator-Native-Parity-P03-Acceptance-Desktop.app`, with byte-identical Swift and Go executables and fixture-only bundle ID `dev.gator.native.p03.acceptance`. The clone isolates native preferences; it is not a different implementation. The candidate and prior bundles were preserved.
+Original candidate: `/tmp/HotCrossBuns-Native-Parity-P03.app`. It was exercised through `/tmp/HotCrossBuns-Native-Parity-P03-Acceptance-Desktop.app`, with byte-identical Swift and Go executables and fixture-only bundle ID `dev.hot-cross-buns.native.p03.acceptance`. The clone isolates native preferences; it is not a different implementation. The candidate and prior bundles were preserved.
 
-A reproducible Unicode handoff defect was found in that candidate. The focused correction requires a new candidate at `/tmp/Gator-Native-Parity-P03-Accepted.app`. Final executable hashes and desktop results are recorded below after verification.
+A reproducible Unicode handoff defect was found in that candidate. The focused correction requires a new candidate at `/tmp/HotCrossBuns-Native-Parity-P03-Accepted.app`. Final executable hashes and desktop results are recorded below after verification.
 
 ## Original candidate observations and reproduced defect
 
 The original candidate opened the standard directory panel from the Conversation menu. Selecting temporary Workspace A through the native browser returned to a new empty chat, showed the canonical Go source, exposed the composer and retained the original process/draft.
 
-- Profile: `/tmp/gator-native-test-p03-acceptance-hewe1mpn`.
+- Profile: `/tmp/hot-cross-buns-native-test-p03-acceptance-hewe1mpn`.
 - Original conversation: `work-20261118T060750-01519f44ccceba61`, owner PID 11403.
 - Workspace A: `work-20261118T061508-dd2ad5e43041d017`, owner PID 15937.
-- Confirmed A source: `/private/tmp/gator-native-test-p03-acceptance-hewe1mpn/Workspace A`.
+- Confirmed A source: `/private/tmp/hot-cross-buns-native-test-p03-acceptance-hewe1mpn/Workspace A`.
 - The native archive retained both the exact original draft and “Workspace A draft stays with A”.
 - A's Go conversation had an empty snapshot ID and no requests, dialogue, revisions or admitted work.
 
@@ -34,7 +34,7 @@ The native source endpoint previously compared Go source strings byte-for-byte. 
 Two focused changes:
 
 1. `internal/workapp/bridge_workspace.go`: after canonical resolution and the existing directory-access probe, compare the selected directory and retained source with `os.SameFile` when spellings differ. Only when Go confirms they name the same directory does it return `new:false` and retain the exact existing source spelling. Swift does not approximate filesystem identity, and different directories are not merged merely because their strings look equivalent.
-2. `macos/Sources/GatorCore/NativeWorkspaceSelection.swift`: use UTF-8 byte equality for the wire consistency check, matching Go's retained source spelling rather than Swift's Unicode-normalizing equality.
+2. `macos/Sources/HotCrossBunsCore/NativeWorkspaceSelection.swift`: use UTF-8 byte equality for the wire consistency check, matching Go's retained source spelling rather than Swift's Unicode-normalizing equality.
 
 No terminal command parser, execution authority, run admission, permissions, approval tokens, archive transactions, source snapshot/instruction policy, owner limit or process lifecycle changed. A new Swift real-Go regression checks both Unicode forms through new-owner handoff and repeated same-workspace selection. A new Go regression checks exact retained spelling on a normalization-insensitive filesystem. Existing assertions remain intact.
 
@@ -61,17 +61,17 @@ Final regression and remaining desktop observations are recorded here after the 
 
 **Final verdict: PASS for P03 desktop acceptance.**
 
-Final application: **`/tmp/Gator-Native-Parity-P03-Accepted.app`**. Its Swift and Go executables are byte-identical to `/tmp/Gator-Native-Parity-P03-Accepted-Desktop.app`, used with the isolated preference domain `dev.gator.native.p03.acceptance.fixed`. The final Go resource is byte-identical to `/tmp/gator-p03-accepted-runtime`, which passed the complete regression suite. [Integrity manifest](evidence/p03-desktop/integrity.json).
+Final application: **`/tmp/HotCrossBuns-Native-Parity-P03-Accepted.app`**. Its Swift and Go executables are byte-identical to `/tmp/HotCrossBuns-Native-Parity-P03-Accepted-Desktop.app`, used with the isolated preference domain `dev.hot-cross-buns.native.p03.acceptance.fixed`. The final Go resource is byte-identical to `/tmp/hot-cross-buns-p03-accepted-runtime`, which passed the complete regression suite. [Integrity manifest](evidence/p03-desktop/integrity.json).
 
-Before the final session, unrelated desktop input changed an earlier corrected fixture's conversation, opened task inspection and admitted its unsent fixture text. Its loopback provider was unavailable, so no model inference or external operation occurred. That profile was **invalidated for final continuity/no-Send acceptance**; these observations were not treated as a proven Gator defect. The user then reserved an uninterrupted five-minute desktop window. A fresh profile was created and the required interactions were repeated successfully. The earlier session's valid captures are explicitly labeled “original”; they are not the final acceptance evidence.
+Before the final session, unrelated desktop input changed an earlier corrected fixture's conversation, opened task inspection and admitted its unsent fixture text. Its loopback provider was unavailable, so no model inference or external operation occurred. That profile was **invalidated for final continuity/no-Send acceptance**; these observations were not treated as a proven Hot Cross Buns defect. The user then reserved an uninterrupted five-minute desktop window. A fresh profile was created and the required interactions were repeated successfully. The earlier session's valid captures are explicitly labeled “original”; they are not the final acceptance evidence.
 
-Final profile: `/tmp/gator-native-test-p03-acceptance-xat9_7tw`. Client PID 31583; retained direct Go PIDs **31584, 31649, 31767** throughout A/B navigation, same-source choice, compact cancellation and reading-position checks.
+Final profile: `/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw`. Client PID 31583; retained direct Go PIDs **31584, 31649, 31767** throughout A/B navigation, same-source choice, compact cancellation and reading-position checks.
 
 | Conversation | Exact retained ID | Go-confirmed source |
 | --- | --- | --- |
-| Original fixture | `work-20261118T064411-ce15bfc5c15ef886` | `/tmp/gator-native-test-p03-acceptance-xat9_7tw/workspace` — existing retained spelling preserved. |
-| Workspace A | `work-20261118T064511-28d7569231500461` | `/private/tmp/gator-native-test-p03-acceptance-xat9_7tw/Workspace A` |
-| Workspace B | `work-20261118T064549-c3fe983c2eae8b3b` | `/private/tmp/gator-native-test-p03-acceptance-xat9_7tw/A deliberately long parent folder for readable truncated workspace paths with spaces and café 日本/Workspace B` |
+| Original fixture | `work-20261118T064411-ce15bfc5c15ef886` | `/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/workspace` — existing retained spelling preserved. |
+| Workspace A | `work-20261118T064511-28d7569231500461` | `/private/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/Workspace A` |
+| Workspace B | `work-20261118T064549-c3fe983c2eae8b3b` | `/private/tmp/hot-cross-buns-native-test-p03-acceptance-xat9_7tw/A deliberately long parent folder for readable truncated workspace paths with spaces and café 日本/Workspace B` |
 
 The stored B path uses decomposed Unicode; the picker can supply composed text. Go confirms filesystem identity and retains the existing spelling for a same-directory choice. [Final retained records, drafts and owner PIDs](evidence/p03-desktop/controlled-final.json).
 
@@ -101,23 +101,23 @@ Code changes justified rerunning regression; no suites were rerun merely for a n
 
 ```sh
 go test ./internal/workapp -run TestNativeWorkspace -count=1
-go build -trimpath -o /tmp/gator-p03-accepted-runtime ./cmd/gator
-GATOR_TEST_BINARY=/tmp/gator-p03-accepted-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel \
+go build -trimpath -o /tmp/hot-cross-buns-p03-accepted-runtime ./cmd/hot-cross-buns
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-p03-accepted-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   --filter 'workspace|actualGoManagedDialogue'
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-GATOR_TEST_BINARY=/tmp/gator-p03-accepted-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel
-GATOR_TEST_BINARY=/tmp/gator-p03-accepted-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel \
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-p03-accepted-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-p03-accepted-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'workspace|actualGoManagedDialogue'
-go test ./cmd/gator ./internal/workapp ./internal/worksession ./internal/workspace
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/worksession ./internal/workspace
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test \
   app-host/tests/native.test.mjs app-host/tests/sessions.test.mjs \
   app-host/tests/drafts.test.mjs app-host/tests/reading-state.test.mjs \
   app-host/tests/backend.test.mjs
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Parity-P03-Accepted.app \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Parity-P03-Accepted.app \
   bash macos/scripts/build-dev-app.sh
 python3 macos/parity/evidence/p03-desktop/verify-integrity.py
 git diff --check
@@ -128,7 +128,7 @@ git diff --check
 | Targeted Swift workspace/managed-work | **17 PASS**, 17.671 seconds. [Log](evidence/p03-desktop/swift-targeted.log). |
 | Complete sequential Swift | **215 PASS**, 132.673 seconds. Original 214 plus one new real-Go Unicode regression. [Log](evidence/p03-desktop/swift-full.log). |
 | Strict Swift 6, warnings-as-errors | **17 selected PASS**, 13.863 seconds; production and test sources compiled. [Log](evidence/p03-desktop/swift-strict.log). |
-| Go cmd/gator / workapp / worksession / workspace | **Four packages PASS**; 33.540 s / 8.999 s / cached / cached. [Log](evidence/p03-desktop/go-regression.log). |
+| Go cmd/hot-cross-buns / workapp / worksession / workspace | **Four packages PASS**; 33.540 s / 8.999 s / cached / cached. [Log](evidence/p03-desktop/go-regression.log). |
 | Host native/session/draft/reading/backend | **41 PASS**, zero failures/skips, 2.262 seconds. [Log](evidence/p03-desktop/host-regression.log). |
 | Package/plist/minimum platform | PASS. macOS minimum **15.0**, SDK 26.5, no new dependencies. [Package log](evidence/p03-desktop/package.log). |
 | Source/bundle/safety integrity and diff whitespace | PASS. Exactly two production and two test files changed relative to this closure's baseline; original P03 and protected prior safety/P01/P02 files preserved. [Manifest](evidence/p03-desktop/integrity.json). |
@@ -139,8 +139,8 @@ Only these implementation/test files changed during closure:
 
 - `internal/workapp/bridge_workspace.go`
 - `internal/workapp/bridge_workspace_test.go`
-- `macos/Sources/GatorCore/NativeWorkspaceSelection.swift`
-- `macos/Tests/GatorCoreTests/NativeWorkspaceIntegrationTests.swift`
+- `macos/Sources/HotCrossBunsCore/NativeWorkspaceSelection.swift`
+- `macos/Tests/HotCrossBunsCoreTests/NativeWorkspaceIntegrationTests.swift`
 
 All other changes are the requested reports and acceptance evidence/helpers. No production UI, coordinator, transport, archive, Quit or approval/recovery implementation changed during this closure.
 

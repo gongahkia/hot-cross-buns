@@ -14,12 +14,12 @@ export function validateVoiceRequest(request) {
 
 export function microphoneAllowed(owner, contents, permission, details, grant, now = Date.now()) {
   const kinds = details.mediaTypes ?? (details.mediaType ? [details.mediaType] : []);
-  return !!owner && owner === contents && permission === "media" && details.isMainFrame !== false && !!grant && grant.expires > now && owner.getURL() === "gator://app/index.html" && kinds.length > 0 && kinds.every(kind => kind === "audio");
+  return !!owner && owner === contents && permission === "media" && details.isMainFrame !== false && !!grant && grant.expires > now && owner.getURL() === "hot-cross-buns://app/index.html" && kinds.length > 0 && kinds.every(kind => kind === "audio");
 }
 
 export function runSpeechRequest(binary, cwd, env, request, signal) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, ["desktop-speech"], { cwd, env: { ...env, GATOR_DESKTOP_SPEECH: "1" }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
+    const child = spawn(binary, ["desktop-speech"], { cwd, env: { ...env, HOT_CROSS_BUNS_DESKTOP_SPEECH: "1" }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
     let output = "", diagnostic = "", settled = false;
     const finish = (error, value) => { if (settled) return; settled = true; clearTimeout(timer); signal?.removeEventListener("abort", abort); error ? reject(error) : resolve(value); };
     const terminate = signal => { try { if (child.exitCode !== null || child.signalCode !== null) return; if (process.platform !== "win32" && child.pid) process.kill(-child.pid, signal); else child.kill(signal); } catch { /* The owned helper may already have exited. */ } };
@@ -31,7 +31,7 @@ export function runSpeechRequest(binary, cwd, env, request, signal) {
     child.stderr.on("data", chunk => { diagnostic = (diagnostic + chunk).slice(-2048); });
     child.on("error", error => finish(error)); child.stdin.on("error", () => {});
     child.on("close", code => {
-      if (code !== 0) return finish(new Error(diagnostic.trim().replace(/^Gator:\s*/, "") || "Voice transcription could not finish."));
+      if (code !== 0) return finish(new Error(diagnostic.trim().replace(/^Hot Cross Buns:\s*/, "") || "Voice transcription could not finish."));
       try { finish(undefined, JSON.parse(output)); } catch { finish(new Error("Invalid voice response.")); }
     });
     if (signal?.aborted) { abort(); return; }

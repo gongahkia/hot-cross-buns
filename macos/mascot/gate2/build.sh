@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 gate2_root="$(cd "$(dirname "$0")" && pwd)"
-gate2_app="${GATOR_GATE2_APP:-/tmp/Gator-Mascot-P04M-A2-Gate2.app}"
-if [[ -e "$gate2_app" ]]; then echo "Choose a fresh GATOR_GATE2_APP; destination exists." >&2; exit 1; fi
+gate2_app="${HOT_CROSS_BUNS_GATE2_APP:-/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app}"
+if [[ -e "$gate2_app" ]]; then echo "Choose a fresh HOT_CROSS_BUNS_GATE2_APP; destination exists." >&2; exit 1; fi
 mkdir -p "$gate2_app/Contents/MacOS" "$gate2_app/Contents/Resources"
 swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete -warnings-as-errors -O \
   -target "$(uname -m)-apple-macosx15.0" \
@@ -20,15 +20,15 @@ from pathlib import Path
 import hashlib,json,subprocess,sys
 root=Path(sys.argv[1]); sources=root/'Contents/Resources/SourceRevision'
 digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-record={'head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'swiftFlags':'-O -swift-version 6 -strict-concurrency=complete -warnings-as-errors -target arm64-apple-macosx15.0','sourceFiles':{p.name:digest(p)for p in sources.iterdir()},'binarySHA256':digest(root/'Contents/MacOS/Gate2Lab'),'USDZSHA256':digest(root/'Contents/Resources/Assets/Gator-B.usdz'),'meshCacheSHA256':digest(root/'Contents/Resources/Assets/B-native-meshes.json')}
+record={'head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'swiftFlags':'-O -swift-version 6 -strict-concurrency=complete -warnings-as-errors -target arm64-apple-macosx15.0','sourceFiles':{p.name:digest(p)for p in sources.iterdir()},'binarySHA256':digest(root/'Contents/MacOS/Gate2Lab'),'USDZSHA256':digest(root/'Contents/Resources/Assets/HotCrossBuns-B.usdz'),'meshCacheSHA256':digest(root/'Contents/Resources/Assets/B-native-meshes.json')}
 (root/'Contents/Resources/revision.json').write_text(json.dumps(record,indent=2))
 PY
 cat > "$gate2_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>dev.gator.mascot.gate2.validation</string>
-<key>CFBundleName</key><string>Gator Gate 2 Lab</string>
+<key>CFBundleIdentifier</key><string>dev.hot-cross-buns.mascot.gate2.validation</string>
+<key>CFBundleName</key><string>Hot Cross Buns Gate 2 Lab</string>
 <key>CFBundleExecutable</key><string>Gate2Lab</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>15.0</string>

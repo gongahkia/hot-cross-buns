@@ -1,6 +1,6 @@
 # Conversation concept
 
-![Gator conversation concept](preview.png)
+![Hot Cross Buns conversation concept](preview.png)
 
 [Dark appearance](preview-dark.png)
 
@@ -45,7 +45,7 @@ Verification: exercised with headless Chrome through Playwright. Checked draft
 continuity across topics, exact email review, file preview, theme switching,
 continued messaging during the working example, unavailable-check copy, first-request preservation
 through setup, corrected-memory continuity, reduced motion and 390 px overflow.
-The default now opens a persistent Gator conversation, with separate topics
+The default now opens a persistent Hot Cross Buns conversation, with separate topics
 available on request. Inspected screenshots at
 1440×1000 and 800×600. No production or competitor app runtime was inspected.
 

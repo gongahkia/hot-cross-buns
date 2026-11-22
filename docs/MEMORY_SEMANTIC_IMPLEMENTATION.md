@@ -57,10 +57,10 @@ not a permanent blanket history switch. User-visible transcripts remain intact.
 ## Owner controls
 
 ```sh
-gator memory withdrawals [--goal GOAL_ID]
-gator memory withdrawals review ID --scope personal --expected REVISION --topic "the user's keyboard preferences"
+hot-cross-buns memory withdrawals [--goal GOAL_ID]
+hot-cross-buns memory withdrawals review ID --scope personal --expected REVISION --topic "the user's keyboard preferences"
 # For a goal use: --scope goal --goal GOAL_ID
-gator memory forget MEMORY_ID --topic "the user's keyboard preferences" --expected-updated TIMESTAMP
+hot-cross-buns memory forget MEMORY_ID --topic "the user's keyboard preferences" --expected-updated TIMESTAMP
 ```
 
 `withdrawals` reports abstract topics, pending metadata, scope, timestamps and
@@ -110,7 +110,7 @@ Local affected race suites pass for memory, tools, retrieval, personalization,
 lifecycle, workapp and workrun. Focused command memory/recall/maintenance tests
 and terminal memory/restart tests also pass. Production Executor tests verify
 shared budgets and that private classifier context never enters retained replay.
-[Native CI run 40995174776](https://github.com/gongahkia/gator/actions/runs/40995174776)
+[Native CI run 40995174776](https://github.com/gongahkia/hot-cross-buns/actions/runs/40995174776)
 passes Windows, Linux, Intel macOS and ARM macOS at product checkpoint
 `4ab982826`, including native memory/lifecycle suites, terminal UI, installation,
 upgrade/rollback and Unix terminal handoff. Later benchmark-only files are

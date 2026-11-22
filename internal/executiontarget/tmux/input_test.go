@@ -3,7 +3,7 @@ package tmux
 import (
 	"context"
 	"errors"
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 	"strings"
 	"testing"
 )

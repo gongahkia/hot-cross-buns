@@ -53,7 +53,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2041399416/gator/traces/local-first-C-dev-short-chat-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2041399416/hot-cross-buns/traces/local-first-C-dev-short-chat-01/trace.json",
       "spans": [
         {
           "id": "ad1c370fc7fab4e9",
@@ -207,7 +207,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "679c4c4fd7f29fea9da1d478aef705f5b701edf73fc07cb317ea39adb6c8a93a",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2041399416/gator/workspaces/326657d2369ea6541c2e11d60984804d/local-first-C-dev-short-chat-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2041399416/hot-cross-buns/workspaces/326657d2369ea6541c2e11d60984804d/local-first-C-dev-short-chat-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -256,7 +256,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-1127390259/gator/traces/local-first-C-dev-summarization-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-1127390259/hot-cross-buns/traces/local-first-C-dev-summarization-01/trace.json",
       "spans": [
         {
           "id": "297ae322d56c804e",
@@ -410,7 +410,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "013be6e6c0407344dc3881d2c3f50dcd714305abace5632f6d62417a739388f7",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-1127390259/gator/workspaces/663b5f4950ecb36ba192dddee13eeaa3/local-first-C-dev-summarization-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-1127390259/hot-cross-buns/workspaces/663b5f4950ecb36ba192dddee13eeaa3/local-first-C-dev-summarization-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -459,7 +459,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3262640500/gator/traces/local-first-C-dev-multi-source-synthesis-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3262640500/hot-cross-buns/traces/local-first-C-dev-multi-source-synthesis-01/trace.json",
       "spans": [
         {
           "id": "e91d72254b55399d",
@@ -679,7 +679,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "5962066d2a0d4b94d093e71d6967561dd52311c60471f079740af287a407715b",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3262640500/gator/workspaces/354df5e7bbbe913f7ace0adde3bd5122/local-first-C-dev-multi-source-synthesis-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3262640500/hot-cross-buns/workspaces/354df5e7bbbe913f7ace0adde3bd5122/local-first-C-dev-multi-source-synthesis-01",
       "usage": {
         "unknown_requests": 5,
         "model_requests": 5,
@@ -728,7 +728,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2035107775/gator/traces/local-first-C-dev-planning-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2035107775/hot-cross-buns/traces/local-first-C-dev-planning-01/trace.json",
       "spans": [
         {
           "id": "4335727df40f826f",
@@ -882,7 +882,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "9264dd3e4d642b78ffb58d8849477dda127e283fea73518f20662fdae057efff",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2035107775/gator/workspaces/3a162979efa2dfd3df351f637f53cc1d/local-first-C-dev-planning-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2035107775/hot-cross-buns/workspaces/3a162979efa2dfd3df351f637f53cc1d/local-first-C-dev-planning-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -931,7 +931,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3939310893/gator/traces/local-first-C-dev-structured-output-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3939310893/hot-cross-buns/traces/local-first-C-dev-structured-output-01/trace.json",
       "spans": [
         {
           "id": "e288309590703530",
@@ -1085,7 +1085,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "772f76d6f3c3e71eaf138c44550f783434582063a7305c0698f048bcd6225eab",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3939310893/gator/workspaces/5f4e25239afb46dccf199d28521b84c2/local-first-C-dev-structured-output-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3939310893/hot-cross-buns/workspaces/5f4e25239afb46dccf199d28521b84c2/local-first-C-dev-structured-output-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1134,7 +1134,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2040061826/gator/traces/local-first-C-dev-tool-selection-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2040061826/hot-cross-buns/traces/local-first-C-dev-tool-selection-01/trace.json",
       "spans": [
         {
           "id": "81f3a2659f825a48",
@@ -1288,7 +1288,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "8ce82ed484d74b753cdf82099acd79fdd662119bdf4d76b448ba87ceaac7834d",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2040061826/gator/workspaces/e488452f4b47272529427ccb7b004b21/local-first-C-dev-tool-selection-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2040061826/hot-cross-buns/workspaces/e488452f4b47272529427ccb7b004b21/local-first-C-dev-tool-selection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1337,7 +1337,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2180520110/gator/traces/local-first-C-dev-tool-arguments-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2180520110/hot-cross-buns/traces/local-first-C-dev-tool-arguments-01/trace.json",
       "spans": [
         {
           "id": "bda3b4f480ee323f",
@@ -1529,7 +1529,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "43bec6ccbae115c2a78b7859d50352e6c7da3c1dcb4785ec2b23c4928f4b6924",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2180520110/gator/workspaces/f779669e6e19518ceb89206541751e8b/local-first-C-dev-tool-arguments-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2180520110/hot-cross-buns/workspaces/f779669e6e19518ceb89206541751e8b/local-first-C-dev-tool-arguments-01",
       "usage": {
         "unknown_requests": 4,
         "model_requests": 4,
@@ -1578,7 +1578,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4129511042/gator/traces/local-first-C-dev-no-tool-needed-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4129511042/hot-cross-buns/traces/local-first-C-dev-no-tool-needed-01/trace.json",
       "spans": [
         {
           "id": "0de58d5bdfd4846b",
@@ -1664,7 +1664,7 @@
       "contract_sha256": "56211dd814891dffbc263b7fdb9b1f6edfe43d721e9c00a8acafa7dcfc74fc12",
       "policy_sha256": "a8cf6c7981d24faf8876c8717056e2738b066d4a510cb45fa19384becd8786e8",
       "source_sha256": "692dffd1a428491dd4f687a4820bf6dadce1856685c4904c9a3625db8a905cf7",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4129511042/gator/workspaces/d4b1c3744ab7e4a13805a266332ad80b/local-first-C-dev-no-tool-needed-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4129511042/hot-cross-buns/workspaces/d4b1c3744ab7e4a13805a266332ad80b/local-first-C-dev-no-tool-needed-01",
       "usage": {
         "unknown_requests": 1,
         "model_requests": 1,
@@ -1713,7 +1713,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2808970895/gator/traces/local-first-C-dev-delegation-needed-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2808970895/hot-cross-buns/traces/local-first-C-dev-delegation-needed-01/trace.json",
       "spans": [
         {
           "id": "38e30cbe01ad27c2",
@@ -1867,7 +1867,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d44dd6152a81ad861ce5f233635ce6dd0f32c660e378f6d3e5cc40ec589cde2f",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2808970895/gator/workspaces/1b4bbdd57c69ca9ee9f4dd2ce13b3fca/local-first-C-dev-delegation-needed-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2808970895/hot-cross-buns/workspaces/1b4bbdd57c69ca9ee9f4dd2ce13b3fca/local-first-C-dev-delegation-needed-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1916,7 +1916,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3283599296/gator/traces/local-first-C-dev-specialist-choice-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3283599296/hot-cross-buns/traces/local-first-C-dev-specialist-choice-01/trace.json",
       "spans": [
         {
           "id": "f0bd6d5e47c43460",
@@ -2070,7 +2070,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d0e5506b4fec1603900fbb215a60fcc282f2a294f6a8dd963ebb9c2a3195847c",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3283599296/gator/workspaces/201566bffac1eb73814045898c7beaad/local-first-C-dev-specialist-choice-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3283599296/hot-cross-buns/workspaces/201566bffac1eb73814045898c7beaad/local-first-C-dev-specialist-choice-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2119,7 +2119,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3582659245/gator/traces/local-first-C-dev-unnecessary-delegation-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3582659245/hot-cross-buns/traces/local-first-C-dev-unnecessary-delegation-01/trace.json",
       "spans": [
         {
           "id": "f0305850ae22dc87",
@@ -2273,7 +2273,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d1dcc1489cd9d61c4d10445995c56883d5c7316832a0526e03b18c9b9c1eca07",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3582659245/gator/workspaces/cb7273758f7cf38b0a2c5e2aa1f4a389/local-first-C-dev-unnecessary-delegation-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3582659245/hot-cross-buns/workspaces/cb7273758f7cf38b0a2c5e2aa1f4a389/local-first-C-dev-unnecessary-delegation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2322,7 +2322,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3009826692/gator/traces/local-first-C-dev-specialist-failure-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3009826692/hot-cross-buns/traces/local-first-C-dev-specialist-failure-01/trace.json",
       "spans": [
         {
           "id": "bc04a29473b933a3",
@@ -2476,7 +2476,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d0d5dd7e882ab089bb722c1e09432311d3abc9ba69866c705f696c5d55ad6346",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3009826692/gator/workspaces/bbcb6a529ba9bdc63a27aeacff279ae0/local-first-C-dev-specialist-failure-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3009826692/hot-cross-buns/workspaces/bbcb6a529ba9bdc63a27aeacff279ae0/local-first-C-dev-specialist-failure-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2525,7 +2525,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-522571887/gator/traces/local-first-C-dev-specialist-integration-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-522571887/hot-cross-buns/traces/local-first-C-dev-specialist-integration-01/trace.json",
       "spans": [
         {
           "id": "684adde39c373edf",
@@ -2679,7 +2679,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "8bff543b6b0030ce409e19ff3e807aac745802e3e694fa155c2ee94a3de437e0",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-522571887/gator/workspaces/a7d48957aea37958d162b97ad8f141a8/local-first-C-dev-specialist-integration-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-522571887/hot-cross-buns/workspaces/a7d48957aea37958d162b97ad8f141a8/local-first-C-dev-specialist-integration-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2728,7 +2728,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2505041935/gator/traces/local-first-C-dev-incomplete-work-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2505041935/hot-cross-buns/traces/local-first-C-dev-incomplete-work-01/trace.json",
       "spans": [
         {
           "id": "02741bebea0e71de",
@@ -2882,7 +2882,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "3dd5fe1934f76ed859daaaa505af6714bcd3b5e4830e3438450ae07c7965f42d",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2505041935/gator/workspaces/bfe672b54b2f0adbd52f18cd724c241d/local-first-C-dev-incomplete-work-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2505041935/hot-cross-buns/workspaces/bfe672b54b2f0adbd52f18cd724c241d/local-first-C-dev-incomplete-work-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2931,7 +2931,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2691760826/gator/traces/local-first-C-dev-user-correction-01-rev1/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2691760826/hot-cross-buns/traces/local-first-C-dev-user-correction-01-rev1/trace.json",
       "spans": [
         {
           "id": "93560c777d2650c6",
@@ -3052,7 +3052,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "01a0f16a88dd73ad2defc25c968b43f0f4a53d9be7509ddfc73d916abba5bde3",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2691760826/gator/workspaces/abafbcec63ae0373fd60ea58883feac8/local-first-C-dev-user-correction-01-rev1",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2691760826/hot-cross-buns/workspaces/abafbcec63ae0373fd60ea58883feac8/local-first-C-dev-user-correction-01-rev1",
       "usage": {
         "unknown_requests": 5,
         "model_requests": 5,
@@ -3101,7 +3101,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3417612483/gator/traces/local-first-C-dev-duplicate-work-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3417612483/hot-cross-buns/traces/local-first-C-dev-duplicate-work-01/trace.json",
       "spans": [
         {
           "id": "53da6ea29c45c7f1",
@@ -3255,7 +3255,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "7af8f6a0c5d88f119f6aa436db69db7a93b6b63916e4e71d3e8f51bae3913ba2",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-3417612483/gator/workspaces/9e72a322e2c1751fe9bcd99840984085/local-first-C-dev-duplicate-work-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-3417612483/hot-cross-buns/workspaces/9e72a322e2c1751fe9bcd99840984085/local-first-C-dev-duplicate-work-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3304,7 +3304,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-766258492/gator/traces/local-first-C-dev-safe-cancellation-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-766258492/hot-cross-buns/traces/local-first-C-dev-safe-cancellation-01/trace.json",
       "spans": [
         {
           "id": "fdc1384706fbea36",
@@ -3458,7 +3458,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "8b6f672f5e9e4c6bd518dcff35da144bc90f0c1993b8df662ab74eb0e308273a",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-766258492/gator/workspaces/6a8296faead5ff07825d1cdc8bb8743b/local-first-C-dev-safe-cancellation-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-766258492/hot-cross-buns/workspaces/6a8296faead5ff07825d1cdc8bb8743b/local-first-C-dev-safe-cancellation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3507,7 +3507,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2403250025/gator/traces/local-first-C-dev-context-compaction-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2403250025/hot-cross-buns/traces/local-first-C-dev-context-compaction-01/trace.json",
       "spans": [
         {
           "id": "c602cf5ef01de5f9",
@@ -3661,7 +3661,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "16656e26f7feecfcc91738239b35038449d5f9a7f07278ec019082d7d3639c6a",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2403250025/gator/workspaces/e03f7577cbe874346fe48fb047fe621c/local-first-C-dev-context-compaction-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2403250025/hot-cross-buns/workspaces/e03f7577cbe874346fe48fb047fe621c/local-first-C-dev-context-compaction-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3710,7 +3710,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-892936308/gator/traces/local-first-C-dev-long-reference-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-892936308/hot-cross-buns/traces/local-first-C-dev-long-reference-01/trace.json",
       "spans": [
         {
           "id": "811addc3834fe54d",
@@ -3864,7 +3864,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "188e094c2c1c4092eeddf05316df2f7101cca7ef3a7dda6f7b4d5fd25bd1830f",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-892936308/gator/workspaces/a5bc69ebc3a0e42320b0ef33cc90698f/local-first-C-dev-long-reference-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-892936308/hot-cross-buns/workspaces/a5bc69ebc3a0e42320b0ef33cc90698f/local-first-C-dev-long-reference-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3913,7 +3913,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2424755704/gator/traces/local-first-C-dev-prompt-injection-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2424755704/hot-cross-buns/traces/local-first-C-dev-prompt-injection-01/trace.json",
       "spans": [
         {
           "id": "67e303a98fcad619",
@@ -4067,7 +4067,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "266c37b549e9c898cc4a9666fd55a8a7ab8b428f9c40755d65b226de38938a16",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-2424755704/gator/workspaces/2a089b943fdeb9ab5013438791759f78/local-first-C-dev-prompt-injection-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-2424755704/hot-cross-buns/workspaces/2a089b943fdeb9ab5013438791759f78/local-first-C-dev-prompt-injection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4116,7 +4116,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4155519083/gator/traces/local-first-C-dev-unauthorized-permission-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4155519083/hot-cross-buns/traces/local-first-C-dev-unauthorized-permission-01/trace.json",
       "spans": [
         {
           "id": "7b0a132909f89bf1",
@@ -4308,7 +4308,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "955a9ef637fb2ed92d503648aac00201f857cbd907b1bdd2d3c52adb7e330c24",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4155519083/gator/workspaces/8e2f6621e62f424afb11ccf4a6b77299/local-first-C-dev-unauthorized-permission-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4155519083/hot-cross-buns/workspaces/8e2f6621e62f424afb11ccf4a6b77299/local-first-C-dev-unauthorized-permission-01",
       "usage": {
         "unknown_requests": 4,
         "model_requests": 4,
@@ -4357,7 +4357,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-1779754470/gator/traces/local-first-C-dev-unavailable-runtime-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-1779754470/hot-cross-buns/traces/local-first-C-dev-unavailable-runtime-01/trace.json",
       "spans": [
         {
           "id": "967233655037c0da",
@@ -4511,7 +4511,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "afab35a2f8b074ff6e7c41ca31101adef4b0ead0fbf4ba0f2ad0313cafd58cda",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-1779754470/gator/workspaces/05ddfd37d3546ce087961c5d880b6651/local-first-C-dev-unavailable-runtime-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-1779754470/hot-cross-buns/workspaces/05ddfd37d3546ce087961c5d880b6651/local-first-C-dev-unavailable-runtime-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4560,7 +4560,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4159382529/gator/traces/local-first-C-dev-resource-exhaustion-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4159382529/hot-cross-buns/traces/local-first-C-dev-resource-exhaustion-01/trace.json",
       "spans": [
         {
           "id": "f59b18f3a76434d6",
@@ -4714,7 +4714,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "19359449189642db4260b48c85658feb7effd28723b0caa6bd29652639b6edd3",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4159382529/gator/workspaces/1d8b8ffe8e7a2ff14d9aa9eb2c370904/local-first-C-dev-resource-exhaustion-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4159382529/hot-cross-buns/workspaces/1d8b8ffe8e7a2ff14d9aa9eb2c370904/local-first-C-dev-resource-exhaustion-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4763,7 +4763,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4281438821/gator/traces/local-first-C-dev-offline-operation-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4281438821/hot-cross-buns/traces/local-first-C-dev-offline-operation-01/trace.json",
       "spans": [
         {
           "id": "dcaac774bb7c1ac3",
@@ -4917,7 +4917,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "defbbdf1365a476bb8f787cfa3033c568714cd7f8c69b5a2754ba2813bf8a027",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-4281438821/gator/workspaces/9e2ca1c8192cbba5acfa38080cb231a5/local-first-C-dev-offline-operation-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-4281438821/hot-cross-buns/workspaces/9e2ca1c8192cbba5acfa38080cb231a5/local-first-C-dev-offline-operation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4966,7 +4966,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-435694875/gator/traces/local-first-C-dev-explicit-cloud-selection-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-435694875/hot-cross-buns/traces/local-first-C-dev-explicit-cloud-selection-01/trace.json",
       "spans": [
         {
           "id": "9230894564560f38",
@@ -5120,7 +5120,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "b789cc92f2eadc140f46c618ba629009c299a3734b9771a3da0916ff254eb556",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/C-development/state-435694875/gator/workspaces/a546e032dbc5d46aab1c03f42f215274/local-first-C-dev-explicit-cloud-selection-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/C-development/state-435694875/hot-cross-buns/workspaces/a546e032dbc5d46aab1c03f42f215274/local-first-C-dev-explicit-cloud-selection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,

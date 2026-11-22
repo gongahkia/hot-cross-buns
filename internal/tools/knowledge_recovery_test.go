@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 func TestKnowledgeSearchRetainsHealthyResultsAndReportsPartialMemory(t *testing.T) {
@@ -31,7 +31,7 @@ func TestKnowledgeSearchRetainsHealthyResultsAndReportsPartialMemory(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(state, "gator", "memory", bad.ID+".json"), []byte("{"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(state, "hot-cross-buns", "memory", bad.ID+".json"), []byte("{"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	tool := knowledgeSearch{PersonalKnowledge{Notes: notes, Memories: memories}}

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gongahkia/gator/internal/presentation"
+	"github.com/gongahkia/hot-cross-buns/internal/presentation"
 )
 
 func layoutFixtures(directory string) error {

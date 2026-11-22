@@ -3,7 +3,7 @@ package artifact
 import (
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 func TestDefaultContractIsValidAndIndependent(t *testing.T) {

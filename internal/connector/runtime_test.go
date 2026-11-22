@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
 )
 
 func TestRuntimeFetchesAuthenticatedJSONWithProvenance(t *testing.T) {

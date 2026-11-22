@@ -1,18 +1,18 @@
 {
   "go-full.jsonl": {
     "packages": [
-      "github.com/gongahkia/gator/internal/localmodel",
-      "github.com/gongahkia/gator/internal/modelcatalog",
-      "github.com/gongahkia/gator/internal/config",
-      "github.com/gongahkia/gator/internal/auth",
-      "github.com/gongahkia/gator/internal/model",
-      "github.com/gongahkia/gator/internal/model/chatcompletions",
-      "github.com/gongahkia/gator/internal/retrieval",
-      "github.com/gongahkia/gator/internal/cliagent",
-      "github.com/gongahkia/gator/internal/workapp",
-      "github.com/gongahkia/gator/internal/worksession",
-      "github.com/gongahkia/gator/internal/workrun",
-      "github.com/gongahkia/gator/cmd/gator"
+      "github.com/gongahkia/hot-cross-buns/internal/localmodel",
+      "github.com/gongahkia/hot-cross-buns/internal/modelcatalog",
+      "github.com/gongahkia/hot-cross-buns/internal/config",
+      "github.com/gongahkia/hot-cross-buns/internal/auth",
+      "github.com/gongahkia/hot-cross-buns/internal/model",
+      "github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions",
+      "github.com/gongahkia/hot-cross-buns/internal/retrieval",
+      "github.com/gongahkia/hot-cross-buns/internal/cliagent",
+      "github.com/gongahkia/hot-cross-buns/internal/workapp",
+      "github.com/gongahkia/hot-cross-buns/internal/worksession",
+      "github.com/gongahkia/hot-cross-buns/internal/workrun",
+      "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns"
     ],
     "test_and_subtest_events": {
       "run": 1612,
@@ -41,14 +41,14 @@
   },
   "go-race.jsonl": {
     "packages": [
-      "github.com/gongahkia/gator/internal/config",
-      "github.com/gongahkia/gator/internal/localmodel",
-      "github.com/gongahkia/gator/internal/modelcatalog",
-      "github.com/gongahkia/gator/internal/model",
-      "github.com/gongahkia/gator/internal/auth",
-      "github.com/gongahkia/gator/internal/model/chatcompletions",
-      "github.com/gongahkia/gator/internal/workapp",
-      "github.com/gongahkia/gator/cmd/gator"
+      "github.com/gongahkia/hot-cross-buns/internal/config",
+      "github.com/gongahkia/hot-cross-buns/internal/localmodel",
+      "github.com/gongahkia/hot-cross-buns/internal/modelcatalog",
+      "github.com/gongahkia/hot-cross-buns/internal/model",
+      "github.com/gongahkia/hot-cross-buns/internal/auth",
+      "github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions",
+      "github.com/gongahkia/hot-cross-buns/internal/workapp",
+      "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns"
     ],
     "test_and_subtest_events": {
       "run": 1220,

@@ -2,7 +2,7 @@ package patch
 
 import (
 	"context"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"os"
 	"path/filepath"
 	"testing"

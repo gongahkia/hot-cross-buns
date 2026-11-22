@@ -2,14 +2,14 @@
 Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--58304C5D6DBC2206.txt
-[3/5] Emitting module GatorCoreTests
-[4/5] Compiling GatorCoreTests NativeWorkspaceIntegrationTests.swift
+[3/5] Emitting module HotCrossBunsCoreTests
+[4/5] Compiling HotCrossBunsCoreTests NativeWorkspaceIntegrationTests.swift
 [4/6] Write Objects.LinkFileList
-[5/6] Linking GatorNativePackageTests
+[5/6] Linking HotCrossBunsNativePackageTests
 Build complete! (3.99s)
 Test Suite 'Selected tests' started at 2026-11-18 14:23:24.312.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-18 14:23:24.313.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-18 14:23:24.313.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-18 14:23:24.313.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-18 14:23:24.313.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-18 14:23:24.313.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
@@ -19,7 +19,7 @@ Test Suite 'Selected tests' passed at 2026-11-18 14:23:24.313.
 ◇ Test actualGoManagedDialogueKeepsMainWorkIndependentAndRetainsChildResult() started.
 ✔ Test actualGoManagedDialogueKeepsMainWorkIndependentAndRetainsChildResult() passed after 2.791 seconds.
 ◇ Test workspaceActualGoCanonicalFoldersDraftsCatalogAndRestartIdentity() started.
-GATOR_P03_HANDOFF requestToConfirmedOwner=0.1466085 seconds
+HOT_CROSS_BUNS_P03_HANDOFF requestToConfirmedOwner=0.1466085 seconds
 ✔ Test workspaceActualGoCanonicalFoldersDraftsCatalogAndRestartIdentity() passed after 3.780 seconds.
 ◇ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() started.
 ✔ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() passed after 2.396 seconds.

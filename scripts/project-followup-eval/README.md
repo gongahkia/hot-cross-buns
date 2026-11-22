@@ -10,8 +10,8 @@ terminal session is used. Automated factual checks are not human draft ratings.
 With an existing `OPENAI_API_KEY` in the process environment, run from the root:
 
 ```sh
-GATOR_LIVE_PROJECT_REPORT="$PWD/scripts/project-followup-eval/results/live-NEW.json" \
-  go test ./cmd/gator -run '^TestLiveProjectFollowup$' -count=1 -v -timeout 10m
+HOT_CROSS_BUNS_LIVE_PROJECT_REPORT="$PWD/scripts/project-followup-eval/results/live-NEW.json" \
+  go test ./cmd/hot-cross-buns -run '^TestLiveProjectFollowup$' -count=1 -v -timeout 10m
 ```
 
 The report must be new. All reports **must share the same results directory**
@@ -48,7 +48,7 @@ TinyFish; validate account pricing before using any paid alternative. See
 Agent/Browser/Research endpoints or automatically switch vendors.
 
 ```sh
-go test ./cmd/gator -run '^TestProjectEvaluationBudgetBoundary$' -count=1
+go test ./cmd/hot-cross-buns -run '^TestProjectEvaluationBudgetBoundary$' -count=1
 go test ./internal/workrun -run 'Test(WorkSearch|EvolvingWeb|ResearchBrief)' -count=1
 ```
 

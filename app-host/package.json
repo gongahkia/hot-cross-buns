@@ -1,5 +1,5 @@
 {
-  "name": "@gator/application-host",
+  "name": "@hot-cross-buns/application-host",
   "version": "0.1.0",
   "private": true,
   "type": "module",

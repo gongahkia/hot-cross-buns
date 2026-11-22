@@ -2,120 +2,120 @@
   "HEAD": "b5991b5ac729945d783f69d5b28d433de39491f8",
   "UTC": "2026-11-19T07:42:19.798842+00:00",
   "files": {
-    "macos/Sources/GatorCore/NativeDraftAttachments.swift": "96da89b97e3d43c9c8d2e67534b605fb8320f4d509bfac317e8510b1ee5f0a6a",
-    "macos/Sources/GatorCore/BridgePipeIO.swift": "b29a2c93affa3761dd75d82853cbf079aba2a5632aa666b69fa48015379f067a",
-    "macos/Sources/GatorCore/NativeUploadStore.swift": "94dc5406ef0a1d1a579efcbf3c60d9d862aeca487947be4c91096810382ef8d3",
-    "macos/Sources/GatorCore/NativeDraftStore.swift": "3aec34b85e60a3a18c08437b0d243df695b448f499b73647a025912df799fab6",
-    "macos/Sources/GatorCore/GoBridgeConnection.swift": "17ada0b512e8e2120dc818c87079fc4245353275932fd7280f57e299421c9c6e",
-    "macos/Sources/GatorCore/ManagedSessionProtocol.swift": "53d9f823a2c5f90bd657b8bec5285d1caeafc7284274b775c79a2895215a5a49",
-    "macos/Sources/GatorCore/NativeWorkspaceSelection.swift": "ce9a5f14f20676b9565903f9ef7b6e08e93ddbdf2132d7b41af553116a9e5004",
-    "macos/Sources/GatorCore/NativePlanExecution.swift": "51bab4b25fb2663e8dbd64368639e8297c57caea9275aa3ddca72e84a31761ad",
-    "macos/Sources/GatorCore/NativeProviderSetup.swift": "15a932f07e182ef8562a9df0eed87a924bf0eada2ac3a9827efb5fa92085c8b9",
-    "macos/Sources/GatorCore/ManagedSessionCoordinator.swift": "6908e77b4ea1f0b77848a760f99a5f3dd44c023f13e91819c8b807d27493e5b4",
-    "macos/Sources/GatorCore/NativeProviderProtocol.swift": "4cdf661aea7385ef34fc39840ee224c0b328c681b23f4e535e6bae7958cea829",
-    "macos/Sources/GatorCore/NativeMessageContent.swift": "2eea882e0a3cff1efa2f70b03de1c7ae61056ccaecacd6ed38ddba953f6b9d5c",
-    "macos/Sources/GatorCore/NativeTranscriptSearch.swift": "e94c042a07e5c70a7086843cf5e4e7fb919b804a697a27327fecd511bdc5c336",
-    "macos/Sources/GatorCore/NativeRecoveryPreparation.swift": "c385d82523b2ce2dd73e35514482e6197e10426da4babff98561fe26383cf81b",
-    "macos/Sources/GatorCore/GatorApplicationState.swift": "88ab986e253566f2e8c2c5dd2518b2610aea57f46987518936a0aeac75fb3ee9",
-    "macos/Sources/GatorCore/BridgeProtocol.swift": "a7a44457c6ab3ff4f36d99dc455d6f61f5ed8b9eafc35e191b0ff8ed2131ad57",
-    "macos/Sources/GatorCore/NativeTaskReview.swift": "bcf3d6512609df35239375294fcb0909c58cc3ca0f78e31a5a7ff0a8810c769e",
-    "macos/Sources/GatorCore/NativeCatalogProtocol.swift": "d32c1ee83c301692e508e7313893ff4a846c8fb9ec83aa66d023dd351bcbcfdc",
-    "macos/Sources/GatorCore/NativeConversationCatalog.swift": "f1d6b3bd0a6d1b961439a7de1b027d34e96809fa55239044e9de842c02421f3b",
-    "macos/Sources/GatorCore/NativeRecovery.swift": "fc0bf267ebce16d1f80e33e34a1a4ed607b9ad89e62f063e9ff91498e8e7172d",
-    "macos/Sources/GatorMac/GatorApp.swift": "c0db26c0e4cbe1a0c2918cba3a1ca44ad7e6b1e24ecc3d0ece892ca506618402",
-    "macos/Sources/GatorMac/NativeDropInput.swift": "5d44085f428002d68eefc01641646ab3435e450471022cdbffed476160647e04",
-    "macos/Sources/GatorMac/NativeWindowConfiguration.swift": "8f09958afc6076ae6ea292bf30197dadc170026ccc94b5be817d52983048a243",
-    "macos/Sources/GatorMac/NativeProviderSecretEntry.swift": "ec3b27122d5d66f975332b68f46ab0c71daedb3ba38c4a41b1a680a309284953",
-    "macos/Sources/GatorMac/NativeMascotPlayback.swift": "22f1660e66f5418830971132c6d0a8168445632a4e945e50653a0fc0964743ea",
-    "macos/Sources/GatorMac/ConversationView.swift": "6fb515115ace21a75a3663560fd689186e84f54b60943a838c443061235e6f3d",
-    "macos/Sources/GatorMac/AttachmentSelectionView.swift": "b2abe51a313819ec4622a84ecf60ff4874a71a0e2d07256245983687e3efbdd0",
-    "macos/Sources/GatorMac/RecoveryInspectorContent.swift": "3f93afe4f501849ea23dbc981870f39fadaaf52e8ec19187100222f19c2fc6f3",
-    "macos/Sources/GatorMac/ApprovalReviewView.swift": "88631bb3fc1f40c74bc3d7cd2b22c3eff54caa6ef537ba0fc3464c73beef51ec",
-    "macos/Sources/GatorMac/NativeMascotPreferences.swift": "9906a6b2d1bca46469515010206f3c5b21a64711f167f8f0c896633ee12d64d3",
-    "macos/Sources/GatorMac/RecentConversationsMenu.swift": "cf36b55ee44d9c5aee7b599b4a38c8c3a7a64617998abbc0999f9fed1300e003",
-    "macos/Sources/GatorMac/NativeErrorDisclosure.swift": "5aa0c33df128c97cf8ffcc02eee678206aa63c19db3787bcef2eb89c04492324",
-    "macos/Sources/GatorMac/ProviderSetupView.swift": "057f43b216abc8867db84e738f1bef50ad6894fa964cc75945d39cfcc62e33a0",
-    "macos/Sources/GatorMac/NativeMessageBody.swift": "848c44141dd760e426d061a260dabc533c1a6a6bae3ef54661fb1499c654c5bd",
-    "macos/Sources/GatorMac/PlanReviewContent.swift": "0bb53a3b001561061a5b8bd83548f6df88d475258a865665d80db10bd58f87a1",
-    "macos/Sources/GatorMac/NativeAccessibilityStatus.swift": "508942f8e21dba4f562bd11eb616571bb82a9854066e0bfa3a07c019214de599",
-    "macos/Sources/GatorMac/NativeStatusMessage.swift": "5d13235f9f0ffe1b12c522344aead63b2fbd80894fee6803fa42d1fbbc0afeab",
-    "macos/Sources/GatorMac/RecoveryPreparationView.swift": "0a730918a17511990f61e6dd9bb43a3e7e35fb4d76e37cee26e870a33c78f8c6",
-    "macos/Sources/GatorMac/NativeWorkspacePicker.swift": "9799a38fff329cbf6e4ac62643196bcfb53bd34f9bedc67f4bd3a423d8d5244b",
-    "macos/Sources/GatorMac/NativeMascotView.swift": "ad4e86bcaa74e65291d858635e0f357b430c8ee6f3cc4d4f9a9925cbd084b7a1",
-    "macos/Sources/GatorMac/NativeComposer.swift": "dd0234cfc6870732af359d8630978700ba33c0ba457f6a0c52c4e4d52f3564ad",
-    "macos/Sources/GatorMac/ExactDecisionButton.swift": "67b002bd150f72d76acf777e86bf61ce979c6be113c00eb3f6ad525491e9654d",
-    "macos/Sources/GatorMac/ComposerView.swift": "2e30a080aed354b5060e946b72a426abec4d575a5d60a4acb6e0a0dd517ac2c8",
-    "macos/Sources/GatorMac/ConversationCatalogView.swift": "11a0cdb81a5aa49b88977966047a8e410cf835342a722480c472af0aeb1ba0a9",
-    "macos/Sources/GatorMac/NativeAttachmentActions.swift": "be94463ec61ce6e50d8e43f5acd408c4c3c13c372016edabafa242a35f740ac8",
-    "macos/Sources/GatorMac/NotchQuickAccess.swift": "10e86ec9768a09d1e76cd3055a8f0d06f424141c7a398454901369e09358b6c8",
-    "macos/Sources/GatorMac/AppDelegate.swift": "29df7c92278f1c27c4738e1b8a1fd444fd54caf9f65d1cfbd279a4c9060049cb",
-    "macos/Sources/GatorMac/TaskInspectorView.swift": "d503ab7a45004bad3a0b860bcf7459f91e198300996af6de68ba4a76558462b7",
-    "macos/Sources/GatorMac/NativeTranscriptFind.swift": "1c77267007aabf1018f4d1a604b74660553d866d49531f0d4acd4976328630c3",
-    "macos/Sources/GatorMac/NativeMascotModel.swift": "39c06e215aeb7d03860e52f4af31e75cbd324d834032430fc5a821929a03b4ee",
-    "macos/Sources/GatorMac/NativeReadingPositions.swift": "af252f0fbb83f9d169b7c2f536211fc6fd825fda60e8437984f56fd4429716bc",
-    "macos/Sources/GatorMac/NativeComposerPresentation.swift": "594618d477c02d82bd7ed78256faa4ce3e04f0f035509e1b32e3057ace06c597",
-    "macos/Sources/GatorMac/MenuBarVisibilityToggle.swift": "48af45048cb1b121a584a39a2ce884dd8a17a1812e44665745286751e7eaf7d8",
-    "macos/Sources/GatorMac/ExactReviewContent.swift": "afd37aca239c45c85490bb6b1d65e748ef8cf9fb29806a6446405f124534ef5c",
-    "macos/Tests/GatorMacTests/NativeTranscriptFindTests.swift": "a9293e7cafc335dc22971440245dd1743223010114bb04858a965de32e700e2d",
-    "macos/Tests/GatorMacTests/NativeMascotTests.swift": "ed7a24ea052e799d57c3d3c90a29712aa35bb1bba8853f8089163107fc1018df",
-    "macos/Tests/GatorMacTests/NativeProviderSecretEntryTests.swift": "9c018f915470c2f7177d04fa5051123cc6543ffa3b1e25535040791f74378f57",
-    "macos/Tests/GatorMacTests/NativeInputTests.swift": "28c766a08212c69a95115f0f61f7add08fbd95ca99282cb38091c16d69264cfa",
-    "macos/Tests/GatorMacTests/NativeWorkspacePickerTests.swift": "72a4ea00637c12a18988654d498af34dcdcc1f3448264e4ba8cb2aa3b530c8ce",
-    "macos/Tests/GatorMacTests/NotchGeometryTests.swift": "a2cb92d852f3797978aab894aca2458ecb8539888bd15d06da017f9571afd83d",
-    "macos/Tests/GatorMacTests/NativeUIUXRemediationTests.swift": "30ac0e5ee2661fb112d8645cbc9861bbce690abcb21a5e1c41494b6b9ed18c13",
-    "macos/Tests/GatorCoreTests/NativeClosingSafetyTests.swift": "ef210eb2e2f597164d2264a0b84f9233947c0076d8a217dd7c621e0e99d4c4a4",
-    "macos/Tests/GatorCoreTests/NativeCatalogIntegrationTests.swift": "541160398da0cbe9ed9e3a96c761fd980bf1c9d9c8e863e919a2db21faaab314",
-    "macos/Tests/GatorCoreTests/NativeTaskReviewTests.swift": "969663d3f24646388125f596e61b86d60b97ceb55a5bf915bf0cb8ffae4b5134",
-    "macos/Tests/GatorCoreTests/RecoveryPreparationTests.swift": "3e43431a54b5f584c7845ea3abfaeb8cac9571f897b50e33bcf704d7276cd4b7",
-    "macos/Tests/GatorCoreTests/NativeRecoveryTests.swift": "8e929dc8367778f4b5991ac9b7d9ed90aad0cc59edc6d442112025607e134f40",
-    "macos/Tests/GatorCoreTests/GoIntegrationTests.swift": "22c33222c321da900e7026b7b7c7682031f5a0c7d7734d7ce2670d4e9dfa0617",
-    "macos/Tests/GatorCoreTests/ManagedGoIntegrationTests.swift": "57b5c2f855f489c6b7d0e1e95cd105cfb79d15f31619adb5df7ea7fd0daeff00",
-    "macos/Tests/GatorCoreTests/NativeMessageContentTests.swift": "692f8b561e1a55ec6a8565f43d4cb7416e22b87f0b09fcae107e1c9bc0cebba2",
-    "macos/Tests/GatorCoreTests/NativeUploadStoreTests.swift": "11572d66fc053ca32e8365dc069f682788dd40605adf78ab56f367d9cbaa09e1",
-    "macos/Tests/GatorCoreTests/BridgeProtocolTests.swift": "e895cfe8cc3c5d561c92037916eea6a0294704eff6ec297a5751cb65bbf509fb",
-    "macos/Tests/GatorCoreTests/NativeTranscriptSearchTests.swift": "af102c658e516560baef328c8b5142e8bdb4046c112c7360277805a3d2533b47",
-    "macos/Tests/GatorCoreTests/ManagedSessionTests.swift": "cae5620551ec52a145b1dcc2592b9668e43d3f97e96ade21eb9c838239e0cb3c",
-    "macos/Tests/GatorCoreTests/NativeWorkspaceTests.swift": "2f72aa5b63054c9a5f86b2a09d95a2c2268c422eafe4377cf496cccd77281d45",
-    "macos/Tests/GatorCoreTests/NativeAttachmentDraftTests.swift": "29c9476334e09a282e0cc1fa019e90cc54b24ff2df1bbe9705c4fa1884deeda4",
-    "macos/Tests/GatorCoreTests/NativeRecoveryIntegrationTests.swift": "9e62ce52b21b335aa9e1d90900b5c8f884688d8b95e3125de1abe8dc0f2df3b0",
-    "macos/Tests/GatorCoreTests/NativeAttachmentIntegrationTests.swift": "4f7161e42643c13625456954399db61a1fcfb6ec3be2b47de3e29bce2c45cb97",
-    "macos/Tests/GatorCoreTests/NativePlanAuthorizationTests.swift": "c4aaa40190f0e28e98ec8d96b7bc529ca3fa1bfda590ec18737ad9cd03457e54",
-    "macos/Tests/GatorCoreTests/NativeCatalogTests.swift": "27fc7a5f07667f7a3c9438470dce0ead89b7231e45100013455fdcabbeb6952e",
-    "macos/Tests/GatorCoreTests/NativePlanIntegrationTests.swift": "497950bf45dfe375ae862331785caf39ae3b5bb9d26054d6e1de9b6cbf8d3ae3",
-    "macos/Tests/GatorCoreTests/BridgeShutdownSafetyTests.swift": "e955688ce49ec0a4ffb90abf3f9dcca5396e78c0b0b141a8f6124f600932707c",
-    "macos/Tests/GatorCoreTests/NativeCatalogOwnerTests.swift": "6a097157d34e05fc575210dcb71abd750926826bb2cb0d264a576be797c3e4f4",
-    "macos/Tests/GatorCoreTests/ApplicationStateTests.swift": "8c5065d730d6016958a799d8abbdae385632929de28ffe7a93e211719834fa38",
-    "macos/Tests/GatorCoreTests/NativeProviderTests.swift": "19ec9eea7c9ec5fd14f035c60482140e4da6790d428d4b241dd87a672166eac5",
-    "macos/Tests/GatorCoreTests/RecoveryPreparationIntegrationTests.swift": "a6554c3bc4a468a02b6cf8cd8ca5acf5a2632442ea33a9e4bd63a1a029596e90",
-    "macos/Tests/GatorCoreTests/NativePerformanceTests.swift": "10c628379665b54bf3e0599cf8a5274632550e19daf2173e79fe9871849f53ad",
-    "macos/Tests/GatorCoreTests/NativeClosureAcceptanceTests.swift": "d5cb0af994f79d8f58754393c086b9133084d8cd01051101ca0c14a2bb6090f6",
-    "macos/Tests/GatorCoreTests/NativeDraftStoreTests.swift": "12f8cadb57cfc9aa8a84c8bb88055b284a5304f004de7a1193a3f31b27354c9b",
-    "macos/Tests/GatorCoreTests/NativeReviewIntegrationTests.swift": "f693a417e08a524e72f486da5c1c936bc740f4a2111ed47f7b2a6fc896e02334",
-    "macos/Tests/GatorCoreTests/NativeWorkspaceIntegrationTests.swift": "4b7af5584c23b214b156a0193b6ffa8381182758c0211d7b8b34376e0fc19187",
-    "macos/Tests/GatorCoreTests/NativeArchiveSafetyTests.swift": "5febae12a5d4afc6ad218dad056a97276201e7f52139d7f519845f3110462bba",
-    "macos/Tests/GatorCoreTests/NativeAttachmentDisconnectTests.swift": "670579bb7785efb79b656f719e3256f0abd131e06311a1fb890f64c49b5e8017",
-    "macos/Tests/GatorCoreTests/NativeProviderIntegrationTests.swift": "a67a3869c7acce02a8befc572dcdd75c12381241305f3c17a100c72536e31758",
-    "macos/Tests/GatorCoreTests/NativeInertApprovalIntegrationTests.swift": "d35cad353f22763cd9212e305278bebad8d930549d025a1d459dee99e741f889",
-    "macos/Tests/GatorCoreTests/Fixtures/managed-provider.mjs": "05db96d8b58a12ccb2c3020db20a5a3f57ebbee24d877eede7877044937495e0",
-    "macos/Tests/GatorCoreTests/Fixtures/recovery-provider.mjs": "aff93682f16ea523cfecfe553ed1d8c4412d54b877c3f2b7e0364bbab2d5d9d6",
-    "macos/Tests/GatorCoreTests/Fixtures/bridge-fixture.mjs": "817d674e0b97e6cb082cf0f2bba0adf05524be628476e41ca3b2d7afc7972bd4",
-    "macos/Tests/GatorCoreTests/Fixtures/audit-provider.mjs": "7ec32c47e026efaa5067fc3b9bb759129dc85f61534d6f8ea5e64f1db8e6653d",
-    "macos/Tests/GatorCoreTests/Fixtures/native-archive-writer.swift": "23eb05e17ed268c50ed3dc0a97d5cb905b045547e311e30faf67b7c83ed9deca",
-    "macos/Tests/GatorCoreTests/Fixtures/plan-provider.mjs": "9c10b554ab6d20dcadee4768394f09b48663ff5efeded7539e343f68cf8e084a",
-    "macos/Tests/GatorCoreTests/Fixtures/native-catalog-seed.go": "e164534134dd8542ebf9b6e97915c4260cc0f72b197926657a4c57aa07ca8bba",
-    "macos/Tests/GatorCoreTests/Fixtures/provider.mjs": "2ff9589c5b0c445885aa880903034006390f9468d21fc67d498044ac67c0f2fc",
-    "macos/Tests/GatorCoreTests/Fixtures/dev-acceptance-runtime.py": "63aed943bd25530d49541cd385afdd9d749a1bab82c35152b23735680f6e34dc",
-    "macos/Tests/GatorCoreTests/Fixtures/attachment-provider.mjs": "d3933abb146ab281697a418b967f4059a44c58a0e273857df7f2b635c5f8160c",
-    "macos/Tests/GatorCoreTests/Fixtures/pipe-lifecycle.py": "bb8f2037137f59233f5f7c63dcba2c1d1b2f2042a894689db89436a0349ee1a3",
-    "macos/Tests/GatorCoreTests/Fixtures/closure-provider.mjs": "ed8bbf4ec889a80eb3f4f0c73a1fad540971dbf6b17768c6dd9adeb931f58494",
-    "macos/Tests/GatorCoreTests/Fixtures/dev-acceptance-provider.mjs": "18b442df3e410431d8e18319a714c257934a6796e0657b046947723b7caa3008",
-    "macos/Tests/GatorCoreTests/Fixtures/receipt-provider.mjs": "9b0c3a46bc04070bdc114fcd86b6b69df1e2e22565cbbbe39a78df1cc95ccc08",
-    "macos/Tests/GatorCoreTests/Fixtures/review-provider.mjs": "e6d644e3a0729314f5955a4ed2112fe50b853615cca2ea7e1b86edbf374cf5ca",
-    "macos/Tests/GatorCoreTests/Fixtures/recovery-seed/main.go": "8790efe7f72b46871672a9c1f839f013176a04978cd67b4fd536bc39ad3d6ffe",
-    "macos/Tests/GatorCoreTests/Fixtures/native-history/main.go": "8970aa4cb0e92dee0012595b519e7ae0c50e8f32e14b75c0be6b343466048b36",
-    "macos/Tests/GatorCoreTests/Fixtures/retained-plan/main.go": "d90c65ae5ff58559562f36ac96aa89cfc38bc11c0c5f815e2b7afe87ac2441b9",
-    "macos/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-    "macos/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c",
+    "macos/Sources/HotCrossBunsCore/NativeDraftAttachments.swift": "96da89b97e3d43c9c8d2e67534b605fb8320f4d509bfac317e8510b1ee5f0a6a",
+    "macos/Sources/HotCrossBunsCore/BridgePipeIO.swift": "b29a2c93affa3761dd75d82853cbf079aba2a5632aa666b69fa48015379f067a",
+    "macos/Sources/HotCrossBunsCore/NativeUploadStore.swift": "94dc5406ef0a1d1a579efcbf3c60d9d862aeca487947be4c91096810382ef8d3",
+    "macos/Sources/HotCrossBunsCore/NativeDraftStore.swift": "3aec34b85e60a3a18c08437b0d243df695b448f499b73647a025912df799fab6",
+    "macos/Sources/HotCrossBunsCore/GoBridgeConnection.swift": "17ada0b512e8e2120dc818c87079fc4245353275932fd7280f57e299421c9c6e",
+    "macos/Sources/HotCrossBunsCore/ManagedSessionProtocol.swift": "53d9f823a2c5f90bd657b8bec5285d1caeafc7284274b775c79a2895215a5a49",
+    "macos/Sources/HotCrossBunsCore/NativeWorkspaceSelection.swift": "ce9a5f14f20676b9565903f9ef7b6e08e93ddbdf2132d7b41af553116a9e5004",
+    "macos/Sources/HotCrossBunsCore/NativePlanExecution.swift": "51bab4b25fb2663e8dbd64368639e8297c57caea9275aa3ddca72e84a31761ad",
+    "macos/Sources/HotCrossBunsCore/NativeProviderSetup.swift": "15a932f07e182ef8562a9df0eed87a924bf0eada2ac3a9827efb5fa92085c8b9",
+    "macos/Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift": "6908e77b4ea1f0b77848a760f99a5f3dd44c023f13e91819c8b807d27493e5b4",
+    "macos/Sources/HotCrossBunsCore/NativeProviderProtocol.swift": "4cdf661aea7385ef34fc39840ee224c0b328c681b23f4e535e6bae7958cea829",
+    "macos/Sources/HotCrossBunsCore/NativeMessageContent.swift": "2eea882e0a3cff1efa2f70b03de1c7ae61056ccaecacd6ed38ddba953f6b9d5c",
+    "macos/Sources/HotCrossBunsCore/NativeTranscriptSearch.swift": "e94c042a07e5c70a7086843cf5e4e7fb919b804a697a27327fecd511bdc5c336",
+    "macos/Sources/HotCrossBunsCore/NativeRecoveryPreparation.swift": "c385d82523b2ce2dd73e35514482e6197e10426da4babff98561fe26383cf81b",
+    "macos/Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift": "88ab986e253566f2e8c2c5dd2518b2610aea57f46987518936a0aeac75fb3ee9",
+    "macos/Sources/HotCrossBunsCore/BridgeProtocol.swift": "a7a44457c6ab3ff4f36d99dc455d6f61f5ed8b9eafc35e191b0ff8ed2131ad57",
+    "macos/Sources/HotCrossBunsCore/NativeTaskReview.swift": "bcf3d6512609df35239375294fcb0909c58cc3ca0f78e31a5a7ff0a8810c769e",
+    "macos/Sources/HotCrossBunsCore/NativeCatalogProtocol.swift": "d32c1ee83c301692e508e7313893ff4a846c8fb9ec83aa66d023dd351bcbcfdc",
+    "macos/Sources/HotCrossBunsCore/NativeConversationCatalog.swift": "f1d6b3bd0a6d1b961439a7de1b027d34e96809fa55239044e9de842c02421f3b",
+    "macos/Sources/HotCrossBunsCore/NativeRecovery.swift": "fc0bf267ebce16d1f80e33e34a1a4ed607b9ad89e62f063e9ff91498e8e7172d",
+    "macos/Sources/HotCrossBunsMac/HotCrossBunsApp.swift": "c0db26c0e4cbe1a0c2918cba3a1ca44ad7e6b1e24ecc3d0ece892ca506618402",
+    "macos/Sources/HotCrossBunsMac/NativeDropInput.swift": "5d44085f428002d68eefc01641646ab3435e450471022cdbffed476160647e04",
+    "macos/Sources/HotCrossBunsMac/NativeWindowConfiguration.swift": "8f09958afc6076ae6ea292bf30197dadc170026ccc94b5be817d52983048a243",
+    "macos/Sources/HotCrossBunsMac/NativeProviderSecretEntry.swift": "ec3b27122d5d66f975332b68f46ab0c71daedb3ba38c4a41b1a680a309284953",
+    "macos/Sources/HotCrossBunsMac/NativeMascotPlayback.swift": "22f1660e66f5418830971132c6d0a8168445632a4e945e50653a0fc0964743ea",
+    "macos/Sources/HotCrossBunsMac/ConversationView.swift": "6fb515115ace21a75a3663560fd689186e84f54b60943a838c443061235e6f3d",
+    "macos/Sources/HotCrossBunsMac/AttachmentSelectionView.swift": "b2abe51a313819ec4622a84ecf60ff4874a71a0e2d07256245983687e3efbdd0",
+    "macos/Sources/HotCrossBunsMac/RecoveryInspectorContent.swift": "3f93afe4f501849ea23dbc981870f39fadaaf52e8ec19187100222f19c2fc6f3",
+    "macos/Sources/HotCrossBunsMac/ApprovalReviewView.swift": "88631bb3fc1f40c74bc3d7cd2b22c3eff54caa6ef537ba0fc3464c73beef51ec",
+    "macos/Sources/HotCrossBunsMac/NativeMascotPreferences.swift": "9906a6b2d1bca46469515010206f3c5b21a64711f167f8f0c896633ee12d64d3",
+    "macos/Sources/HotCrossBunsMac/RecentConversationsMenu.swift": "cf36b55ee44d9c5aee7b599b4a38c8c3a7a64617998abbc0999f9fed1300e003",
+    "macos/Sources/HotCrossBunsMac/NativeErrorDisclosure.swift": "5aa0c33df128c97cf8ffcc02eee678206aa63c19db3787bcef2eb89c04492324",
+    "macos/Sources/HotCrossBunsMac/ProviderSetupView.swift": "057f43b216abc8867db84e738f1bef50ad6894fa964cc75945d39cfcc62e33a0",
+    "macos/Sources/HotCrossBunsMac/NativeMessageBody.swift": "848c44141dd760e426d061a260dabc533c1a6a6bae3ef54661fb1499c654c5bd",
+    "macos/Sources/HotCrossBunsMac/PlanReviewContent.swift": "0bb53a3b001561061a5b8bd83548f6df88d475258a865665d80db10bd58f87a1",
+    "macos/Sources/HotCrossBunsMac/NativeAccessibilityStatus.swift": "508942f8e21dba4f562bd11eb616571bb82a9854066e0bfa3a07c019214de599",
+    "macos/Sources/HotCrossBunsMac/NativeStatusMessage.swift": "5d13235f9f0ffe1b12c522344aead63b2fbd80894fee6803fa42d1fbbc0afeab",
+    "macos/Sources/HotCrossBunsMac/RecoveryPreparationView.swift": "0a730918a17511990f61e6dd9bb43a3e7e35fb4d76e37cee26e870a33c78f8c6",
+    "macos/Sources/HotCrossBunsMac/NativeWorkspacePicker.swift": "9799a38fff329cbf6e4ac62643196bcfb53bd34f9bedc67f4bd3a423d8d5244b",
+    "macos/Sources/HotCrossBunsMac/NativeMascotView.swift": "ad4e86bcaa74e65291d858635e0f357b430c8ee6f3cc4d4f9a9925cbd084b7a1",
+    "macos/Sources/HotCrossBunsMac/NativeComposer.swift": "dd0234cfc6870732af359d8630978700ba33c0ba457f6a0c52c4e4d52f3564ad",
+    "macos/Sources/HotCrossBunsMac/ExactDecisionButton.swift": "67b002bd150f72d76acf777e86bf61ce979c6be113c00eb3f6ad525491e9654d",
+    "macos/Sources/HotCrossBunsMac/ComposerView.swift": "2e30a080aed354b5060e946b72a426abec4d575a5d60a4acb6e0a0dd517ac2c8",
+    "macos/Sources/HotCrossBunsMac/ConversationCatalogView.swift": "11a0cdb81a5aa49b88977966047a8e410cf835342a722480c472af0aeb1ba0a9",
+    "macos/Sources/HotCrossBunsMac/NativeAttachmentActions.swift": "be94463ec61ce6e50d8e43f5acd408c4c3c13c372016edabafa242a35f740ac8",
+    "macos/Sources/HotCrossBunsMac/NotchQuickAccess.swift": "10e86ec9768a09d1e76cd3055a8f0d06f424141c7a398454901369e09358b6c8",
+    "macos/Sources/HotCrossBunsMac/AppDelegate.swift": "29df7c92278f1c27c4738e1b8a1fd444fd54caf9f65d1cfbd279a4c9060049cb",
+    "macos/Sources/HotCrossBunsMac/TaskInspectorView.swift": "d503ab7a45004bad3a0b860bcf7459f91e198300996af6de68ba4a76558462b7",
+    "macos/Sources/HotCrossBunsMac/NativeTranscriptFind.swift": "1c77267007aabf1018f4d1a604b74660553d866d49531f0d4acd4976328630c3",
+    "macos/Sources/HotCrossBunsMac/NativeMascotModel.swift": "39c06e215aeb7d03860e52f4af31e75cbd324d834032430fc5a821929a03b4ee",
+    "macos/Sources/HotCrossBunsMac/NativeReadingPositions.swift": "af252f0fbb83f9d169b7c2f536211fc6fd825fda60e8437984f56fd4429716bc",
+    "macos/Sources/HotCrossBunsMac/NativeComposerPresentation.swift": "594618d477c02d82bd7ed78256faa4ce3e04f0f035509e1b32e3057ace06c597",
+    "macos/Sources/HotCrossBunsMac/MenuBarVisibilityToggle.swift": "48af45048cb1b121a584a39a2ce884dd8a17a1812e44665745286751e7eaf7d8",
+    "macos/Sources/HotCrossBunsMac/ExactReviewContent.swift": "afd37aca239c45c85490bb6b1d65e748ef8cf9fb29806a6446405f124534ef5c",
+    "macos/Tests/HotCrossBunsMacTests/NativeTranscriptFindTests.swift": "a9293e7cafc335dc22971440245dd1743223010114bb04858a965de32e700e2d",
+    "macos/Tests/HotCrossBunsMacTests/NativeMascotTests.swift": "ed7a24ea052e799d57c3d3c90a29712aa35bb1bba8853f8089163107fc1018df",
+    "macos/Tests/HotCrossBunsMacTests/NativeProviderSecretEntryTests.swift": "9c018f915470c2f7177d04fa5051123cc6543ffa3b1e25535040791f74378f57",
+    "macos/Tests/HotCrossBunsMacTests/NativeInputTests.swift": "28c766a08212c69a95115f0f61f7add08fbd95ca99282cb38091c16d69264cfa",
+    "macos/Tests/HotCrossBunsMacTests/NativeWorkspacePickerTests.swift": "72a4ea00637c12a18988654d498af34dcdcc1f3448264e4ba8cb2aa3b530c8ce",
+    "macos/Tests/HotCrossBunsMacTests/NotchGeometryTests.swift": "a2cb92d852f3797978aab894aca2458ecb8539888bd15d06da017f9571afd83d",
+    "macos/Tests/HotCrossBunsMacTests/NativeUIUXRemediationTests.swift": "30ac0e5ee2661fb112d8645cbc9861bbce690abcb21a5e1c41494b6b9ed18c13",
+    "macos/Tests/HotCrossBunsCoreTests/NativeClosingSafetyTests.swift": "ef210eb2e2f597164d2264a0b84f9233947c0076d8a217dd7c621e0e99d4c4a4",
+    "macos/Tests/HotCrossBunsCoreTests/NativeCatalogIntegrationTests.swift": "541160398da0cbe9ed9e3a96c761fd980bf1c9d9c8e863e919a2db21faaab314",
+    "macos/Tests/HotCrossBunsCoreTests/NativeTaskReviewTests.swift": "969663d3f24646388125f596e61b86d60b97ceb55a5bf915bf0cb8ffae4b5134",
+    "macos/Tests/HotCrossBunsCoreTests/RecoveryPreparationTests.swift": "3e43431a54b5f584c7845ea3abfaeb8cac9571f897b50e33bcf704d7276cd4b7",
+    "macos/Tests/HotCrossBunsCoreTests/NativeRecoveryTests.swift": "8e929dc8367778f4b5991ac9b7d9ed90aad0cc59edc6d442112025607e134f40",
+    "macos/Tests/HotCrossBunsCoreTests/GoIntegrationTests.swift": "22c33222c321da900e7026b7b7c7682031f5a0c7d7734d7ce2670d4e9dfa0617",
+    "macos/Tests/HotCrossBunsCoreTests/ManagedGoIntegrationTests.swift": "57b5c2f855f489c6b7d0e1e95cd105cfb79d15f31619adb5df7ea7fd0daeff00",
+    "macos/Tests/HotCrossBunsCoreTests/NativeMessageContentTests.swift": "692f8b561e1a55ec6a8565f43d4cb7416e22b87f0b09fcae107e1c9bc0cebba2",
+    "macos/Tests/HotCrossBunsCoreTests/NativeUploadStoreTests.swift": "11572d66fc053ca32e8365dc069f682788dd40605adf78ab56f367d9cbaa09e1",
+    "macos/Tests/HotCrossBunsCoreTests/BridgeProtocolTests.swift": "e895cfe8cc3c5d561c92037916eea6a0294704eff6ec297a5751cb65bbf509fb",
+    "macos/Tests/HotCrossBunsCoreTests/NativeTranscriptSearchTests.swift": "af102c658e516560baef328c8b5142e8bdb4046c112c7360277805a3d2533b47",
+    "macos/Tests/HotCrossBunsCoreTests/ManagedSessionTests.swift": "cae5620551ec52a145b1dcc2592b9668e43d3f97e96ade21eb9c838239e0cb3c",
+    "macos/Tests/HotCrossBunsCoreTests/NativeWorkspaceTests.swift": "2f72aa5b63054c9a5f86b2a09d95a2c2268c422eafe4377cf496cccd77281d45",
+    "macos/Tests/HotCrossBunsCoreTests/NativeAttachmentDraftTests.swift": "29c9476334e09a282e0cc1fa019e90cc54b24ff2df1bbe9705c4fa1884deeda4",
+    "macos/Tests/HotCrossBunsCoreTests/NativeRecoveryIntegrationTests.swift": "9e62ce52b21b335aa9e1d90900b5c8f884688d8b95e3125de1abe8dc0f2df3b0",
+    "macos/Tests/HotCrossBunsCoreTests/NativeAttachmentIntegrationTests.swift": "4f7161e42643c13625456954399db61a1fcfb6ec3be2b47de3e29bce2c45cb97",
+    "macos/Tests/HotCrossBunsCoreTests/NativePlanAuthorizationTests.swift": "c4aaa40190f0e28e98ec8d96b7bc529ca3fa1bfda590ec18737ad9cd03457e54",
+    "macos/Tests/HotCrossBunsCoreTests/NativeCatalogTests.swift": "27fc7a5f07667f7a3c9438470dce0ead89b7231e45100013455fdcabbeb6952e",
+    "macos/Tests/HotCrossBunsCoreTests/NativePlanIntegrationTests.swift": "497950bf45dfe375ae862331785caf39ae3b5bb9d26054d6e1de9b6cbf8d3ae3",
+    "macos/Tests/HotCrossBunsCoreTests/BridgeShutdownSafetyTests.swift": "e955688ce49ec0a4ffb90abf3f9dcca5396e78c0b0b141a8f6124f600932707c",
+    "macos/Tests/HotCrossBunsCoreTests/NativeCatalogOwnerTests.swift": "6a097157d34e05fc575210dcb71abd750926826bb2cb0d264a576be797c3e4f4",
+    "macos/Tests/HotCrossBunsCoreTests/ApplicationStateTests.swift": "8c5065d730d6016958a799d8abbdae385632929de28ffe7a93e211719834fa38",
+    "macos/Tests/HotCrossBunsCoreTests/NativeProviderTests.swift": "19ec9eea7c9ec5fd14f035c60482140e4da6790d428d4b241dd87a672166eac5",
+    "macos/Tests/HotCrossBunsCoreTests/RecoveryPreparationIntegrationTests.swift": "a6554c3bc4a468a02b6cf8cd8ca5acf5a2632442ea33a9e4bd63a1a029596e90",
+    "macos/Tests/HotCrossBunsCoreTests/NativePerformanceTests.swift": "10c628379665b54bf3e0599cf8a5274632550e19daf2173e79fe9871849f53ad",
+    "macos/Tests/HotCrossBunsCoreTests/NativeClosureAcceptanceTests.swift": "d5cb0af994f79d8f58754393c086b9133084d8cd01051101ca0c14a2bb6090f6",
+    "macos/Tests/HotCrossBunsCoreTests/NativeDraftStoreTests.swift": "12f8cadb57cfc9aa8a84c8bb88055b284a5304f004de7a1193a3f31b27354c9b",
+    "macos/Tests/HotCrossBunsCoreTests/NativeReviewIntegrationTests.swift": "f693a417e08a524e72f486da5c1c936bc740f4a2111ed47f7b2a6fc896e02334",
+    "macos/Tests/HotCrossBunsCoreTests/NativeWorkspaceIntegrationTests.swift": "4b7af5584c23b214b156a0193b6ffa8381182758c0211d7b8b34376e0fc19187",
+    "macos/Tests/HotCrossBunsCoreTests/NativeArchiveSafetyTests.swift": "5febae12a5d4afc6ad218dad056a97276201e7f52139d7f519845f3110462bba",
+    "macos/Tests/HotCrossBunsCoreTests/NativeAttachmentDisconnectTests.swift": "670579bb7785efb79b656f719e3256f0abd131e06311a1fb890f64c49b5e8017",
+    "macos/Tests/HotCrossBunsCoreTests/NativeProviderIntegrationTests.swift": "a67a3869c7acce02a8befc572dcdd75c12381241305f3c17a100c72536e31758",
+    "macos/Tests/HotCrossBunsCoreTests/NativeInertApprovalIntegrationTests.swift": "d35cad353f22763cd9212e305278bebad8d930549d025a1d459dee99e741f889",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/managed-provider.mjs": "05db96d8b58a12ccb2c3020db20a5a3f57ebbee24d877eede7877044937495e0",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/recovery-provider.mjs": "aff93682f16ea523cfecfe553ed1d8c4412d54b877c3f2b7e0364bbab2d5d9d6",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/bridge-fixture.mjs": "817d674e0b97e6cb082cf0f2bba0adf05524be628476e41ca3b2d7afc7972bd4",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/audit-provider.mjs": "7ec32c47e026efaa5067fc3b9bb759129dc85f61534d6f8ea5e64f1db8e6653d",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/native-archive-writer.swift": "23eb05e17ed268c50ed3dc0a97d5cb905b045547e311e30faf67b7c83ed9deca",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/plan-provider.mjs": "9c10b554ab6d20dcadee4768394f09b48663ff5efeded7539e343f68cf8e084a",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/native-catalog-seed.go": "e164534134dd8542ebf9b6e97915c4260cc0f72b197926657a4c57aa07ca8bba",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/provider.mjs": "2ff9589c5b0c445885aa880903034006390f9468d21fc67d498044ac67c0f2fc",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/dev-acceptance-runtime.py": "63aed943bd25530d49541cd385afdd9d749a1bab82c35152b23735680f6e34dc",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/attachment-provider.mjs": "d3933abb146ab281697a418b967f4059a44c58a0e273857df7f2b635c5f8160c",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/pipe-lifecycle.py": "bb8f2037137f59233f5f7c63dcba2c1d1b2f2042a894689db89436a0349ee1a3",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/closure-provider.mjs": "ed8bbf4ec889a80eb3f4f0c73a1fad540971dbf6b17768c6dd9adeb931f58494",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/dev-acceptance-provider.mjs": "18b442df3e410431d8e18319a714c257934a6796e0657b046947723b7caa3008",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/receipt-provider.mjs": "9b0c3a46bc04070bdc114fcd86b6b69df1e2e22565cbbbe39a78df1cc95ccc08",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/review-provider.mjs": "e6d644e3a0729314f5955a4ed2112fe50b853615cca2ea7e1b86edbf374cf5ca",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/recovery-seed/main.go": "8790efe7f72b46871672a9c1f839f013176a04978cd67b4fd536bc39ad3d6ffe",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/native-history/main.go": "8970aa4cb0e92dee0012595b519e7ae0c50e8f32e14b75c0be6b343466048b36",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/retained-plan/main.go": "d90c65ae5ff58559562f36ac96aa89cfc38bc11c0c5f815e2b7afe87ac2441b9",
+    "macos/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+    "macos/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c",
     "macos/Resources/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
     "macos/scripts/build-dev-app.sh": "ec41356f3cc00ccc460bd6962bfc6a0300d6fd14623f2544c62cc2c032f81ec7",
     "macos/scripts/make-app-icon.swift": "68d4d38043bb03a4fae8f5ff61834e75e209c067bd0727493f8a568b38ea794d",
@@ -168,14 +168,14 @@
     "macos/mascot/validation/RecordWindow.swift": "ad14f406935c1384fcbec823807fc25b89e0b66eba851570fea768f5679a5d23",
     "macos/mascot/validation/build.sh": "ecc999c7568efa3c4c09b6e13942cd61e34ae83e850d9629e862415ab7c3593d",
     "macos/mascot/validation/RendererLab.swift": "f6d16315f372e8bab50eca8bf9a5a18d417c3af44c7d63ee7bcfe04ce0af3e98",
-    "macos/mascot/validation/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-    "macos/mascot/validation/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-    "macos/mascot/validation/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+    "macos/mascot/validation/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+    "macos/mascot/validation/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+    "macos/mascot/validation/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
     "macos/mascot/validation/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
     "macos/mascot/2d/source/AnimationRecipe.swift": "13f12465b077f60599bf155b9c3a2dd85e0e31284e9485ad57fa33bc221535b4",
     "macos/mascot/2d/source/previews.py": "df43b9cdca8e486bb8e989ac9094ef7f8c7866cd88c4431bcd1744355d907369",
     "macos/mascot/2d/source/Export.swift": "b5f3bc474f68c15dd26d0685c9c78efc12763a168604c7704314661c706008b1",
-    "macos/mascot/2d/source/ClassicGator.swift": "233560b17c2ba5200b6328af491d7080f6388d23b77ae83780f1b4bfad6018ce",
+    "macos/mascot/2d/source/ClassicHotCrossBuns.swift": "233560b17c2ba5200b6328af491d7080f6388d23b77ae83780f1b4bfad6018ce",
     "macos/mascot/2d/source/export.sh": "a3a98bb90bdcdfebd4e2371fb330bb0f7f591781ec2ea6bb73763237ea9c6f69",
     "macos/mascot/2d/lab/CheckPlayback.swift": "5f38c57487cb022bec4ace4abb1aa67c0c31a79d7dc569d8ebb3ae97038a4d5a",
     "macos/mascot/2d/lab/verify-assets.py": "b647e09c49f06c2f853c19c4f4da2240575f4c598b3cbf98369acbf786d191d9",
@@ -341,18 +341,18 @@
     "macos/mascot/concepts/source/Measure.swift": "9c8ad9ed133c65cc5d28b3d550725223f6f66f8c9f98fa8cdc03be854e3a82eb",
     "macos/mascot/concepts/source/RealityKitProbe.swift": "3c6970395ec7a8696d130a3ccc38c3f277642529b8b2c0692d3164dcf47e27aa",
     "macos/mascot/concepts/source/DesignBoards.swift": "614749b04e428ca0c930fb8703a194a2be5738a61ba9f37cc1059eedb64abbe0",
-    "macos/mascot/concepts/models/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-    "macos/mascot/concepts/models/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-    "macos/mascot/concepts/models/Gator-C.usdz": "fd6eb4c891e0a8a59166911f89760f4e2ee5559e481138684c5488d671919e4d",
-    "macos/mascot/concepts/models/Gator-C.usda": "956cac40b368632c7451357c11d89549d27c0c94bb67e277041f0c67a4ce4607",
-    "macos/mascot/concepts/models/Gator-A.usdc": "4fc014c262ec64c1e757f7d3751a538f844323a3a1ad51ef674c03d928d0dc3d",
-    "macos/mascot/concepts/models/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
-    "macos/mascot/concepts/models/Gator-C.usdc": "71fc1df5080899d352c91ef04f51554ce963e20e7475b20cacc807c71ed962d4",
-    "macos/mascot/concepts/models/Gator-A.usda": "d9a2d5c709433168e97d0a310ad12a340898d787c506265f611a63cb5565f396",
-    "macos/mascot/concepts/models/Gator-B.scn": "e0edaeb9255070e54ae5a5fc4a9db8e6ee1d97f61326398b0a95780e28b4067d",
-    "macos/mascot/concepts/models/Gator-A.usdz": "89aef6931877d63cd056cdb54f125a09bea722ce9f7ed42ba9bec5e3c4cdb0c6",
-    "macos/mascot/concepts/models/Gator-C.scn": "6ade1585530e6c086ba792b226679b8e01285d49d2bf63670a07bcd76a45ae1c",
-    "macos/mascot/concepts/models/Gator-A.scn": "fde035b57b982e3ca31eb8674004bec9d612c46c9ec29bdee55c354e6478e68f",
+    "macos/mascot/concepts/models/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+    "macos/mascot/concepts/models/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+    "macos/mascot/concepts/models/HotCrossBuns-C.usdz": "fd6eb4c891e0a8a59166911f89760f4e2ee5559e481138684c5488d671919e4d",
+    "macos/mascot/concepts/models/HotCrossBuns-C.usda": "956cac40b368632c7451357c11d89549d27c0c94bb67e277041f0c67a4ce4607",
+    "macos/mascot/concepts/models/HotCrossBuns-A.usdc": "4fc014c262ec64c1e757f7d3751a538f844323a3a1ad51ef674c03d928d0dc3d",
+    "macos/mascot/concepts/models/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+    "macos/mascot/concepts/models/HotCrossBuns-C.usdc": "71fc1df5080899d352c91ef04f51554ce963e20e7475b20cacc807c71ed962d4",
+    "macos/mascot/concepts/models/HotCrossBuns-A.usda": "d9a2d5c709433168e97d0a310ad12a340898d787c506265f611a63cb5565f396",
+    "macos/mascot/concepts/models/HotCrossBuns-B.scn": "e0edaeb9255070e54ae5a5fc4a9db8e6ee1d97f61326398b0a95780e28b4067d",
+    "macos/mascot/concepts/models/HotCrossBuns-A.usdz": "89aef6931877d63cd056cdb54f125a09bea722ce9f7ed42ba9bec5e3c4cdb0c6",
+    "macos/mascot/concepts/models/HotCrossBuns-C.scn": "6ade1585530e6c086ba792b226679b8e01285d49d2bf63670a07bcd76a45ae1c",
+    "macos/mascot/concepts/models/HotCrossBuns-A.scn": "fde035b57b982e3ca31eb8674004bec9d612c46c9ec29bdee55c354e6478e68f",
     "macos/mascot/concepts/prototype/realitykit-smoke.png": "48efc240aaf1591d26850bfd864b41b4a0e21e1e85c988990fb9b380d7943aa1",
     "macos/mascot/concepts/prototype/reduced-motion.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
     "macos/mascot/concepts/prototype/B-motion.gif": "643ae3ac0bf8707ddb18786b43d0a3aa0734ae69c580c4bc540ede542915ca91",
@@ -2334,41 +2334,41 @@
     "macos/mascot/evidence/p04m-a2-final/runs/retained-1/11-all-owned-references-released-vmmap.txt": "8732045e2977600b38167ce4426447128e487fa2f0047a8f326e283f941c29c0"
   },
   "bundles": {
-    "/tmp/Gator-Native-Tranche08-Enhanced.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-Enhanced.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "41993b6ffdb4b31353ba4536cc89294d843b29cf3fe423b40dd2d90b4ca0ca5d",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "0ec32bf877b1cad3393bd51d9ebc3e1897e7efd01acbf50cc84e858edd253904",
+      "Contents/MacOS/HotCrossBunsMac": "41993b6ffdb4b31353ba4536cc89294d843b29cf3fe423b40dd2d90b4ca0ca5d",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "0ec32bf877b1cad3393bd51d9ebc3e1897e7efd01acbf50cc84e858edd253904",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P01.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P01.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "0e11c318acd08a1bd7888dcf82072a7f720e7ea0d31f169539ba8e11b0c39b90",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "4fbb61def7980ab43a825e8b0e9100c612223ec4e1848b24e89444f530d2682e",
+      "Contents/MacOS/HotCrossBunsMac": "0e11c318acd08a1bd7888dcf82072a7f720e7ea0d31f169539ba8e11b0c39b90",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "4fbb61def7980ab43a825e8b0e9100c612223ec4e1848b24e89444f530d2682e",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Safety-Verified.app": {
+    "/tmp/HotCrossBuns-Native-Safety-Verified.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "6c86d10d25077267a87dfbc6dd9abd5fc5ec11a3e22ad9286e9ea5dc8bf906ba",
+      "Contents/MacOS/HotCrossBunsMac": "427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "6c86d10d25077267a87dfbc6dd9abd5fc5ec11a3e22ad9286e9ea5dc8bf906ba",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-A2-Lab-v6.app": {
+    "/tmp/HotCrossBuns-Mascot-A2-Lab-v6.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "f487fb3332243237fe95c3e341c51eeaf320601d0b8a177859093303594d825d",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Mascot-Final-Attribution-v1.app": {
+    "/tmp/HotCrossBuns-Mascot-Final-Attribution-v1.app": {
       "Contents/Info.plist": "cb0a45eab59cfaf1a3d5e1492380a97ea25202beb95ca6bd66871b9665a2ecb1",
-      "Contents/MacOS/GatorDiagnostic": "74e7127173d0e2852aea5377247ff327a14e5df552807dfd973951e798905093",
+      "Contents/MacOS/HotCrossBunsDiagnostic": "74e7127173d0e2852aea5377247ff327a14e5df552807dfd973951e798905093",
       "Contents/Resources/revision.json": "08b24f0e273b4a30f086385d9f5e7d955a986b0d33f30c1a1f30ce265f1ad1a9",
       "Contents/Resources/SourceRevision/Engine.swift": "c4f1a9c9ee846d2861fd9f08f3cebad5decd8aff47a128b38ccb55187cf33718",
       "Contents/Resources/SourceRevision/InspectGeometry.swift": "a870b20067c7487838e72cb24c52f1e6b520ae9f951fbd84b2192276f099590c",
@@ -2379,10 +2379,10 @@
       "Contents/Resources/SourceRevision/RenderImages.swift": "1d3fd21779c7366925e7bef3e6b10cafbb720c558010053014997cc565ea09f4",
       "Contents/Resources/SourceRevision/NativeMesh.swift": "871c6ec65ac472e994927c27afeac71f74a652506637157d9bc602c63b886f61",
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Mascot-2D-Playback-Gate-Final.app": {
+    "/tmp/HotCrossBuns-Mascot-2D-Playback-Gate-Final.app": {
       "Contents/Info.plist": "506b958fc067882dbd42be6f2d31a6ea0a97a28d1003239012751958ad4d69b5",
       "Contents/MacOS/MascotPlayback": "654eca4d5cb14805904f73aa2e5943600fb96ad3a6abebd982aad9104bd8dfae",
       "Contents/Resources/Mascot/manifest.json": "09cb1727ce69c3364d9e002e8f626c05a32dab5bc9dc39863058d02c3e3019b5",
@@ -2505,34 +2505,34 @@
       "Contents/Resources/Mascot/classic/responding/04.png": "77c2adf20ceabac466982796ccbad32ee466c6b30d1189f742fac0e8ab136a6c",
       "Contents/Resources/Mascot/classic/responding/08.png": "b99b02bb7ba9eb2a537f5c85211c423025dfea3f8db07c71710fcf03afae6497"
     },
-    "/tmp/Gator-Mascot-A2-Lab-v4.app": {
+    "/tmp/HotCrossBuns-Mascot-A2-Lab-v4.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "861de3cb74d9a60fd3c92528403987a2afa71964199d92d2cccac712bae71241",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Native-Parity-P02.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P02.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "e34fe1f76380ae47e0f34e0e258d4bf4c91d7d6bd69aaa529329a00a66fcaba1",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "cabd48a83ff2c55624b2e0b6b772aa95ec34c2fb42d709989e7dacb5517e5b39",
+      "Contents/MacOS/HotCrossBunsMac": "e34fe1f76380ae47e0f34e0e258d4bf4c91d7d6bd69aaa529329a00a66fcaba1",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "cabd48a83ff2c55624b2e0b6b772aa95ec34c2fb42d709989e7dacb5517e5b39",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P03.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P03.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "fe1938459fa1c7e09cb73b243289702113dbf399eaa152af982fadbcb437014f",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "8f09d57b1e28f4195fb72993b9445e27ff2e313b373a7f0876518c4f7e584977",
+      "Contents/MacOS/HotCrossBunsMac": "fe1938459fa1c7e09cb73b243289702113dbf399eaa152af982fadbcb437014f",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "8f09d57b1e28f4195fb72993b9445e27ff2e313b373a7f0876518c4f7e584977",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-A2-Lab-v5.app": {},
-    "/tmp/Gator-Mascot-Final-Attribution-v2.app": {
+    "/tmp/HotCrossBuns-Mascot-A2-Lab-v5.app": {},
+    "/tmp/HotCrossBuns-Mascot-Final-Attribution-v2.app": {
       "Contents/Info.plist": "cb0a45eab59cfaf1a3d5e1492380a97ea25202beb95ca6bd66871b9665a2ecb1",
-      "Contents/MacOS/GatorDiagnostic": "467231cb66de914fc92cea4859e41417b9cd14daf9bf81270e60342cc6c85787",
+      "Contents/MacOS/HotCrossBunsDiagnostic": "467231cb66de914fc92cea4859e41417b9cd14daf9bf81270e60342cc6c85787",
       "Contents/Resources/revision.json": "b56eeaaf30fa98e00dbbbf84af9ff2c44e6b6e533dc892ce6efda6d4fd51a530",
       "Contents/Resources/SourceRevision/Engine.swift": "c4f1a9c9ee846d2861fd9f08f3cebad5decd8aff47a128b38ccb55187cf33718",
       "Contents/Resources/SourceRevision/InspectGeometry.swift": "a870b20067c7487838e72cb24c52f1e6b520ae9f951fbd84b2192276f099590c",
@@ -2546,66 +2546,66 @@
       "Contents/Resources/SourceRevision/NativeMesh.swift": "628d6e545c591c043070f79583a7ed1a7e1204084f86b2707c1f10204fa6b10a",
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckReleasedSubjects.swift": "bc5fecc1756ecaff49d737f7c4e04885b9a6ddb87014958ca78d20fba14e70c5",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-Parity-P03-Accepted.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P03-Accepted.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "82ed0dc19e5b54393fa82771965bb396ddc86f145c2dc4dc9f2f554a95c6279e",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "b97e001a9e4e436553cc271477b4006e8b8e5552435f1182fac682dc87df31dd",
+      "Contents/MacOS/HotCrossBunsMac": "82ed0dc19e5b54393fa82771965bb396ddc86f145c2dc4dc9f2f554a95c6279e",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "b97e001a9e4e436553cc271477b4006e8b8e5552435f1182fac682dc87df31dd",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app": {
+    "/tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "f36cde9cb207a027742301584e42084400811b6669336e4c21c6be58715984cf",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Native-Parity-P04.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P04.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "4bb3a33575b3b983936913ddfaa8f16dc781c0d9e613f3e39730a55c69a1391e",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "0d6e86cc1b073bf96d6d70a4604d7cfe0913205aa452338ba4d09a40a7b14dcb",
+      "Contents/MacOS/HotCrossBunsMac": "4bb3a33575b3b983936913ddfaa8f16dc781c0d9e613f3e39730a55c69a1391e",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "0d6e86cc1b073bf96d6d70a4604d7cfe0913205aa452338ba4d09a40a7b14dcb",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-A2-Lab-v2.app": {
+    "/tmp/HotCrossBuns-Mascot-A2-Lab-v2.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "da19a15dd13e9571ecb1176fdab2f2ef4c2bd6f6e59fac3e05182e553ece9e1a",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Mascot-A2-Lab-v3.app": {
+    "/tmp/HotCrossBuns-Mascot-A2-Lab-v3.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "af72c3525265f8b45ff37efb6d9dc404c0ab817b15df3073707352d819a12728",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Native-Parity-P03-Accepted-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P03-Accepted-Desktop.app": {
       "Contents/Info.plist": "57d8b94c3f05e9f7d35ab34c555a0ee813208c3c3d0efe6a9c837746db7d5ffc",
-      "Contents/MacOS/GatorMac": "82ed0dc19e5b54393fa82771965bb396ddc86f145c2dc4dc9f2f554a95c6279e",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "b97e001a9e4e436553cc271477b4006e8b8e5552435f1182fac682dc87df31dd",
+      "Contents/MacOS/HotCrossBunsMac": "82ed0dc19e5b54393fa82771965bb396ddc86f145c2dc4dc9f2f554a95c6279e",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "b97e001a9e4e436553cc271477b4006e8b8e5552435f1182fac682dc87df31dd",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Tranche08-Enhanced-Final.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "feefc29f67c0d0fd73d771225f6050c489de7ccf345798626ddcc7f26b3e5b7a",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "0ec32bf877b1cad3393bd51d9ebc3e1897e7efd01acbf50cc84e858edd253904",
+      "Contents/MacOS/HotCrossBunsMac": "feefc29f67c0d0fd73d771225f6050c489de7ccf345798626ddcc7f26b3e5b7a",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "0ec32bf877b1cad3393bd51d9ebc3e1897e7efd01acbf50cc84e858edd253904",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Gate2-PreFinal-v8.app": {
+    "/tmp/HotCrossBuns-Gate2-PreFinal-v8.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "cb43a9cb313f68d3b7060b56c3eb21db8de166a87ae13ea1a42f0c49fb23afc1",
       "Contents/Resources/revision.json": "2fd163147971d89cbbe1ac1863bf7022df44d783565a8ff07146171d8c920f05",
@@ -2620,13 +2620,13 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "85c0fb395cb13b512a09f12048492548dadca574aecefeb97d65d17a6d774bce",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Mascot-2D-Playback-Verified.app": {
+    "/tmp/HotCrossBuns-Mascot-2D-Playback-Verified.app": {
       "Contents/Info.plist": "506b958fc067882dbd42be6f2d31a6ea0a97a28d1003239012751958ad4d69b5",
       "Contents/MacOS/MascotPlayback": "1518f2540835c98aee4a2a8543d0a2d60d8554c86723efe51ee8fc91dd884143",
       "Contents/Resources/Mascot/manifest.json": "09cb1727ce69c3364d9e002e8f626c05a32dab5bc9dc39863058d02c3e3019b5",
@@ -2749,7 +2749,7 @@
       "Contents/Resources/Mascot/classic/responding/04.png": "77c2adf20ceabac466982796ccbad32ee466c6b30d1189f742fac0e8ab136a6c",
       "Contents/Resources/Mascot/classic/responding/08.png": "b99b02bb7ba9eb2a537f5c85211c423025dfea3f8db07c71710fcf03afae6497"
     },
-    "/tmp/Gator-Gate2-PreFinal-v9.app": {
+    "/tmp/HotCrossBuns-Gate2-PreFinal-v9.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "dee489eafc20eab57eac02c8b9801379adc2cf01d32348001735502e652b0e1f",
       "Contents/Resources/revision.json": "6bb1266a6c16353af43c565879a51b5af3de2426b770eb8046a470a1841c683c",
@@ -2764,43 +2764,43 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "7a6e262015feb93db22b5b4c7ccce88d7548909f9d1381ea4d1e37bf148dea8d",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-UIUX-Preview.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-Preview.app": {
       "Contents/Info.plist": "2b65d52fafc33b4ae1ec16f280f9dce4901ec7fffe85464c1217848558ba481e",
-      "Contents/MacOS/GatorMac": "a9cf8e68b2848647df6f90d89414517d750edc0e3f18dab4312a8118a23c6233",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "29dd96f67cb044bb56a4d68d5b28278af35443e8cdd86799cdbaab60a448488d",
+      "Contents/MacOS/HotCrossBunsMac": "a9cf8e68b2848647df6f90d89414517d750edc0e3f18dab4312a8118a23c6233",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "29dd96f67cb044bb56a4d68d5b28278af35443e8cdd86799cdbaab60a448488d",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-UIUX-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-Desktop.app": {
       "Contents/Info.plist": "2b65d52fafc33b4ae1ec16f280f9dce4901ec7fffe85464c1217848558ba481e",
-      "Contents/MacOS/GatorMac": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10",
+      "Contents/MacOS/HotCrossBunsMac": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Tranche08-PreIcon-Evidence.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-PreIcon-Evidence.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "cd6dc14cf33c234456952175e23821d676de6c1762fbbaa9e1dc1ffaa5f200d6",
-      "Contents/Resources/gator-runtime": "b046e4e79c7c83c422c34a65708e92a309ca9c715081ac1afffe9838b446a6b2",
+      "Contents/MacOS/HotCrossBunsMac": "cd6dc14cf33c234456952175e23821d676de6c1762fbbaa9e1dc1ffaa5f200d6",
+      "Contents/Resources/hot-cross-buns-runtime": "b046e4e79c7c83c422c34a65708e92a309ca9c715081ac1afffe9838b446a6b2",
       "Contents/Resources/AppIcon.icns": "89ff6b662e4ac088e230f843cc220a9ae559e391023bd64696e87dadbfbb7832"
     },
-    "/tmp/Gator-Native-Tranche08-Acceptance.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-Acceptance.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "61bdfc5d3f3198e2cee9ec2b762869c481c676dcaeede5347b6b1fc922e89fc2",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "40b788eeb831711a278e09e80365346830d1d305a86f852fda64e4460740d1fa",
+      "Contents/MacOS/HotCrossBunsMac": "61bdfc5d3f3198e2cee9ec2b762869c481c676dcaeede5347b6b1fc922e89fc2",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "40b788eeb831711a278e09e80365346830d1d305a86f852fda64e4460740d1fa",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Gate2-FinalCandidate-v10.app": {
+    "/tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "9887643419b6d54196512d9f140cc54f703d20d90a7e177ad5996c9448159015",
       "Contents/Resources/revision.json": "ff8812d3af836bc2890f74cb9de0d933931c8ea7692b7735daa41a29abfcccaa",
@@ -2815,78 +2815,78 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "7a6e262015feb93db22b5b4c7ccce88d7548909f9d1381ea4d1e37bf148dea8d",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-Parity-P03-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P03-Desktop.app": {
       "Contents/Info.plist": "7ee668bbce6a092e3fe9551c329bb3ec91875a11bb6f888646fb8eb3006a1514",
-      "Contents/MacOS/GatorMac": "fe1938459fa1c7e09cb73b243289702113dbf399eaa152af982fadbcb437014f",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "8f09d57b1e28f4195fb72993b9445e27ff2e313b373a7f0876518c4f7e584977",
+      "Contents/MacOS/HotCrossBunsMac": "fe1938459fa1c7e09cb73b243289702113dbf399eaa152af982fadbcb437014f",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "8f09d57b1e28f4195fb72993b9445e27ff2e313b373a7f0876518c4f7e584977",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-P04M-A2-Prototype.app": {
+    "/tmp/HotCrossBuns-Mascot-P04M-A2-Prototype.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "70586f6276a6a2360f029198a39e3c7c2692211cdf3f23feab39989cc6b5b8ca",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Native-Tranche08-Diagnostics-PreHardening.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-Diagnostics-PreHardening.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "61bdfc5d3f3198e2cee9ec2b762869c481c676dcaeede5347b6b1fc922e89fc2",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "db39c53c915a72e7f086ff5c7d5acdeae9665140643971496bf90b98897bd8dc",
+      "Contents/MacOS/HotCrossBunsMac": "61bdfc5d3f3198e2cee9ec2b762869c481c676dcaeede5347b6b1fc922e89fc2",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "db39c53c915a72e7f086ff5c7d5acdeae9665140643971496bf90b98897bd8dc",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P03-Acceptance-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P03-Acceptance-Desktop.app": {
       "Contents/Info.plist": "382b03579125e6c944a87ce7668ad90a772168d98c0bb6e19f98b853eb63848f",
-      "Contents/MacOS/GatorMac": "fe1938459fa1c7e09cb73b243289702113dbf399eaa152af982fadbcb437014f",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "8f09d57b1e28f4195fb72993b9445e27ff2e313b373a7f0876518c4f7e584977",
+      "Contents/MacOS/HotCrossBunsMac": "fe1938459fa1c7e09cb73b243289702113dbf399eaa152af982fadbcb437014f",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "8f09d57b1e28f4195fb72993b9445e27ff2e313b373a7f0876518c4f7e584977",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P04-PreKeyboardAcceptance.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P04-PreKeyboardAcceptance.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "d156de1f325f6c518813dd60dae4c9cdf2eac13a413bdbe8f1172b7362a76c8e",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
+      "Contents/MacOS/HotCrossBunsMac": "d156de1f325f6c518813dd60dae4c9cdf2eac13a413bdbe8f1172b7362a76c8e",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Gate2-Profile-v4.app": {
+    "/tmp/HotCrossBuns-Gate2-Profile-v4.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "59ae6e260a9f51dc2432c88e38ebf5e7f0acca13c5b140dccf1236b0278bf90c",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-UIUX-Preview-01.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-Preview-01.app": {
       "Contents/Info.plist": "2b65d52fafc33b4ae1ec16f280f9dce4901ec7fffe85464c1217848558ba481e",
-      "Contents/MacOS/GatorMac": "c1a42d9625ce935b6ff15a3ea1e7ffb1c072f062b221f8d8d2c46934e6d9b39f",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "ef5b23d4107762e4aa162aec4f65d355fd6b936f2358c40f87a619a627baa4a9",
+      "Contents/MacOS/HotCrossBunsMac": "c1a42d9625ce935b6ff15a3ea1e7ffb1c072f062b221f8d8d2c46934e6d9b39f",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "ef5b23d4107762e4aa162aec4f65d355fd6b936f2358c40f87a619a627baa4a9",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Tranche08-Diagnostics.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-Diagnostics.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "61bdfc5d3f3198e2cee9ec2b762869c481c676dcaeede5347b6b1fc922e89fc2",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "e4a52bb5c529f3c5badf909ea4444cf8cb2631b3b1d53d7bb85c9c0e2c80b01e",
+      "Contents/MacOS/HotCrossBunsMac": "61bdfc5d3f3198e2cee9ec2b762869c481c676dcaeede5347b6b1fc922e89fc2",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "e4a52bb5c529f3c5badf909ea4444cf8cb2631b3b1d53d7bb85c9c0e2c80b01e",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Gate2-PreFinal-v7.app": {
+    "/tmp/HotCrossBuns-Gate2-PreFinal-v7.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "725a83cb7925c980ae6ea60a161bb6a0f2da0addc4d3e934bedfca584b32eb86",
       "Contents/Resources/revision.json": "9564e10ca28537acb77336edc8655fbeceaba2930ac16a0f6c3ae35192c95e02",
@@ -2901,31 +2901,31 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "3ae2a7df84d4c2c7f1b9f5746f0ab2f5509f28da9fa60c4e61fe3444edbab10b",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Gate2-Profile-v2.app": {
+    "/tmp/HotCrossBuns-Gate2-Profile-v2.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "c627baf3a2874f5f463975290858b20456b9071b34e581d847aa97f52a0dad37",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Mascot-2D-Playback.app": {},
-    "/tmp/Gator-Gate2-Profile-v3.app": {
+    "/tmp/HotCrossBuns-Mascot-2D-Playback.app": {},
+    "/tmp/HotCrossBuns-Gate2-Profile-v3.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "1dc6ca517f673e4ed3e22a1172e18b9d149f371ca02324b86f74e720faeb6fa0",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Gate2-PreFinal-v6.app": {
+    "/tmp/HotCrossBuns-Gate2-PreFinal-v6.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "3ec2ba0c724f31264940798e81fbbc6b781e0487f4feee247380c98b146ac898",
       "Contents/Resources/revision.json": "87a94ebdffc8c43462ddf88ae0d337f9cbf2befd8e21973f219c993ba745be5e",
@@ -2940,38 +2940,38 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "27d18dfe5e6030a3d7d7ef794be185282e0f226816324f312cb1cbe29b7c32e4",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-Tranche08-Notch-Preview.app": {
+    "/tmp/HotCrossBuns-Native-Tranche08-Notch-Preview.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "c2088e665b5ed7dc12dbb0993f43842325e74ecf062f1a428a2b9b555012fb1f",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "78d01c8605bd4e0c98f5562bfb9737a031eb3918b52e241cb917ebc541c792d5",
+      "Contents/MacOS/HotCrossBunsMac": "c2088e665b5ed7dc12dbb0993f43842325e74ecf062f1a428a2b9b555012fb1f",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "78d01c8605bd4e0c98f5562bfb9737a031eb3918b52e241cb917ebc541c792d5",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-A2-Lab.app": {},
-    "/tmp/Gator-Gate2-Profile-v1.app": {
+    "/tmp/HotCrossBuns-Mascot-A2-Lab.app": {},
+    "/tmp/HotCrossBuns-Gate2-Profile-v1.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "b387891303d21c947f087af75480e40602e7a6dd13aa5ec30e6ac1fc4ef461f8",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Native-Parity-P01-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P01-Desktop.app": {
       "Contents/Info.plist": "8eeddaec70129e57122862782858fc98d0f71d4cb6aeb7e0e1ae728621973b39",
-      "Contents/MacOS/GatorMac": "0e11c318acd08a1bd7888dcf82072a7f720e7ea0d31f169539ba8e11b0c39b90",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "4fbb61def7980ab43a825e8b0e9100c612223ec4e1848b24e89444f530d2682e",
+      "Contents/MacOS/HotCrossBunsMac": "0e11c318acd08a1bd7888dcf82072a7f720e7ea0d31f169539ba8e11b0c39b90",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "4fbb61def7980ab43a825e8b0e9100c612223ec4e1848b24e89444f530d2682e",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Gate2-PreFinal-v5.app": {
+    "/tmp/HotCrossBuns-Gate2-PreFinal-v5.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "a56d76c0a36083dd66f28053be58c271d1fdebb4eba1bd7adaa7d64a0a7de90e",
       "Contents/Resources/revision.json": "7dacae02bfdb7be0ffb2d824c8b0d71f9d0bc5a22c3f8ed6e6cb154c6e849804",
@@ -2986,59 +2986,59 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "4c8d8454e42f2228d245885b8eb6a9a5c5ce82d3bcc0a50a75f53ec3c3fa2c26",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-MenuBar-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-MenuBar-Desktop.app": {
       "Contents/Info.plist": "9d8a78615778129cc5aa0e1024351299d600946f479b22cad94696ca5643302c",
-      "Contents/MacOS/GatorMac": "7985c67f905adf3579c593a9d29fa5e04be2fcbcc296f7b59c5836212196aeb0",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "8b982f6556f4d18834ba0a0817e7d567f9859c1e0a1de6d32e5550641763beb6",
+      "Contents/MacOS/HotCrossBunsMac": "7985c67f905adf3579c593a9d29fa5e04be2fcbcc296f7b59c5836212196aeb0",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "8b982f6556f4d18834ba0a0817e7d567f9859c1e0a1de6d32e5550641763beb6",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P04-PreFinalValidation.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P04-PreFinalValidation.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "8ee7e7ceb2aeb81d1f3374b61f5abdec742462592de09f3a9955a3f916435d5b",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
+      "Contents/MacOS/HotCrossBunsMac": "8ee7e7ceb2aeb81d1f3374b61f5abdec742462592de09f3a9955a3f916435d5b",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-P04M-A2-Validated-Prototype.app": {
+    "/tmp/HotCrossBuns-Mascot-P04M-A2-Validated-Prototype.app": {
       "Contents/Info.plist": "93c73ac28faa6df614f6001c6db97a7e22e8884ec881f6d8d8d357691ee14904",
       "Contents/MacOS/MascotValidation": "bf3198fc7a85521d3b74756176e9367fb3e838c6fed504bc749af85b8f5bb724",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d"
     },
-    "/tmp/Gator-Native-Parity-P02-Desktop.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P02-Desktop.app": {
       "Contents/Info.plist": "00076e17d869bc97095d4c013e3bb93ef7c0752609d3ab9624960752237d8615",
-      "Contents/MacOS/GatorMac": "e34fe1f76380ae47e0f34e0e258d4bf4c91d7d6bd69aaa529329a00a66fcaba1",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "8ba1477ba0df3824d06dc7466217a921afb9ad9097bf7a78526f3594926e8ae9",
+      "Contents/MacOS/HotCrossBunsMac": "e34fe1f76380ae47e0f34e0e258d4bf4c91d7d6bd69aaa529329a00a66fcaba1",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "8ba1477ba0df3824d06dc7466217a921afb9ad9097bf7a78526f3594926e8ae9",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P04-PreAcceptance.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P04-PreAcceptance.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "7c1add61d72adeb7551662140089bea419e7e560be26efb8698988f4df6bf60b",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
+      "Contents/MacOS/HotCrossBunsMac": "7c1add61d72adeb7551662140089bea419e7e560be26efb8698988f4df6bf60b",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-P04M-2D.app": {
+    "/tmp/HotCrossBuns-Native-P04M-2D.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "57f1b8a8f80d6ac6eb38fd40f473a722f759e696b8a082619856b2760e1de44b",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "c7a6b5de9ec066bd46f4442aac34634b23464d4f3760043f1b2f9523609ae24e",
+      "Contents/MacOS/HotCrossBunsMac": "57f1b8a8f80d6ac6eb38fd40f473a722f759e696b8a082619856b2760e1de44b",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "c7a6b5de9ec066bd46f4442aac34634b23464d4f3760043f1b2f9523609ae24e",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c",
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c",
       "Contents/Resources/Mascot/manifest.json": "09cb1727ce69c3364d9e002e8f626c05a32dab5bc9dc39863058d02c3e3019b5",
       "Contents/Resources/Mascot/rendered/blink/00.png": "f07cd2e895bc8d5881135cff9e40df611e2a452705dabd44b2f36c337db3e0cd",
       "Contents/Resources/Mascot/rendered/blink/01.png": "b86eccfc8c07d82ddb5f99012ca61998a0eb1c1f6fc6828437416155de2e953f",
@@ -3159,7 +3159,7 @@
       "Contents/Resources/Mascot/classic/responding/04.png": "77c2adf20ceabac466982796ccbad32ee466c6b30d1189f742fac0e8ab136a6c",
       "Contents/Resources/Mascot/classic/responding/08.png": "b99b02bb7ba9eb2a537f5c85211c423025dfea3f8db07c71710fcf03afae6497"
     },
-    "/tmp/Gator-Mascot-2D-Playback-Gate-v4.app": {
+    "/tmp/HotCrossBuns-Mascot-2D-Playback-Gate-v4.app": {
       "Contents/Info.plist": "506b958fc067882dbd42be6f2d31a6ea0a97a28d1003239012751958ad4d69b5",
       "Contents/MacOS/MascotPlayback": "b4268131992143fa835d7586c8f079532e990826472f5b7cedeeb7bf0ac0a5fd",
       "Contents/Resources/Mascot/manifest.json": "09cb1727ce69c3364d9e002e8f626c05a32dab5bc9dc39863058d02c3e3019b5",
@@ -3282,7 +3282,7 @@
       "Contents/Resources/Mascot/classic/responding/04.png": "77c2adf20ceabac466982796ccbad32ee466c6b30d1189f742fac0e8ab136a6c",
       "Contents/Resources/Mascot/classic/responding/08.png": "b99b02bb7ba9eb2a537f5c85211c423025dfea3f8db07c71710fcf03afae6497"
     },
-    "/tmp/Gator-Mascot-P04M-A2-Final-Diagnostic.app": {
+    "/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "2b51a8f7fe8b11ad35c07936dd3627645e27decf317fc3ad749934de42a2ebbb",
       "Contents/Resources/revision.json": "3720e842e05d60fa94a7f5d2906ba6d34c9c7a5776868ee283e89805357dc8c1",
@@ -3301,37 +3301,37 @@
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "7a6e262015feb93db22b5b4c7ccce88d7548909f9d1381ea4d1e37bf148dea8d",
       "Contents/Resources/SourceRevision/DesktopControl.swift": "b1c42dbe868d230824d7f127f6e668c821b3c8873df15d3f491c9d3038cebbc0",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     },
-    "/tmp/Gator-Native-UIUX-PreJump.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-PreJump.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "546f49a3ca40983a0f12dc206db288e283ae28e1d810d49754980a7a8edaf93d",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "16bd39c27dd370abae7eb35a7816e7c631cfed13b5b94bac6261afff372ba4bb",
+      "Contents/MacOS/HotCrossBunsMac": "546f49a3ca40983a0f12dc206db288e283ae28e1d810d49754980a7a8edaf93d",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "16bd39c27dd370abae7eb35a7816e7c631cfed13b5b94bac6261afff372ba4bb",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-Parity-P04-PreSecureEditorAcceptance.app": {
+    "/tmp/HotCrossBuns-Native-Parity-P04-PreSecureEditorAcceptance.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "bf3e2a85e80b76d818b01212fad5f0cda629b768e075b229c7b7c7e7ec81147d",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
+      "Contents/MacOS/HotCrossBunsMac": "bf3e2a85e80b76d818b01212fad5f0cda629b768e075b229c7b7c7e7ec81147d",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "b1fad6b594faaaae623c5d2378f5952a56281ff4bf802954514e08f051fd305d",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-MenuBar-Preview.app": {
+    "/tmp/HotCrossBuns-Native-MenuBar-Preview.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "3fee5fd3cff2bcc28a3ba824494036c90f15464340bace4d88e5c23f101e2c01",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "8b982f6556f4d18834ba0a0817e7d567f9859c1e0a1de6d32e5550641763beb6",
+      "Contents/MacOS/HotCrossBunsMac": "3fee5fd3cff2bcc28a3ba824494036c90f15464340bace4d88e5c23f101e2c01",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "8b982f6556f4d18834ba0a0817e7d567f9859c1e0a1de6d32e5550641763beb6",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-2D-Playback-Gate-v2.app": {
+    "/tmp/HotCrossBuns-Mascot-2D-Playback-Gate-v2.app": {
       "Contents/Info.plist": "506b958fc067882dbd42be6f2d31a6ea0a97a28d1003239012751958ad4d69b5",
       "Contents/MacOS/MascotPlayback": "07ecacb28be91da781185d7a2e2e11a5f99df12771b986c7d70f48fd8d00a3f0",
       "Contents/Resources/Mascot/manifest.json": "09cb1727ce69c3364d9e002e8f626c05a32dab5bc9dc39863058d02c3e3019b5",
@@ -3454,23 +3454,23 @@
       "Contents/Resources/Mascot/classic/responding/04.png": "77c2adf20ceabac466982796ccbad32ee466c6b30d1189f742fac0e8ab136a6c",
       "Contents/Resources/Mascot/classic/responding/08.png": "b99b02bb7ba9eb2a537f5c85211c423025dfea3f8db07c71710fcf03afae6497"
     },
-    "/tmp/Gator-Native-UIUX-Desktop-Previous.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-Desktop-Previous.app": {
       "Contents/Info.plist": "2b65d52fafc33b4ae1ec16f280f9dce4901ec7fffe85464c1217848558ba481e",
-      "Contents/MacOS/GatorMac": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "16bd39c27dd370abae7eb35a7816e7c631cfed13b5b94bac6261afff372ba4bb",
+      "Contents/MacOS/HotCrossBunsMac": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "16bd39c27dd370abae7eb35a7816e7c631cfed13b5b94bac6261afff372ba4bb",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Native-UIUX-Baseline.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-Baseline.app": {
       "Contents/Info.plist": "35afaf0adad095f99b62a2fd97700f2d403118a356355797cdac0cfb66f72868",
-      "Contents/MacOS/GatorMac": "a53f43ad8a0bb8e97636a9c4ba07625f23f055d0fcb0b2ab467f108954200b2d",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "7940c0dbba7135e43392000fc2832c56dbb4463db966494149a32be6c3870c24",
+      "Contents/MacOS/HotCrossBunsMac": "a53f43ad8a0bb8e97636a9c4ba07625f23f055d0fcb0b2ab467f108954200b2d",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "7940c0dbba7135e43392000fc2832c56dbb4463db966494149a32be6c3870c24",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-2D-Playback-Gate-v3.app": {
+    "/tmp/HotCrossBuns-Mascot-2D-Playback-Gate-v3.app": {
       "Contents/Info.plist": "506b958fc067882dbd42be6f2d31a6ea0a97a28d1003239012751958ad4d69b5",
       "Contents/MacOS/MascotPlayback": "24fcf958d3ad483d09a93e1107c9a6769bf3bb9f3c48983a51dab0f4a144e4aa",
       "Contents/Resources/Mascot/manifest.json": "09cb1727ce69c3364d9e002e8f626c05a32dab5bc9dc39863058d02c3e3019b5",
@@ -3593,15 +3593,15 @@
       "Contents/Resources/Mascot/classic/responding/04.png": "77c2adf20ceabac466982796ccbad32ee466c6b30d1189f742fac0e8ab136a6c",
       "Contents/Resources/Mascot/classic/responding/08.png": "b99b02bb7ba9eb2a537f5c85211c423025dfea3f8db07c71710fcf03afae6497"
     },
-    "/tmp/Gator-Native-UIUX-Verified.app": {
+    "/tmp/HotCrossBuns-Native-UIUX-Verified.app": {
       "Contents/Info.plist": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23",
-      "Contents/MacOS/GatorMac": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
-      "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-      "Contents/Resources/gator-runtime": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10",
+      "Contents/MacOS/HotCrossBunsMac": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
+      "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+      "Contents/Resources/hot-cross-buns-runtime": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10",
       "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-      "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+      "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
     },
-    "/tmp/Gator-Mascot-P04M-A2-Gate2.app": {
+    "/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app": {
       "Contents/Info.plist": "e4ddaffdfb3e395bab050ae058f02483735b59192423bddde59a8c41fa7fd64b",
       "Contents/MacOS/Gate2Lab": "9887643419b6d54196512d9f140cc54f703d20d90a7e177ad5996c9448159015",
       "Contents/Resources/revision.json": "ff8812d3af836bc2890f74cb9de0d933931c8ea7692b7735daa41a29abfcccaa",
@@ -3616,9 +3616,9 @@
       "Contents/Resources/SourceRevision/Metrics.swift": "43de910631576fde3cbd0156276bda50c1347fc2665fa56a1cd5db3127fe2cac",
       "Contents/Resources/SourceRevision/CheckNative.swift": "152ce1417299415799c85f5bf7f3a3d2ca0cb4c3a95e7ff20aed794c0c6e42ed",
       "Contents/Resources/SourceRevision/Gate2Lab.swift": "7a6e262015feb93db22b5b4c7ccce88d7548909f9d1381ea4d1e37bf148dea8d",
-      "Contents/Resources/Assets/Gator-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
-      "Contents/Resources/Assets/Gator-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
-      "Contents/Resources/Assets/Gator-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
+      "Contents/Resources/Assets/HotCrossBuns-B.usda": "356d1cabfba9562e34a62a43123eb850b6f389ff2d9efa63cf55e51852334ed3",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdz": "f85db8a1c80ec5f17d8de8102e77c3b4774357548ee26a582c689be32e4103ca",
+      "Contents/Resources/Assets/HotCrossBuns-B.usdc": "8266167f007e6e93cd4d3e9b203eeda064dfae78b19cca9ebffa75e72d8ff24d",
       "Contents/Resources/Assets/B-static.png": "f0d9d1a75c116da54adfe2d2650b106d7982fe66ad426234f9e7b0afe552ec2d",
       "Contents/Resources/Assets/B-native-meshes.json": "ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f"
     }

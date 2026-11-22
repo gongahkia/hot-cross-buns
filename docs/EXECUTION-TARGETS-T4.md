@@ -1,6 +1,6 @@
 # T4: authorized external tmux intervention
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -51,12 +51,12 @@ Use the companion's same state profile and an existing tmux server/private socke
 Existing T3/T3.1 enrollment is unchanged:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
-node companion/external-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux review-control TARGET_ID
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 300
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID key_input 300
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID interrupt 300
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
+node companion/external-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux review-control TARGET_ID
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 300
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID key_input 300
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID interrupt 300
 ```
 
 Grant only the operations intended. `text_input` permits both literal text and
@@ -67,8 +67,8 @@ invalidate authority. The local script accepts the existing explicit `owner`
 principal when owner-token access is intended.
 
 ```sh
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 0
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux unreview-control TARGET_ID
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 0
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux unreview-control TARGET_ID
 ```
 
 `unreview-control` clears control review/grants across all enrollments of that
@@ -104,13 +104,13 @@ credentials stay on the host. Installed live verification used tmux 3.8; existin
 supported-version/platform checks and capture limits remain in force.
 
 Preflight and tmux mutation are NOT atomic. The local keyboard, other clients and
-configuration can race with Gator. Gator serializes its own mutations to an exact
-Gator target across helper processes; distinct enrollments of the same physical
+configuration can race with Hot Cross Buns. Hot Cross Buns serializes its own mutations to an exact
+Hot Cross Buns target across helper processes; distinct enrollments of the same physical
 pane are distinct targets and should not be used as concurrent control channels.
 No exclusive ownership of the external program is claimed.
 
 The reviewed-backend limitation remains: canonical aliases and hooks can translate
-intended commands into other effects. Gator does not attest live configuration or
+intended commands into other effects. Hot Cross Buns does not attest live configuration or
 automatically detect arbitrary changes. It issues intended finite operations;
 it does not prove arbitrary server behavior safe. Local trust acceptance is
 required and cannot defend against malicious same-user configuration/processes.
@@ -244,7 +244,7 @@ Adapted:
   final invocation authorization and native finite-key/alias fixtures.
 - external `catalog.go`: independent control grants/review, admission initialization
   state and redacted authorized operation offers on snapshots.
-- `cmd/gator/{companion_external.go,desktop_runtime.go}`: fixed local administrative
+- `cmd/hot-cross-buns/{companion_external.go,desktop_runtime.go}`: fixed local administrative
   commands and bounded, maintenance-free Go mutation helper.
 - `companion/{server.mjs,external.mjs,README.md}` and
   `companion/public/{index.html,external-view.mjs}`: existing transport and view.
@@ -267,8 +267,8 @@ npm run check --prefix ui
 node --test companion/auth.test.mjs companion/recovery.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/external.test.mjs companion/server.test.mjs companion/health.test.mjs
 node --test companion/client.test.mjs companion/inspection-client.test.mjs companion/mutation-client.test.mjs companion/external-client.test.mjs
 node --test companion/terminal-client.test.mjs companion/terminal.test.mjs
-GATOR_TMUX_LIVE=1 node --test companion/terminal.test.mjs companion/external.test.mjs
-GATOR_TMUX_LIVE=1 go test ./internal/executiontarget/... -count=1
+HOT_CROSS_BUNS_TMUX_LIVE=1 node --test companion/terminal.test.mjs companion/external.test.mjs
+HOT_CROSS_BUNS_TMUX_LIVE=1 go test ./internal/executiontarget/... -count=1
 ```
 
 The concurrent duplicate fixture permits observing an in-flight claimed/unknown

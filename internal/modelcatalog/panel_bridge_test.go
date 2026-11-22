@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 func TestDesktopCloudFieldsPreserveSecretRedaction(t *testing.T) {

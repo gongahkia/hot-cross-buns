@@ -3,12 +3,12 @@ package workapp
 import (
 	"testing"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestBranchOwnerPreservesRunningParentAndRequiresExactBoundary(t *testing.T) {
 	calls := 0
-	m := Model{conversation: "work-parent", running: true, revision: "rev-newer", messages: []message{{role: "Gator", runID: "run-saved", revisionID: "rev-saved", text: "Retained answer"}, {role: "You", text: "Still running"}}, config: Config{ManagedSessions: true, ForkConversation: func(parent, revision, run, request string) (worksession.Conversation, error) {
+	m := Model{conversation: "work-parent", running: true, revision: "rev-newer", messages: []message{{role: "Hot Cross Buns", runID: "run-saved", revisionID: "rev-saved", text: "Retained answer"}, {role: "You", text: "Still running"}}, config: Config{ManagedSessions: true, ForkConversation: func(parent, revision, run, request string) (worksession.Conversation, error) {
 		calls++
 		if parent != "work-parent" || revision != "rev-saved" || run != "run-saved" {
 			t.Fatal("owner redirected boundary")

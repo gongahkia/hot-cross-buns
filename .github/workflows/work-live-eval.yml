@@ -39,8 +39,8 @@ jobs:
         run: make runtime
       - name: Run bounded live Work corpus
         env:
-          GATOR_PROVIDER: ${{ inputs.provider }}
-          GATOR_MODEL: ${{ inputs.model }}
+          HOT_CROSS_BUNS_PROVIDER: ${{ inputs.provider }}
+          HOT_CROSS_BUNS_MODEL: ${{ inputs.model }}
           WORK_MODEL_REQUESTS: ${{ inputs.model_requests }}
           WORK_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -50,8 +50,8 @@ jobs:
           [[ "$WORK_MODEL_REQUESTS" =~ ^[0-9]+$ && "$WORK_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]]
           (( WORK_MODEL_REQUESTS >= 1 && WORK_MODEL_REQUESTS <= 512 ))
           (( WORK_TIMEOUT_SECONDS >= 1 && WORK_TIMEOUT_SECONDS <= 1800 ))
-          ./ui/runtime/gator-runtime work eval run internal/eval/testdata/work-v1/dataset.json \
-            --id "live-${GITHUB_RUN_ID}" --live --provider "$GATOR_PROVIDER" --model "$GATOR_MODEL" \
+          ./ui/runtime/hot-cross-buns-runtime work eval run internal/eval/testdata/work-v1/dataset.json \
+            --id "live-${GITHUB_RUN_ID}" --live --provider "$HOT_CROSS_BUNS_PROVIDER" --model "$HOT_CROSS_BUNS_MODEL" \
             --max-model-requests "$WORK_MODEL_REQUESTS" --timeout-seconds "$WORK_TIMEOUT_SECONDS" \
             --report-dir "$RUNNER_TEMP/work-eval"
       - uses: actions/upload-artifact@v4

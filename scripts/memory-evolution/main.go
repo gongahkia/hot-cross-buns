@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
 )
 
 type finding struct {
@@ -51,7 +51,7 @@ func main() {
 	}
 	output := must(os.OpenFile(os.Args[1], os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600))
 	defer output.Close()
-	root := must(os.MkdirTemp("", "gator-memory-evolution-"))
+	root := must(os.MkdirTemp("", "hot-cross-buns-memory-evolution-"))
 	defer os.RemoveAll(root)
 	var findings []finding
 	add := func(name string, met bool, evidence any) {
@@ -104,7 +104,7 @@ func main() {
 	for i := range old.Evidence {
 		old.Evidence[i].ObservedAt = old.CreatedAt
 	}
-	require(os.WriteFile(filepath.Join(root, "evolution/gator/memory", old.ID+".json"), must(json.Marshal(old)), 0600))
+	require(os.WriteFile(filepath.Join(root, "evolution/hot-cross-buns/memory", old.ID+".json"), must(json.Marshal(old)), 0600))
 	for index := 0; index < 4; index++ {
 		must(store.RememberChat(input(fmt.Sprintf("preference.other%d", index), fmt.Sprintf("I prefer option %d for a separate topic.", index))))
 	}
@@ -151,7 +151,7 @@ func main() {
 	broken := newStore("corrupt")
 	healthy := must(broken.Add("fact", "Harbor is the current project.", "", "fixture", time.Time{}))
 	bad := must(broken.Add("fact", "Another fixture fact.", "", "fixture", time.Time{}))
-	require(os.WriteFile(filepath.Join(root, "corrupt/gator/memory", bad.ID+".json"), []byte("{"), 0600))
+	require(os.WriteFile(filepath.Join(root, "corrupt/hot-cross-buns/memory", bad.ID+".json"), []byte("{"), 0600))
 	hits, searchErr := broken.Search("Harbor", "", 8)
 	add("one corrupt record preserves unrelated healthy recall", (searchErr == nil || memory.ReadWarning(searchErr) != "") && contains(hits, healthy.ID), map[string]bool{"search_failed": searchErr != nil && memory.ReadWarning(searchErr) == "", "partial_read_warning": memory.ReadWarning(searchErr) != "", "healthy_record_recalled": contains(hits, healthy.ID)})
 	learnings := must(learning.Open(filepath.Join(root, "learning")))

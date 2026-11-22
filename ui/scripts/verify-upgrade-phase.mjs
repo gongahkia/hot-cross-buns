@@ -9,7 +9,7 @@ const input = [];
 for await (const chunk of process.stdin) input.push(chunk);
 const fixture = JSON.parse(Buffer.concat(input).toString());
 const { phase, install, runtimeName, workspace, otherWorkspace, userData, root } = fixture;
-const { Application } = await import(pathToFileURL(join(install, 'ui/node_modules/@gator/application-host/src/application.mjs')).href);
+const { Application } = await import(pathToFileURL(join(install, 'ui/node_modules/@hot-cross-buns/application-host/src/application.mjs')).href);
 const host = new Application({ binary: join(install, 'runtime', runtimeName), workspace: phase === 'create' ? workspace : otherWorkspace, userData, env: process.env });
 let result;
 try {

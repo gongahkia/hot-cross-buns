@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 func TestHTTPFetchRequiresNetworkApprovalAndReturnsBoundedText(t *testing.T) {
@@ -33,21 +33,21 @@ func TestHTTPFetchRequiresNetworkApprovalAndReturnsBoundedText(t *testing.T) {
 	if len(tools) != 1 || tools[0].Definition().Name != "http_fetch" {
 		t.Fatalf("network-allowed tool surface = %#v", tools)
 	}
-	first := executeTool(t, tools[0], `{"url":"https://example.test/research?q=gator"}`)
+	first := executeTool(t, tools[0], `{"url":"https://example.test/research?q=hot-cross-buns"}`)
 	if !strings.Contains(first, `"body":"abcd"`) || !strings.Contains(first, `"truncated":true`) || !strings.Contains(first, `"status":200`) {
 		t.Fatalf("HTTP fetch result = %s", first)
 	}
-	if len(approvals) != 1 || strings.Join(approvals[0], " ") != "http_fetch https://example.test/research?q=gator" {
+	if len(approvals) != 1 || strings.Join(approvals[0], " ") != "http_fetch https://example.test/research?q=hot-cross-buns" {
 		t.Fatalf("HTTP fetch approval = %#v", approvals)
 	}
 	if len(events) != 2 || events[0].Kind != agent.EventCommandApprovalRequested || events[1].Kind != agent.EventCommandApprovalResolved {
 		t.Fatalf("HTTP fetch approval events = %#v", events)
 	}
-	_ = executeTool(t, tools[0], `{"url":"https://example.test/research?q=gator"}`)
+	_ = executeTool(t, tools[0], `{"url":"https://example.test/research?q=hot-cross-buns"}`)
 	if len(approvals) != 1 || client.calls != 2 {
 		t.Fatalf("remembered URL approval = %#v, calls = %d", approvals, client.calls)
 	}
-	if memory.Allows([]string{"http_fetch", "https://example.test/research?q=gator"}) {
+	if memory.Allows([]string{"http_fetch", "https://example.test/research?q=hot-cross-buns"}) {
 		t.Fatal("HTTP allow-always decision leaked into the command allowlist")
 	}
 }
@@ -78,14 +78,14 @@ func TestWebSearchRequiresConfiguredKeyAndReturnsBoundedResults(t *testing.T) {
 	if len(tools) != 2 || tools[1].Definition().Name != "web_search" {
 		t.Fatalf("web search tool surface = %#v", tools)
 	}
-	first := executeTool(t, tools[1], `{"query":"Gator web research","count":2}`)
-	if !strings.Contains(first, `"query":"Gator web research"`) || !strings.Contains(first, `"title":"One"`) || !strings.Contains(first, `"title":"Two"`) || strings.Contains(first, `"title":"Three"`) || strings.Contains(first, token) {
+	first := executeTool(t, tools[1], `{"query":"Hot Cross Buns web research","count":2}`)
+	if !strings.Contains(first, `"query":"Hot Cross Buns web research"`) || !strings.Contains(first, `"title":"One"`) || !strings.Contains(first, `"title":"Two"`) || strings.Contains(first, `"title":"Three"`) || strings.Contains(first, token) {
 		t.Fatalf("web search result = %s", first)
 	}
-	if len(approvals) != 1 || strings.Join(approvals[0], " ") != "web_search Gator web research" {
+	if len(approvals) != 1 || strings.Join(approvals[0], " ") != "web_search Hot Cross Buns web research" {
 		t.Fatalf("web search approval = %#v", approvals)
 	}
-	if client.lastRequest == nil || client.lastRequest.URL.Host != "api.search.brave.com" || client.lastRequest.URL.Query().Get("q") != "Gator web research" || client.lastRequest.URL.Query().Get("count") != "2" || client.lastRequest.Header.Get("X-Subscription-Token") != token {
+	if client.lastRequest == nil || client.lastRequest.URL.Host != "api.search.brave.com" || client.lastRequest.URL.Query().Get("q") != "Hot Cross Buns web research" || client.lastRequest.URL.Query().Get("count") != "2" || client.lastRequest.Header.Get("X-Subscription-Token") != token {
 		t.Fatalf("web search request = %#v", client.lastRequest)
 	}
 	for _, event := range events {
@@ -93,7 +93,7 @@ func TestWebSearchRequiresConfiguredKeyAndReturnsBoundedResults(t *testing.T) {
 			t.Fatalf("web search token leaked into event: %#v", event)
 		}
 	}
-	_ = executeTool(t, tools[1], `{"query":"Gator web research","count":1}`)
+	_ = executeTool(t, tools[1], `{"query":"Hot Cross Buns web research","count":1}`)
 	if len(approvals) != 1 || client.calls != 2 {
 		t.Fatalf("remembered web search approval = %#v, calls=%d", approvals, client.calls)
 	}

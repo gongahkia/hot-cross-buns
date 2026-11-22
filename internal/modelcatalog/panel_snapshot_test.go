@@ -3,7 +3,7 @@ package modelcatalog
 import (
 	"strings"
 
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 func panelSnapshotText(panel uisnapshot.Panel) string {

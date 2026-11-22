@@ -4,18 +4,18 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("saved goals resume their own workspace and plans retain deadlines, evidence and explicit removal without starting checks", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-goals-"))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const cli = (...args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-goals-"))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const cli = (...args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
   const id = cli("goal", "add", "--context", "Keep the venue decision and next steps together.", "Venue planning").split(/\s/)[0]
   const peer = cli("goal", "add", "--context", "A separate goal with the same title and a different private workspace.", "Venue planning").split(/\s/)[0]
   const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-  let client = new GatorClient(new Application(options))
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -43,7 +43,7 @@ test("saved goals resume their own workspace and plans retain deadlines, evidenc
     await client.edit("/plan"); await flush(); setup.mockInput.pressEnter(); await flush(); expect(client.draft.text).toBe("/plan ")
     setup.mockInput.pressEnter(); await until(() => !client.draft.text, "show plan"); await flush(); expect(setup.captureCharFrame()).toContain("Check capacity"); expect(JSON.stringify(client.state?.messages.at(-1)?.result)).toContain("Goal plan")
     await send(`/plan remove ${step}`); expect(plan()).toContain(step); expect(JSON.stringify(client.state?.messages)).toContain("--yes")
-    await client.edit("Keep goal draft"); const goalContext = client.context; await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await selectGoal()
+    await client.edit("Keep goal draft"); const goalContext = client.context; await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await selectGoal()
     expect(client.context).toBe(goalContext); expect(client.draft.text).toBe("Keep goal draft"); expect(plan()).toContain(step)
     await send(`/plan remove ${step} --yes`); expect(plan()).not.toContain(step)
     await client.navigate("/followup"); await flush(); expect(client.state?.panel?.rows ?? []).toHaveLength(0); expect(client.state?.running).toBe(false)
@@ -54,7 +54,7 @@ test("saved goals resume their own workspace and plans retain deadlines, evidenc
     await goalCard("Attach a recurring check"); await until(() => client.state?.panel?.kind === "followup-form", "check setup for selected goal")
     expect(client.state?.source).toBe(originSource); expect(client.state?.panel?.rows?.find(row => row.label === "Local workspace")?.input?.value).toBe(selectedSource)
     setup.mockInput.pressKey("r", { ctrl: true }); await until(() => client.state?.panel?.title === "Review ongoing check", "goal-bound check review"); await flush(); setup.mockInput.pressEnter()
-    const directory = join(env.GATOR_STATE_DIR, "gator/jobs/definitions")
+    const directory = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs/definitions")
     const definitions = async () => Promise.all((await readdir(directory).catch(() => [])).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(join(directory, name), "utf8"))))
     const deadline = Date.now() + 10000; while (!(await definitions()).length) { if (Date.now() > deadline) throw new Error("Selected goal check did not save: " + client.issue); await flush() }
     expect((await definitions())[0].goal_id).toBe(id); expect((await definitions())[0].goal_id).not.toBe(peer)

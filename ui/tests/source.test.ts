@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { resolve } from "node:path"
 import { moveSelection, revealSelectionOffset } from "../src/ui/select-controller"
-import { literal } from "../src/gator/text"
+import { literal } from "../src/hot-cross-buns/text"
 
 test("recorded upstream files match their pinned source hashes", () => {
   const root = resolve(import.meta.dir, "../upstream")

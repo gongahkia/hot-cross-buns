@@ -1,10 +1,10 @@
 {
   "production": {
-    "cmd/gator/local_manager.go": "3a627c82c68f9ba44b40552c77a605e376cb476fbc77e34b87420a792b4cbced",
-    "cmd/gator/native_provider_management.go": "c649e79036bfdb81555729d21a11818a3f16cfc66a8be222e0522e8727a50a4b",
-    "cmd/gator/native_local_selection.go": "4ca9c163e78056231a402d587da69af9dc7226241b277bb9dbc46d3f6169bfb8",
-    "cmd/gator/native_local_status.go": "f91f7af686c81ba5563cf01617edb1a089d78507622790259002e1bbb7199641",
-    "cmd/gator/provider.go": "ceff7dc6fc296657076da0a71bf9c827e7139503be5bdb9aa0315c9fa2364d3e",
+    "cmd/hot-cross-buns/local_manager.go": "3a627c82c68f9ba44b40552c77a605e376cb476fbc77e34b87420a792b4cbced",
+    "cmd/hot-cross-buns/native_provider_management.go": "c649e79036bfdb81555729d21a11818a3f16cfc66a8be222e0522e8727a50a4b",
+    "cmd/hot-cross-buns/native_local_selection.go": "4ca9c163e78056231a402d587da69af9dc7226241b277bb9dbc46d3f6169bfb8",
+    "cmd/hot-cross-buns/native_local_status.go": "f91f7af686c81ba5563cf01617edb1a089d78507622790259002e1bbb7199641",
+    "cmd/hot-cross-buns/provider.go": "ceff7dc6fc296657076da0a71bf9c827e7139503be5bdb9aa0315c9fa2364d3e",
     "internal/config/store.go": "257d2da5cca662efec28d677fede7ebeb8983844d3f8f26bfee1ac65d04bd38d",
     "internal/localmodel/digest.go": "2e60e623b10dc716b97039e24097d0042191fdda9ac6cbebe2e8414995103dc2",
     "internal/localmodel/selection_receipt.go": "73c8bb5e05379d4c677cfd1146a102c123b32cb421894767c8412fbf6ba38fe6",
@@ -13,22 +13,22 @@
     "internal/modelcatalog/native_provider.go": "1ac6be6bcd34813fbc06f23ae43a6c1ac291b6a58e1fb7c5c2128c96108b93bd",
     "internal/modelcatalog/types.go": "cc1bef10c8a597954cf1881721b05e927a7cfdfabbcc0a96295b6f92b7153480",
     "internal/workapp/bridge_native_provider.go": "403da70d69906968b80693bf8c3b46bc363758880871d8135e8d928a30b26d9d",
-    "macos/Sources/GatorCore/NativeLocalStatus.swift": "9791c809e591dc3b3c49bdeb269f8c66cfaf3906dbc0e3de46ba79c3668fc075",
-    "macos/Sources/GatorCore/NativeLocalSelection.swift": "001d81fcbc63952c614dec0087040840b69d8b8ade845e54e135c12895df05a8",
-    "macos/Sources/GatorCore/NativeProviderProtocol.swift": "fc8a1dcb3e069ea9624a6fb7684323ef6fc312c418c16fe1f0f733acb8e2f2a1",
-    "macos/Sources/GatorCore/NativeProviderSetup.swift": "81deefe3267a59726db70c1d07f65797eeb16fd33f062de41bf5e1bf18d38bfe",
-    "macos/Sources/GatorMac/ProviderSetupView.swift": "49424ce2c18734f0aae990f9aba56fd6de33116f7266ba070d38297fc800ea89",
-    "macos/Sources/GatorMac/LocalModelInspectionView.swift": "71ec604892bb01b884d99c5fc9d4f663ef3bd2bee817e7d3bb1fe036cf450117"
+    "macos/Sources/HotCrossBunsCore/NativeLocalStatus.swift": "9791c809e591dc3b3c49bdeb269f8c66cfaf3906dbc0e3de46ba79c3668fc075",
+    "macos/Sources/HotCrossBunsCore/NativeLocalSelection.swift": "001d81fcbc63952c614dec0087040840b69d8b8ade845e54e135c12895df05a8",
+    "macos/Sources/HotCrossBunsCore/NativeProviderProtocol.swift": "fc8a1dcb3e069ea9624a6fb7684323ef6fc312c418c16fe1f0f733acb8e2f2a1",
+    "macos/Sources/HotCrossBunsCore/NativeProviderSetup.swift": "81deefe3267a59726db70c1d07f65797eeb16fd33f062de41bf5e1bf18d38bfe",
+    "macos/Sources/HotCrossBunsMac/ProviderSetupView.swift": "49424ce2c18734f0aae990f9aba56fd6de33116f7266ba070d38297fc800ea89",
+    "macos/Sources/HotCrossBunsMac/LocalModelInspectionView.swift": "71ec604892bb01b884d99c5fc9d4f663ef3bd2bee817e7d3bb1fe036cf450117"
   },
   "tests": {
-    "cmd/gator/native_local_selection_test.go": "d4f644a113f03f9f546b3172de9d4ce294f6b000ac7d7b0bc1a029cd112da20d",
-    "cmd/gator/native_local_independent_writer_test.go": "7d897678acdcb6c09cbd2fdb5659288617f5d070e77a3873a219e7e9f7559a37",
+    "cmd/hot-cross-buns/native_local_selection_test.go": "d4f644a113f03f9f546b3172de9d4ce294f6b000ac7d7b0bc1a029cd112da20d",
+    "cmd/hot-cross-buns/native_local_independent_writer_test.go": "7d897678acdcb6c09cbd2fdb5659288617f5d070e77a3873a219e7e9f7559a37",
     "internal/config/local_binding_test.go": "b6ff431c5b6d8c0c81923cad50a19891a4b791ea3b15d57eb27afa02a55f6f9a",
     "internal/localmodel/selection_receipt_test.go": "abbab838f4fc1c8dce9842509f9e3adf286c6608c6bfc716a526ff7fc86df983",
     "internal/workapp/bridge_native_local_test.go": "3f18469efa7a0111b4675a887ca5facf1c8715476984a012abc550c3e98fa2c4",
-    "macos/Tests/GatorCoreTests/NativeLocalSelectionTests.swift": "832c8be9490f75b833e9ce5f45292584c24553780a9ddea8a93796b922bc4dba",
-    "macos/Tests/GatorCoreTests/NativeLocalSelectionIntegrationTests.swift": "8ac4a4c9241f78da74d0be537519332b7fd7f2be4420b4b1b1afab487143c9a0",
-    "macos/Tests/GatorCoreTests/Fixtures/local-selection-provider.mjs": "6f66ec9f953bbce97afc9099121c990c1a657184c80ed062926ba2dbbc914928",
-    "macos/Tests/GatorMacTests/LocalModelInspectionTests.swift": "9256e28b2cd9ceffa4be87f1938534f23cf39eff231e4554fe84ec3bc3c44228"
+    "macos/Tests/HotCrossBunsCoreTests/NativeLocalSelectionTests.swift": "832c8be9490f75b833e9ce5f45292584c24553780a9ddea8a93796b922bc4dba",
+    "macos/Tests/HotCrossBunsCoreTests/NativeLocalSelectionIntegrationTests.swift": "8ac4a4c9241f78da74d0be537519332b7fd7f2be4420b4b1b1afab487143c9a0",
+    "macos/Tests/HotCrossBunsCoreTests/Fixtures/local-selection-provider.mjs": "6f66ec9f953bbce97afc9099121c990c1a657184c80ed062926ba2dbbc914928",
+    "macos/Tests/HotCrossBunsMacTests/LocalModelInspectionTests.swift": "9256e28b2cd9ceffa4be87f1938534f23cf39eff231e4554fe84ec3bc3c44228"
   }
 }

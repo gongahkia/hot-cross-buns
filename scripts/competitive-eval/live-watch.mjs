@@ -13,9 +13,9 @@ if (authorization.total_usd !== 10 || authorization.ledger !== "results/budget.j
 const results = join(directory, "results");
 await mkdir(results, { recursive: true, mode: 0o700 });
 const report = join(results, `watch-${new Date().toISOString().replaceAll(":", "-")}.json`);
-const child = spawn("go", ["test", "./cmd/gator", "-run", "^TestLiveProjectWatch$", "-count=1", "-v", "-timeout", "8m"], {
+const child = spawn("go", ["test", "./cmd/hot-cross-buns", "-run", "^TestLiveProjectWatch$", "-count=1", "-v", "-timeout", "8m"], {
   cwd: repository,
-  env: { ...process.env, GATOR_LIVE_PROJECT_WATCH_REPORT: report },
+  env: { ...process.env, HOT_CROSS_BUNS_LIVE_PROJECT_WATCH_REPORT: report },
   stdio: "inherit",
 });
 child.on("error", () => { console.error("Could not start live watch evaluation"); process.exitCode = 1; });

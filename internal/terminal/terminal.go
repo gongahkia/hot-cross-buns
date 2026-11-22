@@ -1,5 +1,5 @@
 // Package terminal manages bounded, sandboxed pseudo-terminal tasks for one
-// Gator execution. It deliberately is not a general host shell facility.
+// Hot Cross Buns execution. It deliberately is not a general host shell facility.
 package terminal
 
 import (
@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
@@ -102,7 +102,7 @@ type Attachment interface {
 	List() []Task
 	Read(string, int64) (ReadResult, error)
 	Resize(string, int, int) (Task, error)
-	// WriteProtocol sends a bounded reply produced by Gator's terminal
+	// WriteProtocol sends a bounded reply produced by Hot Cross Buns's terminal
 	// emulator. It is not developer or model input and is never journaled.
 	WriteProtocol(string, []byte) (Task, error)
 	WriteDeveloper(string, []byte) (Task, error)
@@ -558,7 +558,7 @@ func (m *Manager) Restart(id string) (Task, error) {
 // Detach marks a running task as a session-background task. The caller must
 // obtain explicit developer approval before calling it. Detached tasks retain
 // their fixed worktree, sandbox, network policy, and bounded output; they do
-// not survive a Gator process exit or a terminal-client restart.
+// not survive a Hot Cross Buns process exit or a terminal-client restart.
 func (m *Manager) Detach(id string) (Task, error) {
 	if m.registry == nil {
 		return Task{}, errors.New("terminal task cannot detach without an interactive session registry")
@@ -640,7 +640,7 @@ func (m *Manager) Close() {
 }
 
 // ForceClose stops both ordinary and detached tasks. Interactive callers use
-// it only when their own Gator process is exiting.
+// it only when their own Hot Cross Buns process is exiting.
 func (m *Manager) ForceClose() {
 	m.mu.Lock()
 	tasks := make([]*task, 0, len(m.tasks))

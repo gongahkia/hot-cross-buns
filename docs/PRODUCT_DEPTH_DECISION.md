@@ -31,7 +31,7 @@ provide a library-level manager/tool pattern already present here.
 [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 provides execution checkpoints, a different responsibility from model adapters.
 [ADK Go](https://github.com/google/adk-go) is a Go agent toolkit, but adopting its
-loop would require porting Gator's policy and evidence boundaries. No measured
+loop would require porting Hot Cross Buns's policy and evidence boundaries. No measured
 advantage has been established for replacing this runtime.
 [LangSmith evaluation](https://docs.langchain.com/langsmith/evaluate-with-opentelemetry)
 and [Langfuse OTEL](https://langfuse.com/integrations/native/opentelemetry) are

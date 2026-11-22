@@ -1,5 +1,5 @@
 {
-  "name": "@gator/companion-tests",
+  "name": "@hot-cross-buns/companion-tests",
   "private": true,
   "type": "module",
   "scripts": {

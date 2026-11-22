@@ -5,20 +5,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func TestWorkStatusShowsSelectedModelAndAccess(t *testing.T) {
 	m := New(Config{ModelStatus: func() (ModelStatus, error) {
-		return ModelStatus{Provider: "codex", Model: "gpt-5.6", Access: "logged in (Gator OAuth credential)"}, nil
+		return ModelStatus{Provider: "codex", Model: "gpt-5.6", Access: "logged in (Hot Cross Buns OAuth credential)"}, nil
 	}})
 	status := m.workStatus()
 	for _, expected := range []string{
-		"when Gator works: on request; no enabled scheduled checks (/jobs)",
-		"what Gator may do: auto: inspect or draft; external actions require foreground approval (/mode)",
+		"when Hot Cross Buns works: on request; no enabled scheduled checks (/jobs)",
+		"what Hot Cross Buns may do: auto: inspect or draft; external actions require foreground approval (/mode)",
 		"model: codex / gpt-5.6",
-		"model access: logged in (Gator OAuth credential)",
-		"internal specialists: managed by Gator",
+		"model access: logged in (Hot Cross Buns OAuth credential)",
+		"internal specialists: managed by Hot Cross Buns",
 	} {
 		if !strings.Contains(status, expected) {
 			t.Fatalf("status omitted %q:\n%s", expected, status)
@@ -40,7 +40,7 @@ func TestWorkStatusShowsCurrentSpecialistsAndApprovalControls(t *testing.T) {
 	status := m.workStatus()
 	for _, expected := range []string{
 		"current work: running (/cancel); steer with /steer MESSAGE",
-		"work run: work-live (inspect from another terminal: gator work decisions work-live)",
+		"work run: work-live (inspect from another terminal: hot-cross-buns work decisions work-live)",
 		"live specialists: 2 (/tasks, /cancel-task ID, /steer-task ID MESSAGE)",
 		"subagent-001 source_researcher: running",
 		"subagent-002 claim_verifier: queued",

@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/model/providerhttp"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/model/providerhttp"
 )
 
 // cliFailure records only host-known metadata, never CLI output or guessed HTTP status.

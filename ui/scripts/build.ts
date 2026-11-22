@@ -7,6 +7,6 @@ const result = await Bun.build({
   entrypoints: [fileURLToPath(new URL("../src/index.tsx", import.meta.url))],
   outdir: fileURLToPath(new URL("../dist/", import.meta.url)),
   target: "bun", plugins: [solidPlugin], sourcemap: "external",
-  external: ["@opentui/core", "@opentui/solid", "@opentui/keymap", "solid-js", "@gator/application-host"],
+  external: ["@opentui/core", "@opentui/solid", "@opentui/keymap", "solid-js", "@hot-cross-buns/application-host"],
 })
 if (!result.success) { for (const log of result.logs) console.error(log); process.exit(1) }

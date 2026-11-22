@@ -10,8 +10,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
 )
 
 func TestOverviewHandoffRequiresExplicitReviewAndKeepsSecretsOutOfBridge(t *testing.T) {
@@ -22,7 +22,7 @@ func TestOverviewHandoffRequiresExplicitReviewAndKeepsSecretsOutOfBridge(t *test
 			t.Fatal("wrong exact decision")
 		}
 		command := exec.Command("true")
-		command.Env = append(os.Environ(), "SECRET_DO_NOT_PROJECT=credential-value", "GATOR_STATE_DIR=/selected-profile")
+		command.Env = append(os.Environ(), "SECRET_DO_NOT_PROJECT=credential-value", "HOT_CROSS_BUNS_STATE_DIR=/selected-profile")
 		return command
 	}, Controls: func(context.Context, string, string, []string) (ControlScreen, error) {
 		return ControlScreen{Panel: uisnapshot.Panel{Kind: "overview", Title: "Pending review"}, Actions: []ControlAction{{Key: "A", Label: "Open exact review", Review: true, External: []string{"work", "answer", "run-one", "1"}, Description: "Open the exact action review; this does not approve it."}}}, nil
@@ -80,7 +80,7 @@ func TestRelinkUpdatesCurrentWorkspaceWithoutErasingTranscript(t *testing.T) {
 	old, nextDir := t.TempDir(), t.TempDir()
 	m := New(Config{})
 	m.source = old
-	m.messages = []message{{role: "Gator", text: "Retained historical decision"}}
+	m.messages = []message{{role: "Hot Cross Buns", text: "Retained historical decision"}}
 	m.clearRemovedData(ControlScreen{SourceMoves: []SourceMove{{From: old, To: nextDir}}})
 	if m.source != nextDir || !m.options.RefreshSource || len(m.messages) != 1 {
 		t.Fatal("source relink lost conversation or reused stale source")

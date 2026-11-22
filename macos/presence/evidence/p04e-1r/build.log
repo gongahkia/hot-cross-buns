@@ -2,9 +2,9 @@
 Building for debugging...
 [0/4] Write sources
 [1/4] Write swift-version--58304C5D6DBC2206.txt
-[3/6] Emitting module GatorMac
-[4/6] Compiling GatorMac NativeMascotPlayback.swift
+[3/6] Emitting module HotCrossBunsMac
+[4/6] Compiling HotCrossBunsMac NativeMascotPlayback.swift
 Build complete! (1.11s)
-/tmp/gator-native-app.JAXPsV/Gator.app/Contents/Info.plist: OK
-Built /tmp/Gator-Native-P04E1R-Verified.app
-Launch: open '/tmp/Gator-Native-P04E1R-Verified.app'
+/tmp/hot-cross-buns-native-app.JAXPsV/HotCrossBuns.app/Contents/Info.plist: OK
+Built /tmp/HotCrossBuns-Native-P04E1R-Verified.app
+Launch: open '/tmp/HotCrossBuns-Native-P04E1R-Verified.app'

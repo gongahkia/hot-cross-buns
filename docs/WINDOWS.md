@@ -1,6 +1,6 @@
 # Windows desktop port
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -18,12 +18,12 @@ approval model, provider interfaces, and saved-data formats.
 | Area | Windows implementation | Remaining boundary |
 | --- | --- | --- |
 | Chat, recent conversations, drafts, knowledge, goals, context, outputs and usage | Native Electron frontend with bundled Go runtime | Packaged Windows workflow tests must pass on a Windows runner |
-| Runtime and installer | `gator-runtime.exe`, per-user NSIS installer and ZIP, x64/ARM64 resources, alligator ICO and app identity | Signing and native install/update/uninstall verification remain production-release gates |
-| State and configuration | `%LOCALAPPDATA%\Gator\state` and `%LOCALAPPDATA%\Gator\config` | Overrides keep their existing precedence; this adds no device sync |
+| Runtime and installer | `hot-cross-buns-runtime.exe`, per-user NSIS installer and ZIP, x64/ARM64 resources, alligator ICO and app identity | Signing and native install/update/uninstall verification remain production-release gates |
+| State and configuration | `%LOCALAPPDATA%\Hot Cross Buns\state` and `%LOCALAPPDATA%\Hot Cross Buns\config` | Overrides keep their existing precedence; this adds no device sync |
 | Private files | Protected, inheritable Windows DACLs for the current user, SYSTEM and administrators | Requires an ACL-capable filesystem; Unix mode bits alone are never treated as Windows privacy evidence |
 | Shared locks and active-run leases | `LockFileEx` / `UnlockFileEx`, including shared and nonblocking modes and kernel release on exit | Native contention/crash tests are included in CI |
 | Restore/relink | Rooted Windows no-replacement profile publication, file flushes, native path validation | Unix directory `fsync` has no equivalent through these directory handles; cross-OS archive/path migration is not claimed |
-| Background checks | Detached native supervisor; reviewed per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\GatorBackgroundChecks` entry | Requires an active signed-in session; Windows may delay or disable startup; Recovery checks live health separately |
+| Background checks | Detached native supervisor; reviewed per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\HotCrossBunsBackgroundChecks` entry | Requires an active signed-in session; Windows may delay or disable startup; Recovery checks live health separately |
 | External authentication/install handoffs | System PowerShell opens a console; native argument quoting and explicit exit results | Native Windows handoff tests included; live account sign-in is not exercised automatically |
 | Browser tools | Authenticated IPv4 loopback controller, private endpoint/token files, pinned Playwright driver | Optional external Node/npm and the reviewed browser runtime installation are required; real Chromium on Windows needs separate verification |
 | Local Ollama | Native memory/disk checks, user model directory and official Windows installation help | Requires Ollama and adequate resources; no GPU compatibility/performance claim |
@@ -78,7 +78,7 @@ automatically and do not make the unsupported PTY tools available.
 ## Develop and package on Windows
 
 Use Go 1.25.13 and Node.js 22.12 or newer for development. A Windows build does
-not require Make, Git Bash, WSL, Swift, a system Gator CLI or a C compiler.
+not require Make, Git Bash, WSL, Swift, a system Hot Cross Buns CLI or a C compiler.
 
 ```powershell
 npm ci --prefix desktop
@@ -94,17 +94,17 @@ npm run pack --prefix desktop
 npm run dist --prefix desktop
 ```
 
-The unpacked x64 app is `desktop\release\win-unpacked\Gator.exe`.
+The unpacked x64 app is `desktop\release\win-unpacked\HotCrossBuns.exe`.
 To test the packaged application:
 
 ```powershell
-$env:GATOR_DESKTOP_TEST_EXECUTABLE = (Resolve-Path 'desktop\release\win-unpacked\Gator.exe').Path
+$env:HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE = (Resolve-Path 'desktop\release\win-unpacked\HotCrossBuns.exe').Path
 npm run test:e2e --prefix desktop
 ```
 
-`GATOR_STATE_DIR` and `GATOR_CONFIG_DIR` still select a profile.
+`HOT_CROSS_BUNS_STATE_DIR` and `HOT_CROSS_BUNS_CONFIG_DIR` still select a profile.
 `XDG_STATE_HOME` / `XDG_CONFIG_HOME` retain their existing override precedence.
-`GATOR_DESKTOP_USER_DATA` selects Electron preferences/drafts; those are separate
+`HOT_CROSS_BUNS_DESKTOP_USER_DATA` selects Electron preferences/drafts; those are separate
 from the Go profile. Installed apps bundle Electron and Go. External Node is
 needed only for optional tools that explicitly require it.
 

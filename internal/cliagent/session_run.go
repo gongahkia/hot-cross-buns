@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/hostproc"
-	"github.com/gongahkia/gator/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
 )
 
 type SessionControl struct {
@@ -270,7 +270,7 @@ func initializeSession(ctx context.Context, s *sessionLease, r Request) error {
 		if err := patch.ApplySnapshot(ctx, directory, r.Baseline); err != nil {
 			return err
 		}
-		for _, args := range [][]string{{"add", "--all"}, {"-c", "user.name=Gator", "-c", "user.email=gator@invalid", "commit", "--quiet", "--allow-empty", "-m", "selected baseline"}} {
+		for _, args := range [][]string{{"add", "--all"}, {"-c", "user.name=Hot Cross Buns", "-c", "user.email=hot-cross-buns@invalid", "commit", "--quiet", "--allow-empty", "-m", "selected baseline"}} {
 			if _, err := git(args...); err != nil {
 				return err
 			}

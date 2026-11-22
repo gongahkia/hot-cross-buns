@@ -2,16 +2,16 @@
 Building for debugging...
 [0/6] Write sources
 [1/6] Write swift-version--58304C5D6DBC2206.txt
-[3/6] Compiling GatorMacTests NativeMascotTests.swift
-[4/6] Emitting module GatorMacTests
-[5/8] Emitting module GatorNativePackageTests
-[6/8] Compiling GatorNativePackageTests runner.swift
+[3/6] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[4/6] Emitting module HotCrossBunsMacTests
+[5/8] Emitting module HotCrossBunsNativePackageTests
+[6/8] Compiling HotCrossBunsNativePackageTests runner.swift
 [6/8] Write Objects.LinkFileList
-[7/8] Linking GatorNativePackageTests
+[7/8] Linking HotCrossBunsNativePackageTests
 Build complete! (1.82s)
 Test Suite 'Selected tests' started at 2026-11-19 14:37:15.357.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-19 14:37:15.358.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-19 14:37:15.358.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-19 14:37:15.358.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-19 14:37:15.358.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-19 14:37:15.358.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds

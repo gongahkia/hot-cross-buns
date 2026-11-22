@@ -1,0 +1,66 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/gongahkia/hot-cross-buns/internal/delivery"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
+)
+
+type workRetryOptions struct {
+	workID     string
+	deliveryID string
+	json       bool
+}
+
+func retryWorkDelivery(arguments []string, out io.Writer) error {
+	options, err := parseWorkRetryOptions(arguments)
+	if err != nil {
+		return err
+	}
+	stateDir, err := state.ResolveDir(os.Getenv("HOT_CROSS_BUNS_STATE_DIR"))
+	if err != nil {
+		return err
+	}
+	store, err := delivery.Open(stateDir)
+	if err != nil {
+		return err
+	}
+	record, retryErr := store.Retry(context.Background(), options.workID, options.deliveryID)
+	return writeDeliveryResult(out, record, retryErr, options.json)
+}
+
+func parseWorkRetryOptions(arguments []string) (workRetryOptions, error) {
+	options := workRetryOptions{}
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		switch {
+		case argument == "--json":
+			options.json = true
+		case argument == "--delivery":
+			if index+1 >= len(arguments) {
+				return workRetryOptions{}, errors.New("--delivery requires a delivery ID")
+			}
+			index++
+			options.deliveryID = strings.TrimSpace(arguments[index])
+		case strings.HasPrefix(argument, "--delivery="):
+			options.deliveryID = strings.TrimSpace(strings.TrimPrefix(argument, "--delivery="))
+		case strings.HasPrefix(argument, "-"):
+			return workRetryOptions{}, errors.New("usage: hot-cross-buns work retry WORK_ID [--delivery DELIVERY_ID] [--json]")
+		case options.workID == "":
+			options.workID = argument
+		default:
+			return workRetryOptions{}, errors.New("usage: hot-cross-buns work retry WORK_ID [--delivery DELIVERY_ID] [--json]")
+		}
+	}
+	if options.workID == "" ||
+		strings.ContainsAny(options.workID, "/\\") ||
+		(options.deliveryID != "" && strings.ContainsAny(options.deliveryID, "/\\")) {
+		return workRetryOptions{}, errors.New("usage: hot-cross-buns work retry WORK_ID [--delivery DELIVERY_ID] [--json]")
+	}
+	return options, nil
+}

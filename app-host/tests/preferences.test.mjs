@@ -10,20 +10,20 @@ import { ClassicLevel } from "classic-level";
 import { FrontendPreferences } from "../src/preferences.mjs";
 
 const dom = (value, encoding = 1) => Buffer.concat([Buffer.from([encoding]), Buffer.from(value, encoding ? "latin1" : "utf16le")]);
-const key = (value, origin = "gator://app", encoding = 1) => Buffer.concat([Buffer.from("_" + origin + "\0"), dom(value, encoding)]);
+const key = (value, origin = "hot-cross-buns://app", encoding = 1) => Buffer.concat([Buffer.from("_" + origin + "\0"), dom(value, encoding)]);
 const digest = async path => Object.fromEntries(await Promise.all((await readdir(path)).map(async name => [name, createHash("sha256").update(await readFile(join(path, name))).digest("hex")])));
 
 test("frontend preferences import latest Chromium keys once without changing their database or Go theme", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-preferences-")), source = join(root, "Local Storage/leveldb");
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-preferences-")), source = join(root, "Local Storage/leveldb");
   try {
     const database = new ClassicLevel(source, { keyEncoding: "buffer", valueEncoding: "buffer" });
-    await database.put(key("gator:sidebar-collapsed"), dom("false"));
-    await database.put(key("gator:sidebar-collapsed"), dom("true"));
-    await database.put(key("gator:group-topics-by-folder", "gator://app", 0), dom("true", 0));
-    await database.put(key("gator:work-details-sections"), dom(JSON.stringify({ context: true, outputs: false })));
-    await database.put(key("gator:theme"), dom('"obsolete-local-theme"'));
+    await database.put(key("hot-cross-buns:sidebar-collapsed"), dom("false"));
+    await database.put(key("hot-cross-buns:sidebar-collapsed"), dom("true"));
+    await database.put(key("hot-cross-buns:group-topics-by-folder", "hot-cross-buns://app", 0), dom("true", 0));
+    await database.put(key("hot-cross-buns:work-details-sections"), dom(JSON.stringify({ context: true, outputs: false })));
+    await database.put(key("hot-cross-buns:theme"), dom('"obsolete-local-theme"'));
     await database.put(key("credential"), dom('"DO NOT IMPORT"'));
-    await database.put(key("gator:sidebar-collapsed", "https://other.example"), dom("false"));
+    await database.put(key("hot-cross-buns:sidebar-collapsed", "https://other.example"), dom("false"));
     await database.close();
     const before = await digest(source), store = new FrontendPreferences(root), first = await store.read();
     assert.equal(first.theme, "terminal"); assert.equal(first.sidebarCollapsed, true); assert.equal(first.groupChatsByFolder, true);
@@ -40,7 +40,7 @@ test("frontend preferences import latest Chromium keys once without changing the
 });
 
 test("preference patches serialize, reject extra authority and recover an abandoned writer lock", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-preference-lock-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-preference-lock-"));
   try {
     const store = new FrontendPreferences(root);
     await Promise.all([store.configure({ sidebarCollapsed: true }), store.configure({ groupChatsByFolder: true })]);
@@ -56,7 +56,7 @@ test("preference patches serialize, reject extra authority and recover an abando
 });
 
 test("removing the mascot preference preserves the rest of an existing terminal profile", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-preference-retired-display-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-preference-retired-display-"));
   try {
     const store = new FrontendPreferences(root);
     const expected = { ...await store.read(), theme: "light", sidebarCollapsed: false, groupChatsByFolder: true };
@@ -73,7 +73,7 @@ test("removing the mascot preference preserves the rest of an existing terminal 
 });
 
 test("corrupt or interrupted legacy import retains source bytes and leaves no completed migration marker", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-preference-corrupt-")), source = join(root, "Local Storage/leveldb");
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-preference-corrupt-")), source = join(root, "Local Storage/leveldb");
   try {
     await mkdir(source, { recursive: true }); await writeFile(join(source, "CURRENT"), "MANIFEST-999999\n");
     const before = await digest(source), store = new FrontendPreferences(root);
@@ -82,13 +82,13 @@ test("corrupt or interrupted legacy import retains source bytes and leaves no co
     assert.ok(!(await readdir(root)).some(name => name.startsWith(".preferences-import-")));
     await rm(source, { recursive: true });
     const database = new ClassicLevel(source, { keyEncoding: "buffer", valueEncoding: "buffer" });
-    await database.put(key("gator:sidebar-collapsed"), dom("true")); await database.del(key("gator:sidebar-collapsed")); await database.close();
+    await database.put(key("hot-cross-buns:sidebar-collapsed"), dom("true")); await database.del(key("hot-cross-buns:sidebar-collapsed")); await database.close();
     assert.equal((await store.read()).sidebarCollapsed, true);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 test("preference writers retain native exclusion until a crashed process exits and then recover", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-preference-process-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-preference-process-"));
   let child;
   try {
     const store = new FrontendPreferences(root); await store.configure({ sidebarCollapsed: true });
@@ -109,7 +109,7 @@ test("preference writers retain native exclusion until a crashed process exits a
 });
 
 test("concurrent preference instances never lose an acknowledged patch during stale lock recovery", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-preference-race-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-preference-race-"));
   try {
     const first = new FrontendPreferences(root), second = new FrontendPreferences(root);
     await first.read();

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 // DialogueTaskOrigin is provenance for a separately owned execution. It grants

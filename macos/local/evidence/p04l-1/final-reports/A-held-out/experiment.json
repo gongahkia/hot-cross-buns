@@ -53,7 +53,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2219387761/gator/traces/local-first-A-hold-short-chat-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2219387761/hot-cross-buns/traces/local-first-A-hold-short-chat-01/trace.json",
       "spans": [
         {
           "id": "69dd64e1aaa911da",
@@ -207,7 +207,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d840c6f7c0c7299df1d4ee26c505594b805470e9b3bc13ae23730503024e7a09",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2219387761/gator/workspaces/8148d5dc91d99789a61a2f641a79b202/local-first-A-hold-short-chat-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2219387761/hot-cross-buns/workspaces/8148d5dc91d99789a61a2f641a79b202/local-first-A-hold-short-chat-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -256,7 +256,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-443246804/gator/traces/local-first-A-hold-summarization-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-443246804/hot-cross-buns/traces/local-first-A-hold-summarization-01/trace.json",
       "spans": [
         {
           "id": "3d59e645e49f0f8a",
@@ -410,7 +410,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "aad6672c1a4717e78877c3ea377655832c6a7aee8cd8afca0164fbe04ff9144d",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-443246804/gator/workspaces/4029577b2d8a89066ede4fbc01027d1c/local-first-A-hold-summarization-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-443246804/hot-cross-buns/workspaces/4029577b2d8a89066ede4fbc01027d1c/local-first-A-hold-summarization-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -459,7 +459,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3962069678/gator/traces/local-first-A-hold-multi-source-synthesis-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3962069678/hot-cross-buns/traces/local-first-A-hold-multi-source-synthesis-01/trace.json",
       "spans": [
         {
           "id": "f02bb5b2902e964e",
@@ -679,7 +679,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "67383b967c8e242625d523b050e556be36bcee149cdf9bc398763088505444a2",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3962069678/gator/workspaces/cb9e2213662d2e6d2940005f1cf6af45/local-first-A-hold-multi-source-synthesis-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3962069678/hot-cross-buns/workspaces/cb9e2213662d2e6d2940005f1cf6af45/local-first-A-hold-multi-source-synthesis-01",
       "usage": {
         "unknown_requests": 5,
         "model_requests": 5,
@@ -728,7 +728,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2602990378/gator/traces/local-first-A-hold-planning-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2602990378/hot-cross-buns/traces/local-first-A-hold-planning-01/trace.json",
       "spans": [
         {
           "id": "20ecccecde9b0437",
@@ -882,7 +882,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "bc4c3f58b10fa4ce98126e6afe1f7279dda740af2e22035ddf8b39faf53d5b1a",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2602990378/gator/workspaces/05f555d4c83b79e58494c25408b3d615/local-first-A-hold-planning-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2602990378/hot-cross-buns/workspaces/05f555d4c83b79e58494c25408b3d615/local-first-A-hold-planning-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -931,7 +931,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3445755186/gator/traces/local-first-A-hold-structured-output-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3445755186/hot-cross-buns/traces/local-first-A-hold-structured-output-01/trace.json",
       "spans": [
         {
           "id": "8fee02ca32ce7528",
@@ -1085,7 +1085,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "2550dca63e95add6d86a2d55138a70bab575902ece6fe87980f10b3d7e21f46c",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3445755186/gator/workspaces/02a9f1bd44b8c21b0262fc943fc67bd6/local-first-A-hold-structured-output-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3445755186/hot-cross-buns/workspaces/02a9f1bd44b8c21b0262fc943fc67bd6/local-first-A-hold-structured-output-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1134,7 +1134,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-714622356/gator/traces/local-first-A-hold-tool-selection-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-714622356/hot-cross-buns/traces/local-first-A-hold-tool-selection-01/trace.json",
       "spans": [
         {
           "id": "fdb408c6bac47bed",
@@ -1288,7 +1288,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "20f8bd9a0176fdef219fe28b4551f08b0e651a20a1583e57f39a24dac460645b",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-714622356/gator/workspaces/ce08cc860a9224971441ae3a3c023aaf/local-first-A-hold-tool-selection-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-714622356/hot-cross-buns/workspaces/ce08cc860a9224971441ae3a3c023aaf/local-first-A-hold-tool-selection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1337,7 +1337,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3255145302/gator/traces/local-first-A-hold-tool-arguments-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3255145302/hot-cross-buns/traces/local-first-A-hold-tool-arguments-01/trace.json",
       "spans": [
         {
           "id": "f7dcaae58b5601a1",
@@ -1529,7 +1529,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "e03faa2898de4f218236162bbd7a8baad3f570b88bd3c50ac49c057b21e798bd",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3255145302/gator/workspaces/07c9f94bc0fc8e5d118ef535148256e3/local-first-A-hold-tool-arguments-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3255145302/hot-cross-buns/workspaces/07c9f94bc0fc8e5d118ef535148256e3/local-first-A-hold-tool-arguments-01",
       "usage": {
         "unknown_requests": 4,
         "model_requests": 4,
@@ -1578,7 +1578,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3579919894/gator/traces/local-first-A-hold-no-tool-needed-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3579919894/hot-cross-buns/traces/local-first-A-hold-no-tool-needed-01/trace.json",
       "spans": [
         {
           "id": "819f053f5db7c474",
@@ -1664,7 +1664,7 @@
       "contract_sha256": "56211dd814891dffbc263b7fdb9b1f6edfe43d721e9c00a8acafa7dcfc74fc12",
       "policy_sha256": "a8cf6c7981d24faf8876c8717056e2738b066d4a510cb45fa19384becd8786e8",
       "source_sha256": "e515da0978d580ce08324640e10f737f953255db6ba6188da6c76e7fc94236b4",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3579919894/gator/workspaces/376dc210b2e785504fa415879bf9c017/local-first-A-hold-no-tool-needed-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3579919894/hot-cross-buns/workspaces/376dc210b2e785504fa415879bf9c017/local-first-A-hold-no-tool-needed-01",
       "usage": {
         "unknown_requests": 1,
         "model_requests": 1,
@@ -1713,7 +1713,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2151940887/gator/traces/local-first-A-hold-delegation-needed-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2151940887/hot-cross-buns/traces/local-first-A-hold-delegation-needed-01/trace.json",
       "spans": [
         {
           "id": "514e2b356dd396ba",
@@ -1867,7 +1867,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "7b6a44e79b2ba1321e999841fcf41cc2f53d581924482261aadf2bd7eec708dd",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2151940887/gator/workspaces/279825ae49a789a8e28b8526670573eb/local-first-A-hold-delegation-needed-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2151940887/hot-cross-buns/workspaces/279825ae49a789a8e28b8526670573eb/local-first-A-hold-delegation-needed-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1916,7 +1916,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3602401475/gator/traces/local-first-A-hold-specialist-choice-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3602401475/hot-cross-buns/traces/local-first-A-hold-specialist-choice-01/trace.json",
       "spans": [
         {
           "id": "adb62eb8c63fa77e",
@@ -2070,7 +2070,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "2dfae4125b780b9916e65626eeec9a0fad31bdf8be4382999d9c3d59beea3f2e",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3602401475/gator/workspaces/80e8ffe683b9c789af0c6276374d020b/local-first-A-hold-specialist-choice-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3602401475/hot-cross-buns/workspaces/80e8ffe683b9c789af0c6276374d020b/local-first-A-hold-specialist-choice-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2119,7 +2119,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3420471101/gator/traces/local-first-A-hold-unnecessary-delegation-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3420471101/hot-cross-buns/traces/local-first-A-hold-unnecessary-delegation-01/trace.json",
       "spans": [
         {
           "id": "239d094471072e2f",
@@ -2273,7 +2273,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "5754003c9d6d7d11c155c17e16c8871696ac68001fa39a8cf830badd492101aa",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3420471101/gator/workspaces/473fbbfa1e3a6d6b2e701c0f8f9eccd6/local-first-A-hold-unnecessary-delegation-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3420471101/hot-cross-buns/workspaces/473fbbfa1e3a6d6b2e701c0f8f9eccd6/local-first-A-hold-unnecessary-delegation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2322,7 +2322,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-414231124/gator/traces/local-first-A-hold-specialist-failure-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-414231124/hot-cross-buns/traces/local-first-A-hold-specialist-failure-01/trace.json",
       "spans": [
         {
           "id": "63cd6a958a5a1316",
@@ -2476,7 +2476,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "7dd428d9192d9d25e5b1c202bdafec28ad08c2b662c9650c3d9683f31184130b",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-414231124/gator/workspaces/854de2fbf380236e21974a5d7154301a/local-first-A-hold-specialist-failure-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-414231124/hot-cross-buns/workspaces/854de2fbf380236e21974a5d7154301a/local-first-A-hold-specialist-failure-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2525,7 +2525,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-96520459/gator/traces/local-first-A-hold-specialist-integration-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-96520459/hot-cross-buns/traces/local-first-A-hold-specialist-integration-01/trace.json",
       "spans": [
         {
           "id": "c76f55c72e900096",
@@ -2679,7 +2679,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "81a346bf8df902060067cd9a0e9f9026229c1bdf09e36fe5c50f68073f370fc6",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-96520459/gator/workspaces/3a248b3195fdb1f0787cd185fb1d3620/local-first-A-hold-specialist-integration-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-96520459/hot-cross-buns/workspaces/3a248b3195fdb1f0787cd185fb1d3620/local-first-A-hold-specialist-integration-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2728,7 +2728,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1061377200/gator/traces/local-first-A-hold-incomplete-work-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1061377200/hot-cross-buns/traces/local-first-A-hold-incomplete-work-01/trace.json",
       "spans": [
         {
           "id": "5e7dff2ab0d5b516",
@@ -2882,7 +2882,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "f33604a768b82e2ff07d08485e46a3a65cb9df7a1f5d9e3f68cfa843506f7d25",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1061377200/gator/workspaces/0e7fe72e8a77aa72622221f5c20b709e/local-first-A-hold-incomplete-work-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1061377200/hot-cross-buns/workspaces/0e7fe72e8a77aa72622221f5c20b709e/local-first-A-hold-incomplete-work-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2931,7 +2931,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-384949371/gator/traces/local-first-A-hold-user-correction-01-rev1/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-384949371/hot-cross-buns/traces/local-first-A-hold-user-correction-01-rev1/trace.json",
       "spans": [
         {
           "id": "7596871baded6a13",
@@ -3052,7 +3052,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "698a17b25f7e65896f3bb65a2720e3bb81ed57d6ed01839a1af0cb7065516710",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-384949371/gator/workspaces/b9a1d824da3bf1a5a3b7ce0ac178cced/local-first-A-hold-user-correction-01-rev1",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-384949371/hot-cross-buns/workspaces/b9a1d824da3bf1a5a3b7ce0ac178cced/local-first-A-hold-user-correction-01-rev1",
       "usage": {
         "unknown_requests": 5,
         "model_requests": 5,
@@ -3101,7 +3101,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2047960795/gator/traces/local-first-A-hold-duplicate-work-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2047960795/hot-cross-buns/traces/local-first-A-hold-duplicate-work-01/trace.json",
       "spans": [
         {
           "id": "fad022f8ac9f38c5",
@@ -3255,7 +3255,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "761fd68fde4af092a7eacd20b5c9d356c4dc4c5317f8b90ce36be52a3b2c3d38",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2047960795/gator/workspaces/bb641ba0218eaa4aea78e19fca59a274/local-first-A-hold-duplicate-work-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2047960795/hot-cross-buns/workspaces/bb641ba0218eaa4aea78e19fca59a274/local-first-A-hold-duplicate-work-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3304,7 +3304,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2032151545/gator/traces/local-first-A-hold-safe-cancellation-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2032151545/hot-cross-buns/traces/local-first-A-hold-safe-cancellation-01/trace.json",
       "spans": [
         {
           "id": "0a3e3b2fd3c4ec0b",
@@ -3458,7 +3458,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "67d6e3cbeab2814a280230c3364d01b090a0625c0cdabc6918a264e9cbe00600",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2032151545/gator/workspaces/3939aabe8a7fe3a73e4af18796836c1e/local-first-A-hold-safe-cancellation-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2032151545/hot-cross-buns/workspaces/3939aabe8a7fe3a73e4af18796836c1e/local-first-A-hold-safe-cancellation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3507,7 +3507,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1519742893/gator/traces/local-first-A-hold-context-compaction-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1519742893/hot-cross-buns/traces/local-first-A-hold-context-compaction-01/trace.json",
       "spans": [
         {
           "id": "add20bd66823a2aa",
@@ -3661,7 +3661,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "2456ae12b9d67fcba620fe1a8607fb2dc4cad65251fdec0b7ceb4c8af2516823",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1519742893/gator/workspaces/a37cdc461dec1ccf002722b466313a3b/local-first-A-hold-context-compaction-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1519742893/hot-cross-buns/workspaces/a37cdc461dec1ccf002722b466313a3b/local-first-A-hold-context-compaction-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3710,7 +3710,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1479983320/gator/traces/local-first-A-hold-long-reference-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1479983320/hot-cross-buns/traces/local-first-A-hold-long-reference-01/trace.json",
       "spans": [
         {
           "id": "c6decdf680bd9749",
@@ -3864,7 +3864,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "e612aa307bbeb9731110941643c074940881ee592fe379f6fa6dd7fd9452242f",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1479983320/gator/workspaces/bafa54ed1091c4f103b2dca12445c281/local-first-A-hold-long-reference-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1479983320/hot-cross-buns/workspaces/bafa54ed1091c4f103b2dca12445c281/local-first-A-hold-long-reference-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3913,7 +3913,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2043752196/gator/traces/local-first-A-hold-prompt-injection-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2043752196/hot-cross-buns/traces/local-first-A-hold-prompt-injection-01/trace.json",
       "spans": [
         {
           "id": "495016c80c1b0e26",
@@ -4067,7 +4067,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "537650f5282e0c3a9274b3c0c8d6fd365fb66ab5bfa90a34e988ea4cc5c12a25",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2043752196/gator/workspaces/e06da37c4f365e09c8dc9962ced409cd/local-first-A-hold-prompt-injection-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2043752196/hot-cross-buns/workspaces/e06da37c4f365e09c8dc9962ced409cd/local-first-A-hold-prompt-injection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4116,7 +4116,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2818509327/gator/traces/local-first-A-hold-unauthorized-permission-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2818509327/hot-cross-buns/traces/local-first-A-hold-unauthorized-permission-01/trace.json",
       "spans": [
         {
           "id": "a06548fa98ed3ac0",
@@ -4308,7 +4308,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "81a6e1efb7eaddffab080d707bad7aabb1a233d9c611ab21e3a2ff17d70f05e6",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-2818509327/gator/workspaces/0be0b497f060cebdd14fb228132880aa/local-first-A-hold-unauthorized-permission-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-2818509327/hot-cross-buns/workspaces/0be0b497f060cebdd14fb228132880aa/local-first-A-hold-unauthorized-permission-01",
       "usage": {
         "unknown_requests": 4,
         "model_requests": 4,
@@ -4357,7 +4357,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1114999604/gator/traces/local-first-A-hold-unavailable-runtime-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1114999604/hot-cross-buns/traces/local-first-A-hold-unavailable-runtime-01/trace.json",
       "spans": [
         {
           "id": "a15bf6d335bdfb5a",
@@ -4511,7 +4511,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "25cc3aba697ba4604ad8641a76daa4cd0e15f14b78fd96b9cdca38bfccd0876a",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-1114999604/gator/workspaces/05efeca47def7b4dcf39dfb080854a5f/local-first-A-hold-unavailable-runtime-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-1114999604/hot-cross-buns/workspaces/05efeca47def7b4dcf39dfb080854a5f/local-first-A-hold-unavailable-runtime-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4560,7 +4560,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3998400311/gator/traces/local-first-A-hold-resource-exhaustion-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3998400311/hot-cross-buns/traces/local-first-A-hold-resource-exhaustion-01/trace.json",
       "spans": [
         {
           "id": "37ad84d348fdbf21",
@@ -4714,7 +4714,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "5d10d12d562b18476e502a28badabbd46df9eb8f9d4ecf8e627c5dce58d37b14",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3998400311/gator/workspaces/7bd9079a7a7ed45db2cedcfef158c464/local-first-A-hold-resource-exhaustion-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3998400311/hot-cross-buns/workspaces/7bd9079a7a7ed45db2cedcfef158c464/local-first-A-hold-resource-exhaustion-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4763,7 +4763,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-4214203633/gator/traces/local-first-A-hold-offline-operation-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-4214203633/hot-cross-buns/traces/local-first-A-hold-offline-operation-01/trace.json",
       "spans": [
         {
           "id": "ae5d0340997947db",
@@ -4917,7 +4917,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "25fecddfb7ac28a1d673dbedb4418772a64e869f48f6b289dad54f0fa8cbf5c3",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-4214203633/gator/workspaces/1756d4d3b8d9771c79e5a6cbe4a0adf8/local-first-A-hold-offline-operation-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-4214203633/hot-cross-buns/workspaces/1756d4d3b8d9771c79e5a6cbe4a0adf8/local-first-A-hold-offline-operation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4966,7 +4966,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3601012288/gator/traces/local-first-A-hold-explicit-cloud-selection-01/trace.json",
+      "trace_path": "/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3601012288/hot-cross-buns/traces/local-first-A-hold-explicit-cloud-selection-01/trace.json",
       "spans": [
         {
           "id": "e4c4cfea8d589d90",
@@ -5120,7 +5120,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "1cbacd08650b1b9b3a94d00ee2371de19c96be96c8dd7468b24f18574b520195",
-      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/gator-p04l-1-final-jtwvw74a/A-held-out/state-3601012288/gator/workspaces/a4410cc95b0f418e64b6cbcec511a13f/local-first-A-hold-explicit-cloud-selection-01",
+      "bundle_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/hot-cross-buns-p04l-1-final-jtwvw74a/A-held-out/state-3601012288/hot-cross-buns/workspaces/a4410cc95b0f418e64b6cbcec511a13f/local-first-A-hold-explicit-cloud-selection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,

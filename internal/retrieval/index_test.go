@@ -60,7 +60,7 @@ func TestIndexIncrementalUpdateAndForget(t *testing.T) {
 	if err := DropID(state, "first"); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(state, "gator", "retrieval", indexName(embedder.ID(), "memory/global"))
+	path := filepath.Join(state, "hot-cross-buns", "retrieval", indexName(embedder.ID(), "memory/global"))
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

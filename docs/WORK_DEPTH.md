@@ -47,7 +47,7 @@ DNS/pinning policy, and retain URL, time, digest, body, and truncation status.
 formats explicitly. Native PDF extraction is pure Go, bounded to 2,000 pages and
 512 KiB of extracted text, and returns physical 1-based page references plus
 source/extraction digests. Image-only, sparse, or degraded pages are flagged for
-OCR or review; Gator does not pretend extraction is OCR. A selected PDF can also
+OCR or review; Hot Cross Buns does not pretend extraction is OCR. A selected PDF can also
 be passed directly to a model advertising native document input. CSV/XLSX
 inspection retains source paths, hashes, sheets, and rows.
 

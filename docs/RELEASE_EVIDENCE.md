@@ -1,10 +1,10 @@
 # Release evidence
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded verification for the Work depth iteration: [PRODUCT_DEPTH_VERIFICATION.md](PRODUCT_DEPTH_VERIFICATION.md).
 
-This is the acceptance record for calling a Gator build useful for daily
+This is the acceptance record for calling a Hot Cross Buns build useful for daily
 general work or coding work. It is not a benchmark submission and not a claim
 of model quality.
 
@@ -35,8 +35,8 @@ Evaluation runner checks:
 
 ```sh
 go test ./internal/eval
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/work-v1/dataset.json --id release-development --attempts 3 --report-dir DIR/reports/release-development
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/work-v1/dataset.json --id release-held-out --split held-out --attempts 3 --report-dir DIR/reports/release-held-out
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/work-v1/dataset.json --id release-development --attempts 3 --report-dir DIR/reports/release-development
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/work-v1/dataset.json --id release-held-out --split held-out --attempts 3 --report-dir DIR/reports/release-held-out
 ```
 
 Use a new `--id` and `--report-dir` for every experiment. Reusing either
@@ -76,7 +76,7 @@ Record one row per session. Do not silently skip a failed item.
 | Field | Fill in |
 | --- | --- |
 | Date | |
-| Gator commit | `git rev-parse HEAD` |
+| Hot Cross Buns commit | `git rev-parse HEAD` |
 | Repository (name only, not secrets) | |
 | Provider / model | |
 | Mode (plan/execute) | |
@@ -84,7 +84,7 @@ Record one row per session. Do not silently skip a failed item.
 | Task (one sentence) | |
 | Outcome | patch ready / needs input / policy refusal / failure |
 | Verifier | exact argv and pass/fail |
-| Apply to checkout? | no / `gator work apply --check` only / applied |
+| Apply to checkout? | no / `hot-cross-buns work apply --check` only / applied |
 | Usability issues | |
 | Fixes landed or follow-ups | issue ids or “none” |
 
@@ -105,7 +105,7 @@ keep local notes. Do not commit transcripts, session files, or credentials.
 
 ### Minimum dogfood set before calling a release daily-driver
 
-1. Run `gator work inspect` on a real non-Git folder and confirm no source byte or
+1. Run `hot-cross-buns work inspect` on a real non-Git folder and confirm no source byte or
    external state changes.
 2. Produce Markdown plus JSON or CSV from a real folder; verify the bundle and
    preview it by ID.
@@ -117,7 +117,7 @@ keep local notes. Do not commit transcripts, session files, or credentials.
    and the review shows escaped exact JSON plus its digest.
 6. In an isolated test endpoint, deny one act-mode proposal and approve another;
    confirm only the approved payload is sent and each decision is requested.
-7. Confirm `gator work code` and the TUI `/code` switch are unavailable.
+7. Confirm `hot-cross-buns work code` and the TUI `/code` switch are unavailable.
 8. In an internal evaluation that grants the Code specialist, confirm a mixed
    research-and-implementation prompt delegates only the bounded implementation
    portion and leaves the source unchanged.

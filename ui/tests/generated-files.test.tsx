@@ -4,12 +4,12 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { createHash } from "node:crypto"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("Go-generated outputs retain sealed bytes while edited versions survive restart and reach the provider only on send", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-generated-files-")), config = join(root, "config/gator"), original = "# A generated report\n\nOriginal sealed output."
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-generated-files-")), config = join(root, "config/hot-cross-buns"), original = "# A generated report\n\nOriginal sealed output."
   const requests: unknown[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     requests.push(await request.json())
@@ -17,8 +17,8 @@ test("Go-generated outputs retain sealed bytes while edited versions survive res
     return Response.json({ choices: [{ message, finish_reason: "tool_calls" in message ? "tool_calls" : "stop" }], usage: { total_tokens: 20 } })
   } })
   await mkdir(config, { recursive: true }); await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -37,9 +37,9 @@ test("Go-generated outputs retain sealed bytes while edited versions survive res
     await until(async () => (await client.host.file(request)).versions.length === 2, "immutable working version"); await flush()
     const saved = await client.host.file(request); expect(saved.text).toContain("Edited output: silver otter."); expect(saved.text).toContain(original)
     expect(await readFile(path)).toEqual(sealed); expect(await readFile(manifest)).toEqual(sealedManifest)
-    const count = requests.length; setup.mockInput.pressEscape(); await flush(); await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await open(); await flush()
+    const count = requests.length; setup.mockInput.pressEscape(); await flush(); await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await open(); await flush()
     expect(setup.captureCharFrame()).toContain("Edited output: silver otter."); expect(requests).toHaveLength(count); expect(client.draft.text).toBe("Please review my edits.")
-    setup.mockInput.pressKey("o", { ctrl: true }); await flush(); await choose("Version 2"); await choose("Ask Gator")
+    setup.mockInput.pressKey("o", { ctrl: true }); await flush(); await choose("Version 2"); await choose("Ask Hot Cross Buns")
     await until(() => client.draft.uploads?.length === 1, "staged edited output"); expect(requests).toHaveLength(count)
     const attached = client.draft.uploads![0], view = await client.host.file({ action: "open", context: client.context, ref: { kind: "upload", id: attached.id } }); expect(view.text).toBe(saved.text)
     await client.send({ type: "submit", text: "/artifact clear" }); await client.send({ type: "submit", text: "/mode inspect" }); await flush(); setup.mockInput.pressEnter()

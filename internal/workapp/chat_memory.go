@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 type ChatMemoryReceipt struct {

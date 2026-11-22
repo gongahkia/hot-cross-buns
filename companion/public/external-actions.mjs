@@ -3,7 +3,7 @@ export function createExternalActions({getSession,revoked}){
  const $=id=>document.getElementById(id),dialog=$('external-action-dialog');
  let owner,binding,item,pending,receipt,busy=false,epoch=0,reviewed,reviewedAt;
  const drafts=new Map(),same=(a,b)=>a?.id===b?.id&&a?.generation===b?.generation;
- const key=b=>`gator.terminal-receipt.v1:${b.id}:${b.generation}`;
+ const key=b=>`hot-cross-buns.terminal-receipt.v1:${b.id}:${b.generation}`;
  const allowed=()=>owner&&owner===getSession()&&binding&&item&&Date.now()-Date.parse(item.captured_at)<60000&&!document.hidden&&navigator.onLine&&!busy&&!pending;
  const op=kind=>kind==='interrupt'?'interrupt':kind==='key'?'key_input':'text_input';
  function render(){
@@ -64,6 +64,6 @@ export function createExternalActions({getSession,revoked}){
   try{const r=await fetch(`/v1/external/${saved.target.id}/receipts/${saved.id}?generation=${saved.target.generation}`,{cache:'no-store',redirect:'error',headers:{Authorization:`Bearer ${session.token}`},signal:AbortSignal.timeout(25000)});const v=await r.json();if(at!==epoch||owner!==session||session!==getSession())return;if(r.status===401){revoked();return;}if(!r.ok||v.receipt?.id!==saved.id||!same(v.receipt.target,saved.target))throw new Error();show(v.receipt);}catch{if(at===epoch)$('terminal-status').textContent='Receipt unavailable or unconfirmed. No input resent.';}finally{if(at===epoch){busy=false;render();}}
  });
  $('terminal-dismiss').addEventListener('click',()=>{if(receipt&&receipt.delivery!=='outcome_unknown'){sessionStorage.removeItem(key(binding));pending=receipt=undefined;$('terminal-status').textContent='Receipt dismissed. Inspect before another action.';render();}});
- function retainedTargets(){const results=[];try{for(let i=0;i<sessionStorage.length&&results.length<32;i++){const name=sessionStorage.key(i);if(name.startsWith('gator.terminal-receipt.v1:')){const v=JSON.parse(sessionStorage.getItem(name));if(/^target-[a-f0-9]{32}$/.test(v?.target?.id)&&/^[a-f0-9]{32}$/.test(v.target.generation)&&/^[a-f0-9]{32}$/.test(v.id))results.push(v.target);}}}catch{}return results;}
+ function retainedTargets(){const results=[];try{for(let i=0;i<sessionStorage.length&&results.length<32;i++){const name=sessionStorage.key(i);if(name.startsWith('hot-cross-buns.terminal-receipt.v1:')){const v=JSON.parse(sessionStorage.getItem(name));if(/^target-[a-f0-9]{32}$/.test(v?.target?.id)&&/^[a-f0-9]{32}$/.test(v.target.generation)&&/^[a-f0-9]{32}$/.test(v.id))results.push(v.target);}}}catch{}return results;}
  return {select,stale,retainedTargets};
 }

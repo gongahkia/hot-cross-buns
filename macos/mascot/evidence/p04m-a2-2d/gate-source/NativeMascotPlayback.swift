@@ -119,7 +119,7 @@ actor NativeMascotFrameStore {
                 if animate && frames.images.count > 1 {
                     let animation = Self.keyframes(frames)
                     let callback = MascotAnimationCompletion(player: self, ticket: epoch); animation.delegate = callback; completion = callback
-                    activeFrameBytes = frames.bytes; animationStarts += 1; layer.add(animation, forKey: "gator.expression")
+                    activeFrameBytes = frames.bytes; animationStarts += 1; layer.add(animation, forKey: "hot-cross-buns.expression")
                 } else {
                     await store.clear(ticket: epoch)
                     scheduleBlink()
@@ -132,7 +132,7 @@ actor NativeMascotFrameStore {
     }
     fileprivate func finished(ticket: Int) {
         guard self.ticket == ticket else { return }
-        layer.removeAnimation(forKey: "gator.expression"); completion = nil; activeFrameBytes = 0
+        layer.removeAnimation(forKey: "hot-cross-buns.expression"); completion = nil; activeFrameBytes = 0
         task = Task { [weak self, store] in
             await store.clear(ticket: ticket)
             guard let self, self.ticket == ticket else { return }; scheduleBlink()

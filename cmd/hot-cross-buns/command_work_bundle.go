@@ -1,0 +1,318 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"unicode"
+
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/delivery"
+)
+
+const maxWorkspaceBuckets = 4096
+
+var workReferencePattern = regexp.MustCompile(`\A[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}\z`)
+
+type workReviewOptions struct {
+	reference string
+	json      bool
+	preview   bool
+}
+
+func parseWorkReviewOptions(arguments []string) (workReviewOptions, bool) {
+	options := workReviewOptions{}
+	for _, argument := range arguments {
+		switch argument {
+		case "--json":
+			options.json = true
+		case "--preview":
+			options.preview = true
+		default:
+			if strings.HasPrefix(argument, "-") || options.reference != "" {
+				return workReviewOptions{}, false
+			}
+			options.reference = argument
+		}
+	}
+	return options, options.reference != ""
+}
+
+// resolveWorkBundle accepts an exact bundle/manifest path or a run ID from
+// Hot Cross Buns's private workspace store. It reports found=false for a non-work path
+// so legacy coding review can retain its established behavior.
+func resolveWorkBundle(reference, stateDir string) (artifact.Bundle, bool, error) {
+	if info, err := os.Stat(reference); err == nil {
+		candidate := reference
+		if !info.IsDir() && filepath.Base(reference) != "manifest.json" {
+			return artifact.Bundle{}, false, nil
+		}
+		if filepath.Base(candidate) == "manifest.json" {
+			candidate = filepath.Dir(candidate)
+		}
+		if _, err := os.Stat(filepath.Join(candidate, "manifest.json")); errors.Is(err, os.ErrNotExist) {
+			return artifact.Bundle{}, false, nil
+		} else if err != nil {
+			return artifact.Bundle{}, true, fmt.Errorf("inspect work manifest: %w", err)
+		}
+		bundle, err := artifact.OpenBundle(candidate)
+		return bundle, true, err
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return artifact.Bundle{}, false, err
+	}
+	if !workReferencePattern.MatchString(reference) {
+		return artifact.Bundle{}, false, nil
+	}
+	workspaceRoot := filepath.Join(stateDir, "hot-cross-buns", "workspaces")
+	buckets, err := os.ReadDir(workspaceRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return artifact.Bundle{}, false, nil
+	}
+	if err != nil {
+		return artifact.Bundle{}, false, fmt.Errorf("list retained workspaces: %w", err)
+	}
+	if len(buckets) > maxWorkspaceBuckets {
+		return artifact.Bundle{}, false, errors.New("retained workspace index exceeds its safe scan limit")
+	}
+	var matches []string
+	for _, bucket := range buckets {
+		if !bucket.IsDir() || len(bucket.Name()) != 32 {
+			continue
+		}
+		candidate := filepath.Join(workspaceRoot, bucket.Name(), reference)
+		info, err := os.Lstat(filepath.Join(candidate, "manifest.json"))
+		if err == nil && info.Mode().IsRegular() {
+			matches = append(matches, candidate)
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return artifact.Bundle{}, false, fmt.Errorf("inspect retained work %q: %w", reference, err)
+		}
+	}
+	if len(matches) == 0 {
+		return artifact.Bundle{}, false, nil
+	}
+	if len(matches) > 1 {
+		return artifact.Bundle{}, true, fmt.Errorf("work ID %q is ambiguous across source folders; use its manifest path", reference)
+	}
+	bundle, err := artifact.OpenBundle(matches[0])
+	return bundle, true, err
+}
+
+func reviewWorkBundle(out io.Writer, bundle artifact.Bundle, jsonOutput, includePreviews bool) error {
+	return reviewWorkBundleWithDelivery(out, bundle, nil, jsonOutput, includePreviews)
+}
+
+func reviewWorkBundleWithDelivery(out io.Writer, bundle artifact.Bundle, store *delivery.Store, jsonOutput, includePreviews bool) error {
+	if err := artifact.VerifyBundle(bundle); err != nil {
+		return err
+	}
+	var previews []artifact.Preview
+	var err error
+	if includePreviews {
+		previews, err = artifact.PreviewBundle(bundle)
+		if err != nil {
+			return err
+		}
+	}
+	deliveries := []delivery.Record(nil)
+	if store != nil {
+		deliveries, err = store.ListWork(bundle.Manifest.RunID)
+		if err != nil {
+			return err
+		}
+	}
+	if jsonOutput {
+		return json.NewEncoder(out).Encode(struct {
+			Verified   bool               `json:"verified"`
+			Manifest   artifact.Manifest  `json:"manifest"`
+			Deliveries []delivery.Record  `json:"deliveries,omitempty"`
+			Previews   []artifact.Preview `json:"previews,omitempty"`
+		}{Verified: true, Manifest: bundle.Manifest, Deliveries: deliveries, Previews: previews})
+	}
+	manifest := bundle.Manifest
+	if _, err := fmt.Fprintf(out, "Hot Cross Buns Work Review\n  run: %s\n  status: %s (verified)\n  objective: %s\n  source: %s (sha256:%s)\n  contract: sha256:%s\n", manifest.RunID, manifest.Status, terminalSafe(manifest.Objective), manifest.Source.Name, manifest.Source.IdentitySHA256[:12], manifest.ContractSHA256[:12]); err != nil {
+		return err
+	}
+	if manifest.Failure != "" {
+		if _, err := fmt.Fprintf(out, "  failure: %s\n", terminalSafe(manifest.Failure)); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(out, "  effective policy: %s\n  model requests: %d (%d without token usage); cost unknown\n", manifest.PolicySHA256, manifest.Usage.ModelRequests, manifest.Usage.UnknownRequests); err != nil {
+		return err
+	}
+	for _, candidate := range manifest.Candidates {
+		if _, err := fmt.Fprintf(out, "\nCode candidate %s: %s\n  baseline tree: %s\n  selected patches: %s\n  changed paths: %s\n  patch artifact: %s\n", terminalSafe(candidate.ID), candidate.Status, terminalSafe(candidate.Baseline), terminalSafe(strings.Join(candidate.Patches, ", ")), terminalSafe(strings.Join(candidate.ChangedPaths, ", ")), terminalSafe(candidate.PatchPath)); err != nil {
+			return err
+		}
+		for _, check := range candidate.Verification {
+			argv, _ := json.Marshal(check.Argv)
+			if _, err := fmt.Fprintf(out, "  verifier %s: passed=%t %s\n", terminalSafe(string(argv)), check.Passed, terminalSafe(check.Diagnostic)); err != nil {
+				return err
+			}
+		}
+		if candidate.Error != "" {
+			if _, err := fmt.Fprintf(out, "  failure: %s\n", terminalSafe(candidate.Error)); err != nil {
+				return err
+			}
+		}
+	}
+	if len(manifest.Evidence) > 0 {
+		if _, err := fmt.Fprintln(out, "\nSelected evidence:"); err != nil {
+			return err
+		}
+		for _, entry := range manifest.Evidence {
+			if _, err := fmt.Fprintf(out, "  %s  %s  sha256:%s\n", terminalSafe(entry.ID), terminalSafe(entry.Locator), entry.SHA256); err != nil {
+				return err
+			}
+		}
+	}
+	if len(manifest.ConnectedSources) > 0 {
+		if _, err := fmt.Fprintln(out, "\nConnected sources:"); err != nil {
+			return err
+		}
+		for _, source := range manifest.ConnectedSources {
+			if _, err := fmt.Fprintf(out, "  ✓ %s/%s  %d bytes  sha256:%s  %s\n", source.ConnectorID, source.Operation, source.Bytes, source.SHA256[:12], source.Resource); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := fmt.Fprintln(out, "\nArtifacts:"); err != nil {
+		return err
+	}
+	if len(manifest.Artifacts) == 0 {
+		if _, err := fmt.Fprintln(out, "  (analysis-only run; no artifacts)"); err != nil {
+			return err
+		}
+	}
+	for _, file := range manifest.Artifacts {
+		if _, err := fmt.Fprintf(out, "  ✓ %s  %s  %d bytes  sha256:%s\n", file.Path, file.MediaType, file.Bytes, file.SHA256[:12]); err != nil {
+			return err
+		}
+	}
+	if store != nil {
+		if _, err := fmt.Fprintln(out, "\nDelivery:"); err != nil {
+			return err
+		}
+		if len(deliveries) == 0 {
+			if _, err := fmt.Fprintln(out, "  (not applied to a local target yet)"); err != nil {
+				return err
+			}
+		}
+		for _, record := range deliveries {
+			if _, err := fmt.Fprintf(out, "  %s → %s\n", record.ID, terminalSafe(record.TargetPath)); err != nil {
+				return err
+			}
+			for _, effect := range record.Effects {
+				if _, err := fmt.Fprintf(out, "    %s %s\n", effect.Status, terminalSafe(effect.SourcePath)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if _, err := fmt.Fprintln(out, "\nOutcome evidence:"); err != nil {
+		return err
+	}
+	if len(manifest.Validations) == 0 {
+		if _, err := fmt.Fprintln(out, "  (no artifact validations required)"); err != nil {
+			return err
+		}
+	}
+	for _, validation := range manifest.Validations {
+		mark := "✓"
+		if !validation.Passed {
+			mark = "!"
+		}
+		diagnostic := ""
+		if validation.Diagnostic != "" {
+			diagnostic = " — " + terminalSafe(validation.Diagnostic)
+		}
+		if _, err := fmt.Fprintf(out, "  %s %s: %s%s\n", mark, validation.Path, validation.Kind, diagnostic); err != nil {
+			return err
+		}
+	}
+	if len(manifest.Actions) > 0 {
+		if _, err := fmt.Fprintln(out, "\nExternal actions:"); err != nil {
+			return err
+		}
+		for _, record := range manifest.Actions {
+			if _, err := fmt.Fprintf(out, "  %s %s/%s → %s\n    payload sha256:%s\n    exact JSON (escaped): %s\n", record.Status, record.Proposal.ConnectorID, record.Proposal.Operation, terminalSafe(record.Proposal.Target), record.Proposal.PayloadSHA256, strconv.QuoteToASCII(record.Proposal.Preview)); err != nil {
+				return err
+			}
+			if record.ReceiptID != "" {
+				if _, err := fmt.Fprintf(out, "    provider receipt ID: %s\n", terminalSafe(record.ReceiptID)); err != nil {
+					return err
+				}
+			}
+			if record.ProviderResourceID != "" {
+				if _, err := fmt.Fprintf(out, "    provider resource ID: %s\n", terminalSafe(record.ProviderResourceID)); err != nil {
+					return err
+				}
+			}
+			if record.ResponseSHA256 != "" {
+				if _, err := fmt.Fprintf(out, "    provider response sha256:%s\n", record.ResponseSHA256); err != nil {
+					return err
+				}
+			}
+			for _, step := range record.BatchSteps {
+				if _, err := fmt.Fprintf(out, "    batch step %d: %s %s → %s\n", step.Index, step.Status, terminalSafe(step.Operation), terminalSafe(step.Target)); err != nil {
+					return err
+				}
+				if step.ProviderResourceID != "" {
+					if _, err := fmt.Fprintf(out, "      provider resource ID: %s\n", terminalSafe(step.ProviderResourceID)); err != nil {
+						return err
+					}
+				}
+				if step.ResponseSHA256 != "" {
+					if _, err := fmt.Fprintf(out, "      provider response sha256:%s\n", step.ResponseSHA256); err != nil {
+						return err
+					}
+				}
+			}
+			if record.Proposal.CorrelationID != "" {
+				if _, err := fmt.Fprintf(out, "    reconciliation ID: %s\n", record.Proposal.CorrelationID); err != nil {
+					return err
+				}
+				if record.Status == action.Unknown && record.Proposal.Operation == "gmail_send" {
+					if _, err := fmt.Fprintf(out, "    check Sent: hot-cross-buns work reconcile %s %s\n", manifest.RunID, record.Proposal.CorrelationID); err != nil {
+						return err
+					}
+				}
+			}
+			if record.Error != "" {
+				if _, err := fmt.Fprintf(out, "    error: %s\n", terminalSafe(record.Error)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for _, preview := range previews {
+		if _, err := fmt.Fprintf(out, "\nPreview: %s (%s)\n%s\n", preview.Path, terminalSafe(preview.Summary), preview.Content); err != nil {
+			return err
+		}
+		if preview.Truncated {
+			if _, err := fmt.Fprintln(out, "[… preview truncated …]"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func terminalSafe(value string) string {
+	return strings.Map(func(character rune) rune {
+		if character == '\r' {
+			return '\n'
+		}
+		if unicode.IsControl(character) && character != '\n' && character != '\t' {
+			return -1
+		}
+		return character
+	}, value)
+}

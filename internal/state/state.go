@@ -1,4 +1,4 @@
-// Package state resolves Gator's local state root. It deliberately owns only
+// Package state resolves Hot Cross Buns's local state root. It deliberately owns only
 // the process-wide location policy, not any execution or history model.
 package state
 
@@ -16,7 +16,7 @@ func ResolveDir(override string) (string, error) {
 	if strings.TrimSpace(override) != "" {
 		return absoluteDirectory(override)
 	}
-	if configured := os.Getenv("GATOR_STATE_DIR"); strings.TrimSpace(configured) != "" {
+	if configured := os.Getenv("HOT_CROSS_BUNS_STATE_DIR"); strings.TrimSpace(configured) != "" {
 		return absoluteDirectory(configured)
 	}
 	if configured := os.Getenv("XDG_STATE_HOME"); strings.TrimSpace(configured) != "" {
@@ -27,7 +27,7 @@ func ResolveDir(override string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("resolve local application data: %w", err)
 		}
-		return filepath.Join(base, "Gator", "state"), nil
+		return filepath.Join(base, "Hot Cross Buns", "state"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

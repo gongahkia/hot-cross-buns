@@ -1,6 +1,6 @@
-# Google Workspace in Gator
+# Google Workspace in Hot Cross Buns
 
-Gator's optional Google Workspace connector provides Drive, Docs, Sheets and
+Hot Cross Buns's optional Google Workspace connector provides Drive, Docs, Sheets and
 Gmail operations. Native goals, plan steps, deadlines, notes and reminders work
 without a Google account. See [the internal-agent audit](INTERNAL_AGENT_IMPLEMENTATION.md)
 for the full connector inventory and current scope.
@@ -16,12 +16,12 @@ while the supervisor is available and are not push subscriptions. Sending is
 separately enabled and requires exact foreground approval.
 
 Gmail's [history API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list)
-can return HTTP 404 for an expired cursor; Gator then performs a full selected
+can return HTTP 404 for an expired cursor; Hot Cross Buns then performs a full selected
 scan and obtains a new cursor from the
 [profile API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users/getProfile).
 The selected query is still fetched on every poll because mailbox history has
 no search-query filter. A failed or incomplete scan does not advance the
-retained cursor. Gator binds a reusable cursor to the connector endpoint and
+retained cursor. Hot Cross Buns binds a reusable cursor to the connector endpoint and
 query. Authenticated recurring checks need an account or grant pin before they
 reuse cached message fingerprints; older unpinned checks continue with full
 detail scans so a changed account cannot inherit another account's cache.
@@ -31,14 +31,14 @@ detail scans so a changed account cannot inherit another account's cache.
 1. Open **Settings → Connections → Connect Google email**.
 2. Enter a unique connection ID and display name. A distributor-configured build supplies its Desktop OAuth client. Otherwise, enter your own Google Cloud **Desktop app** OAuth client ID and enable the Gmail API in that project. **Use your own Google OAuth client** remains available in configured builds.
 3. Review and save. Choose **Sign in** and review the requested scopes. For your own OAuth client, optionally enter its client secret; distributor-configured connections do not ask for one.
-4. Choose **Continue in browser**. Finish Google consent and return to Gator. Sign-in waits up to five minutes; you can cancel it or switch to another chat and return through Connections.
-5. Choose **Check account & read access**. Gator verifies the account identity and makes bounded reads for the configured email and Drive metadata scopes. A failure on one service is reported as a failed check. A verified email is shown only if Google marks it verified.
+4. Choose **Continue in browser**. Finish Google consent and return to Hot Cross Buns. Sign-in waits up to five minutes; you can cancel it or switch to another chat and return through Connections.
+5. Choose **Check account & read access**. Hot Cross Buns verifies the account identity and makes bounded reads for the configured email and Drive metadata scopes. A failure on one service is reported as a failed check. A verified email is shown only if Google marks it verified.
 6. Select the connection in chat settings or in a follow-up agreement. Saving credentials does not select it for a chat or authorize writes.
 
 The initial native email setup requests OpenID, email and Gmail read scopes.
 To send email, open the saved connection and choose **Enable email sending**.
 Review the added permission and finish browser consent. Existing API permissions
-and sending must be confirmed by the new token response before Gator publishes
+and sending must be confirmed by the new token response before Hot Cross Buns publishes
 the sending surface; a cancelled, partial or stale upgrade keeps the previous
 local connection. Each email still needs exact foreground approval.
 **Turn off email sending** removes it from new tasks without revoking Google's
@@ -72,12 +72,12 @@ Create or select a **Desktop** OAuth client in your Google Cloud project, then
 enable the Google Drive, Docs, Sheets and Gmail APIs as needed:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator provider connector add google-work --kind google --oauth-client-id YOUR_CLIENT_ID --daily-context
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator provider connector login google-work --oauth-client-secret-from-env GOOGLE_OAUTH_CLIENT_SECRET
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns provider connector add google-work --kind google --oauth-client-id YOUR_CLIENT_ID --daily-context
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns provider connector login google-work --oauth-client-secret-from-env GOOGLE_OAUTH_CLIENT_SECRET
 ```
 
 The client secret is optional for public clients. When supplied, it is retained
-only in Gator's private `auth.json` beside the refresh token; it is never
+only in Hot Cross Buns's private `auth.json` beside the refresh token; it is never
 written to `config.json`, shown by status, or added to Work evidence. Login
 uses PKCE and an ephemeral `127.0.0.1` loopback callback.
 
@@ -89,7 +89,7 @@ Google connector with `--daily-context` and run `connector login` for it.
 To enable sending from the CLI, add `--send-email` during setup and log in with
 that new scope, or use **Enable email sending** on an existing native connection.
 The send operation requests `gmail.send`; `--daily-context`
-is still needed for CLI setup if Gator should also read Gmail. Existing credentials
+is still needed for CLI setup if Hot Cross Buns should also read Gmail. Existing credentials
 do not silently gain the send scope. Google classifies `gmail.send` as a
 sensitive scope, so a published OAuth app may need verification.
 Gmail read-only is a restricted Google scope,
@@ -100,13 +100,13 @@ Google until the user revokes them.
 New goal schedules and watches using a Google OAuth connector make a live
 [OpenID UserInfo](https://developers.google.com/identity/openid-connect/reference)
 request and pin a SHA-256 digest of the account's stable `sub`
-identifier. Gator checks that identity before a scheduled run and against the
+identifier. Hot Cross Buns checks that identity before a scheduled run and against the
 token used for each connected request. Reauthorizing the same account keeps
 the check valid; switching accounts stops it before connected data is read.
-If identity cannot be checked, the read fails closed. `gator goal activity ID`
-shows that the account is pinned, while `gator goal access ID` makes a separate
+If identity cannot be checked, the read fails closed. `hot-cross-buns goal activity ID`
+shows that the account is pinned, while `hot-cross-buns goal access ID` makes a separate
 live probe. To intentionally change accounts, confirm the new account, then
-use `gator goal unschedule GOAL_ID JOB_ID` and recreate the check. Existing
+use `hot-cross-buns goal unschedule GOAL_ID JOB_ID` and recreate the check. Existing
 refresh-grant-pinned checks retain their stricter behavior and stop on any
 grant replacement; older unpinned checks still appear as unbound in activity.
 The job definition contains only a digest, not the subject or token. This
@@ -117,19 +117,19 @@ identity check does not establish that a connected result is relevant or safe.
 Read operations cover a live connection check, Drive metadata search and file
 metadata, Google Docs, Google Sheets, bounded Sheet ranges, and Gmail search,
 message detail and thread context. Gmail list defaults to the last day of
-inbox messages and returns IDs that can be opened with `gmail_get`. Gator
+inbox messages and returns IDs that can be opened with `gmail_get`. Hot Cross Buns
 records each read with connector provenance and enforces the selected
 connector read permission policy. Mutations cover
 Docs create/batch update and Sheets create/range/batch update, plus an ordered
 batch of those typed mutations. Update payloads may include a Google `etag`;
-Gator binds it to the approved payload and sends it as `If-Match`.
-For `sheets_values_update`, Gator includes `valueInputOption` in the exact
+Hot Cross Buns binds it to the approved payload and sends it as `If-Match`.
+For `sheets_values_update`, Hot Cross Buns includes `valueInputOption` in the exact
 approval preview and sends it as the required URL query parameter. It defaults
 to `RAW` if omitted; a user may explicitly choose `USER_ENTERED`. The option
 is removed from the JSON `ValueRange` body. This follows Google's
 [`spreadsheets.values.update` request contract](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values/update).
 
-Sheet value writes accept booleans, numbers, and strings. Gator rejects `null`
+Sheet value writes accept booleans, numbers, and strings. Hot Cross Buns rejects `null`
 cells because [Google skips them](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets.values#ValueRange);
 use an empty string when the intent is to clear a cell.
 
@@ -152,24 +152,24 @@ host freezes attachment bytes and includes their names, sizes and hashes in the
 review. See [connected email composition](CONNECTED_EMAIL.md) for the payload,
 thread requirements and file limits. `gmail_thread_get` reads thread context and
 inherits message-content permission restrictions. The `from` address must be a
-sender Gmail accepts for the connected account. Gator shows the fields and target for approval;
+sender Gmail accepts for the connected account. Hot Cross Buns shows the fields and target for approval;
 an unattended goal check cannot use this operation. A successful send retains
 Gmail's message ID in the action record in the Work bundle. Every prepared send
 also has a unique reconciliation ID, embedded in its MIME `Message-ID` header
 and retained with the action record. It distinguishes two separately approved
-sends with identical text. If the API outcome is uncertain, Gator records that
+sends with identical text. If the API outcome is uncertain, Hot Cross Buns records that
 uncertainty and does not retry automatically. For an action marked `unknown`,
-use the IDs shown by `gator work review WORK_ID` to check Sent:
+use the IDs shown by `hot-cross-buns work review WORK_ID` to check Sent:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work reconcile WORK_ID CORRELATION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work reconcile WORK_ID CORRELATION_ID
 ```
 
 This read-only check searches the same Google connector's Sent mailbox, opens
 the matching message, and checks its `SENT` label and exact `Message-ID` header.
 It requires the connector's Gmail read-only scope and allowed list/detail
-reads. Gator stores the latest check under
-`STATE_DIR/gator/reconciliations/WORK_ID/CORRELATION_ID.json` and leaves the
+reads. Hot Cross Buns stores the latest check under
+`STATE_DIR/hot-cross-buns/reconciliations/WORK_ID/CORRELATION_ID.json` and leaves the
 sealed Work action as `unknown`. A match confirms a Sent mailbox copy, not
 recipient delivery. No match is inconclusive because indexing can lag, and
 multiple matches require manual inspection. The check never sends or retries.
@@ -187,7 +187,7 @@ and uses the separate [Gmail send scope](https://developers.google.com/workspace
 
 ## Boundaries
 
-Gator neither reads nor writes its former `STATE_DIR/gator/google-work/`
+Hot Cross Buns neither reads nor writes its former `STATE_DIR/hot-cross-buns/google-work/`
 SQLite mirror. It does not delete that old local state automatically. There is
 no offline Google browse mode, mutation queue, Hot Cross Buns migration path,
 or credential reuse.
@@ -210,8 +210,8 @@ can be reopened locally after restart, including when account access is offline.
 
 ## Distribution-owned desktop sign-in
 
-Both runtime build scripts accept `GATOR_GOOGLE_DESKTOP_CLIENT_ID` and
-`GATOR_GOOGLE_DESKTOP_CLIENT_SECRET` at build time. Set both from a registered
+Both runtime build scripts accept `HOT_CROSS_BUNS_GOOGLE_DESKTOP_CLIENT_ID` and
+`HOT_CROSS_BUNS_GOOGLE_DESKTOP_CLIENT_SECRET` at build time. Set both from a registered
 Google **Desktop app** client. Missing pairs or invalid characters fail the build
 without printing their values. With neither set, manual setup is unchanged.
 Tagged desktop releases read `GOOGLE_DESKTOP_CLIENT_ID` from the release

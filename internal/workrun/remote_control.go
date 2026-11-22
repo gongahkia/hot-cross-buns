@@ -15,10 +15,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 )
 
 var controlToken = regexp.MustCompile(`^[a-f0-9]{32}$`)

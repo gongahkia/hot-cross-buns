@@ -4,12 +4,12 @@ import { mkdtemp,writeFile,rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createCompanion } from './server.mjs';
-const {chromium}=await import(process.env.GATOR_PLAYWRIGHT_MODULE||'./node_modules/playwright/index.mjs');
+const {chromium}=await import(process.env.HOT_CROSS_BUNS_PLAYWRIGHT_MODULE||'./node_modules/playwright/index.mjs');
 
 test('semantic phone controls bind review to selection, invalidate revoked grants and reconcile unknown receipts without replay', {timeout:90000},async()=>{
-  const root=await mkdtemp(join(tmpdir(),'gator-control-browser-')),tokenFile=join(root,'owner.token'),token='a'.repeat(64);let companion,browser,granted=true,online=true,dispatches=0,reads=0,sent,receipt;
+  const root=await mkdtemp(join(tmpdir(),'hot-cross-buns-control-browser-')),tokenFile=join(root,'owner.token'),token='a'.repeat(64);let companion,browser,granted=true,online=true,dispatches=0,reads=0,sent,receipt;
   const offer={operation:'steer',scope:'subagent-001',expires_at:new Date(Date.now()+60000).toISOString(),specialist:'subagent-001'};
-  const item=d=>({target:{binding:{id:'target-'+d.repeat(32),backend:'gator_work',owner:'owner-'+d,generation:d.repeat(32),incarnation:'one'},label:'Work '+d,available:true,capabilities:['inspect']},run_id:'run-'+d,conversation_id:'chat-'+d,status:'running',started_at:new Date().toISOString(),observed_at:new Date().toISOString(),updated_at:new Date().toISOString(),progress:[],specialists:[],pending_approvals:0,limitations:['Fixture'],controls:granted?[offer]:[]});
+  const item=d=>({target:{binding:{id:'target-'+d.repeat(32),backend:'hot_cross_buns_work',owner:'owner-'+d,generation:d.repeat(32),incarnation:'one'},label:'Work '+d,available:true,capabilities:['inspect']},run_id:'run-'+d,conversation_id:'chat-'+d,status:'running',started_at:new Date().toISOString(),observed_at:new Date().toISOString(),updated_at:new Date().toISOString(),progress:[],specialists:[],pending_approvals:0,limitations:['Fixture'],controls:granted?[offer]:[]});
   try{
     await writeFile(tokenFile,token+'\n',{mode:0o600});companion=createCompanion({binary:'',workspace:root,tokenFile,queryCatalog:async()=>({items:[]}),queryWork:async({target})=>online?{targets:target?[item(target.endsWith('a')?'a':'b')]:[item('a'),item('b')]}:{targets:[],unavailable:true},controlWork:async(mode,input)=>{
       if(mode==='check')return{authorized:granted};if(mode==='receipt'){reads++;return{receipt};}
@@ -25,7 +25,7 @@ test('semantic phone controls bind review to selection, invalidate revoked grant
     await page.locator('#work-action-dialog').waitFor({state:'hidden'});assert.equal(await page.locator('#work-action-review').isDisabled(),true);assert.equal(dispatches,0);
     granted=true;await page.locator('#work-refresh').click();await page.waitForFunction(()=>document.querySelector('#work-operation').options.length===2);await draft('Sensitive instruction for A');await page.locator('#work-action-confirm').click();
     await page.locator('#work-action-status').filter({hasText:'outcome_unknown'}).waitFor();assert.equal(dispatches,1);assert.equal(sent.target.id,'target-'+'a'.repeat(32));
-    const saved=await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('gator.work-receipt.')).map(k=>sessionStorage.getItem(k)).join(''));assert.doesNotMatch(saved,/Sensitive instruction/);
+    const saved=await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('hot-cross-buns.work-receipt.')).map(k=>sessionStorage.getItem(k)).join(''));assert.doesNotMatch(saved,/Sensitive instruction/);
     await page.locator('#work-receipt-refresh').click();for(let i=0;i<100&&reads<1;i++)await page.waitForTimeout(20);assert.equal(dispatches,1);assert.ok(reads>=1);assert.equal(await page.locator('#work-receipt-dismiss').isVisible(),false);
     online=false;await page.reload();await page.locator('#token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();await page.locator('#work-title').click();
     await page.waitForFunction(()=>Array.from(document.querySelector('#work-select').options).some(o=>o.textContent.includes('Retained action receipt')));

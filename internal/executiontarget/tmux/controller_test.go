@@ -1,11 +1,11 @@
 // Copyright 2026 gongahkia. Apache-2.0; see third_party/onibi/LICENSE.
-// Adapted from Onibi's low-level attach/render test patterns; modified by Gator.
+// Adapted from Onibi's low-level attach/render test patterns; modified by Hot Cross Buns.
 package tmux
 
 import (
 	"context"
 	"errors"
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +49,7 @@ func (r *fakeRunner) Run(_ context.Context, _ string, a []string, _ int) (Result
 		if r.capture != nil {
 			r.capture()
 		}
-		return Result{Bytes: append([]byte("GATOR_CAPTURE_OK\n"), r.output...)}, nil
+		return Result{Bytes: append([]byte("HOT_CROSS_BUNS_CAPTURE_OK\n"), r.output...)}, nil
 	}
 	return Result{Bytes: []byte(r.row)}, nil
 }

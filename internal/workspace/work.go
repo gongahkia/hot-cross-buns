@@ -67,10 +67,10 @@ func CreateWork(sourcePath, stateDir, id string, now time.Time) (Work, error) {
 		return Work{}, err
 	}
 	fingerprint := sha256.Sum256([]byte(source.Path()))
-	gatorPath := filepath.Join(stateRoot, "gator")
-	workspacePath := filepath.Join(gatorPath, "workspaces")
+	hotCrossBunsPath := filepath.Join(stateRoot, "hot-cross-buns")
+	workspacePath := filepath.Join(hotCrossBunsPath, "workspaces")
 	parent := filepath.Join(workspacePath, hex.EncodeToString(fingerprint[:16]))
-	for _, directory := range []string{gatorPath, workspacePath, parent} {
+	for _, directory := range []string{hotCrossBunsPath, workspacePath, parent} {
 		if err := ensurePrivateDirectory(directory); err != nil {
 			return Work{}, err
 		}

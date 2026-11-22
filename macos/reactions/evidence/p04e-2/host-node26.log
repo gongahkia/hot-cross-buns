@@ -1,5 +1,5 @@
 
-> @gator/application-host@0.1.0 test
+> @hot-cross-buns/application-host@0.1.0 test
 > node --test tests/*.test.mjs
 
 ✔ host streams Go state and closes its child on exit (64.036083ms)

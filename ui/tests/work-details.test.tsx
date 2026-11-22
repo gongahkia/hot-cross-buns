@@ -4,23 +4,23 @@ import { ScrollBoxRenderable } from "@opentui/core"
 import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import type { BackendBundle } from "@gator/application-host/contracts/protocol"
-import type { FileRequest } from "@gator/application-host/contracts/fileProtocol"
+import type { BackendBundle } from "@hot-cross-buns/application-host/contracts/protocol"
+import type { FileRequest } from "@hot-cross-buns/application-host/contracts/fileProtocol"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 test("work details expose latest-only outputs, checked proposals and failures without mixing current selections or chats", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-work-details-"))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-work-details-"))
   class Host extends FixtureHost {
     fileRequests: FileRequest[] = []
     async file(request: FileRequest): Promise<never> { this.fileRequests.push(request); throw new Error("Retained file is unavailable; original record is kept.") }
   }
-  const host = new Host({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+  const host = new Host({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
   const earlier: BackendBundle = { Path: "/retained/first", Status: "completed", RunID: "work-first", Artifacts: [{ Path: "report.md", MediaType: "text/markdown", Valid: true, Preview: "Earlier retained report" }, { Path: "slides.pdf", MediaType: "application/pdf", Valid: true }], Candidates: [{ ID: "change-one", Status: "verified", ChangedPaths: ["src/example.ts"] }] }
   const latest: BackendBundle = { Path: "/retained/latest", Status: "failed", RunID: "work-failed", Sources: ["notes/venue.md"], Connections: [{ ID: "used-drive", Operations: ["fetch"] }], Artifacts: [{ Path: "failed-report.md", MediaType: "text/markdown", Valid: false, Preview: "This retained draft needs review.", Truncated: true }, { Path: "prototype.html", MediaType: "text/html", Valid: true, Preview: "<script>untrusted_preview()</script><h1>Source only</h1>" }], Candidates: null }
-  host.current = { ...state(), source: "/selected/workspace", messages: [...Array.from({ length: 40 }, (_, n) => ({ role: "Gator", text: `Earlier message ${n}\nRetain the reading position and draft.` })), { role: "Deliverables", text: "Original output", bundle: earlier }], work_details: { mode: "auto", attachments: ["budget.md"], connector_ids: ["next-calendar"], latest_bundle: latest } }
-  const client = new GatorClient(host)
+  host.current = { ...state(), source: "/selected/workspace", messages: [...Array.from({ length: 40 }, (_, n) => ({ role: "Hot Cross Buns", text: `Earlier message ${n}\nRetain the reading position and draft.` })), { role: "Deliverables", text: "Original output", bundle: earlier }], work_details: { mode: "auto", attachments: ["budget.md"], connector_ids: ["next-calendar"], latest_bundle: latest } }
+  const client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 130, height: 50 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const choose = async (label: string) => { setup.mockInput.pressKey("u", { ctrl: true }); await setup.mockInput.typeText(label); await flush(); setup.mockInput.pressEnter(); await flush() }

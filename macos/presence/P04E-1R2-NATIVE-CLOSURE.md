@@ -2,7 +2,7 @@
 
 **Verdict: CONDITIONAL. Native acceptance remains open.** A reproducible redundant-update problem was corrected and the final headless suites pass. The historical 1.4 GB layout stall and the 23–25% pending-review CPU observation are **not proven resolved**. Both new desktop preparation probes were contaminated before creating a pending review. The user subsequently directed: **“Finish headless; leave native acceptance open.”** Accordingly, **0 of 10 complete native lifecycle cycles** are certified.
 
-Development candidate: `/tmp/Gator-Native-P04E1R2-Verified.app`. This is the requested filename, not a claim of completed native acceptance. The final binary was **not launched for desktop acceptance** after the headless-only direction. Do not begin P04U-1 on the strength of these results.
+Development candidate: `/tmp/HotCrossBuns-Native-P04E1R2-Verified.app`. This is the requested filename, not a claim of completed native acceptance. The final binary was **not launched for desktop acceptance** after the headless-only direction. Do not begin P04U-1 on the strength of these results.
 
 ## Source identity and preservation
 
@@ -17,7 +17,7 @@ Host: Apple M3, 16 GiB, macOS 26.5.2 (25F84). The package remains macOS 15+. Dev
 
 No Go, host, credential, permission, archive, workspace, plan, recovery, composer or approval-control implementation changed. Hash comparison found no changes to the original P04E-1/P04E-1R evidence. The four prior bundles inventoried in the R report are byte-for-byte unchanged. Original mascot sources/assets remain untouched; runtime art remains emoji plus the two existing reaction GIFs.
 
-The intermediate R2 baseline, diagnostic and pre-UTF8 candidates are preserved separately. The early R2 candidate was moved to `/tmp/Gator-Native-P04E1R2-Pre-UTF8.app` before the final fresh build; it was not overwritten. [Final build](evidence/p04e-1r2/build-final-utf8.log).
+The intermediate R2 baseline, diagnostic and pre-UTF8 candidates are preserved separately. The early R2 candidate was moved to `/tmp/HotCrossBuns-Native-P04E1R2-Pre-UTF8.app` before the final fresh build; it was not overwritten. [Final build](evidence/p04e-1r2/build-final-utf8.log).
 
 ## Harness repair and validation
 
@@ -39,13 +39,13 @@ Changes:
 
 **Observed in the native preparation revision:** ordinary Send, Approve and a stale-preflight request were refused before action. The correct disposable PID/bundle/executable could be inspected and activated. [Native controller trace](evidence/p04e-1r2/controlled-input.jsonl), [probe 20 log](evidence/p04e-1r2/probe.log), [probe 21 log](evidence/p04e-1r2/probe-21.log).
 
-An early headless identity-host attempt asserted before a valid registration was observed; the raw refusal response was not preserved. Its exact initial discrepancy is therefore unverified. The final helper waits for observable identity readiness instead of treating process spawn as readiness. This was a fixture-validation failure, not evidence of a Gator product defect. Later `refuse nonfixture` results while inspecting already-exited probe PIDs are expected guard behavior, not app failures. No production approval rule was relaxed.
+An early headless identity-host attempt asserted before a valid registration was observed; the raw refusal response was not preserved. Its exact initial discrepancy is therefore unverified. The final helper waits for observable identity readiness instead of treating process spawn as readiness. This was a fixture-validation failure, not evidence of a Hot Cross Buns product defect. Later `refuse nonfixture` results while inspecting already-exited probe PIDs are expected guard behavior, not app failures. No production approval rule was relaxed.
 
 Final role/focus hardening was compiled and identity-tested headlessly, but **not replayed through a complete native settings cycle**. Harness/native interaction validation is therefore partial.
 
 ## Read-only native identity diagnostics
 
-A debug-only `NativeAcceptanceDiagnostics` helper is enabled solely by `GATOR_NATIVE_ACCEPTANCE_DIRECTORY` pointing to an existing disposable `gator-native-test-presence-r2-*` directory. Normal launches have no diagnostic source or polling work.
+A debug-only `NativeAcceptanceDiagnostics` helper is enabled solely by `HOT_CROSS_BUNS_NATIVE_ACCEPTANCE_DIRECTORY` pointing to an existing disposable `hot-cross-buns-native-test-presence-r2-*` directory. Normal launches have no diagnostic source or polling work.
 
 On an explicit SIGUSR2 request, it writes a mode-0600 atomic snapshot containing selected conversation, actual Swift generation, interaction ID, token hash, message index, owner count, window visibility, active frame bytes and layer-animation counts. It excludes message text, raw tokens, credentials and tool arguments. It does not send bridge commands or mutate agent state. The signal source uses weak ownership and is cancelled from application termination. The existing Quit guard, closing transaction and Go shutdown code are unchanged.
 
@@ -179,7 +179,7 @@ No new screenshots or recording are claimed. Existing P04E-1 visual evidence rem
 All final Swift real-Go fixtures use:
 
 ```sh
-GATOR_TEST_BINARY=/tmp/Gator-Native-P04E1R2-Verified.app/Contents/Resources/gator-runtime
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-P04E1R2-Verified.app/Contents/Resources/hot-cross-buns-runtime
 ```
 
 | Verification | Result |
@@ -209,12 +209,12 @@ Failures retained honestly:
 
 Relative to the recorded R2 starting worktree:
 
-- `macos/Sources/GatorCore/BridgeProtocol.swift`: native-content comparison ignoring only the terminal frame; UTF-8-sensitive recursive content comparison.
-- `macos/Sources/GatorCore/GatorApplicationState.swift`: skip connected, unchanged native snapshots before observation/coordinator publication.
-- `macos/Sources/GatorMac/NativeAcceptanceDiagnostics.swift`: new optional debug-only read-only identity/resource capture.
-- `macos/Sources/GatorMac/AppDelegate.swift`: own and cancel that optional diagnostic source.
-- `macos/Sources/GatorMac/GatorApp.swift`: initialize it only when explicitly configured.
-- `macos/Tests/GatorCoreTests/NativeSnapshotPublicationTests.swift`: five new tests for publication, meaningful updates, Unicode, reconnect/generation and real-Go pending-review preservation.
+- `macos/Sources/HotCrossBunsCore/BridgeProtocol.swift`: native-content comparison ignoring only the terminal frame; UTF-8-sensitive recursive content comparison.
+- `macos/Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift`: skip connected, unchanged native snapshots before observation/coordinator publication.
+- `macos/Sources/HotCrossBunsMac/NativeAcceptanceDiagnostics.swift`: new optional debug-only read-only identity/resource capture.
+- `macos/Sources/HotCrossBunsMac/AppDelegate.swift`: own and cancel that optional diagnostic source.
+- `macos/Sources/HotCrossBunsMac/HotCrossBunsApp.swift`: initialize it only when explicitly configured.
+- `macos/Tests/HotCrossBunsCoreTests/NativeSnapshotPublicationTests.swift`: five new tests for publication, meaningful updates, Unicode, reconnect/generation and real-Go pending-review preservation.
 - `macos/presence/acceptance-r2/`: isolated manifest-bound controller, private fixture/driver, bounded cadence probe, native preparation probe, no-window identity validator, calibrated sampler and reproducible verification runner. The recording helper is compiled/prepared but no completed R2 recording exists.
 - This report and `evidence/p04e-1r2/`: source identity, raw failures, input/Go audits, metrics and verification.
 

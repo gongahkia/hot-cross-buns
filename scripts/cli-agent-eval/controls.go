@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 )
 
 func runSessionControls(ctx context.Context, cfg cliagent.Config, root, source, original string) error {
@@ -60,7 +60,7 @@ func runSessionControls(ctx context.Context, cfg cliagent.Config, root, source, 
 		return value, err, commandErr
 	}
 	if cfg.Kind == "codex" {
-		value, err, answerErr := run("question", "Before proceeding, call gator_ask_user with question 'Which format should the project summary use?' and options ['Markdown','Plain text']. Wait for the answer, then read project.md and report the chosen format and owner briefly.", func(state cliagent.NativeState) *cliagent.SessionControl {
+		value, err, answerErr := run("question", "Before proceeding, call hot_cross_buns_ask_user with question 'Which format should the project summary use?' and options ['Markdown','Plain text']. Wait for the answer, then read project.md and report the chosen format and owner briefly.", func(state cliagent.NativeState) *cliagent.SessionControl {
 			if state.Status != "awaiting_input" {
 				return nil
 			}

@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 )
 
 // Check is a read-only projection of a schedule and its observed execution.

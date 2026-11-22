@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestPresentationToolSchemaExposesVisibleSlideBody(t *testing.T) {

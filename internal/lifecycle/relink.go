@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
 )
 
 var ErrRecovery = errors.New("an interrupted source relink needs recovery")

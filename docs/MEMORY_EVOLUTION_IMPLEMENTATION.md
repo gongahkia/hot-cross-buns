@@ -62,7 +62,7 @@ verification ledger. It is a test workflow, not a deployment.
 - `4d7aef2fb`: listing/search/profile can return validated healthy records with
   a typed partial-read diagnostic. CLI output, saved-context views, memory
   settings, chat receipts, model preparation and knowledge-search tools expose
-  that warning. `gator memory diagnose` identifies up to 32 unreadable filenames
+  that warning. `hot-cross-buns memory diagnose` identifies up to 32 unreadable filenames
   and reports the total; it does not modify or delete damaged records.
 - Direct reads of damaged records still fail. Ordinary store-access errors stay
   fatal. Automatic subject consolidation remains blocked while an unreadable
@@ -91,7 +91,7 @@ text digest; corrections do not keep another copy of the superseded personal
 text. Replays present in this bounded history are idempotent. Revision times stay
 monotonic across clock adjustments. Retrieval never refreshes confirmation.
 Legacy records keep unknown observation dates until new evidence exists.
-`gator memory show ID` exposes these fields and source references.
+`hot-cross-buns memory show ID` exposes these fields and source references.
 
 Memory, tools, workapp and workrun suites and focused command tests pass. The
 fresh synthetic probe reports 16 supported checks and 6 gaps; this is not a
@@ -116,7 +116,7 @@ reports 19 supported checks and 3 gaps; the six broader outcomes remain open.
 
 ## Personal summary checkpoint
 
-`gator memory summary` (or `--json`) and the Memory settings panel now expose a
+`hot-cross-buns memory summary` (or `--json`) and the Memory settings panel now expose a
 derived personal view: preferences, personal facts, saved context and active
 global guidance. Each entry has its owning ID and source; chat-origin memories
 include conversation/run references and confirmation time. CLI output provides
@@ -148,7 +148,7 @@ disable and approval states are never overwritten. Publication now flushes full
 private learning/observation records before making them visible. Confidence
 defaults to unknown; historical supplied scores are explicitly uncalibrated.
 
-`gator memory maintain` runs a pass; `--status` reads its retained report.
+`hot-cross-buns memory maintain` runs a pass; `--status` reads its retained report.
 Timeout/cancellation, corrupt observations and incomplete scan coverage are
 visible there and in personal-summary warnings. No model calls, network calls,
 automatic rule activation or external actions are performed. Runtime tests cover
@@ -214,7 +214,7 @@ changeable facts without confirmation dates and implausibly future confirmations
 also stay out of automatic recall until reviewed. No record is deleted or
 silently rewritten. These checks apply on recall, including after idle periods.
 
-`gator memory review` lists pending items. `memory show` exposes the review date
+`hot-cross-buns memory review` lists pending items. `memory show` exposes the review date
 and exact revision; `memory confirm ID --expected-updated TIMESTAMP` confirms the
 inspected text. Confirmation cannot lift a forget marker, resolve a collision,
 renew explicit expiry or certify a changed source file. New user evidence can
@@ -278,7 +278,7 @@ held-out quality score or measurement of user usefulness. Run with a configured
 provider credential and a new report path:
 
 ```sh
-GATOR_LIVE_MEMORY_REPORT=/tmp/gator-memory-live-NEW.json go test ./cmd/gator -run '^TestLiveMemoryEvaluation$' -count=1 -v
+HOT_CROSS_BUNS_LIVE_MEMORY_REPORT=/tmp/hot-cross-buns-memory-live-NEW.json go test ./cmd/hot-cross-buns -run '^TestLiveMemoryEvaluation$' -count=1 -v
 ```
 
 The harness pins the configured credential store before isolating test state,
@@ -292,7 +292,7 @@ independently.
 
 ## Native platform acceptance checkpoint
 
-Run [40980460758](https://github.com/gongahkia/gator/actions/runs/40980460758)
+Run [40980460758](https://github.com/gongahkia/hot-cross-buns/actions/runs/40980460758)
 at `70a596794` passes Windows, Linux, Intel macOS and ARM macOS. The workflow
 now runs native memory, learning, personalization and retrieval suites, focused
 backup/retention/forget-restore tests, and memory/recall/idle-maintenance command

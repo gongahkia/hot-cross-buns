@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,7 +94,7 @@ func TestServiceApprovalIsPendingUntilExplicitResponse(t *testing.T) {
 		t.Fatal("ran before approval")
 	default:
 	}
-	payload, err := os.ReadFile(filepath.Join(state, "gator", "interactions", "approval-run", "1.json"))
+	payload, err := os.ReadFile(filepath.Join(state, "hot-cross-buns", "interactions", "approval-run", "1.json"))
 	if err != nil || !strings.Contains(string(payload), "pending") {
 		t.Fatalf("pending state: %s %v", payload, err)
 	}

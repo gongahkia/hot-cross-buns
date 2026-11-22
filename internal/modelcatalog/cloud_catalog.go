@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/auth"
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 func (m Model) cloudModels() []cloudModelEntry {
@@ -70,16 +70,16 @@ func prependModelIfMissing(models []string, model string) []string {
 }
 
 func cloudProviderStatus(provider modelprovider.Provider, store auth.Store, storeErr error, cached map[string]StoredCredentialStatus) string {
-	if status, ok := cached[gatorCredentialCacheKey(string(provider))]; ok && status.Present && status.Kind == "API key" {
+	if status, ok := cached[hotCrossBunsCredentialCacheKey(string(provider))]; ok && status.Present && status.Kind == "API key" {
 		if status.Expired {
 			return "stored credential expired"
 		}
-		return "Gator credential stored"
+		return "Hot Cross Buns credential stored"
 	}
 	if storeErr == nil {
-		credential, found, err := store.Read(gatorCredentialCacheKey(string(provider)))
+		credential, found, err := store.Read(hotCrossBunsCredentialCacheKey(string(provider)))
 		if err == nil && found && credential.IsAPIKey() {
-			return "Gator credential stored"
+			return "Hot Cross Buns credential stored"
 		}
 	}
 	if environment := modelprovider.APIKeyEnvironment(provider); environment != "" && strings.TrimSpace(os.Getenv(environment)) != "" {
@@ -98,7 +98,7 @@ func (m Model) selectedCloudModel() (cloudModelEntry, bool) {
 }
 
 func (m *Model) selectActiveModelCatalogEntry() {
-	if strings.EqualFold(strings.TrimSpace(m.provider.Value()), "gator-local") {
+	if strings.EqualFold(strings.TrimSpace(m.provider.Value()), "hot-cross-buns-local") {
 		m.localModels.section = localModelSection
 		for index, local := range m.localModels.catalog.Models {
 			if local.OllamaModel == strings.TrimSpace(m.model.Value()) {

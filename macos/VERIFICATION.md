@@ -4,9 +4,9 @@ Verified on macOS 15.7.7 (Intel), Swift 6.1.2 and the macOS 15.5 SDK. This is a 
 
 ## Ownership and contracts
 
-`GatorApp` creates one `GatorApplicationState` above its `MenuBarExtra(.window)` and full `Window` scenes. Presentation tasks call an idempotent start method. Neither presentation closes the transport when dismissed. Only explicit reconnect or guarded application shutdown replaces/stops that owner.
+`HotCrossBunsApp` creates one `HotCrossBunsApplicationState` above its `MenuBarExtra(.window)` and full `Window` scenes. Presentation tasks call an idempotent start method. Neither presentation closes the transport when dismissed. Only explicit reconnect or guarded application shutdown replaces/stops that owner.
 
-`GoBridgeConnection` launches the bundled runtime as `ui-backend <conversation-id-or-empty> ""`, with `GATOR_UI_BACKEND=1` and `GATOR_UI_SESSION_HOST` unset. It uses byte-framed NDJSON, serialized writes and bounded state/diagnostic buffers. There is no production network transport or additional agent runtime.
+`GoBridgeConnection` launches the bundled runtime as `ui-backend <conversation-id-or-empty> ""`, with `HOT_CROSS_BUNS_UI_BACKEND=1` and `HOT_CROSS_BUNS_UI_SESSION_HOST` unset. It uses byte-framed NDJSON, serialized writes and bounded state/diagnostic buffers. There is no production network transport or additional agent runtime.
 
 Snapshots replace state. Text admission uses `upload_submit`, context and durable request IDs, including an empty files array. Transport nonce acknowledgement does not clear drafts: matching `upload_result` does. Model/effort controls similarly await matching `composer_result` and projected values. Stop submits Go's `/cancel` and awaits projected cancellation. Approval sends the original interaction ID and token after verifying generation, conversation, context, message index and exact review data.
 
@@ -17,31 +17,31 @@ Native drafts are stored in a separate `native/drafts` namespace, partitioned by
 Run from the repository root unless indicated:
 
 ```sh
-go build -o /tmp/gator-native-runtime ./cmd/gator
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 bash macos/scripts/build-dev-app.sh
 ```
 
-All passed. Swift Testing: **21 tests passed**, including subprocess cleanup under a blocked stdin pipe, real Go streaming through a local controlled provider, durable history restoration and real process failure/reconnect. Tests use temporary profiles and dummy credentials; no real provider/account calls are required. Integration tests expect the Go binary above, or `GATOR_TEST_BINARY` pointing to it, and the already-installed Node executable for fixtures.
+All passed. Swift Testing: **21 tests passed**, including subprocess cleanup under a blocked stdin pipe, real Go streaming through a local controlled provider, durable history restoration and real process failure/reconnect. Tests use temporary profiles and dummy credentials; no real provider/account calls are required. Integration tests expect the Go binary above, or `HOT_CROSS_BUNS_TEST_BINARY` pointing to it, and the already-installed Node executable for fixtures.
 
-The default development destination is `/tmp/Gator-Native.app`. Packaging refuses to overwrite an existing destination. The final verified artifact, including the last draft-storage safeguard, was built successfully with:
+The default development destination is `/tmp/HotCrossBuns-Native.app`. Packaging refuses to overwrite an existing destination. The final verified artifact, including the last draft-storage safeguard, was built successfully with:
 
 ```sh
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Verified.app bash macos/scripts/build-dev-app.sh
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Verified.app bash macos/scripts/build-dev-app.sh
 ```
 
-Both `Contents/MacOS/GatorMac` and `Contents/Resources/gator-runtime` are executable; bundled `Info.plist` passes `plutil -lint`. Runtime lookup does not require a checkout path.
+Both `Contents/MacOS/HotCrossBunsMac` and `Contents/Resources/hot-cross-buns-runtime` are executable; bundled `Info.plist` passes `plutil -lint`. Runtime lookup does not require a checkout path.
 
 Existing regression commands also passed:
 
 ```sh
-go test ./cmd/gator ./internal/workapp -run 'TestUIBridge|TestBridgeKey|TestManaged|TestBridgeRecent|TestBridgeUploads|TestComposer|TestPreferenceRefresh|TestDesktopApproval|TestBridgeQueue' -count=1
+go test ./cmd/hot-cross-buns ./internal/workapp -run 'TestUIBridge|TestBridgeKey|TestManaged|TestBridgeRecent|TestBridgeUploads|TestComposer|TestPreferenceRefresh|TestDesktopApproval|TestBridgeQueue' -count=1
 
 node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs app-host/tests/policy.test.mjs
 
 # From ui/:
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload.ts tests/client.test.ts tests/approvals.test.tsx tests/recovery.test.tsx
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test --preload ./scripts/preload.ts tests/client.test.ts tests/approvals.test.tsx tests/recovery.test.tsx
 ```
 
 Results: both Go packages passed; **63 host tests passed**; **15 terminal tests passed with 121 assertions**. These are targeted regressions, not claims that every repository test was run.
@@ -57,7 +57,7 @@ The packaged application was launched locally through LaunchServices with dispos
 | Submit text and stream | Real Go activity text arrived before completion; final answer appeared without repeated snapshot messages. |
 | Dismiss compact and close full window while running | Owned Go PID remained alive; reopening showed completed work and the retained draft. |
 | Exact approval | Real Go projected a controlled web-access review; compact and full windows retained its identity. Approve Exact Action completed it using its token. No external web fetch was performed. |
-| Quit during active work | Native warning appeared; Keep Gator Open retained the same child process. |
+| Quit during active work | Native warning appeared; Keep Hot Cross Buns Open retained the same child process. |
 | Stop | Visible Stopping state was followed by stopped state; Go process stayed alive. |
 | Disconnect and explicit reconnect | Terminating the owned Go process exposed disconnected state. Explicit reconnect launched a replacement, kept the durable conversation/draft, and sent no automatic work. |
 | Restart | Guarded idle Quit reaped the child; relaunch restored conversation/history and draft. |
@@ -65,19 +65,19 @@ The packaged application was launched locally through LaunchServices with dispos
 
 The final artifact was launched again after the last safeguard change and showed the actual recovered Go conversation and editable native draft. Prior stopped Work was truthfully projected by Go as retained failed/interrupted history on restart; native code does not relabel it as resumed or completed.
 
-Temporary evidence includes `/tmp/gator-native-approval.png`, `/tmp/gator-native-final-window.png`, `/tmp/gator-native-swift-tests.log`, `/tmp/gator-native-host-regression.log` and `/tmp/gator-native-tui-regression.log`. These are local session artifacts, not packaged resources or durable repository test expectations.
+Temporary evidence includes `/tmp/hot-cross-buns-native-approval.png`, `/tmp/hot-cross-buns-native-final-window.png`, `/tmp/hot-cross-buns-native-swift-tests.log`, `/tmp/hot-cross-buns-native-host-regression.log` and `/tmp/hot-cross-buns-native-tui-regression.log`. These are local session artifacts, not packaged resources or durable repository test expectations.
 
 ## Manual inspection on this Mac
 
 ```sh
-# Menu-bar application; click its Gator speech-bubble icon:
-open /tmp/Gator-Native-Verified.app
+# Menu-bar application; click its Hot Cross Buns speech-bubble icon:
+open /tmp/HotCrossBuns-Native-Verified.app
 
 # Start with the full window visible instead:
-open /tmp/Gator-Native-Verified.app --args --open-window
+open /tmp/HotCrossBuns-Native-Verified.app --args --open-window
 ```
 
-Quit a running instance before choosing a different development bundle. Ordinary launch uses existing Go configuration/state and creates its neutral workspace under `~/Library/Application Support/Gator/workspace`; no repository choice is required. Native drafts default to `~/Library/Application Support/Gator/native/drafts`. `GATOR_NATIVE_USER_DATA`, `GATOR_NATIVE_WORKSPACE` and `GATOR_NATIVE_RUNTIME` are optional development overrides; ordinary Go configuration/state environment variables remain authoritative.
+Quit a running instance before choosing a different development bundle. Ordinary launch uses existing Go configuration/state and creates its neutral workspace under `~/Library/Application Support/Hot Cross Buns/workspace`; no repository choice is required. Native drafts default to `~/Library/Application Support/Hot Cross Buns/native/drafts`. `HOT_CROSS_BUNS_NATIVE_USER_DATA`, `HOT_CROSS_BUNS_NATIVE_WORKSPACE` and `HOT_CROSS_BUNS_NATIVE_RUNTIME` are optional development overrides; ordinary Go configuration/state environment variables remain authoritative.
 
 For a user with missing model setup, the app should show the backend explanation and preserve the draft. Use existing terminal setup to configure a provider; native provider login/download/secret handling is outside this tranche. A configured label is explicitly not a connectivity-test claim.
 

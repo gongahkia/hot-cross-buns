@@ -3,9 +3,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 	"os"
 	"path/filepath"
 	"strings"

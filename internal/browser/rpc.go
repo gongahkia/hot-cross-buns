@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const maxRPCBytes = 9 * 1024 * 1024
@@ -262,7 +262,7 @@ func (client *Client) Stop(ctx context.Context) (Session, error) {
 
 // Artifacts lists private local capture metadata without ever reading or
 // sending artifact contents. It is available only to the local OS user who
-// can read Gator's browser state directory.
+// can read Hot Cross Buns's browser state directory.
 func (client *Client) Artifacts() ([]Artifact, error) {
 	directory := filepath.Join(client.store.Directory(), "artifacts", client.sessionID)
 	entries, err := os.ReadDir(directory)

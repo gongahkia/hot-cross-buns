@@ -19,7 +19,7 @@ type ReadIssues struct {
 }
 
 func (issues *ReadIssues) Error() string {
-	return fmt.Sprintf("%d saved memory record(s) unreadable or invalid; healthy records remain available. Original files are retained. Run gator memory diagnose to inspect.", issues.Count)
+	return fmt.Sprintf("%d saved memory record(s) unreadable or invalid; healthy records remain available. Original files are retained. Run hot-cross-buns memory diagnose to inspect.", issues.Count)
 }
 
 func (issues *ReadIssues) add(name string, cause error) {

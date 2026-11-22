@@ -3,14 +3,14 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve, delimiter } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 // Exercise the real native process boundary with synthetic PCM; microphone and
 // speaker hardware permissions still require native host acceptance.
 test.skipIf(process.platform !== "linux")("keyboard dictation reviews audio in its original draft and cancels without submitting", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-voice-")), helpers = join(root, "helpers"), config = join(root, "config/gator"), oldPath = process.env.PATH
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-voice-")), helpers = join(root, "helpers"), config = join(root, "config/hot-cross-buns"), oldPath = process.env.PATH
   let requests = 0, chats = 0, release = () => {}, gate: Promise<void> = Promise.resolve()
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const payload = await request.json() as { contents: { parts: { inlineData: { data: string } }[] }[] }
@@ -27,7 +27,7 @@ test.skipIf(process.platform !== "linux")("keyboard dictation reviews audio in i
   await writeFile(join(helpers, "ffmpeg"), `#!${process.execPath}\nimport {existsSync,writeFileSync} from 'node:fs'; if(existsSync(${JSON.stringify(denied)})){process.stderr.write('Microphone permission denied');process.exit(1)} writeFileSync(${JSON.stringify(captured)},'yes'); process.stdin.on('data',()=>{process.stdout.write(Buffer.alloc(3200),()=>process.exit(0))});\n`, { mode: 0o700 })
   process.env.PATH = helpers + delimiter + oldPath
   await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }], provider_endpoints: { gemini: `http://127.0.0.1:${server.port}/v1beta` }, desktop: { voice: { provider: "gemini", model: "voice-fixture", language: "en" } } }))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/gator-runtime"), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config"), GEMINI_API_KEY: "local-fixture" } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/hot-cross-buns-runtime"), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config"), GEMINI_API_KEY: "local-fixture" } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 35 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const end = Date.now() + 10000; while (!await predicate()) { if (Date.now() > end) throw new Error(label + ": " + client.issue); await flush() } }
@@ -45,7 +45,7 @@ test.skipIf(process.platform !== "linux")("keyboard dictation reviews audio in i
     expect(client.draft.text).toBe("Keep my draft."); expect(chats).toBe(0)
     release(); await until(() => client.draft.text.includes("Review this spoken request."), "reviewable transcription")
     expect(client.context).toBe(original); expect(client.state?.messages).toHaveLength(0)
-    const usage = JSON.parse(await readFile(join(root, "state/gator/usage/days", new Date().toISOString().slice(0, 10) + ".json"), "utf8"))
+    const usage = JSON.parse(await readFile(join(root, "state/hot-cross-buns/usage/days", new Date().toISOString().slice(0, 10) + ".json"), "utf8"))
     const charges = Object.values(usage.Charges) as { Category: string; Provider: string; Tokens: number; Failed: boolean }[]
     expect(charges).toHaveLength(1); expect(charges[0]).toMatchObject({ Category: "voice", Provider: "gemini/voice-fixture", Tokens: 25, Failed: false })
     expect(JSON.stringify(usage)).not.toContain("Review this spoken request.")

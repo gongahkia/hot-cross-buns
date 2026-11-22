@@ -103,9 +103,9 @@ test("panel actions require a view identity and bounded typed values", () => {
 
 test("app resources stay inside the compiled assets and links stay web-only", () => {
   const root = resolve("test-ui");
-  assert.equal(assetPath("gator://app/assets/main.js", root), join(root, "assets/main.js"));
-  for (const url of ["file:///etc/passwd", "gator://other/index.html", "gator://app/%2f..%2fprivate", "gator://app/%00", "gator://app/%5c..%5cprivate"]) assert.equal(assetPath(url, "/tmp/gator-ui"), null);
-  for (const url of ["javascript:alert(1)", "file:///etc/passwd", "https://user:pass@example.com", "gator://app/index.html"]) assert.equal(externalURL(url), null);
+  assert.equal(assetPath("hot-cross-buns://app/assets/main.js", root), join(root, "assets/main.js"));
+  for (const url of ["file:///etc/passwd", "hot-cross-buns://other/index.html", "hot-cross-buns://app/%2f..%2fprivate", "hot-cross-buns://app/%00", "hot-cross-buns://app/%5c..%5cprivate"]) assert.equal(assetPath(url, "/tmp/hot-cross-buns-ui"), null);
+  for (const url of ["javascript:alert(1)", "file:///etc/passwd", "https://user:pass@example.com", "hot-cross-buns://app/index.html"]) assert.equal(externalURL(url), null);
   assert.equal(externalURL("https://example.com/docs"), "https://example.com/docs");
   assert.equal(shellQuote("folder's $(touch /tmp/nope)"), "'folder'\\''s $(touch /tmp/nope)'");
 });

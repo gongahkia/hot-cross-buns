@@ -1,6 +1,6 @@
 # Electron product consolidation
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -12,8 +12,8 @@ phone companion remains an optional extension of the same application.
 
 ## Backend-connected capability inventory
 
-The former frontend lives at `ui/` in the inventory revision. Its `gator/actions`,
-`gator/native`, `gator/files`, `gator/panel`, `gator/client` and `gator/hub` modules,
+The former frontend lives at `ui/` in the inventory revision. Its `hot-cross-buns/actions`,
+`hot-cross-buns/native`, `hot-cross-buns/files`, `hot-cross-buns/panel`, `hot-cross-buns/client` and `hot-cross-buns/hub` modules,
 plus its integration tests, were compared with the Electron renderer, IPC and
 shared host. The table maps capabilities, not equivalent keyboard shortcuts.
 “Existing” means connected code was found; verification results below distinguish
@@ -45,7 +45,7 @@ search and in-app slash commands, not a standalone CLI.
 | Word paragraphs/tables, Excel values/formulas, slide text | Shared Office extraction/editing | Existing Office controls in `FileSurface`; simplified layout, no claim of native recalculation |
 | Image and PDF visual preview | Shared file validation, renderer decoding | Existing image previews and `PDFPreview`; no terminal image protocol needed |
 | Version comparison/restoration, edit-draft recovery | Shared file/comparison services | Existing `FileVersionComparison`, version menu; originals/sealed outputs unchanged |
-| Ask Gator about exact saved version/selection | `FileStore` attachment link and provenance | Existing file Ask Gator and selection controls; user still sends |
+| Ask Hot Cross Buns about exact saved version/selection | `FileStore` attachment link and provenance | Existing file Ask Hot Cross Buns and selection controls; user still sends |
 | Export/review existing destination safely | `ExportStore`, selected saved bytes | **Ported:** shared replacement tokens/fingerprints in Electron; reject changed/symlink/private destinations |
 | Model, effort, API/provider credentials | Go composer IDs and model/provider forms | Existing `ModelPicker`, Settings → Models, typed secret fields |
 | Empty-chat welcome and first-task setup | Actual managed-chat state and frontend onboarding | **Corrected:** an empty managed chat has an identity even when `home` is false; setup now appears while keeping the independent draft and attachments |
@@ -64,7 +64,7 @@ search and in-app slash commands, not a standalone CLI.
 Terminal-only rendering, ANSI safety, pane layout, terminal key fallbacks, TUI
 installer/launcher and OpenCode frontend dependencies are not additional backend
 capabilities. They are removed rather than reproduced in Electron. Existing
-system Terminal handoffs are narrowly prepared by Go; these are not the Gator
+system Terminal handoffs are narrowly prepared by Go; these are not the Hot Cross Buns
 terminal product. Internal maintenance commands, background workers and native
 coding-agent executables remain necessary application infrastructure.
 
@@ -106,8 +106,8 @@ renderer command-execution API. Ordinary interactive equivalents are mapped
 above. Host-local device grants/enrollment remain local administrative operations;
 a remote client or model gains no new authority to perform them.
 
-If a terminal installation used a custom `GATOR_TERMINAL_USER_DATA` location,
-select that same location explicitly with `GATOR_DESKTOP_USER_DATA` to reuse its
+If a terminal installation used a custom `HOT_CROSS_BUNS_TERMINAL_USER_DATA` location,
+select that same location explicitly with `HOT_CROSS_BUNS_DESKTOP_USER_DATA` to reuse its
 retained draft/file data. Default application data already used the same location.
 The terminal-only display-preference JSON is no longer read; Electron's own
 settings remain. No automatic copy or migration is attempted. If branch protection
@@ -139,11 +139,11 @@ not been executed on remote CI in this session.
 | Focused Go application-guide, editor, bridge and follow-up tests | PASS |
 | `go test -race ./internal/workrun ./internal/workapp -run 'ApplicationContext\|Conversation.*Knowledge\|RetiredFrontend\|ComposerEditor\|BridgeEditor\|Followup' -count=1` | PASS |
 | `npm run check --prefix desktop` | PASS |
-| `GATOR_INDEPENDENCE_BINARY="$PWD/desktop/runtime/gator-runtime" npm test --prefix desktop` | PASS: 19 desktop tests plus 73 shared-host tests; one existing opt-in skip in each suite on macOS |
+| `HOT_CROSS_BUNS_INDEPENDENCE_BINARY="$PWD/desktop/runtime/hot-cross-buns-runtime" npm test --prefix desktop` | PASS: 19 desktop tests plus 73 shared-host tests; one existing opt-in skip in each suite on macOS |
 | Companion auth/server/recovery/inspection/mutation/external and Chromium clients, sequential Node runner | PASS: 25, one opt-in native-tmux skip |
 | Real-Go independence fixture with Onibi, tmux and Tailscale absent from `PATH` | PASS; ordinary Work succeeds and creates no external catalog |
 | New three Electron consolidation journeys | PASS: message reuse/arguments, Go-owned editor/error/empty/oversize recovery, exact export replacement |
-| `GATOR_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop` | PASS: 62, one explicitly paid live-model skip, 8.7 minutes; includes the new source/link/effort checks |
+| `HOT_CROSS_BUNS_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop` | PASS: 62, one explicitly paid live-model skip, 8.7 minutes; includes the new source/link/effort checks |
 | Local `npm run pack --prefix desktop` and ASAR audit | PASS for unsigned macOS x64 package; no terminal renderer, OpenTUI/Solid or terminal-only Level dependency |
 | npm lockfile dry-run installation and workflow YAML parsing | PASS; no retained dependency version intentionally changed |
 | Paid live Electron source-change journey | PASS twice; details and failed preliminary attempts retained in the evaluation guide |
@@ -171,7 +171,7 @@ evidence policy have not changed.
 Foreground regression runs retained failures involving unexpected typed/deleted
 characters, a disappearing voice popup, a missing approval and a detached
 follow-up card during resize. The voice and attachment scenarios passed when
-rerun with optional `GATOR_E2E_BACKGROUND=1`. The test-only `launchDesktop` helper
+rerun with optional `HOT_CROSS_BUNS_E2E_BACKGROUND=1`. The test-only `launchDesktop` helper
 then sets macOS/Windows fixture windows unfocusable and blurs them while retaining
 the actual CDP-controlled renderer. It also captures the child handle before
 shutdown to preserve accurate cleanup status. No production window policy or

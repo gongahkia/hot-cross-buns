@@ -9,10 +9,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 // ChatHistory provides bounded, explicit history retrieval. Returned text is

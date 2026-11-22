@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
 )
 
 func (m Model) beginModelRename() (tea.Model, tea.Cmd) {
@@ -62,7 +62,7 @@ func (m Model) selectedModelIdentity() (string, string, bool) {
 		if !found {
 			return "", "", false
 		}
-		return "gator-local", local.OllamaModel, true
+		return "hot-cross-buns-local", local.OllamaModel, true
 	}
 	cloud, found := m.selectedCloudModel()
 	if !found || !cloud.selectable {
@@ -126,7 +126,7 @@ func (m *Model) applyModelAliases(aliases map[string]string) {
 		if fallback == "" {
 			fallback = model.Name
 		}
-		model.Name = m.modelDisplayName("gator-local", model.OllamaModel, fallback)
+		model.Name = m.modelDisplayName("hot-cross-buns-local", model.OllamaModel, fallback)
 	}
 }
 

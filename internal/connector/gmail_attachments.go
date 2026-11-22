@@ -152,7 +152,7 @@ func writeGmailBody(message *bytes.Buffer, body, correlationID string, files []g
 		return writeGmailBase64(message, []byte(body))
 	}
 	writer := multipart.NewWriter(message)
-	if err := writer.SetBoundary("gator-" + correlationID); err != nil {
+	if err := writer.SetBoundary("hot-cross-buns-" + correlationID); err != nil {
 		return err
 	}
 	message.WriteString("Content-Type: multipart/mixed; boundary=" + writer.Boundary() + "\r\n\r\n")

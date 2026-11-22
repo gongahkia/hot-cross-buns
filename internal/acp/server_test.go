@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func TestServerPromptsThroughCanonicalWorkHistory(t *testing.T) {
@@ -59,7 +59,7 @@ func TestServerPromptsThroughCanonicalWorkHistory(t *testing.T) {
 	if len(records) != 2 || records[0].ID == "" || records[0].ConversationID == "" || records[0].Evidence.ArtifactManifestPath == "" {
 		t.Fatalf("ACP Work history = %#v", records)
 	}
-	if _, err := os.Stat(filepath.Join(state, "gator", "journal")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(state, "hot-cross-buns", "journal")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("ACP created legacy journal state: %v", err)
 	}
 	if !hasAgentText(output.String(), "Inspection complete.") {

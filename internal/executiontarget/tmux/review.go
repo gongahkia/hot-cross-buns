@@ -3,7 +3,7 @@ package tmux
 import (
 	"time"
 
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 )
 
 const ReadTrustScope = "trusted_server_read_command_behavior"

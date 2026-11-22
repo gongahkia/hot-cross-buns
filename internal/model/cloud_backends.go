@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model/anthropic"
-	"github.com/gongahkia/gator/internal/model/chatcompletions"
-	"github.com/gongahkia/gator/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/model/anthropic"
+	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
 )
 
 func cloudflareWorkersConfig(config Config) (chatcompletions.Config, error) {
@@ -156,14 +156,14 @@ func resolveCloudflareGatewayConfig(config Config) (cloudflareGatewayConfig, err
 
 func parseCloudflareGatewayProtocol(configured string) (cloudflareGatewayProtocol, error) {
 	if strings.TrimSpace(configured) == "" {
-		configured = os.Getenv("GATOR_CLOUDFLARE_GATEWAY_PROTOCOL")
+		configured = os.Getenv("HOT_CROSS_BUNS_CLOUDFLARE_GATEWAY_PROTOCOL")
 	}
 	protocol := cloudflareGatewayProtocol(strings.TrimSpace(strings.ToLower(configured)))
 	switch protocol {
 	case cloudflareGatewayOpenAIResponses, cloudflareGatewayAnthropicMessages, cloudflareGatewayWorkersAIChatCompletions:
 		return protocol, nil
 	default:
-		return "", errors.New("GATOR_CLOUDFLARE_GATEWAY_PROTOCOL is required and must be openai-responses, anthropic-messages, or workers-ai-chat-completions")
+		return "", errors.New("HOT_CROSS_BUNS_CLOUDFLARE_GATEWAY_PROTOCOL is required and must be openai-responses, anthropic-messages, or workers-ai-chat-completions")
 	}
 }
 

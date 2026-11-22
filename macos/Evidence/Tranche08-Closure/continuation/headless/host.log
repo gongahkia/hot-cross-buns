@@ -37,7 +37,7 @@ ok 7 - draft requests reject arbitrary fields, large text, and malformed stores 
 # node:internal/modules/esm/resolve:873
 #   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
 #         ^
-# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'fflate' imported from /Users/gongahkia/Desktop/coding/projects/gator/app-host/src/office.mjs
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'fflate' imported from /Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/src/office.mjs
 #     at packageResolve (node:internal/modules/esm/resolve:873:9)
 #     at moduleResolve (node:internal/modules/esm/resolve:946:18)
 #     at defaultResolve (node:internal/modules/esm/resolve:1188:11)
@@ -49,11 +49,11 @@ ok 7 - draft requests reject arbitrary fields, large text, and malformed stores 
 #   code: 'ERR_MODULE_NOT_FOUND'
 # }
 # Node.js v20.19.5
-# Subtest: /Users/gongahkia/Desktop/coding/projects/gator/app-host/tests/uploads.test.mjs
-not ok 2 - /Users/gongahkia/Desktop/coding/projects/gator/app-host/tests/uploads.test.mjs
+# Subtest: /Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/tests/uploads.test.mjs
+not ok 2 - /Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/tests/uploads.test.mjs
   ---
   duration_ms: 45.497709
-  location: '/Users/gongahkia/Desktop/coding/projects/gator/app-host/tests/uploads.test.mjs:1:1'
+  location: '/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/app-host/tests/uploads.test.mjs:1:1'
   failureType: 'testCodeFailure'
   exitCode: 1
   signal: ~

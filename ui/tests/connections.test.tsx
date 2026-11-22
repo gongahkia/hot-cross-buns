@@ -3,12 +3,12 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, readFile, writeFile, rm, stat } from "node:fs/promises"
 import { join, resolve, delimiter } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("connection forms review private tokens, verify access and retain browser sign-in across chats", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-connections-")), config = join(root, "config/gator"), originalPath = process.env.PATH
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-connections-")), config = join(root, "config/hot-cross-buns"), originalPath = process.env.PATH
   let reads = 0, tokenRequests = 0
   const callbackReservation = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() }), callbackPort = callbackReservation.port; callbackReservation.stop(true)
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
@@ -20,7 +20,7 @@ test("connection forms review private tokens, verify access and retain browser s
   await mkdir(config, { recursive: true })
   const base = `http://127.0.0.1:${server.port}`, configPath = join(config, "config.json")
   await writeFile(configPath, JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Personal Google", kind: "google_workspace", resource: base, authentication: "oauth", oauth_client_id: "terminal-client", oauth_authorize_url: base + "/authorize", oauth_token_url: base + "/token", oauth_redirect_url: `http://127.0.0.1:${callbackPort}/oauth/callback`, oauth_scopes: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly" }] }))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), options = { binary, userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }, client = new GatorClient(new Application(options))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), options = { binary, userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }, client = new HotCrossBunsClient(new Application(options))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const end = Date.now() + 15000; while (!await predicate()) { if (Date.now() > end) throw new Error(`${label}: ${client.issue}; ${client.state?.panel?.title}; ${client.state?.panel?.rows?.map(row => row.label).join(", ")}`); await Bun.sleep(20) } }

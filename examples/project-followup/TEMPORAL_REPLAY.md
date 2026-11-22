@@ -24,7 +24,7 @@ checks. The harness does not run a supervisor or send desktop notifications.
 Fault injection remains explicit in both scripted and live modes. These cases
 test recovery wiring; they do not measure real provider failure frequency.
 Every scheduled attempt, including an unchanged skip or injected failure, is
-retained under the report's `state/gator/jobs` directory. The aggregate report
+retained under the report's `state/hot-cross-buns/jobs` directory. The aggregate report
 records each primary inbox ID and any linked recovery notice; its retained inbox entry links to the replay's
 originating conversation, identified by the report ID.
 
@@ -36,9 +36,9 @@ touch your ordinary profile. The report directory itself must not exist yet.
 
 ```sh
 replay_root=$(mktemp -d)
-GATOR_INTERNAL_COMMANDS=1 \
-GATOR_CONFIG_DIR="$replay_root/config" GATOR_STATE_DIR="$replay_root/bootstrap" \
-go run ./cmd/gator work eval watch run examples/project-followup/episodes.json \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 \
+HOT_CROSS_BUNS_CONFIG_DIR="$replay_root/config" HOT_CROSS_BUNS_STATE_DIR="$replay_root/bootstrap" \
+go run ./cmd/hot-cross-buns work eval watch run examples/project-followup/episodes.json \
   --report-dir "$replay_root/report"
 ```
 

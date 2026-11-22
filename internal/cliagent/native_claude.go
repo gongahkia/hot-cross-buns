@@ -103,7 +103,7 @@ func (c *nativeClient) claudeEvent(raw json.RawMessage) error {
 		if event.Request.Tool != "AskUserQuestion" {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			return c.wire.Reply(ctx, id, map[string]any{"behavior": "deny", "message": "Additional tool permissions are not granted by Gator."})
+			return c.wire.Reply(ctx, id, map[string]any{"behavior": "deny", "message": "Additional tool permissions are not granted by Hot Cross Buns."})
 		}
 		var questions []struct {
 			Text    string `json:"question"`

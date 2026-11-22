@@ -1,6 +1,6 @@
 # Conversational desktop implementation
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -11,12 +11,12 @@ The HTML prototype remains a fictional interaction study.
 
 ## Decision and scope
 
-Use the prototype's simpler organization with Gator's existing visual system:
+Use the prototype's simpler organization with Hot Cross Buns's existing visual system:
 the neutral dark palette, sage accent, system typography, Lucide icons, native
 forms, command palette, restrained motion and precise review controls. The
 conversation becomes the front door. Detailed controls remain ordinary screens.
 
-The current decision is **one Gator identity with multiple independent chats**.
+The current decision is **one Hot Cross Buns identity with multiple independent chats**.
 The approved follow-up restores New chat and shares durable personal memory
 across chats. It retains the existing agent loop, scheduler, model providers,
 action reviews, accounting and delivery services.
@@ -25,12 +25,12 @@ action reviews, accounting and delivery services.
 
 | Entry | Working behavior | Existing capabilities retained |
 | --- | --- | --- |
-| Talk with Gator / brand | Returns to the current chat; launch reopens the last selected chat with its durable head and source/options. | Conversation IDs, revision ancestry, independent sources and existing history. |
+| Talk with Hot Cross Buns / brand | Returns to the current chat; launch reopens the last selected chat with its durable head and source/options. | Conversation IDs, revision ancestry, independent sources and existing history. |
 | Saved conversations / folder selection | New chat / Cmd/Ctrl+N creates a separate working context. Reopen an older chat or choose a different source folder for another independent chat. | Per-conversation drafts, prompt history, source snapshots, run options and existing saved topics. |
 | Recent chats | Titles first; flat by default, optional folder grouping; filter and expand controls. | Exact list identity validation, current-run attention, disambiguated folder names and full conversation picker. |
-| Cmd/Ctrl+K | Keyboard-only command palette, including Talk with Gator, Following and Saved. No Search button in the sidebar. | Advanced commands, keyboard selection, input-prefilling commands and focus return. |
+| Cmd/Ctrl+K | Keyboard-only command palette, including Talk with Hot Cross Buns, Following and Saved. No Search button in the sidebar. | Advanced commands, keyboard selection, input-prefilling commands and focus return. |
 | Following | Read-only saved-goal and actual check summaries; links to Open goals, Manage checks, Updates and Activity & attention. | Goal editor, plans, scheduler scope/timing, inbox read/rating controls, overview and canonical reviews. |
-| Saved | Current conversation's files and changes, What Gator remembers, All conversations, Task runs and Unsent drafts. | Knowledge filtering/correction/deletion, retained run evidence, conversation continuation and draft retention. |
+| Saved | Current conversation's files and changes, What Hot Cross Buns remembers, All conversations, Task runs and Unsent drafts. | Knowledge filtering/correction/deletion, retained run evidence, conversation continuation and draft retention. |
 | File card in chat / Saved | Opens the exact retained file inside its chat message, with supported preview/edit controls. | Checked/needs-review/proposal states, failed-run origin, text/Markdown previews, shortened-preview notice, source-only HTML and retained locations. |
 | Conversation information | Outputs, Sources & memory, Connections and This conversation; closed by default. | Selected sources, retained references, connection provenance, model settings, folder picker, request mode and usage access. |
 | Settings / Cmd/Ctrl+, | Existing model, usage, data/backups, recovery and About & updates screens. | Native controls, provider credential handling, exact reviews and reviewed restart checks. |
@@ -47,19 +47,19 @@ keep the existing polished layouts and native fields.
 | --- | --- | --- |
 | Following | Ongoing goals and configured recurring checks, with their updates and requests for attention. A saved goal alone does not start background work. | A release-readiness goal, with an optional scheduled check. |
 | Saved | The library of retained information and work: personal memory/notes, chats, task results, drafts, and the current conversation's files. | A response preference, a planning note, or a generated report. |
-| Workspace | A local source folder used by a conversation's file tools. Source reads use the existing snapshots; selecting a folder does not mean all its files were read. | The Gator repository or a folder of travel documents. |
+| Workspace | A local source folder used by a conversation's file tools. Source reads use the existing snapshots; selecting a folder does not mean all its files were read. | The Hot Cross Buns repository or a folder of travel documents. |
 | Conversation | One message thread with its own transcript, draft, sources and task/connection selections. Several conversations can use the same workspace. | Separate threads for a sidebar fix and release planning, both using the same repository. |
 
 Workspace is a folder/source concept, like a project directory. Conversation is
 a chat/thread concept. Neither is a separate personal-memory profile: useful
-personal memories are shared across chats in the same local Gator profile.
+personal memories are shared across chats in the same local Hot Cross Buns profile.
 Everyday conversation can use the private empty workspace without choosing a
 project folder.
 
 ## Durable state and migration
 
 `internal/worksession/active.go` stores the last selected conversation in
-`gator/conversations/active.json`. A new unsent chat already has a durable ID;
+`hot-cross-buns/conversations/active.json`. A new unsent chat already has a durable ID;
 opening one creates no model request, source snapshot, synthetic revision or
 permission grant. Its title becomes the first real request. A failed creation
 keeps the previous chat intact. Folder-created chats use the same state reset.
@@ -82,7 +82,7 @@ message; they are not silently discarded or submitted. No histories are merged.
 
 ## Shared memory and earlier-chat retrieval
 
-Personal facts and preferences live in the existing `gator/memory` store, shared
+Personal facts and preferences live in the existing `hot-cross-buns/memory` store, shared
 by chats in one local profile. Goal decisions remain scoped to their current
 goal. New chat resets the active transcript and task options, with a fresh
 working context. It does not delete personal memory, train the provider model,
@@ -124,7 +124,7 @@ This follows the application-owned storage pattern in Anthropic's
 [memory tool documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool).
 [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
 reuses repeated prompt processing; it does not replace persistent memory or
-increase a model's context limit. Gator retains its existing context compaction.
+increase a model's context limit. Hot Cross Buns retains its existing context compaction.
 A new chat omits the previous transcript from its working replay; it does not
 force a provider to invalidate reusable cached prefixes.
 
@@ -227,14 +227,14 @@ change. Native Windows/Linux hardware and new-user usability remain boundaries.
 - `go test -p 1 ./internal/worksession ./internal/workapp -count=1`: passed.
   Additional focused tests cover retaining the first main identity during close,
   recovery source changes, stale drop targets and captured request options.
-- `go vet ./internal/worksession ./internal/workapp ./cmd/gator`: passed.
+- `go vet ./internal/worksession ./internal/workapp ./cmd/hot-cross-buns`: passed.
 - `GOOS=windows GOARCH=amd64 go test -p 1 -exec /usr/bin/true
-  ./internal/worksession ./internal/workapp ./cmd/gator`: passed compilation.
+  ./internal/worksession ./internal/workapp ./cmd/hot-cross-buns`: passed compilation.
   This does not execute Windows binaries or verify native Windows interaction.
 - `npm run pack --prefix desktop`: produced the unsigned macOS development app.
   Its bundled UI, host policy/draft store and private runtime matched the built
   assets byte for byte.
-- `GATOR_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/Gator.app/Contents/MacOS/Gator"
+- `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns"
   npm run test:e2e --prefix desktop -- --reporter=line`: **17 passed**. Covers
   persisted main identity across an actual app restart, source/draft separation,
   setup handoff, native pointer queue drops, keyboard move/cancel, edits and

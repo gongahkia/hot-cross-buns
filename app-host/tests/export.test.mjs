@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ExportStore } from "../src/export.mjs";
 
 test("export replaces only an explicitly reviewed unchanged destination and consumes its grant", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-export-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-export-"));
   try {
     const store = new ExportStore(), path = join(root, "copy.txt");
     assert.deepEqual(await store.review(path), { path: join(await realpath(root), "copy.txt"), exists: false });
@@ -29,7 +29,7 @@ test("export replaces only an explicitly reviewed unchanged destination and cons
 });
 
 test("export preserves private storage and refuses linked or changed file identities", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-export-boundary-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-export-boundary-"));
   try {
     const privateRoot = join(root, "private"); await mkdir(privateRoot);
     const store = new ExportStore([privateRoot]), path = join(root, "copy.txt");

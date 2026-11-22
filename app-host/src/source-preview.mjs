@@ -65,12 +65,12 @@ export async function sourcePreview(request, { state, stateRoot, current = () =>
   const lines = text.split("\n"), reads = [];
   let observedPreview;
   try {
-    const history = JSON.parse(await readBoundedFile(join(stateRoot, "gator/work-history"), `${request.run}.json`, 128 * 1024));
+    const history = JSON.parse(await readBoundedFile(join(stateRoot, "hot-cross-buns/work-history"), `${request.run}.json`, 128 * 1024));
     const origin=bundle.InheritedOrigin;
     const owner=origin?.conversation_id ?? state.conversation_id;
     if (!identifier(owner) || history.id !== request.run || history.conversation_id !== owner || !identifier(history.revision_id)) throw new Error();
     if(origin && (origin.run_id!==request.run || origin.source_revision_id!==history.revision_id || !/^[a-f0-9]{64}$/.test(origin.sha256 || ""))) throw new Error();
-    const rawRevision=await readBoundedFile(join(stateRoot, "gator/conversations", owner, "revisions"), `${history.revision_id}.json`, 8 * 1024 * 1024);
+    const rawRevision=await readBoundedFile(join(stateRoot, "hot-cross-buns/conversations", owner, "revisions"), `${history.revision_id}.json`, 8 * 1024 * 1024);
     if(origin && hash(rawRevision)!==origin.sha256) throw new Error();
     const revision = JSON.parse(rawRevision);
     if (revision.conversation_id !== owner || revision.bundle_path !== bundle.Path) throw new Error();

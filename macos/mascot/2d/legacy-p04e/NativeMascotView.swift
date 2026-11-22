@@ -1,9 +1,9 @@
 import SwiftUI
 import AppKit
-import GatorCore
+import HotCrossBunsCore
 
 enum NativeMascotProjection {
-    @MainActor static func signal(_ application: GatorApplicationState) -> NativeMascotSignal {
+    @MainActor static func signal(_ application: HotCrossBunsApplicationState) -> NativeMascotSignal {
         signal(snapshot: application.snapshot, messages: application.messages,
                owner: application.context + ":" + application.generation.uuidString,
                connected: application.isConnected, reviewing: application.review != nil)
@@ -26,7 +26,7 @@ struct NativeMascotReadingKey: PreferenceKey {
 }
 
 struct NativeMascotHeader: View {
-    let application: GatorApplicationState
+    let application: HotCrossBunsApplicationState
     let compact: Bool
     let reading: Bool
     let reviewing: Bool

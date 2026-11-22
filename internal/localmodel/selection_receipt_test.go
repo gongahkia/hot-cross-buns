@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 func fixtureSelectionReceipt() SelectionReceipt {
@@ -60,7 +60,7 @@ func TestSelectionReceiptLockIndependentProcessAndNoSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := exec.Command(os.Args[0], "-test.run=^TestSelectionReceiptLockHelper$")
-	child.Env = []string{"PATH=" + os.Getenv("PATH"), "GATOR_SELECTION_ROOT=" + root}
+	child.Env = []string{"PATH=" + os.Getenv("PATH"), "HOT_CROSS_BUNS_SELECTION_ROOT=" + root}
 	if out, err := child.CombinedOutput(); err != nil {
 		lease.Close()
 		t.Fatal("cross-process exclusion", err, string(out))
@@ -84,7 +84,7 @@ func TestSelectionReceiptLockIndependentProcessAndNoSymlink(t *testing.T) {
 	}
 }
 func TestSelectionReceiptLockHelper(t *testing.T) {
-	root := os.Getenv("GATOR_SELECTION_ROOT")
+	root := os.Getenv("HOT_CROSS_BUNS_SELECTION_ROOT")
 	if root == "" {
 		t.Skip("child helper")
 	}

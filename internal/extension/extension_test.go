@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestInstallLoadsInstructionsAndExecutesSidecarTool(t *testing.T) {
@@ -127,7 +127,7 @@ func TestDeclarativeUIRejectsUnsupportedSlotsAndPromptPaths(t *testing.T) {
 
 func TestProjectExtensionsRequireExplicitRepositoryTrust(t *testing.T) {
 	repository := t.TempDir()
-	writeExtensionAt(t, filepath.Join(repository, ".gator", "extensions", "project-guide"), `{
+	writeExtensionAt(t, filepath.Join(repository, ".hot-cross-buns", "extensions", "project-guide"), `{
   "version": 1,
   "id": "project-guide",
   "name": "Project guide",
@@ -163,7 +163,7 @@ func TestProjectExtensionsRequireExplicitRepositoryTrust(t *testing.T) {
 	if err != nil || !strings.Contains(instructions, "Keep migrations reversible") {
 		t.Fatalf("trusted instructions = %q, err = %v", instructions, err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "extensions", "project-guide", "prompts", "guide.md"), []byte("Changed after review."), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "extensions", "project-guide", "prompts", "guide.md"), []byte("Changed after review."), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := set.Instructions(); err == nil || !strings.Contains(err.Error(), "changed after it was loaded") {
@@ -181,7 +181,7 @@ func TestProjectExtensionsRequireExplicitRepositoryTrust(t *testing.T) {
 func TestProjectExtensionBundleRejectsSymlinkedMetadataDirectory(t *testing.T) {
 	repository := t.TempDir()
 	outside := t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(repository, ".gator")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(repository, ".hot-cross-buns")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := BundleHash(repository); err == nil || !strings.Contains(err.Error(), "metadata directory must be a real directory") {
@@ -201,7 +201,7 @@ func TestSidecarRequiresApprovalUsesSandboxEnvironmentAndDetectsDrift(t *testing
     "command": ["bin/inspect"]
   }]
 }`, map[string]fileSpec{
-		"bin/inspect": {contents: "#!/bin/sh\nif [ \"$HOME\" = \"$GATOR_EXTENSION_HOST_HOME\" ]; then\n  echo host-home-leaked >&2\n  exit 9\nfi\nprintf '%s\\n' '{\"content\":\"sandboxed\"}'\n", mode: 0o755},
+		"bin/inspect": {contents: "#!/bin/sh\nif [ \"$HOME\" = \"$HOT_CROSS_BUNS_EXTENSION_HOST_HOME\" ]; then\n  echo host-home-leaked >&2\n  exit 9\nfi\nprintf '%s\\n' '{\"content\":\"sandboxed\"}'\n", mode: 0o755},
 	})
 	store, err := NewStore(t.TempDir())
 	if err != nil {
@@ -225,13 +225,13 @@ func TestSidecarRequiresApprovalUsesSandboxEnvironmentAndDetectsDrift(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("GATOR_EXTENSION_HOST_HOME", hostHome)
-	denied := set.Tools(root, ToolPolicy{Sandbox: sandbox.Policy{Mode: sandbox.Off, Environment: []string{"GATOR_EXTENSION_HOST_HOME"}}})
+	t.Setenv("HOT_CROSS_BUNS_EXTENSION_HOST_HOME", hostHome)
+	denied := set.Tools(root, ToolPolicy{Sandbox: sandbox.Policy{Mode: sandbox.Off, Environment: []string{"HOT_CROSS_BUNS_EXTENSION_HOST_HOME"}}})
 	if _, err := denied[0].Execute(context.Background(), json.RawMessage(`{}`)); err == nil || !strings.Contains(err.Error(), "requires developer approval") {
 		t.Fatalf("unapproved sidecar error = %v", err)
 	}
 	approved := set.Tools(root, ToolPolicy{
-		Sandbox: sandbox.Policy{Mode: sandbox.Off, Environment: []string{"GATOR_EXTENSION_HOST_HOME"}},
+		Sandbox: sandbox.Policy{Mode: sandbox.Off, Environment: []string{"HOT_CROSS_BUNS_EXTENSION_HOST_HOME"}},
 		Approve: func(context.Context, string, string) error {
 			return nil
 		},

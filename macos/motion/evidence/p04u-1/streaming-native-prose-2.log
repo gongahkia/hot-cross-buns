@@ -2,14 +2,14 @@
 Building for debugging...
 [0/7] Write sources
 [1/7] Write swift-version--58304C5D6DBC2206.txt
-[3/9] Emitting module GatorMac
-[4/9] Compiling GatorMac NativeStreamingProse.swift
-[5/10] Compiling GatorMac NativeStreamingPresentation.swift
+[3/9] Emitting module HotCrossBunsMac
+[4/9] Compiling HotCrossBunsMac NativeStreamingProse.swift
+[5/10] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
 [5/10] Write Objects.LinkFileList
-[6/10] Linking GatorMac
-[7/10] Applying GatorMac
-[9/21] Compiling GatorMacTests NativeStreamingTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:147:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+[6/10] Linking HotCrossBunsMac
+[7/10] Applying HotCrossBunsMac
+[9/21] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:147:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 145 | @Test @MainActor func streamingCadenceDoesNotRetainReleasedViewModelOrReadingAnchors() async {
 146 |     let positions = NativeReadingPositions(); positions.remember("A", anchor: "row-9", following: false)
 147 |     var model: NativeStreamingPresentation? = NativeStreamingPresentation(); weak var probe = model
@@ -17,7 +17,7 @@ Building for debugging...
 148 |     model?.receive(motionEntry("One"), policy: .init(), now: 1)
 149 |     model?.receive(motionEntry("One two three four five"), policy: .init(), now: 2)
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:190:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:190:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 188 | @Test @MainActor func streamingVisibilityProbeHasNoFocusAndReleasesObservers() {
 189 |     var probe: NativeMotionVisibility.Probe? = .init(update: { _ in })
 190 |     weak var weakProbe = probe
@@ -26,23 +26,23 @@ Building for debugging...
 192 |     probe?.detach(); probe = nil; #expect(weakProbe == nil)
 
 [#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
-[10/21] Compiling GatorMacTests NativeMotionRenderTests.swift
-[11/21] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[12/21] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[13/21] Compiling GatorMacTests NativeWorkspacePickerTests.swift
-[14/21] Compiling GatorMacTests NativeUIUXRemediationTests.swift
-[15/22] Compiling GatorMacTests NotchGeometryTests.swift
-[16/22] Compiling GatorMacTests NativeMascotTests.swift
-[17/22] Compiling GatorMacTests NativeMotionGoTests.swift
-[18/22] Emitting module GatorMacTests
-[19/22] Compiling GatorMacTests NativeDesktopPetTests.swift
-[20/22] Compiling GatorMacTests NativeInputTests.swift
+[10/21] Compiling HotCrossBunsMacTests NativeMotionRenderTests.swift
+[11/21] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[12/21] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[13/21] Compiling HotCrossBunsMacTests NativeWorkspacePickerTests.swift
+[14/21] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
+[15/22] Compiling HotCrossBunsMacTests NotchGeometryTests.swift
+[16/22] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[17/22] Compiling HotCrossBunsMacTests NativeMotionGoTests.swift
+[18/22] Emitting module HotCrossBunsMacTests
+[19/22] Compiling HotCrossBunsMacTests NativeDesktopPetTests.swift
+[20/22] Compiling HotCrossBunsMacTests NativeInputTests.swift
 [20/22] Write Objects.LinkFileList
-[21/22] Linking GatorNativePackageTests
+[21/22] Linking HotCrossBunsNativePackageTests
 Build complete! (4.60s)
 Test Suite 'Selected tests' started at 2026-11-20 16:06:47.498.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 16:06:47.499.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 16:06:47.499.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 16:06:47.499.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 16:06:47.499.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 16:06:47.499.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

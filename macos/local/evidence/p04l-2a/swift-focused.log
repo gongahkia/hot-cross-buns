@@ -3,12 +3,12 @@ Building for debugging...
 [0/7] Write sources
 [1/7] Copying Fixtures
 [2/7] Write swift-version--58304C5D6DBC2206.txt
-[4/12] Compiling GatorCoreTests NativeInertApprovalIntegrationTests.swift
-[5/12] Compiling GatorCoreTests NativeDraftStoreTests.swift
-[6/12] Compiling GatorCoreTests NativeLocalIntegrationTests.swift
-[7/12] Compiling GatorCoreTests NativeMessageContentTests.swift
-[8/12] Compiling GatorCoreTests NativeLocalStatusTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorCoreTests/NativeLocalStatusTests.swift:49:11: warning: 'wrong' mutated after capture by sendable closure
+[4/12] Compiling HotCrossBunsCoreTests NativeInertApprovalIntegrationTests.swift
+[5/12] Compiling HotCrossBunsCoreTests NativeDraftStoreTests.swift
+[6/12] Compiling HotCrossBunsCoreTests NativeLocalIntegrationTests.swift
+[7/12] Compiling HotCrossBunsCoreTests NativeMessageContentTests.swift
+[8/12] Compiling HotCrossBunsCoreTests NativeLocalStatusTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsCoreTests/NativeLocalStatusTests.swift:49:11: warning: 'wrong' mutated after capture by sendable closure
 34 | @Test @MainActor func localRefreshPreservesProviderFormsAndRejectsStaleIdentities() async throws {
 35 |     let setup = NativeProviderSetup()
 36 |     var wrong = false
@@ -27,40 +27,40 @@ Building for debugging...
    |           `- warning: 'wrong' mutated after capture by sendable closure
 50 |     await setup.refreshLocal()
 51 |     #expect(!setup.localIssue.isEmpty && setup.localStatus?.resultID == "observation")
-[9/12] Compiling GatorCoreTests NativePerformanceTests.swift
-[10/33] Emitting module GatorCoreTests
-[11/36] Compiling GatorCoreTests NativeCatalogOwnerTests.swift
-[12/36] Compiling GatorCoreTests NativeClosingSafetyTests.swift
-[13/36] Compiling GatorCoreTests NativeClosureAcceptanceTests.swift
-[14/36] Compiling GatorCoreTests NativeRecoveryIntegrationTests.swift
-[15/36] Compiling GatorCoreTests NativeRecoveryTests.swift
-[16/36] Compiling GatorCoreTests NativeReviewIntegrationTests.swift
-[17/36] Compiling GatorCoreTests NativeAttachmentDraftTests.swift
-[18/36] Compiling GatorCoreTests NativeAttachmentIntegrationTests.swift
-[19/36] Compiling GatorCoreTests NativeCatalogIntegrationTests.swift
-[20/36] Compiling GatorCoreTests NativePlanAuthorizationTests.swift
-[21/36] Compiling GatorCoreTests NativePlanIntegrationTests.swift
-[22/36] Compiling GatorCoreTests NativeProviderTests.swift
-[23/36] Compiling GatorCoreTests ApplicationStateTests.swift
-[24/36] Compiling GatorCoreTests BridgeShutdownSafetyTests.swift
-[25/36] Compiling GatorCoreTests GoIntegrationTests.swift
-[26/36] Compiling GatorCoreTests NativeWorkspaceTests.swift
-[27/36] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
-[28/36] Compiling GatorCoreTests RecoveryPreparationTests.swift
-[29/36] Compiling GatorCoreTests ManagedGoIntegrationTests.swift
-[30/36] Compiling GatorCoreTests ManagedSessionTests.swift
-[31/36] Compiling GatorCoreTests NativeArchiveSafetyTests.swift
-[32/36] Compiling GatorCoreTests NativeSnapshotPublicationTests.swift
-[33/36] Compiling GatorCoreTests NativeTaskReviewTests.swift
-[34/36] Compiling GatorCoreTests NativeUploadStoreTests.swift
-[35/38] Compiling GatorNativePackageTests runner.swift
-[36/38] Emitting module GatorNativePackageTests
+[9/12] Compiling HotCrossBunsCoreTests NativePerformanceTests.swift
+[10/33] Emitting module HotCrossBunsCoreTests
+[11/36] Compiling HotCrossBunsCoreTests NativeCatalogOwnerTests.swift
+[12/36] Compiling HotCrossBunsCoreTests NativeClosingSafetyTests.swift
+[13/36] Compiling HotCrossBunsCoreTests NativeClosureAcceptanceTests.swift
+[14/36] Compiling HotCrossBunsCoreTests NativeRecoveryIntegrationTests.swift
+[15/36] Compiling HotCrossBunsCoreTests NativeRecoveryTests.swift
+[16/36] Compiling HotCrossBunsCoreTests NativeReviewIntegrationTests.swift
+[17/36] Compiling HotCrossBunsCoreTests NativeAttachmentDraftTests.swift
+[18/36] Compiling HotCrossBunsCoreTests NativeAttachmentIntegrationTests.swift
+[19/36] Compiling HotCrossBunsCoreTests NativeCatalogIntegrationTests.swift
+[20/36] Compiling HotCrossBunsCoreTests NativePlanAuthorizationTests.swift
+[21/36] Compiling HotCrossBunsCoreTests NativePlanIntegrationTests.swift
+[22/36] Compiling HotCrossBunsCoreTests NativeProviderTests.swift
+[23/36] Compiling HotCrossBunsCoreTests ApplicationStateTests.swift
+[24/36] Compiling HotCrossBunsCoreTests BridgeShutdownSafetyTests.swift
+[25/36] Compiling HotCrossBunsCoreTests GoIntegrationTests.swift
+[26/36] Compiling HotCrossBunsCoreTests NativeWorkspaceTests.swift
+[27/36] Compiling HotCrossBunsCoreTests RecoveryPreparationIntegrationTests.swift
+[28/36] Compiling HotCrossBunsCoreTests RecoveryPreparationTests.swift
+[29/36] Compiling HotCrossBunsCoreTests ManagedGoIntegrationTests.swift
+[30/36] Compiling HotCrossBunsCoreTests ManagedSessionTests.swift
+[31/36] Compiling HotCrossBunsCoreTests NativeArchiveSafetyTests.swift
+[32/36] Compiling HotCrossBunsCoreTests NativeSnapshotPublicationTests.swift
+[33/36] Compiling HotCrossBunsCoreTests NativeTaskReviewTests.swift
+[34/36] Compiling HotCrossBunsCoreTests NativeUploadStoreTests.swift
+[35/38] Compiling HotCrossBunsNativePackageTests runner.swift
+[36/38] Emitting module HotCrossBunsNativePackageTests
 [36/38] Write Objects.LinkFileList
-[37/38] Linking GatorNativePackageTests
+[37/38] Linking HotCrossBunsNativePackageTests
 Build complete! (5.25s)
 Test Suite 'Selected tests' started at 2026-11-21 09:40:36.082.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-21 09:40:36.085.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-21 09:40:36.085.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-21 09:40:36.085.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-21 09:40:36.085.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-21 09:40:36.085.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds

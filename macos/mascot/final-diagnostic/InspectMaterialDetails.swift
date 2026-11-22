@@ -31,7 +31,7 @@ import RealityKit
                 for child in e.children{visit(child,path)}
             };visit(root,"");return rows
         }
-        guard let source=usd.findEntity(named:"Gator_B") else{throw NSError(domain:"MissingRoot",code:1)}
+        guard let source=usd.findEntity(named:"HotCrossBuns_B") else{throw NSError(domain:"MissingRoot",code:1)}
         FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject:["USD":collect(source),"native":collect(native)],options:[.prettyPrinted,.sortedKeys]))
     }
 }

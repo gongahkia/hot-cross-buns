@@ -87,7 +87,7 @@ func (s Settings) TerminalPreferences() TerminalPreferences {
 
 func (p TerminalPreferences) Validate() error {
 	switch p.Theme {
-	case "terminal", "gator", "light", "contrast", "mono":
+	case "terminal", "hot-cross-buns", "light", "contrast", "mono":
 		return nil
 	}
 	return fmt.Errorf("unknown theme %q", p.Theme)

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 )
 
 type appControllerFixture struct {
@@ -37,7 +37,7 @@ type appReplyModel struct {
 func (m *appReplyModel) Complete(context.Context, agent.TurnRequest) (agent.Turn, error) {
 	m.calls++
 	if m.calls == 1 {
-		return agent.Turn{ToolCalls: []agent.ToolCall{{ID: "app-edit", Name: "gator_app_update", Arguments: json.RawMessage(`{"setting":"theme","value":{"theme":"mono"}}`)}}}, nil
+		return agent.Turn{ToolCalls: []agent.ToolCall{{ID: "app-edit", Name: "hot_cross_buns_app_update", Arguments: json.RawMessage(`{"setting":"theme","value":{"theme":"mono"}}`)}}}, nil
 	}
 	if m.fixture.applied != 0 {
 		return agent.Turn{}, errors.New("change applied before the final reply")
@@ -52,7 +52,7 @@ func TestAppChangesAfterReplyRequireSuccessfulCompletion(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		fixture := &appControllerFixture{afterReply: true}
 		model := &appReplyModel{fixture: fixture, fail: fail}
-		_, err := (Executor{App: fixture, Model: model, StateDir: t.TempDir()}).Execute(context.Background(), Request{ForegroundApp: true, SourcePath: t.TempDir(), Objective: "Update a Gator setting", Mode: action.Inspect, Contract: artifact.InspectionContract()})
+		_, err := (Executor{App: fixture, Model: model, StateDir: t.TempDir()}).Execute(context.Background(), Request{ForegroundApp: true, SourcePath: t.TempDir(), Objective: "Update a Hot Cross Buns setting", Mode: action.Inspect, Contract: artifact.InspectionContract()})
 		if fail && (err == nil || fixture.applied != 0) {
 			t.Fatalf("failed reply applied a change: %v, %d", err, fixture.applied)
 		}

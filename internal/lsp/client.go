@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 type nativeClient struct {
@@ -71,7 +71,7 @@ func (c *nativeClient) initialize(ctx context.Context, root string, additional .
 	}
 	result, err := c.call(ctx, "initialize", map[string]any{
 		"processId":        os.Getpid(),
-		"clientInfo":       map[string]string{"name": "gator", "version": "dev"},
+		"clientInfo":       map[string]string{"name": "hot-cross-buns", "version": "dev"},
 		"rootUri":          uri,
 		"workspaceFolders": folders,
 		"capabilities": map[string]any{

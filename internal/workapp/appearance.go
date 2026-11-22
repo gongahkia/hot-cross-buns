@@ -2,19 +2,19 @@ package workapp
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 var appearanceThemes = []struct{ id, label, detail string }{
 	{"terminal", "Follow terminal colors", "Use this terminal's native colors."},
-	{"gator", "Dark", "Gator’s dark canvas and soft green accent."},
+	{"hot-cross-buns", "Dark", "Hot Cross Buns’s dark canvas and soft green accent."},
 	{"light", "Light", "A soft white canvas and deep green accent."},
 	{"contrast", "High contrast", "Brighter text and stronger outlines on a dark canvas."},
 	{"mono", "Monochrome", "A dark canvas with a neutral accent."},
 }
 
 func (m Model) appearancePanel() uisnapshot.Panel {
-	panel := uisnapshot.Panel{Kind: "appearance", Title: "Appearance", Subtitle: "Choose how Gator looks on this device.", Selected: m.selected, Notice: m.sectionNotice, Hints: []uisnapshot.Hint{{Shortcut: "↑/↓", Action: "choose"}, {Shortcut: "Enter", Action: "use"}, {Shortcut: "Esc", Action: "back"}}}
+	panel := uisnapshot.Panel{Kind: "appearance", Title: "Appearance", Subtitle: "Choose how Hot Cross Buns looks on this device.", Selected: m.selected, Notice: m.sectionNotice, Hints: []uisnapshot.Hint{{Shortcut: "↑/↓", Action: "choose"}, {Shortcut: "Enter", Action: "use"}, {Shortcut: "Esc", Action: "back"}}}
 	for _, theme := range appearanceThemes {
 		state := ""
 		if theme.id == m.theme {

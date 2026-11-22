@@ -1,10 +1,10 @@
-You are working in `/home/gongahkia/Desktop/coding/projects/gator`. Build the next substantial product iteration of Gator. Read and understand the repository before changing it, then implement, verify, and document the work. This is an implementation assignment, not a request for another proposal or a collection of scaffolds.
+You are working in `/home/gongahkia/Desktop/coding/projects/hot-cross-buns`. Build the next substantial product iteration of Hot Cross Buns. Read and understand the repository before changing it, then implement, verify, and document the work. This is an implementation assignment, not a request for another proposal or a collection of scaffolds.
 
 ## Product objective
 
-Gator should be a provider-independent, terminal-native work agent: a persistent conversation that can research, analyze data, produce documents, perform bounded coding work through specialists, and prepare explicit external actions. It should offer the depth of modern coding/work assistants while remaining useful with multiple cloud providers and compatible local models.
+Hot Cross Buns should be a provider-independent, terminal-native work agent: a persistent conversation that can research, analyze data, produce documents, perform bounded coding work through specialists, and prepare explicit external actions. It should offer the depth of modern coding/work assistants while remaining useful with multiple cloud providers and compatible local models.
 
-Preserve Gator's own identity: explicit sources, frozen evidence, isolated output, developer-owned outcome contracts, reviewable deliverables, and user-controlled transfer or action. Coding is a first-class internal specialty within one Work experience. Do not restore a separate Code frontend or turn the product into an unrestricted shell agent.
+Preserve Hot Cross Buns's own identity: explicit sources, frozen evidence, isolated output, developer-owned outcome contracts, reviewable deliverables, and user-controlled transfer or action. Coding is a first-class internal specialty within one Work experience. Do not restore a separate Code frontend or turn the product into an unrestricted shell agent.
 
 The release must make these workflows concrete:
 
@@ -17,7 +17,7 @@ The release must make these workflows concrete:
 
 Follow the applicable `AGENTS.md`. Inspect `go.mod`, Makefile, relevant scripts, CI/release configuration, and Git status before editing. This is a Go application with a pinned Playwright sidecar; do not introduce a frontend framework because of unrelated instruction boilerplate.
 
-Read `docs/research/product-depth-report.md`, `docs/WORK.md`, `docs/CODE_TO_GATOR_MIGRATION.md`, `docs/ORCHESTRATION.md`, and `docs/EVALUATION.md`, plus the implementation paths they identify. Inspect the retained Gator Code engine and the available pre-Work Git history. If another original Gator Code repository is available, compare it explicitly; otherwise state that limitation and proceed using the retained code and history.
+Read `docs/research/product-depth-report.md`, `docs/WORK.md`, `docs/CODE_TO_HOT_CROSS_BUNS_MIGRATION.md`, `docs/ORCHESTRATION.md`, and `docs/EVALUATION.md`, plus the implementation paths they identify. Inspect the retained Hot Cross Buns Code engine and the available pre-Work Git history. If another original Hot Cross Buns Code repository is available, compare it explicitly; otherwise state that limitation and proceed using the retained code and history.
 
 The research baseline is commit `70adf39b57e7bd5469d792e3674ca7f331f5512e`. Verify the current tree: another instance may have changed it. Preserve all unrelated work and treat current code as authoritative. The report is evidence and a recommended design, not permission to assume every finding remains unchanged.
 
@@ -31,7 +31,7 @@ Write a compact architecture decision and dependency-ordered implementation plan
 
 Keep Go as the primary runtime and reuse `internal/agent`, `internal/model`, `internal/run`, `internal/orchestrator`, `internal/eval`, and the existing isolation/evidence packages. Add a shared Work application service so CLI, TUI, jobs, and the new Work headless surface exercise the same request-resolution and execution behavior.
 
-Reconsider LangChain, LangGraph, Google ADK for Go, LangSmith, and Langfuse against actual requirements. Distinguish an agent library, a durable execution runtime, and an observability/evaluation service. The default recommendation is to deepen native orchestration and add optional OpenTelemetry/LangSmith integration. Do not add a second Python/TypeScript runtime merely to obtain a supervisor abstraction already present in Gator. If an external runtime is materially better, demonstrate that with a small representative comparison and an explicit compatibility/migration decision before adopting it.
+Reconsider LangChain, LangGraph, Google ADK for Go, LangSmith, and Langfuse against actual requirements. Distinguish an agent library, a durable execution runtime, and an observability/evaluation service. The default recommendation is to deepen native orchestration and add optional OpenTelemetry/LangSmith integration. Do not add a second Python/TypeScript runtime merely to obtain a supervisor abstraction already present in Hot Cross Buns. If an external runtime is materially better, demonstrate that with a small representative comparison and an explicit compatibility/migration decision before adopting it.
 
 Keep the local runtime, local records, and local evaluation reports usable without SaaS. Reuse the current file-backed stores where appropriate; add transactions or another store only where concurrency and recovery requirements justify them. Avoid a broad package rewrite or a parallel configuration/policy system.
 
@@ -43,9 +43,9 @@ Resolve a continuation's parent before its default snapshot. The chosen parent m
 
 Separate immutable source-capture identity from deduplicated content identity. Two directories containing identical bytes must not overwrite each other's origin, timestamp, or exclusion records. Preserve blob/tree deduplication and version old state safely. Do not invent missing historical origin metadata.
 
-Repair the trusted project-configuration path into Code. `.gator` is excluded by the source snapshot, but Code loads profiles/rules/integration configuration from the copied repository. Capture selected approved configuration separately, with original canonical trust identity and content digest. Preserve explicit per-run grants and existing trust checks. Test profiles, scoped instructions, hooks, MCP, LSP, and extension resolution through the actual Work-to-Code assembly where applicable. Never indiscriminately copy credentials or grant trust to a scratch path.
+Repair the trusted project-configuration path into Code. `.hot-cross-buns` is excluded by the source snapshot, but Code loads profiles/rules/integration configuration from the copied repository. Capture selected approved configuration separately, with original canonical trust identity and content digest. Preserve explicit per-run grants and existing trust checks. Test profiles, scoped instructions, hooks, MCP, LSP, and extension resolution through the actual Work-to-Code assembly where applicable. Never indiscriminately copy credentials or grant trust to a scratch path.
 
-Preserve streaming and visual-input capability declarations through `nativeWorkBackend` in `cmd/gator/command_work.go`. Add assembled-backend tests for streaming, nonstreaming, text-only models, cancellation, and unsupported attachments. Make provider changes handle opaque provider replay data explicitly; do not blindly send incompatible state to a different adapter.
+Preserve streaming and visual-input capability declarations through `nativeWorkBackend` in `cmd/hot-cross-buns/command_work.go`. Add assembled-backend tests for streaming, nonstreaming, text-only models, cancellation, and unsupported attachments. Make provider changes handle opaque provider replay data explicitly; do not blindly send incompatible state to a different adapter.
 
 Acceptance: meaningful regressions cover all five reproduced gaps, old state remains readable under documented semantics, and Code policy/configuration works from a frozen Work capture without reading mutable live configuration during execution.
 
@@ -105,7 +105,7 @@ Acceptance: the research brief, reconciled workbook/memo, and mixed code/documen
 
 ## 6. Deliver a real local evaluation platform and optional LangSmith integration
 
-Extend `internal/eval` while preserving existing Code fixtures/reports and hidden-scoring isolation. It currently exercises `gatorrun.Executor` with delegation disabled. Introduce versioned targets for direct Code and full Work; the full Work target must execute the actual manager, supervisor, policies, tools, contracts, and conversation path.
+Extend `internal/eval` while preserving existing Code fixtures/reports and hidden-scoring isolation. It currently exercises `hot-cross-bunsrun.Executor` with delegation disabled. Introduce versioned targets for direct Code and full Work; the full Work target must execute the actual manager, supervisor, policies, tools, contracts, and conversation path.
 
 Implement dataset manifests/validation, trials, independent graders, retained traces/evidence, report viewing, baseline comparison, and export. Use stable CLI operations consistent with the repository. Support local JSON and readable reports without a cloud service. Keep scripted deterministic execution tests separate from live model-quality experiments.
 
@@ -117,7 +117,7 @@ Separate task failure, fixture invalidity, provider outage, sandbox/setup failur
 
 Include matched delegation-disabled/enabled baselines and later per-role ablations. Do not claim more agents improve quality without measured results. Establish baseline measurements before selecting quality thresholds; no fabricated provider comparisons or success percentages.
 
-Add normalized usage and optional OpenTelemetry spans across parent run, child task, model attempt, tool, verification, and sealing. Keep Gator's durable schema independent of vendor attributes. Bound export queues and retention; exporter failures must be observable without corrupting local run state. Default telemetry should exclude credentials, raw prompts, source contents, and private transcripts. Make content capture explicit.
+Add normalized usage and optional OpenTelemetry spans across parent run, child task, model attempt, tool, verification, and sealing. Keep Hot Cross Buns's durable schema independent of vendor attributes. Bound export queues and retention; exporter failures must be observable without corrupting local run state. Default telemetry should exclude credentials, raw prompts, source contents, and private transcripts. Make content capture explicit.
 
 Implement an optional LangSmith adapter with trace hierarchy, experiment/dataset/example association, and score/feedback linkage. Tracing alone does not satisfy this deliverable. Test mapping, errors, redaction, and associations locally. Verify the hosted round trip only when valid credentials and authorization are available; clearly mark it unverified otherwise. Keep the OTLP boundary suitable for alternatives such as Langfuse without requiring a second custom integration now.
 
@@ -125,7 +125,7 @@ Acceptance: local end-to-end Work experiments and comparisons work; held-out sco
 
 ## Engineering, compatibility, and verification
 
-Make the smallest coherent changes that meet these outcomes. Extract shared application responsibilities from `cmd/gator`; keep UI rendering, provider protocols, credentials, domain policy, artifact formats, and execution state in appropriate layers. Avoid unrelated renaming, formatting, dependency modernization, or speculative abstractions.
+Make the smallest coherent changes that meet these outcomes. Extract shared application responsibilities from `cmd/hot-cross-buns`; keep UI rendering, provider protocols, credentials, domain policy, artifact formats, and execution state in appropriate layers. Avoid unrelated renaming, formatting, dependency modernization, or speculative abstractions.
 
 Version changed stores, manifests, role definitions, protocol envelopes, and eval schemas. Add migration/compatibility tests and readable failure messages. Do not delete historical Code state, weaken sandboxing, alter tests to conceal regressions, or broaden authority to make demos pass. Preserve exact-payload external-action approval and the scheduled inspect/draft restriction.
 

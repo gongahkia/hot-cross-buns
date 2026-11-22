@@ -13,14 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // Service is the typed application boundary shared by foreground and unattended Work.
@@ -319,7 +319,7 @@ func (s Service) Start(ctx context.Context, request Request) *Operation {
 	if initializationErr == nil && !validInteractionRunID(request.RunID) {
 		initializationErr = errors.New("invalid Work run ID")
 	}
-	interactionDir := filepath.Join(request.StateDir, "gator", "interactions", request.RunID)
+	interactionDir := filepath.Join(request.StateDir, "hot-cross-buns", "interactions", request.RunID)
 	persistInteraction := func(value any, id int) error {
 		if err := os.MkdirAll(interactionDir, 0700); err != nil {
 			return err

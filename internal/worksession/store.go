@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/projectcapture"
-	"github.com/gongahkia/gator/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
 	"os"
 	"path/filepath"
 	"sort"
@@ -78,7 +78,7 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(absolute, "gator", "conversations")
+	root := filepath.Join(absolute, "hot-cross-buns", "conversations")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return Store{}, fmt.Errorf("create conversation store: %w", err)
 	}

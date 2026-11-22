@@ -10,17 +10,19 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	appconfig "github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/modelcatalog"
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/workactivity"
-	"github.com/gongahkia/gator/internal/workhome"
-	"github.com/gongahkia/gator/internal/workrun"
+	appconfig "github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
+	"github.com/gongahkia/hot-cross-buns/internal/personalization"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 // BridgeState is a display-only projection for the desktop.
 // The Go model remains the sole owner of commands, runs, approvals and history.
 type BridgeState struct {
+	PersonalMemoryResult      *personalization.CatalogResult     `json:"personal_memory_result,omitempty"`
 	NativeProviderResult      *modelcatalog.NativeProviderResult `json:"native_provider_result,omitempty"`
 	NativeWorkspaceResult     *NativeWorkspaceResult             `json:"native_workspace_result,omitempty"`
 	NativeCatalogQueryResult  *NativeCatalogResult               `json:"native_catalog_query_result,omitempty"`
@@ -148,7 +150,7 @@ type BridgeExternal struct {
 func bridgeExternal(kind, action, id string, command *exec.Cmd) *BridgeExternal {
 	var environment []string
 	for _, value := range command.Env {
-		if strings.HasPrefix(value, "GATOR_STATE_DIR=") || strings.HasPrefix(value, "GATOR_CONFIG_DIR=") {
+		if strings.HasPrefix(value, "HOT_CROSS_BUNS_STATE_DIR=") || strings.HasPrefix(value, "HOT_CROSS_BUNS_CONFIG_DIR=") {
 			environment = append(environment, value)
 		}
 	}
@@ -224,6 +226,7 @@ func (m Model) BridgeState() BridgeState {
 	desktop := m.desktop
 	desktop.Shortcuts = m.desktop.ResolvedShortcuts()
 	state := BridgeState{
+		PersonalMemoryResult:     m.personalMemoryResult,
 		NativeProviderResult:     m.nativeProviderResult,
 		NativeWorkspaceResult:    m.nativeWorkspaceResult,
 		NativeCatalogQueryResult: m.nativeCatalogQueryResult, NativeCatalogActionResult: m.nativeCatalogActionResult,
@@ -447,7 +450,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch command {
-	case "/gator", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/model", "/settings", "/help", "/search":
+	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/model", "/settings", "/help", "/search":
 	default:
 		known := scopedContext
 		for _, entry := range m.availableCommandEntries() {
@@ -484,7 +487,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 	if command == "/chat" {
 		return m, nil
 	}
-	if command == "/gator" {
+	if command == "/hot-cross-buns" {
 		return m.openPrimaryConversation()
 	}
 	if command == "/conversations" {

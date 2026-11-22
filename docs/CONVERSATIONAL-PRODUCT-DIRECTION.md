@@ -1,4 +1,19 @@
-# Gator as a personal agent you message
+# Hot Cross Buns as a personal agent you message
+
+## Current web direction · 22 November 2026
+
+The primary interaction should be one persistent conversation with Hot Cross
+Buns. Retained chats remain available in the app-name menu for search, naming,
+and returning to earlier work, but organizing multiple chats is secondary.
+This records product intent; it does not merge existing histories or change
+startup/resume behavior yet.
+
+Local web development is the primary surface. Keep the interface calm and
+minimal, with orchestration, scheduled tasks, and delegated work available on
+demand. Menu-bar/notch access, separate native windows, and the desktop mascot
+are explicitly out of scope. Earlier desktop-primary and alligator references
+below are historical and superseded by this direction. Work mode and Plan first
+selectors also remain excluded.
 
 Research and implementation constraint: 22 October 2026.
 
@@ -6,7 +21,7 @@ The [current competitive gap audit](COMPETITIVE_GAP_AUDIT_2026-10-22.md) checks
 this direction against the implemented desktop application and seven competitor
 references, with priorities and acceptance scenarios for the remaining work.
 
-Gator's intended audience wants an ongoing relationship with a useful personal
+Hot Cross Buns's intended audience wants an ongoing relationship with a useful personal
 agent. Messaging is the main product surface. Goals, files, connections and
 activity explain or support that conversation. This refines the
 [personal agent direction](PERSONAL_AGENT_DIRECTION.md) and retains the
@@ -18,10 +33,10 @@ These are observations from first-party documentation, not a hands-on review of
 every installed app. Desktop availability, cloud execution and messaging-channel
 support are separate claims. Product recommendations below are our synthesis.
 
-| Reference | Documented behavior | Application to Gator |
+| Reference | Documented behavior | Application to Hot Cross Buns |
 | --- | --- | --- |
 | [Dots](https://learn.chatgpt.com/docs/dots) | A continuing personal agent; users can keep talking while tasks run and receive results or requests for decisions. Activity is inspectable separately. | Keep a familiar conversation easy to return to; show background results and requests with enough context to respond. |
-| [Muse](https://ai.meta.com/muse/), [announcement](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/) and [design essay](https://introducing.muse.ai/) | A continuing main chat, optional side chats, bounded message bubbles and inspectable activity/goals. Hosted work can continue separately from the conversation. | Favor a familiar messaging contact, readable thought boundaries and secondary details. Gator must explain its local availability accurately. |
+| [Muse](https://ai.meta.com/muse/), [announcement](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/) and [design essay](https://introducing.muse.ai/) | A continuing main chat, optional side chats, bounded message bubbles and inspectable activity/goals. Hosted work can continue separately from the conversation. | Favor a familiar messaging contact, readable thought boundaries and secondary details. Hot Cross Buns must explain its local availability accurately. |
 | [Poke](https://poke.com/docs) | Email, calendar, reminders and search requested through existing messaging apps. | Minimize setup before the first useful exchange; introduce connections when a request needs them. |
 | [Lindy](https://www.lindy.ai/product) | Conversational requests, editable memory, routines, drafts and follow-up nudges across communication channels. | Let users correct preferences and revisit commitments; make approval and follow-through legible in conversation. |
 | [T3 Code threads](https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md) | Separate threads, reversible archive/snooze actions, retained drafts and stable sidebar scroll positions. | Borrow predictable conversation navigation and reversible organization. Repository/worktree controls are relevant to coding tasks only. |
@@ -50,7 +65,7 @@ though their messaging surfaces are not equivalent to a standalone Electron app.
 6. **Respect attention.** Return for useful results, genuine blockers and
    decisions. Read/unread, dismiss and notification controls need durable state
    before the UI promises them. Avoid decorative dashboard counters.
-7. **Keep the local promise honest.** Foreground work stops when Gator closes;
+7. **Keep the local promise honest.** Foreground work stops when Hot Cross Buns closes;
    configured background checks require an online host and running supervisor.
    Do not imply cloud availability, phone access or device synchronization.
 
@@ -63,9 +78,9 @@ those underlying capabilities are missing.
 
 | Priority | Experience | Existing foundation | Work needed before promising it |
 | --- | --- | --- | --- |
-| 1 | Return to my conversation with Gator | Durable conversations, recent list, drafts | Decide and test resume-on-launch behavior and privacy expectations; do not silently send recovered text. |
-| 1 | See what Gator needs from me, reply in place | Inbox, approval records, goal-linked work | Link each result/request to its originating conversation; retain read and resolved state, avoid duplicate delivery. |
-| 1 | Give Gator a continuing responsibility in plain language | Goals, plan suggestions, bounded follow-up checks | Review scope, timing and source access conversationally; confirm what was actually saved and when checks can run. |
+| 1 | Return to my conversation with Hot Cross Buns | Durable conversations, recent list, drafts | Decide and test resume-on-launch behavior and privacy expectations; do not silently send recovered text. |
+| 1 | See what Hot Cross Buns needs from me, reply in place | Inbox, approval records, goal-linked work | Link each result/request to its originating conversation; retain read and resolved state, avoid duplicate delivery. |
+| 1 | Give Hot Cross Buns a continuing responsibility in plain language | Goals, plan suggestions, bounded follow-up checks | Review scope, timing and source access conversationally; confirm what was actually saved and when checks can run. |
 | 2 | “What do you remember about this?” and “Forget that” | Saved knowledge and retrieval provenance | A clear review/correction flow with explicit scope and truthful deletion semantics. |
 | 2 | Share a file or screenshot as naturally as a message | Selected sources and verified output metadata | Attachment intake, permissions, previews and supported-format feedback; clipboard/drag-and-drop must use host-owned file access. |
 | 2 | Preview a draft and ask for a revision in the same exchange | Retained artifacts and verified delivery states | Connect artifact preview/revision to the right conversation and preserve the draft-versus-delivered distinction. |

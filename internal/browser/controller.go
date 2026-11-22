@@ -52,7 +52,7 @@ type Capture struct {
 	PNG      []byte
 }
 
-var ErrUnavailable = errors.New("browser session controller is unavailable; start or attach a local session with 'gator browser'")
+var ErrUnavailable = errors.New("browser session controller is unavailable; start or attach a local session with 'hot-cross-buns browser'")
 
 // UnavailableController makes absence of an explicitly started local browser
 // fail closed. It is used for one-shot runs that did not configure a browser

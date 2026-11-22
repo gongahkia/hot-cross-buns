@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 func TestRegistryClassifiesStableHTTPJSONOperation(t *testing.T) {

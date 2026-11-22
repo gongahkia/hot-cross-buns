@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check unattended companion/supervisor startup across two isolated Linux boots.
 
-Requires Docker with privileged containers and a Linux Gator executable matching
+Requires Docker with privileged containers and a Linux Hot Cross Buns executable matching
 the Docker engine's architecture. No host mounts, ports, accounts or services are
 used. Only this disposable container's user has lingering enabled.
 """
@@ -56,7 +56,7 @@ def main():
         until(lambda: root("loginctl", "enable-linger", "node"), "Container login manager did not start.")
         until(lambda: user("systemctl", "--user", "show-environment"), "Lingering did not start the user manager.")
         root("mkdir", "-p", "/validation/app-host", "/validation/scripts")
-        for source, destination in [(repo / "companion", "/validation/companion"), (repo / "app-host/src", "/validation/app-host/src"), (repo / "scripts/companion-boot", "/validation/scripts/companion-boot"), (runtime, "/validation/gator-runtime")]:
+        for source, destination in [(repo / "companion", "/validation/companion"), (repo / "app-host/src", "/validation/app-host/src"), (repo / "scripts/companion-boot", "/validation/scripts/companion-boot"), (runtime, "/validation/hot-cross-buns-runtime")]:
             run("docker", "cp", str(source), container + ":" + destination)
         phases = "/validation/scripts/companion-boot/phases.mjs"
         setup = user("node", phases, "setup", timeout=120)
@@ -65,11 +65,11 @@ def main():
         for phase in ("first", "second"):
             # /run is a fresh tmpfs after restart; this proves the test did not
             # merely restart the listeners or reuse their existing user manager.
-            root("touch", "/run/gator-before-restart")
+            root("touch", "/run/hot-cross-buns-before-restart")
             before = root("systemctl", "show", "user@1000.service", "--property=InvocationID", "--value").strip()
             run("docker", "restart", "--timeout", "30", container, timeout=60)
             until(lambda: user("systemctl", "--user", "show-environment"), "User manager did not start after boot.")
-            root("test", "!", "-e", "/run/gator-before-restart")
+            root("test", "!", "-e", "/run/hot-cross-buns-before-restart")
             after = root("systemctl", "show", "user@1000.service", "--property=InvocationID", "--value").strip()
             if not before or not after or before == after:
                 raise AssertionError("User manager did not restart")

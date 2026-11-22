@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 func TestGenerateContentPreservesCandidateDataForToolReplay(t *testing.T) {
@@ -180,10 +180,10 @@ func TestGeminiFailureRetainsReasonRequestIDAndRetryPolicyWithoutRawMessage(t *t
 		_, _ = io.WriteString(w, `{"error":{"code":403,"status":"PERMISSION_DENIED","message":"PRIVATE_PROMPT test-key","details":[{"reason":"API_KEY_SERVICE_BLOCKED"}]}}`)
 	}))
 	defer server.Close()
-	adapter := GenerateContent{APIKey: "test-key", CredentialSource: "gator-store", Model: "test-model", BaseURL: server.URL, Client: server.Client()}
+	adapter := GenerateContent{APIKey: "test-key", CredentialSource: "hot-cross-buns-store", Model: "test-model", BaseURL: server.URL, Client: server.Client()}
 	_, err := adapter.Complete(context.Background(), agent.TurnRequest{})
 	d := agent.ProviderDiagnosticFrom(err)
-	if d == nil || d.Status != 403 || d.Code != "API_KEY_SERVICE_BLOCKED" || d.RequestID != "gemini_req_1" || d.Auth != "api-key-header" || d.CredentialSource != "gator-store" || agent.IsTransient(err) {
+	if d == nil || d.Status != 403 || d.Code != "API_KEY_SERVICE_BLOCKED" || d.RequestID != "gemini_req_1" || d.Auth != "api-key-header" || d.CredentialSource != "hot-cross-buns-store" || agent.IsTransient(err) {
 		t.Fatalf("diagnostic = %+v; error = %v", d, err)
 	}
 	if strings.Contains(err.Error(), "PRIVATE_PROMPT") || strings.Contains(err.Error(), "test-key") {

@@ -2,67 +2,67 @@
 Building for debugging...
 [0/6] Write sources
 [2/6] Write swift-version--58304C5D6DBC2206.txt
-[4/8] Compiling GatorMac ConversationView.swift
-[5/8] Emitting module GatorMac
-[6/43] Compiling GatorMac NativeMessageBody.swift
-[7/43] Compiling GatorMac NativeMessageReactionView.swift
-[8/43] Compiling GatorMac NativeMotionPresentation.swift
-[9/43] Compiling GatorMac NativeMotionVisibility.swift
-[10/43] Compiling GatorMac NativeDropInput.swift
-[11/43] Compiling GatorMac NativeMascotModel.swift
-[12/43] Compiling GatorMac NativeMascotPlayback.swift
-[13/43] Compiling GatorMac NativeMascotPreferences.swift
-[14/43] Compiling GatorMac NativeMascotView.swift
-[15/43] Compiling GatorMac NativeStreamingReveal.swift
-[16/43] Compiling GatorMac NativeThinkingPulse.swift
-[17/43] Compiling GatorMac NativeTranscriptFind.swift
-[18/43] Compiling GatorMac NativeWindowConfiguration.swift
-[19/43] Compiling GatorMac NativeWorkspacePicker.swift
-[20/43] Compiling GatorMac NotchQuickAccess.swift
-[21/43] Compiling GatorMac PlanReviewContent.swift
-[22/43] Compiling GatorMac ProviderSetupView.swift
-[23/43] Compiling GatorMac AppDelegate.swift
-[24/43] Compiling GatorMac ComposerView.swift
-[25/43] Compiling GatorMac ConversationCatalogView.swift
-[26/43] Compiling GatorMac ExactDecisionButton.swift
-[27/43] Compiling GatorMac GatorApp.swift
-[28/43] Compiling GatorMac NativeAcceptanceDiagnostics.swift
-[29/43] Compiling GatorMac NativeAccessibilityStatus.swift
-[30/43] Compiling GatorMac NativeAttachmentActions.swift
-[31/43] Compiling GatorMac NativeComposer.swift
-[32/43] Compiling GatorMac NativeDesktopPet.swift
-[33/43] Compiling GatorMac RecentConversationsMenu.swift
-[34/43] Compiling GatorMac RecoveryInspectorContent.swift
-[35/43] Compiling GatorMac RecoveryPreparationView.swift
-[36/43] Compiling GatorMac TaskInspectorView.swift
-[37/43] Compiling GatorMac NativeProviderSecretEntry.swift
-[38/43] Compiling GatorMac NativeReadingPositions.swift
-[39/43] Compiling GatorMac NativeStatusMessage.swift
-[40/43] Compiling GatorMac NativeStreamingPresentation.swift
+[4/8] Compiling HotCrossBunsMac ConversationView.swift
+[5/8] Emitting module HotCrossBunsMac
+[6/43] Compiling HotCrossBunsMac NativeMessageBody.swift
+[7/43] Compiling HotCrossBunsMac NativeMessageReactionView.swift
+[8/43] Compiling HotCrossBunsMac NativeMotionPresentation.swift
+[9/43] Compiling HotCrossBunsMac NativeMotionVisibility.swift
+[10/43] Compiling HotCrossBunsMac NativeDropInput.swift
+[11/43] Compiling HotCrossBunsMac NativeMascotModel.swift
+[12/43] Compiling HotCrossBunsMac NativeMascotPlayback.swift
+[13/43] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[14/43] Compiling HotCrossBunsMac NativeMascotView.swift
+[15/43] Compiling HotCrossBunsMac NativeStreamingReveal.swift
+[16/43] Compiling HotCrossBunsMac NativeThinkingPulse.swift
+[17/43] Compiling HotCrossBunsMac NativeTranscriptFind.swift
+[18/43] Compiling HotCrossBunsMac NativeWindowConfiguration.swift
+[19/43] Compiling HotCrossBunsMac NativeWorkspacePicker.swift
+[20/43] Compiling HotCrossBunsMac NotchQuickAccess.swift
+[21/43] Compiling HotCrossBunsMac PlanReviewContent.swift
+[22/43] Compiling HotCrossBunsMac ProviderSetupView.swift
+[23/43] Compiling HotCrossBunsMac AppDelegate.swift
+[24/43] Compiling HotCrossBunsMac ComposerView.swift
+[25/43] Compiling HotCrossBunsMac ConversationCatalogView.swift
+[26/43] Compiling HotCrossBunsMac ExactDecisionButton.swift
+[27/43] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[28/43] Compiling HotCrossBunsMac NativeAcceptanceDiagnostics.swift
+[29/43] Compiling HotCrossBunsMac NativeAccessibilityStatus.swift
+[30/43] Compiling HotCrossBunsMac NativeAttachmentActions.swift
+[31/43] Compiling HotCrossBunsMac NativeComposer.swift
+[32/43] Compiling HotCrossBunsMac NativeDesktopPet.swift
+[33/43] Compiling HotCrossBunsMac RecentConversationsMenu.swift
+[34/43] Compiling HotCrossBunsMac RecoveryInspectorContent.swift
+[35/43] Compiling HotCrossBunsMac RecoveryPreparationView.swift
+[36/43] Compiling HotCrossBunsMac TaskInspectorView.swift
+[37/43] Compiling HotCrossBunsMac NativeProviderSecretEntry.swift
+[38/43] Compiling HotCrossBunsMac NativeReadingPositions.swift
+[39/43] Compiling HotCrossBunsMac NativeStatusMessage.swift
+[40/43] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
 [40/44] Write Objects.LinkFileList
-[41/44] Linking GatorMac
-[42/44] Applying GatorMac
-[44/56] Compiling GatorMacTests NativeUIUXRemediationTests.swift
-[45/56] Compiling GatorMacTests NativeWorkspacePickerTests.swift
-[46/56] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[47/56] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[48/56] Compiling GatorMacTests NativeStreamingTests.swift
-[49/57] Compiling GatorMacTests NotchGeometryTests.swift
-[50/57] Compiling GatorMacTests NativeMotionGoTests.swift
-[51/57] Compiling GatorMacTests NativeMotionRenderTests.swift
-[52/57] Emitting module GatorMacTests
-[53/57] Compiling GatorMacTests NativeDesktopPetTests.swift
-[54/57] Compiling GatorMacTests NativeInputTests.swift
-[55/57] Compiling GatorMacTests NativeMascotTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
+[41/44] Linking HotCrossBunsMac
+[42/44] Applying HotCrossBunsMac
+[44/56] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
+[45/56] Compiling HotCrossBunsMacTests NativeWorkspacePickerTests.swift
+[46/56] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[47/56] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[48/56] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+[49/57] Compiling HotCrossBunsMacTests NotchGeometryTests.swift
+[50/57] Compiling HotCrossBunsMacTests NativeMotionGoTests.swift
+[51/57] Compiling HotCrossBunsMacTests NativeMotionRenderTests.swift
+[52/57] Emitting module HotCrossBunsMacTests
+[53/57] Compiling HotCrossBunsMacTests NativeDesktopPetTests.swift
+[54/57] Compiling HotCrossBunsMacTests NativeInputTests.swift
+[55/57] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  91 |         for reduced in [false, true] {
  92 |             let host = NSHostingView(rootView: NativeMessageReactionChip(reaction: reaction).transaction { $0.disablesAnimations = reduced })
  93 |             host.appearance = try #require(NSAppearance(named: name))
     |                                            `- warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  94 |             let size = host.fittingSize
  95 |             #expect(size.width >= 20 && size.width < 60 && size.height >= 16 && size.height < 45)
-[56/57] Compiling GatorMacTests NativeMessageReactionTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
+[56/57] Compiling HotCrossBunsMacTests NativeMessageReactionTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  91 |         for reduced in [false, true] {
  92 |             let host = NSHostingView(rootView: NativeMessageReactionChip(reaction: reaction).transaction { $0.disablesAnimations = reduced })
  93 |             host.appearance = try #require(NSAppearance(named: name))
@@ -70,11 +70,11 @@ Building for debugging...
  94 |             let size = host.fittingSize
  95 |             #expect(size.width >= 20 && size.width < 60 && size.height >= 16 && size.height < 45)
 [56/58] Write Objects.LinkFileList
-[57/58] Linking GatorNativePackageTests
+[57/58] Linking HotCrossBunsNativePackageTests
 Build complete! (17.44s)
 Test Suite 'Selected tests' started at 2026-11-20 16:55:42.480.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 16:55:42.482.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 16:55:42.482.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 16:55:42.482.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 16:55:42.482.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 16:55:42.482.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
@@ -102,7 +102,7 @@ Test Suite 'Selected tests' passed at 2026-11-20 16:55:42.482.
 ◇ Test messageReactionActualRowLayoutAndHeadlessCaptures() started.
 ✔ Test messageReactionActualRowLayoutAndHeadlessCaptures() passed after 0.029 seconds.
 ◇ Test streamingRealGoPublicDeltasRetainExactIdentityAndSettleWithoutAdmission() started.
-✘ Test streamingRealGoPublicDeltasRetainExactIdentityAndSettleWithoutAdmission() recorded an issue at NativeMotionGoTests.swift:24:23: Expectation failed: ProcessInfo.processInfo.environment["GATOR_TEST_BINARY"] → nil
+✘ Test streamingRealGoPublicDeltasRetainExactIdentityAndSettleWithoutAdmission() recorded an issue at NativeMotionGoTests.swift:24:23: Expectation failed: ProcessInfo.processInfo.environment["HOT_CROSS_BUNS_TEST_BINARY"] → nil
 ✘ Test streamingRealGoPublicDeltasRetainExactIdentityAndSettleWithoutAdmission() failed after 0.096 seconds with 1 issue.
 ◇ Test streamingNativeComponentFitsFullCompactAndLongStatusWithoutFocus() started.
 ✔ Test streamingNativeComponentFitsFullCompactAndLongStatusWithoutFocus() passed after 0.062 seconds.

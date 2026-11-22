@@ -268,28 +268,28 @@
   ],
   "binaries": {
     "before": {
-      "bundle": "/tmp/Gator-Native-UIUX-Baseline.app",
+      "bundle": "/tmp/HotCrossBuns-Native-UIUX-Baseline.app",
       "swiftExecutableSHA256": "a53f43ad8a0bb8e97636a9c4ba07625f23f055d0fcb0b2ab467f108954200b2d"
     },
     "after-generation-1": {
-      "bundle": "/tmp/Gator-Native-UIUX-Preview-01.app",
+      "bundle": "/tmp/HotCrossBuns-Native-UIUX-Preview-01.app",
       "swiftExecutableSHA256": "c1a42d9625ce935b6ff15a3ea1e7ffb1c072f062b221f8d8d2c46934e6d9b39f"
     },
     "after-generation-2": {
-      "bundle": "/tmp/Gator-Native-UIUX-Preview.app",
+      "bundle": "/tmp/HotCrossBuns-Native-UIUX-Preview.app",
       "swiftExecutableSHA256": "a9cf8e68b2848647df6f90d89414517d750edc0e3f18dab4312a8118a23c6233"
     },
     "preserved-safety": {
-      "bundle": "/tmp/Gator-Native-Safety-Verified.app",
+      "bundle": "/tmp/HotCrossBuns-Native-Safety-Verified.app",
       "swiftExecutableSHA256": "427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04"
     },
     "final-verified-executable": {
-      "bundle": "/tmp/Gator-Native-UIUX-Verified.app",
+      "bundle": "/tmp/HotCrossBuns-Native-UIUX-Verified.app",
       "swiftExecutableSHA256": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
       "goRuntimeSHA256": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10"
     },
     "final-desktop-clone": {
-      "bundle": "/tmp/Gator-Native-UIUX-Desktop.app",
+      "bundle": "/tmp/HotCrossBuns-Native-UIUX-Desktop.app",
       "swiftExecutableSHA256": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
       "goRuntimeSHA256": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10"
     }

@@ -1,6 +1,6 @@
-// Package extension loads Gator extensions from an explicit user install or a
+// Package extension loads Hot Cross Buns extensions from an explicit user install or a
 // trusted repository. Extensions use manifests and a JSON sidecar protocol so
-// they are independent of Gator's implementation language.
+// they are independent of Hot Cross Buns's implementation language.
 package extension
 
 import (
@@ -20,14 +20,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
-	manifestName         = "gator-extension.json"
+	manifestName         = "hot-cross-buns-extension.json"
 	manifestVersion      = 1
 	maxManifestBytes     = 64 * 1024
 	maxExtensionBytes    = 8 * 1024 * 1024
@@ -100,7 +100,7 @@ type Set struct {
 }
 
 // ToolPolicy fixes the authority of every executable extension sidecar for a
-// single run. Extension tools remain separate from Gator's native tools, but
+// single run. Extension tools remain separate from Hot Cross Buns's native tools, but
 // they never get a broader host boundary or a silent model-initiated launch.
 type ToolPolicy struct {
 	Sandbox sandbox.Policy
@@ -114,7 +114,7 @@ type Command struct {
 	Prompt      string
 }
 
-// UIContribution is a verified, static extension card prepared for Gator's
+// UIContribution is a verified, static extension card prepared for Hot Cross Buns's
 // native UI. Prompt remains data until the developer explicitly selects it.
 type UIContribution struct {
 	ID          string
@@ -532,7 +532,7 @@ func BundleHash(repository string) (string, error) {
 		return "", nil
 	}
 	digest := sha256.New()
-	_, _ = digest.Write([]byte("gator-project-extensions-v1\x00"))
+	_, _ = digest.Write([]byte("hot-cross-buns-project-extensions-v1\x00"))
 	for _, extension := range installed {
 		_, _ = digest.Write([]byte(extension.Manifest.ID + "\x00" + extension.Hash + "\x00"))
 	}
@@ -655,7 +655,7 @@ func loadProjectExtensions(repository string) ([]Installed, error) {
 }
 
 func projectExtensionDirectory(repository string) (string, bool, error) {
-	metadata := filepath.Join(repository, ".gator")
+	metadata := filepath.Join(repository, ".hot-cross-buns")
 	info, err := os.Lstat(metadata)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", false, nil

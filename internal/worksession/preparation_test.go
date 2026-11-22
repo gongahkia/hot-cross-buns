@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 func preparationFixture(t *testing.T, planned bool) (Store, string, Request, PlanBinding) {

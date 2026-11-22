@@ -9,7 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type TaskPlanAction struct {
@@ -201,7 +201,7 @@ func (m Model) finishTaskPlan(value taskPlanPrepared) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.requests = saved
-	m.status = "Review the proposed plan before Gator starts."
+	m.status = "Review the proposed plan before Hot Cross Buns starts."
 	return m, nil
 }
 

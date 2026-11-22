@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/instructions"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/instructions"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const Version = 1
@@ -59,9 +59,9 @@ func CaptureWithOptions(source string, options Options) (Bundle, error) {
 	for _, name := range options.Capabilities {
 		switch name {
 		case "hooks", "mcp", "lsp":
-			selected = append(selected, ".gator/"+name+".json")
+			selected = append(selected, ".hot-cross-buns/"+name+".json")
 		case "extension":
-			err := filepath.WalkDir(filepath.Join(root.Path(), ".gator", "extensions"), func(path string, entry fs.DirEntry, walkErr error) error {
+			err := filepath.WalkDir(filepath.Join(root.Path(), ".hot-cross-buns", "extensions"), func(path string, entry fs.DirEntry, walkErr error) error {
 				if errors.Is(walkErr, os.ErrNotExist) {
 					return nil
 				}
@@ -91,7 +91,7 @@ func CaptureWithOptions(source string, options Options) (Bundle, error) {
 	for len(selected) > 0 {
 		path := selected[0]
 		selected = selected[1:]
-		if !strings.HasPrefix(path, ".gator/") || seen[path] {
+		if !strings.HasPrefix(path, ".hot-cross-buns/") || seen[path] {
 			continue
 		}
 		seen[path] = true
@@ -144,7 +144,7 @@ func CaptureWithOptions(source string, options Options) (Bundle, error) {
 						}
 					}
 				case string:
-					if strings.HasPrefix(x, ".gator/") {
+					if strings.HasPrefix(x, ".hot-cross-buns/") {
 						selected = append(selected, x)
 					}
 				}
@@ -174,7 +174,7 @@ func (b Bundle) Install(destination string) error {
 		return err
 	}
 	for _, file := range b.Files {
-		if !strings.HasPrefix(file.Path, ".gator/") {
+		if !strings.HasPrefix(file.Path, ".hot-cross-buns/") {
 			return errors.New("captured configuration path is invalid")
 		}
 		if err := root.WriteRegularFileAtomic(file.Path, file.Data, maxBytes); err != nil {

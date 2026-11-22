@@ -2,7 +2,7 @@
 from fixture import setup,EVIDENCE
 import json,pathlib,subprocess,time,sys,hashlib,os
 audit=EVIDENCE/f'input-events-{os.getpid()}.jsonl'
-controller=subprocess.Popen(['/tmp/gator-presence-r1-controller'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1,env=os.environ|{'GATOR_PRESENCE_INPUT_AUDIT':str(audit)})
+controller=subprocess.Popen(['/tmp/hot-cross-buns-presence-r1-controller'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1,env=os.environ|{'HOT_CROSS_BUNS_PRESENCE_INPUT_AUDIT':str(audit)})
 log=(EVIDENCE/'controlled-input.jsonl').open('a',buffering=1)
 metadata=proc=provider=sampler=None; pending=None; finishing=False
 
@@ -27,7 +27,7 @@ def check_input():
                 raise RuntimeError('foreign input observed; abort: '+json.dumps(event))
 
 def durable():
-    files=list((pathlib.Path(metadata['root'])/'state/gator/interactions').glob('*/*.json'))
+    files=list((pathlib.Path(metadata['root'])/'state/hot-cross-buns/interactions').glob('*/*.json'))
     if len(files)!=1:raise RuntimeError('unexpected durable interaction count')
     data=files[0].read_bytes();value=json.loads(data)
     return {'path':str(files[0]),'SHA256':hashlib.sha256(data).hexdigest(),'status':value['status'],'approved':value.get('approved',False)}
@@ -65,7 +65,7 @@ def new(number,candidate,mode):
     if provider:provider.terminate();provider.wait(timeout=3)
     pending=None;finishing=False
     metadata,proc,provider=setup(pathlib.Path(candidate),number,mode)
-    sampler=subprocess.Popen(['/tmp/gator-presence-r1-sample',str(proc.pid),'300'],stdout=open(EVIDENCE/f'cycle-{number:02d}-resources.jsonl','w'))
+    sampler=subprocess.Popen(['/tmp/hot-cross-buns-presence-r1-sample',str(proc.pid),'300'],stdout=open(EVIDENCE/f'cycle-{number:02d}-resources.jsonl','w'))
     wait(lambda:bool(states()),10);ask({'action':'activate'});wait(lambda:any(w['id']=='conversation' for w in state()['windows']))
     print(json.dumps({'ready':metadata,'controllerPID':controller.pid}),flush=True)
 
@@ -73,7 +73,7 @@ def prepare():
     global pending
     act('focus');act('press',target='Send message');wait(lambda:any(s.get('pending_approval') for s in states()),15);pending=identity()
     # durable Go interaction must still be pending, with no decision.
-    durable=list((pathlib.Path(metadata['root'])/'state/gator/interactions').glob('*/*.json'))
+    durable=list((pathlib.Path(metadata['root'])/'state/hot-cross-buns/interactions').glob('*/*.json'))
     assert len(durable)==1
     record=json.loads(durable[0].read_text());assert record['status']=='pending' and not record.get('approved')
     (EVIDENCE/f"cycle-{metadata['number']:02d}-pending.json").write_text(json.dumps({'identity':pending,'durable':record,'fileSHA256':hashlib.sha256(durable[0].read_bytes()).hexdigest()},indent=2))

@@ -7,7 +7,7 @@ import CryptoKit
         let source = try await Entity(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
         let archive = try await NativeMeshArchive.read(URL(fileURLWithPath: CommandLine.arguments[2]))
         let native = try await archive.entity()
-        guard let original = source.findEntity(named: "Gator_B") else { throw NSError(domain: "MissingOriginal", code: 1) }
+        guard let original = source.findEntity(named: "HotCrossBuns_B") else { throw NSError(domain: "MissingOriginal", code: 1) }
         var records: [[String: Any]] = []
         func inspect(_ a: Entity, _ b: Entity, path: String) throws {
             guard a.name == b.name, a.children.count == b.children.count else { throw NSError(domain: "GraphMismatch", code: 1) }

@@ -6,93 +6,93 @@
     },
     "packages": [
       {
-        "name": "github.com/gongahkia/gator/internal/config",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/config",
         "action": "pass",
         "seconds": 1.572
       },
       {
-        "name": "github.com/gongahkia/gator/internal/localmodel",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/localmodel",
         "action": "pass",
         "seconds": 1.9
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model",
         "action": "pass",
         "seconds": 2.375
       },
       {
-        "name": "github.com/gongahkia/gator/internal/modelcatalog",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/modelcatalog",
         "action": "pass",
         "seconds": 2.791
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model/anthropic",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model/anthropic",
         "action": "pass",
         "seconds": 3.156
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model/chatcompletions",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions",
         "action": "pass",
         "seconds": 3.3970000000000002
       },
       {
-        "name": "github.com/gongahkia/gator/internal/eval",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/eval",
         "action": "pass",
         "seconds": 4.421
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model/gemini",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model/gemini",
         "action": "pass",
         "seconds": 2.883
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model/openai",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model/openai",
         "action": "pass",
         "seconds": 3.003
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model/providerhttp",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model/providerhttp",
         "action": "pass",
         "seconds": 2.939
       },
       {
-        "name": "github.com/gongahkia/gator/internal/model/radius",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/model/radius",
         "action": "pass",
         "seconds": 2.983
       },
       {
-        "name": "github.com/gongahkia/gator/internal/agent",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/agent",
         "action": "pass",
         "seconds": 2.984
       },
       {
-        "name": "github.com/gongahkia/gator/internal/cliagent",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/cliagent",
         "action": "pass",
         "seconds": 14.807
       },
       {
-        "name": "github.com/gongahkia/gator/internal/workrun",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/workrun",
         "action": "pass",
         "seconds": 26.317
       },
       {
-        "name": "github.com/gongahkia/gator/cmd/gator",
+        "name": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "action": "pass",
         "seconds": 44.532
       }
     ],
     "skips": [
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveAgentContinuity",
         "reason": [
           "=== RUN   TestLiveAgentContinuity",
-          "agent_continuity_live_test.go:29: set GATOR_LIVE_CONTINUITY_REPORT, GATOR_LIVE_MODEL and OPENAI_API_KEY",
+          "agent_continuity_live_test.go:29: set HOT_CROSS_BUNS_LIVE_CONTINUITY_REPORT, HOT_CROSS_BUNS_LIVE_MODEL and OPENAI_API_KEY",
           "--- SKIP: TestLiveAgentContinuity (0.00s)"
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestJobSystemdManagesOnlyItsUserUnit",
         "reason": [
           "=== RUN   TestJobSystemdManagesOnlyItsUserUnit",
@@ -101,7 +101,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/internal/cliagent",
+        "package": "github.com/gongahkia/hot-cross-buns/internal/cliagent",
         "test": "TestLiveNativeConversation",
         "reason": [
           "=== RUN   TestLiveNativeConversation",
@@ -110,7 +110,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestNativeDesktopLocalVoice",
         "reason": [
           "=== RUN   TestNativeDesktopLocalVoice",
@@ -119,7 +119,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveDynamicAgents",
         "reason": [
           "=== RUN   TestLiveDynamicAgents",
@@ -128,25 +128,25 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveInternalAgentLifecycle",
         "reason": [
           "=== RUN   TestLiveInternalAgentLifecycle",
-          "internal_agent_live_test.go:29: set GATOR_LIVE_INTERNAL_REPORT, GATOR_LIVE_MODEL and OPENAI_API_KEY for a bounded live run",
+          "internal_agent_live_test.go:29: set HOT_CROSS_BUNS_LIVE_INTERNAL_REPORT, HOT_CROSS_BUNS_LIVE_MODEL and OPENAI_API_KEY for a bounded live run",
           "--- SKIP: TestLiveInternalAgentLifecycle (0.00s)"
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestNativeLaunchAgentExecutableRelocation",
         "reason": [
           "=== RUN   TestNativeLaunchAgentExecutableRelocation",
-          "job_launchagent_native_test.go:25: requires macOS login session and GATOR_NATIVE_LAUNCHAGENT_BINARY",
+          "job_launchagent_native_test.go:25: requires macOS login session and HOT_CROSS_BUNS_NATIVE_LAUNCHAGENT_BINARY",
           "--- SKIP: TestNativeLaunchAgentExecutableRelocation (0.00s)"
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLocalFirstAuditConfigWriterHelper",
         "reason": [
           "=== RUN   TestLocalFirstAuditConfigWriterHelper",
@@ -155,16 +155,16 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveMemoryEvaluation",
         "reason": [
           "=== RUN   TestLiveMemoryEvaluation",
-          "memory_live_eval_test.go:27: set GATOR_LIVE_MEMORY_REPORT to a new file to opt into bounded provider calls",
+          "memory_live_eval_test.go:27: set HOT_CROSS_BUNS_LIVE_MEMORY_REPORT to a new file to opt into bounded provider calls",
           "--- SKIP: TestLiveMemoryEvaluation (0.00s)"
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveTinyfishSearch",
         "reason": [
           "=== RUN   TestLiveTinyfishSearch",
@@ -173,7 +173,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveProjectFollowup",
         "reason": [
           "=== RUN   TestLiveProjectFollowup",
@@ -182,7 +182,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveDesktopUI",
         "reason": [
           "=== RUN   TestLiveDesktopUI",
@@ -191,7 +191,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLiveProjectWatch",
         "reason": [
           "=== RUN   TestLiveProjectWatch",
@@ -200,7 +200,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLivePublicWebResearch",
         "reason": [
           "=== RUN   TestLivePublicWebResearch",
@@ -209,7 +209,7 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/internal/workrun",
+        "package": "github.com/gongahkia/hot-cross-buns/internal/workrun",
         "test": "TestLiveSubagentManager",
         "reason": [
           "=== RUN   TestLiveSubagentManager",
@@ -226,34 +226,34 @@
     },
     "packages": [
       {
-        "name": "github.com/gongahkia/gator/internal/eval",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/eval",
         "action": "pass",
         "seconds": 1.9889999999999999
       },
       {
-        "name": "github.com/gongahkia/gator/internal/cliagent",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/cliagent",
         "action": "pass",
         "seconds": 2.127
       },
       {
-        "name": "github.com/gongahkia/gator/internal/localmodel",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/localmodel",
         "action": "pass",
         "seconds": 2.6310000000000002
       },
       {
-        "name": "github.com/gongahkia/gator/internal/config",
+        "name": "github.com/gongahkia/hot-cross-buns/internal/config",
         "action": "pass",
         "seconds": 3.091
       },
       {
-        "name": "github.com/gongahkia/gator/cmd/gator",
+        "name": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "action": "pass",
         "seconds": 12.82
       }
     ],
     "skips": [
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestNativeDesktopLocalVoice",
         "reason": [
           "=== RUN   TestNativeDesktopLocalVoice",
@@ -262,16 +262,16 @@
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestNativeLaunchAgentExecutableRelocation",
         "reason": [
           "=== RUN   TestNativeLaunchAgentExecutableRelocation",
-          "job_launchagent_native_test.go:25: requires macOS login session and GATOR_NATIVE_LAUNCHAGENT_BINARY",
+          "job_launchagent_native_test.go:25: requires macOS login session and HOT_CROSS_BUNS_NATIVE_LAUNCHAGENT_BINARY",
           "--- SKIP: TestNativeLaunchAgentExecutableRelocation (0.00s)"
         ]
       },
       {
-        "package": "github.com/gongahkia/gator/cmd/gator",
+        "package": "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns",
         "test": "TestLocalFirstAuditConfigWriterHelper",
         "reason": [
           "=== RUN   TestLocalFirstAuditConfigWriterHelper",

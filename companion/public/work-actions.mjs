@@ -2,7 +2,7 @@
 export function createWorkActions({ getSession, revoked }) {
   const $=id=>document.getElementById(id), dialog=$('work-action-dialog');
   let session, binding, run, offers=[], choice, reviewed, pending, receipt, busy=false, fresh=false, epoch=0;
-  const key=()=>binding?`gator.work-receipt.v1:${binding.id}:${binding.generation}`:'';
+  const key=()=>binding?`hot-cross-buns.work-receipt.v1:${binding.id}:${binding.generation}`:'';
   const same=(a,b)=>a?.id===b?.id&&a?.generation===b?.generation&&a?.owner===b?.owner&&a?.incarnation===b?.incarnation;
   const signature=o=>o?JSON.stringify(o):'';
   const available=()=>session&&getSession()===session&&fresh&&!busy&&!pending&&!document.hidden&&navigator.onLine&&choice&&Date.parse(choice.expires_at)>Date.now();
@@ -77,6 +77,6 @@ export function createWorkActions({ getSession, revoked }) {
   $('work-receipt-dismiss').addEventListener('click',()=>{if(!receipt||receipt.delivery==='outcome_unknown')return;try{sessionStorage.removeItem(key());}catch{return;}pending=undefined;receipt=undefined;status('Receipt dismissed. Inspect current Work before another action.');stale();});
   for(const event of ['offline','pagehide'])globalThis.addEventListener(event,stale);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stale();});
-  function retainedTargets(){const values=[];try{for(let i=0;i<sessionStorage.length&&values.length<32;i++){const k=sessionStorage.key(i);if(k?.startsWith('gator.work-receipt.v1:')){const v=JSON.parse(sessionStorage.getItem(k));if(v?.target?.id&&v?.target?.generation&&/^[a-f0-9]{32}$/.test(v.id))values.push(v);}}}catch{}return values;}
+  function retainedTargets(){const values=[];try{for(let i=0;i<sessionStorage.length&&values.length<32;i++){const k=sessionStorage.key(i);if(k?.startsWith('hot-cross-buns.work-receipt.v1:')){const v=JSON.parse(sessionStorage.getItem(k));if(v?.target?.id&&v?.target?.generation&&/^[a-f0-9]{32}$/.test(v.id))values.push(v);}}}catch{}return values;}
   return {select,stale,retainedTargets};
 }

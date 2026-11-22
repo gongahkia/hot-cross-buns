@@ -1,32 +1,32 @@
 # Local models in the Work TUI
 
-Start `gator`, enter `/model`, then choose **Local model**. The first screen
+Start `hot-cross-buns`, enter `/model`, then choose **Local model**. The first screen
 always asks whether you want a **Cloud API key** or **Local model**; the same
 screen is available from the command palette and first-run model selection. All
-local model management happens here; the former `gator local` CLI commands are
+local model management happens here; the former `hot-cross-buns local` CLI commands are
 retired and return directions to this screen. Automation and headless Work can
 still use the persisted model selection.
 
-Gator uses the existing Ollama runtime and its loopback Chat Completions API.
+Hot Cross Buns uses the existing Ollama runtime and its loopback Chat Completions API.
 Its Work service, tools, specialist boundaries, evidence, and approvals still
 own execution. General Work models are listed before coding models so the
-catalog reflects Gator's research, analysis, and deliverable workflows as well
+catalog reflects Hot Cross Buns's research, analysis, and deliverable workflows as well
 as implementation work. The catalog is text-only: direct image prompt inputs
 are reported explicitly, while PDF prompt attachments and frozen source PDFs
-use Gator's bounded native text extraction. Scanned pages are flagged as
+use Hot Cross Buns's bounded native text extraction. Scanned pages are flagged as
 requiring OCR rather than silently treated as empty. No model-quality claim
 follows from being in the catalog.
 
-Memory recall uses a separate Ollama embedding model. Check it with `gator
+Memory recall uses a separate Ollama embedding model. Check it with `hot-cross-buns
 memory embeddings status` and explicitly download `embeddinggemma:latest`
-(about 622 MB) with `gator memory embeddings install --yes`. This model does
+(about 622 MB) with `hot-cross-buns memory embeddings install --yes`. This model does
 not replace the selected Work chat model. See [Personal knowledge and
 skills](KNOWLEDGE.md) for the separate cloud embedding opt-in and lexical
 fallback.
 
 The saved selection also applies to goal-linked recurring jobs that use the
 default provider when they run. A live evaluation can select it explicitly with
-`--provider gator-local --model MODEL_TAG`; see the
+`--provider hot-cross-buns-local --model MODEL_TAG`; see the
 [continuity benchmark](PERSONAL_CONTINUITY_BENCHMARK.md#local-model-comparison).
 The managed local provider disables browser sessions, so tasks that need a
 browser require a different provider.
@@ -54,9 +54,9 @@ Download and deletion always require their own TUI confirmation.
 
 ## Runtime setup
 
-If Ollama is installed but stopped, the Local screen offers **Start with Gator**.
+If Ollama is installed but stopped, the Local screen offers **Start with Hot Cross Buns**.
 Enter or `y` starts `ollama serve` as a child of the Work TUI. It remains running
-when the model screen closes and stops when Gator exits. Gator does not adopt or
+when the model screen closes and stops when Hot Cross Buns exits. Hot Cross Buns does not adopt or
 stop a runtime that was already running. Press `s` to revisit runtime startup.
 Closing the TUI cancels a pending model operation.
 
@@ -64,13 +64,13 @@ If the Ollama executable is missing, the screen offers installation help with th
 [official download source](https://ollama.com/download) and platform guidance.
 On Linux, Enter first shows the exact official `curl -fsSL
 https://ollama.com/install.sh | sh` action, then requires a second confirmation
-before it runs. When elevation is needed, Gator asks for the system password in
+before it runs. When elevation is needed, Hot Cross Buns asks for the system password in
 the same terminal once, then returns to the TUI and streams bounded installer
-output while the download runs. On macOS, Gator opens Ollama's official download
-page so the system installer remains visible to you. Gator does not guess
+output while the download runs. On macOS, Hot Cross Buns opens Ollama's official download
+page so the system installer remains visible to you. Hot Cross Buns does not guess
 distribution package-manager commands.
 Once installed, refresh from the Local screen; model downloads, selection,
-deletion and runtime startup require no separate Gator CLI commands.
+deletion and runtime startup require no separate Hot Cross Buns CLI commands.
 
 ## Cloud and custom models
 
@@ -84,12 +84,12 @@ Choose **Cloud API key** from the first screen to configure a provider/model
 with masked API-key entry and provider-specific endpoint fields, then press
 `u`/Enter to select a model. The selection is persisted for Work. The screen
 reports API-key/configuration readiness, not a live account entitlement check.
-Gator does not use provider subscriptions, browser sign-in, vendor CLIs, or
+Hot Cross Buns does not use provider subscriptions, browser sign-in, vendor CLIs, or
 external coding-agent harnesses for model access.
 
 Press `n` to add a custom Chat Completions endpoint, `g` to preview model discovery,
-`e` to rename an entry, `d` to remove a stored Gator credential, and `x` to remove a
-custom provider. The reserved `gator-local` entry is managed from Local. This
+`e` to rename an entry, `d` to remove a stored Hot Cross Buns credential, and `x` to remove a
+custom provider. The reserved `hot-cross-buns-local` entry is managed from Local. This
 screen is owned by the focused `internal/modelcatalog` component; it does not
 reopen the historical Code composer or read/write its draft state. The legacy
 `internal/tui` constructor is only a compatibility adapter to the same panel.
@@ -99,17 +99,17 @@ reopen the historical Code composer or read/write its draft state. The legacy
 The Local model screen detects the operating system, architecture, total RAM, currently
 available RAM where the platform reports it, and free space in the Ollama model
 filesystem. It reports each reviewed model as enabled or disabled and explains
-the exact blocking condition. Gator supports Linux and macOS on `amd64` and
+the exact blocking condition. Hot Cross Buns supports Linux and macOS on `amd64` and
 `arm64`; an unrecognized OS or architecture is disabled rather than assumed
 compatible.
 
 The published pull size is the only stable per-model resource fact in this
-catalog. Gator therefore uses a deliberately conservative admission policy,
+catalog. Hot Cross Buns therefore uses a deliberately conservative admission policy,
 not an upstream hardware claim: it requires twice that published size in both
 physical RAM and (when measurable) currently available RAM, plus 20% free disk
 headroom for the pull. The current catalog evaluates to:
 
-| Gator ID | Gator RAM guardrail | Gator free-disk guardrail |
+| Hot Cross Buns ID | Hot Cross Buns RAM guardrail | Hot Cross Buns free-disk guardrail |
 | --- | ---: | ---: |
 | `qwen3-4b` | 4.7 GiB | 2.8 GiB |
 | `qwen3-8b` | 9.7 GiB | 5.8 GiB |
@@ -125,13 +125,13 @@ headroom for the pull. The current catalog evaluates to:
 | `devstral-24b` | 26.1 GiB | 15.6 GiB |
 | `qwen3-coder-30b` | 35.4 GiB | 21.2 GiB |
 
-Gator blocks TUI download/selection and every
+Hot Cross Buns blocks TUI download/selection and every
 managed-local executor setup (including a previously selected model) when the
 host fails this policy. It leaves rename and removal available, so a disabled
 model can be removed to reclaim disk. This is intentionally a capacity safety
 check: it does not guarantee useful speed or full context support.
 
-Gator uses `OLLAMA_MODELS` when it is present. Otherwise it follows Ollama's
+Hot Cross Buns uses `OLLAMA_MODELS` when it is present. Otherwise it follows Ollama's
 documented default model storage location for the detected OS. If Ollama runs
 as a Linux service, set `OLLAMA_MODELS` in that service's environment as well
 as the invoking environment when using a non-default disk. See the
@@ -141,17 +141,17 @@ environment setup.
 GPU compatibility, available VRAM, context length, quantization, and parallel
 requests are not safely derivable from a generic laptop inspection. Ollama
 chooses its runtime backend; the model-management screen does not currently report CPU/GPU placement. Larger context and parallel requests can
-raise memory use beyond Gator's guardrail, so keep them conservative on a
+raise memory use beyond Hot Cross Buns's guardrail, so keep them conservative on a
 resource-constrained machine.
 
 ## Reviewed catalog
 
 The Local screen presents General Work first, then Coding. The ordering is a
-recommendation about the intended Gator workflow, not a model-quality ranking.
+recommendation about the intended Hot Cross Buns workflow, not a model-quality ranking.
 
 ### General Work
 
-| Gator ID | Ollama tag | Published package | Context | Intended use |
+| Hot Cross Buns ID | Ollama tag | Published package | Context | Intended use |
 | --- | --- | ---: | ---: | --- |
 | `qwen3-4b` | `qwen3:4b` | 2.5 GB | 256K | compact source synthesis, analysis, and writing |
 | `qwen3-8b` | `qwen3:8b` | 5.2 GB | 40K | balanced research, analysis, and writing |
@@ -161,7 +161,7 @@ recommendation about the intended Gator workflow, not a model-quality ranking.
 
 ### Coding
 
-| Gator ID | Ollama tag | Published package | Context | Intended use |
+| Hot Cross Buns ID | Ollama tag | Published package | Context | Intended use |
 | --- | --- | --- | --- | --- |
 | `qwen2.5-coder-0.5b` | `qwen2.5-coder:0.5b` | 398 MB | 32K | minimal coding option for constrained hardware |
 | `qwen2.5-coder-1.5b` | `qwen2.5-coder:1.5b` | 986 MB | 32K | compact code-focused option for low-memory hosts |
@@ -178,35 +178,35 @@ The catalog maps only to the linked [Qwen3](https://ollama.com/library/qwen3),
 [Qwen2.5-Coder](https://ollama.com/library/qwen2.5-coder),
 [Devstral](https://ollama.com/library/devstral), and
 [Qwen3-Coder](https://ollama.com/library/qwen3-coder) packages. It is not a
-live search of Hugging Face, and Gator does not clone, execute, or download
+live search of Hugging Face, and Hot Cross Buns does not clone, execute, or download
 arbitrary model repositories. That keeps model provenance, package size, and
-the tool-calling capability required by Gator's native loop reviewable in
+the tool-calling capability required by Hot Cross Buns's native loop reviewable in
 source.
 
 Package size is not a hardware guarantee: available RAM/VRAM or unified
 memory, quantization, configured context, and other loaded applications affect
-whether a model runs usefully. The Gator guardrail above protects against clear
+whether a model runs usefully. The Hot Cross Buns guardrail above protects against clear
 capacity shortfalls, but cannot make a performance or benchmark claim for any
 catalog entry. Review the upstream model card and license before downloading.
 
 ## Runtime boundary
 
 The manager uses a loopback Ollama runtime. Selecting a model persists the
-`gator-local` provider and its `/v1/chat/completions` endpoint. Existing configured
+`hot-cross-buns-local` provider and its `/v1/chat/completions` endpoint. Existing configured
 loopback endpoints remain readable; remote addresses are rejected. No API key is
 stored or sent to the managed local runtime.
 
 This restriction is deliberate. A remote or shared endpoint belongs to the
 Cloud section’s custom-provider form (`n`), where its authentication and data-handling
-contract can be declared explicitly. Gator never enables Ollama's
+contract can be declared explicitly. Hot Cross Buns never enables Ollama's
 insecure pull option and never uploads models.
 
 Ollama documents Chat Completions streaming and tool support, which is why the
-catalog can retain Gator's tool loop rather than delegating to another harness.
-Gator treats every managed local catalog model as text-only, including upstream
+catalog can retain Hot Cross Buns's tool loop rather than delegating to another harness.
+Hot Cross Buns treats every managed local catalog model as text-only, including upstream
 packages that separately advertise vision support, so do not use `--image` with
 them. Text attachments retain the normal OpenAI-compatible provider behavior.
-Gator converts selected PDFs to bounded page-marked text before calling a
+Hot Cross Buns converts selected PDFs to bounded page-marked text before calling a
 text-only model; it does not send PDF bytes over the generic protocol.
 
 ## Verification of the Work TUI integration
@@ -214,7 +214,7 @@ text-only model; it does not send PDF bytes over the generic protocol.
 September 11, 2026: after extracting the focused model-catalog boundary,
 `GOTOOLCHAIN=go1.25.13 make check` passed all 54 packages, formatting, vet, and
 build. Race checks passed for `internal/modelcatalog`, `internal/tui`,
-`internal/worktui`, and `cmd/gator`. The race pass also found and corrected an
+`internal/worktui`, and `cmd/hot-cross-buns`. The race pass also found and corrected an
 unsynchronized callback assertion in the historical terminal test harness.
 Browser code did not change, so the Chromium integration was not repeated for
 this change.
@@ -234,7 +234,7 @@ A separate real-terminal smoke check started the installed Ollama executable
 from Work, listed installed models, selected `qwen2.5-coder:0.5b`, and cancelled a
 live Work task. Its retained manifest reports four requests, 8,861 input tokens,
 130 output tokens, and no completed artifact before cancellation on turn four.
-The Ollama server and runner were absent after Gator exited. This verifies the
+The Ollama server and runner were absent after Hot Cross Buns exited. This verifies the
 runtime lifecycle and cancellation, not successful live task quality. No existing
 model weights were downloaded or deleted in that smoke check; those operations
 were verified with local HTTP fixtures.

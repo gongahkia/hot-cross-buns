@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 func (m Model) bridgePanel() (result *uisnapshot.Panel) {
@@ -33,7 +33,7 @@ func (m Model) bridgePanel() (result *uisnapshot.Panel) {
 	}
 	if m.pendingBundleAction != nil {
 		return &uisnapshot.Panel{
-			Kind: "confirmation", Title: "Review transfer", Subtitle: "Confirm this change before Gator writes to your files.",
+			Kind: "confirmation", Title: "Review transfer", Subtitle: "Confirm this change before Hot Cross Buns writes to your files.",
 			Blocks: []uisnapshot.Block{{Lines: strings.Split(m.pendingBundleAction.summary, "\n")}},
 			Footer: "Enter or Y confirm · Esc or N cancel",
 			Hints:  []uisnapshot.Hint{{Shortcut: "Enter", Action: "confirm"}, {Shortcut: "Esc", Action: "cancel"}},
@@ -224,7 +224,7 @@ func (m Model) bridgeSectionPanel() uisnapshot.Panel {
 		return m.appearancePanel()
 	case "effort":
 		panel.Title = "Choose effort"
-		panel.Subtitle = "How much time Gator may spend on a request."
+		panel.Subtitle = "How much time Hot Cross Buns may spend on a request."
 		panel.Footer = "↑/↓ choose · Enter set effort · Esc back"
 		panel.Hints = []uisnapshot.Hint{{Shortcut: "↑/↓", Action: "choose"}, {Shortcut: "Enter", Action: "set"}, {Shortcut: "Esc", Action: "back"}}
 		for index, name := range []string{"Low", "Standard", "High"} {

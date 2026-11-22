@@ -12,13 +12,13 @@ import (
 )
 
 // TestSidecarManagedBrowserIntegration is intentionally opt-in because it
-// launches Chromium. Set GATOR_BROWSER_INTEGRATION=1 to install the pinned
+// launches Chromium. Set HOT_CROSS_BUNS_BROWSER_INTEGRATION=1 to install the pinned
 // test runtime in a temporary private state directory, or provide
-// GATOR_BROWSER_INTEGRATION_STATE_DIR for a preinstalled runtime.
+// HOT_CROSS_BUNS_BROWSER_INTEGRATION_STATE_DIR for a preinstalled runtime.
 func TestSidecarManagedBrowserIntegration(t *testing.T) {
-	stateDir := os.Getenv("GATOR_BROWSER_INTEGRATION_STATE_DIR")
-	if stateDir == "" && os.Getenv("GATOR_BROWSER_INTEGRATION") != "1" {
-		t.Skip("set GATOR_BROWSER_INTEGRATION=1 to run Chromium integration")
+	stateDir := os.Getenv("HOT_CROSS_BUNS_BROWSER_INTEGRATION_STATE_DIR")
+	if stateDir == "" && os.Getenv("HOT_CROSS_BUNS_BROWSER_INTEGRATION") != "1" {
+		t.Skip("set HOT_CROSS_BUNS_BROWSER_INTEGRATION=1 to run Chromium integration")
 	}
 	if stateDir == "" {
 		stateDir = t.TempDir()
@@ -26,7 +26,7 @@ func TestSidecarManagedBrowserIntegration(t *testing.T) {
 	fixture := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/":
-			_, _ = writer.Write([]byte(`<!doctype html><title>Gator browser fixture</title><button id="change" onclick="document.body.dataset.clicked='yes';this.textContent='clicked'">change</button><script>fetch('/data')</script>`))
+			_, _ = writer.Write([]byte(`<!doctype html><title>Hot Cross Buns browser fixture</title><button id="change" onclick="document.body.dataset.clicked='yes';this.textContent='clicked'">change</button><script>fetch('/data')</script>`))
 		case "/data":
 			_, _ = writer.Write([]byte("ok"))
 		default:
@@ -96,7 +96,7 @@ func TestSidecarManagedBrowserIntegration(t *testing.T) {
 		t.Fatalf("AddOrigin: %v", err)
 	}
 	snapshot, err := client.Navigate(context.Background(), session.ID, tabs[0].ID, server.URL)
-	if err != nil || snapshot.Title != "Gator browser fixture" || len(snapshot.Elements) == 0 {
+	if err != nil || snapshot.Title != "Hot Cross Buns browser fixture" || len(snapshot.Elements) == 0 {
 		t.Fatalf("Navigate = %#v, %v", snapshot, err)
 	}
 	var button string
@@ -150,7 +150,7 @@ func TestSidecarManagedBrowserIntegration(t *testing.T) {
 		}
 		snapshot, err = client.Navigate(context.Background(), session.ID, tabs[0].ID, ipv6Server.URL)
 		ipv6Server.Close()
-		if err != nil || snapshot.Title != "Gator browser fixture" {
+		if err != nil || snapshot.Title != "Hot Cross Buns browser fixture" {
 			t.Fatalf("Navigate IPv6 = %#v, %v", snapshot, err)
 		}
 	}

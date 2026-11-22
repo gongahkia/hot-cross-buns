@@ -1,6 +1,6 @@
 # Shared coding capabilities
 
-Gator's user-facing conversation runner and bounded coding workers use the same
+Hot Cross Buns's user-facing conversation runner and bounded coding workers use the same
 provider-neutral coding harness. Coding is an agent capability, not a second
 product or a requirement to install Codex, Pi, or Claude. Electron remains the
 primary product surface. Explicitly read-only assignments and research/review
@@ -13,7 +13,7 @@ model. Its `Prepared` session owns the worktree, project-policy intersection,
 hooks, optional integrations and run-owned terminal cleanup. `Execute` uses this
 same prepared harness for a standalone bounded assignment.
 
-`cmd/gator/work_code_agent.go` provides one `CodeSessionFactory` and its delegated
+`cmd/hot-cross-buns/work_code_agent.go` provides one `CodeSessionFactory` and its delegated
 runner adapter. Both consume a private Git repository made from the exact frozen
 Work source and host-captured project configuration. They return patches rather
 than write the selected live checkout. No original repository is required to be
@@ -164,7 +164,7 @@ or a measured general success rate. Actual results are recorded separately below
 For free UI runs while using the computer:
 
 ```sh
-GATOR_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop -- coding.spec.ts
+HOT_CROSS_BUNS_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop -- coding.spec.ts
 ```
 
 The real Electron windows stay visible but do not acquire keyboard focus on
@@ -242,9 +242,9 @@ unverified. No private model reasoning is exposed as an activity stream.
 - `go test -race ./internal/speech ./internal/codeexec ./internal/workrun ./internal/orchestrator ./internal/sandbox ./internal/tools ./internal/workactivity`: PASS, seven packages. Final focused race rerun for `codeexec` and `speech`: PASS.
 - `npm test --prefix desktop`: desktop 25 passed / 1 opt-in skipped; shared application host 74 passed / 1 skipped. Focused native/voice Node tests: 10 passed.
 - `npm run check --prefix desktop` and `npm run build --prefix desktop`: PASS.
-- `GATOR_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop`: 69 passed, 2 paid opt-in skipped, 1 existing animation-timing failure. All seven coding journeys passed. The failing test tried to slow an already-finished transition; it now slows on `transitionrun`. A final built-UI rerun of that case, API voice, local voice, and About/draft preservation passed all four. The entire 72-case suite was not rerun after this test-only correction; do not describe the original run as wholly green.
+- `HOT_CROSS_BUNS_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop`: 69 passed, 2 paid opt-in skipped, 1 existing animation-timing failure. All seven coding journeys passed. The failing test tried to slow an already-finished transition; it now slows on `transitionrun`. A final built-UI rerun of that case, API voice, local voice, and About/draft preservation passed all four. The entire 72-case suite was not rerun after this test-only correction; do not describe the original run as wholly green.
 - `node --test companion/*.test.mjs`: 37 passed, 5 opt-in skipped, no failures, including Chromium journeys. Native tmux fixtures were not opted in for this coding/voice change.
-- CGO-disabled `go build ./cmd/gator` for Linux/amd64 and Windows/amd64: PASS, output only to temporary paths. These are cross-builds, not native runtime acceptance.
+- CGO-disabled `go build ./cmd/hot-cross-buns` for Linux/amd64 and Windows/amd64: PASS, output only to temporary paths. These are cross-builds, not native runtime acceptance.
 - Existing `electron-builder --dir --publish never`: PASS, unsigned macOS/x64 application. ASAR inspection confirmed the main process and optional Whisper license notices. Packaged Electron API-voice, local-voice, and startup-without-Node/CLI journeys: all three passed.
 - Real CPU Whisper v1.9.5 with a pinned downloaded Tiny model/public sample: PASS. Native Go voice-helper configuration, explicit download, route binding and zero-commercial-usage transcription: PASS. See [Local voice](LOCAL-VOICE.md).
 - `gofmt -l` for changed Go voice/harness files and `git diff --check`: clean. No dependencies or toolchains upgraded. Bun is unavailable and was not installed; the retired terminal UI is not a product surface.

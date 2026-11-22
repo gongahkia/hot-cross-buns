@@ -12,12 +12,12 @@ import { fileURLToPath } from 'node:url';
 assert.ok(process.versions.bun, 'Run with Bun.');
 assert.ok(process.argv[2] && process.argv[3], 'Supply old and new production artifacts.');
 const artifacts = await Promise.all(process.argv.slice(2, 4).map(path => realpath(resolve(path))));
-const root = await mkdtemp(join(tmpdir(), 'gator-upgrade-'));
+const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-upgrade-'));
 const prefixes = [join(root, 'old install'), join(root, 'new install')];
-const installs = prefixes.map(prefix => join(prefix, 'lib/gator-terminal'));
+const installs = prefixes.map(prefix => join(prefix, 'lib/hot-cross-buns-terminal'));
 const workspace = join(root, 'original workspace'), otherWorkspace = join(root, 'different launch directory'), userData = join(root, 'app');
-const env = { ...process.env, PATH: join(root, 'path'), GATOR_STATE_DIR: join(root, 'state'), GATOR_CONFIG_DIR: join(root, 'config'), GATOR_TERMINAL_USER_DATA: userData };
-const runtimeName = process.platform === 'win32' ? 'gator-runtime.exe' : 'gator-runtime';
+const env = { ...process.env, PATH: join(root, 'path'), HOT_CROSS_BUNS_STATE_DIR: join(root, 'state'), HOT_CROSS_BUNS_CONFIG_DIR: join(root, 'config'), HOT_CROSS_BUNS_TERMINAL_USER_DATA: userData };
+const runtimeName = process.platform === 'win32' ? 'hot-cross-buns-runtime.exe' : 'hot-cross-buns-runtime';
 let requests = 0, primaryFailure;
 const model = createServer((req, res) => { requests++; req.resume(); res.writeHead(500); res.end('No model request is allowed in this continuity fixture.'); });
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -25,7 +25,7 @@ const run = args => {
   const result = spawnSync(process.execPath, args, { env, cwd: workspace, encoding: 'utf8', timeout: 60000 });
   assert.equal(result.status, 0, result.stderr || result.error?.message); return result.stdout;
 };
-const launch = (index, ...args) => run([join(installs[index], 'bin/gator'), ...args]);
+const launch = (index, ...args) => run([join(installs[index], 'bin/hot-cross-buns'), ...args]);
 async function runPhase(index, phase, retained = {}, firstText) {
   const fixture = { root, workspace, otherWorkspace, userData, runtimeName, install: installs[index], ...retained, phase, firstText };
   // Closing the Go worker alone does not unload JavaScript modules. Exit the
@@ -49,11 +49,11 @@ async function runPhase(index, phase, retained = {}, firstText) {
   return result;
 }
 try {
-  for (const directory of [workspace, otherWorkspace, env.PATH, join(env.GATOR_CONFIG_DIR, 'gator')]) await mkdir(directory, { recursive: true });
+  for (const directory of [workspace, otherWorkspace, env.PATH, join(env.HOT_CROSS_BUNS_CONFIG_DIR, 'hot-cross-buns')]) await mkdir(directory, { recursive: true });
   if (process.platform === 'win32') await copyFile(process.execPath, join(env.PATH, 'bun.exe'));
   else await symlink(process.execPath, join(env.PATH, 'bun'));
   await new Promise(resolve => model.listen(0, '127.0.0.1', resolve));
-  const configPath = join(env.GATOR_CONFIG_DIR, 'gator/config.json');
+  const configPath = join(env.HOT_CROSS_BUNS_CONFIG_DIR, 'hot-cross-buns/config.json');
   await writeFile(configPath, JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${model.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }), { mode: 0o600 });
   const configBefore = await readFile(configPath);
   for (let index = 0; index < 2; index++) run([resolve('ui/scripts/install.mjs'), artifacts[index], prefixes[index]]);

@@ -3,7 +3,7 @@ package eval
 import (
 	"context"
 	"errors"
-	"github.com/gongahkia/gator/internal/telemetry"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
 	"net/http"
 	"strings"
 	"time"
@@ -22,7 +22,7 @@ func ExportLangSmith(ctx context.Context, client *http.Client, endpoint, key str
 	var dataset struct {
 		ID string `json:"id"`
 	}
-	if err := post("/datasets", map[string]any{"name": report.Dataset + "-" + report.ID, "description": "Gator redacted evaluation metadata", "data_type": "kv"}, &dataset); err != nil {
+	if err := post("/datasets", map[string]any{"name": report.Dataset + "-" + report.ID, "description": "Hot Cross Buns redacted evaluation metadata", "data_type": "kv"}, &dataset); err != nil {
 		return err
 	}
 	if dataset.ID == "" {

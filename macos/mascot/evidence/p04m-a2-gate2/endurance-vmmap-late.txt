@@ -1,7 +1,7 @@
 Process:         Gate2Lab [45263]
-Path:            /private/tmp/Gator-Gate2-FinalCandidate-v10.app/Contents/MacOS/Gate2Lab
+Path:            /private/tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app/Contents/MacOS/Gate2Lab
 Load Address:    0x1025bc000
-Identifier:      dev.gator.mascot.gate2.validation
+Identifier:      dev.hot-cross-buns.mascot.gate2.validation
 Version:         0
 Code Type:       ARM64
 Platform:        macOS

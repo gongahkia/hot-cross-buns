@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 type Review struct {
@@ -49,7 +49,7 @@ type Report struct {
 }
 
 func Open(stateDir string) (Store, error) {
-	root := filepath.Join(stateDir, "gator", "pilot")
+	root := filepath.Join(stateDir, "hot-cross-buns", "pilot")
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("pilot state directory required")
 	}

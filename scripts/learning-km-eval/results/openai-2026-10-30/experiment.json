@@ -53,7 +53,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-learning-km-openai-20261030/state-1422726843/gator/traces/learning-km-live-v1-learning-dialogue-01-rev1/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-learning-km-openai-20261030/state-1422726843/hot-cross-buns/traces/learning-km-live-v1-learning-dialogue-01-rev1/trace.json",
       "spans": [
         {
           "id": "aa95fdb07dd6885d",
@@ -304,7 +304,7 @@
       "contract_sha256": "57e1bebb69d88ac8726c2096f955217b77984f7e9882be0b7819426da064394c",
       "policy_sha256": "22f17ec319e1c3c39197e328b1b40ffdb38f501aae09de786c56a18c36d4bd8d",
       "source_sha256": "705e2377df61ce0b7f133ca0aefedfe8f9eec7bdcfa5847e29e8e90a9f53c7e2",
-      "bundle_path": "/private/tmp/gator-learning-km-openai-20261030/state-1422726843/gator/workspaces/d4f169f80783d670ba0cb5a33d2c820e/learning-km-live-v1-learning-dialogue-01-rev1",
+      "bundle_path": "/private/tmp/hot-cross-buns-learning-km-openai-20261030/state-1422726843/hot-cross-buns/workspaces/d4f169f80783d670ba0cb5a33d2c820e/learning-km-live-v1-learning-dialogue-01-rev1",
       "usage": {
         "unknown_requests": 0,
         "model_requests": 11,
@@ -353,7 +353,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-learning-km-openai-20261030/state-486213329/gator/traces/learning-km-live-v1-project-synthesis-01-rev1/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-learning-km-openai-20261030/state-486213329/hot-cross-buns/traces/learning-km-live-v1-project-synthesis-01-rev1/trace.json",
       "spans": [
         {
           "id": "7e4492d0694d679b",
@@ -666,7 +666,7 @@
       "contract_sha256": "e8d93ba959b64921e9078330e75751f138c2aa2809e8788858c33e7bcc377754",
       "policy_sha256": "f42b09e0e00240160378677cbf2427b3597266080462082f31940f095821f36a",
       "source_sha256": "07e24b5bb437ab8d88ec7408c75810ddec851e79743dc437466a9f87c0ce030e",
-      "bundle_path": "/private/tmp/gator-learning-km-openai-20261030/state-486213329/gator/workspaces/8a6b68731440ffdb709022b7dab3bfe9/learning-km-live-v1-project-synthesis-01-rev1",
+      "bundle_path": "/private/tmp/hot-cross-buns-learning-km-openai-20261030/state-486213329/hot-cross-buns/workspaces/8a6b68731440ffdb709022b7dab3bfe9/learning-km-live-v1-project-synthesis-01-rev1",
       "usage": {
         "unknown_requests": 0,
         "model_requests": 12,
@@ -715,7 +715,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-learning-km-openai-20261030/state-3628574218/gator/traces/learning-km-live-v1-writing-revision-01-rev1/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-learning-km-openai-20261030/state-3628574218/hot-cross-buns/traces/learning-km-live-v1-writing-revision-01-rev1/trace.json",
       "spans": [
         {
           "id": "cacba95ca3f1015f",
@@ -966,7 +966,7 @@
       "contract_sha256": "a7eaedaa89aad75e8f760ede28e95f115cf33f21549e5e5ad9099609203dc4bf",
       "policy_sha256": "843816fd3e6c9c8428775fdbbdb37d2962f7ef79e7ecd66cce26446247811047",
       "source_sha256": "b474e3ebfde4b70d4faeb85fb9d3a77f81f12527b5893f28d4ce56209ed51ce9",
-      "bundle_path": "/private/tmp/gator-learning-km-openai-20261030/state-3628574218/gator/workspaces/ba3f5635418152ce5a81d487ff2ad23c/learning-km-live-v1-writing-revision-01-rev1",
+      "bundle_path": "/private/tmp/hot-cross-buns-learning-km-openai-20261030/state-3628574218/hot-cross-buns/workspaces/ba3f5635418152ce5a81d487ff2ad23c/learning-km-live-v1-writing-revision-01-rev1",
       "usage": {
         "unknown_requests": 0,
         "model_requests": 10,

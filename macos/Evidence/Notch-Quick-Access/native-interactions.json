@@ -1,5 +1,5 @@
 {
-  "application": "/tmp/Gator-Native-Tranche08-Enhanced-Final.app",
+  "application": "/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app",
   "pid": 57033,
   "display": {
     "name": "Built-in Retina Display",
@@ -15,9 +15,9 @@
     "initialKeyboardFocus": "Dismiss quick access",
     "Tab": "New chat, Idle",
     "Shift-Tab": "Dismiss quick access",
-    "Escape": "Message Gator",
+    "Escape": "Message Hot Cross Buns",
     "draftBeforeAndAfter": "An unsent draft for notch focus acceptance",
-    "hoverFocusRemained": "Message Gator",
+    "hoverFocusRemained": "Message Hot Cross Buns",
     "fullWindowCloseThenNotchOpenChat": "same draft restored",
     "goChildPIDsBeforeAndAfter": [
       57058

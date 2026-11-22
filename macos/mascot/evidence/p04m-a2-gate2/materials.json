@@ -16,7 +16,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Round_Head\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Round_Head\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -37,7 +37,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Upper_Snout\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Upper_Snout\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -58,7 +58,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Mouth_Interior\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Mouth_Interior\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -79,7 +79,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Jaw_Pivot\/Lower_Jaw\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Jaw_Pivot\/Lower_Jaw\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -100,7 +100,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Tongue\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Tongue\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -121,7 +121,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Nostril_Left\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Nostril_Left\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -142,7 +142,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Tooth_Left\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Tooth_Left\/Surface",
       "roughness" : 0.34999999403953552,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -163,7 +163,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Eye_Cushion\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Eye_Cushion\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -184,196 +184,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Sclera\/Surface",
-      "roughness" : 0.34999999403953552,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.082352928817272186,
-        0.23137256503105164,
-        0.19215685129165649,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Pupil\/Surface",
-      "roughness" : 0.2800000011920929,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emission" : [
-        0.99999994039535522,
-        0.99999994039535522,
-        0.99999994039535522,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Pupil\/Catchlight\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emission" : [
-        0.090196065604686737,
-        0.23529410362243652,
-        0.18431371450424194,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Closed_Eye_Line\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.24313724040985107,
-        0.51372551918029785,
-        0.37254902720451355,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Upper_Lid\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.24313724040985107,
-        0.51372551918029785,
-        0.37254902720451355,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Lower_Lid\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emission" : [
-        0.090196065604686737,
-        0.23529410362243652,
-        0.18431371450424194,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Nostril_Right\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.98039215803146362,
-        0.97647053003311157,
-        0.92156857252120972,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Tooth_Right\/Surface",
-      "roughness" : 0.34999999403953552,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.24313724040985107,
-        0.51372551918029785,
-        0.37254902720451355,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Eye_Cushion\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.98039215803146362,
-        0.97647053003311157,
-        0.92156857252120972,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Sclera\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Sclera\/Surface",
       "roughness" : 0.34999999403953552,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -394,7 +205,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Pupil\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Pupil\/Surface",
       "roughness" : 0.2800000011920929,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -415,7 +226,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Pupil\/Catchlight\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Pupil\/Catchlight\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -436,7 +247,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Closed_Eye_Line\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Closed_Eye_Line\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -457,7 +268,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Upper_Lid\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Upper_Lid\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -478,7 +289,154 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Lower_Lid\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Lower_Lid\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emission" : [
+        0.090196065604686737,
+        0.23529410362243652,
+        0.18431371450424194,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Nostril_Right\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.98039215803146362,
+        0.97647053003311157,
+        0.92156857252120972,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Tooth_Right\/Surface",
+      "roughness" : 0.34999999403953552,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.24313724040985107,
+        0.51372551918029785,
+        0.37254902720451355,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Eye_Cushion\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.98039215803146362,
+        0.97647053003311157,
+        0.92156857252120972,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Sclera\/Surface",
+      "roughness" : 0.34999999403953552,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.082352928817272186,
+        0.23137256503105164,
+        0.19215685129165649,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Pupil\/Surface",
+      "roughness" : 0.2800000011920929,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emission" : [
+        0.99999994039535522,
+        0.99999994039535522,
+        0.99999994039535522,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Pupil\/Catchlight\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emission" : [
+        0.090196065604686737,
+        0.23529410362243652,
+        0.18431371450424194,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Closed_Eye_Line\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -499,7 +457,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Crown_Ridge_0\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Upper_Lid\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -520,7 +478,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Crown_Ridge_1\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Lower_Lid\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -541,7 +499,49 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Crown_Ridge_2\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Crown_Ridge_0\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.24313724040985107,
+        0.51372551918029785,
+        0.37254902720451355,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Crown_Ridge_1\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.24313724040985107,
+        0.51372551918029785,
+        0.37254902720451355,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Crown_Ridge_2\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -564,7 +564,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Round_Head\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Round_Head\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -585,7 +585,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Upper_Snout\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Upper_Snout\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -606,7 +606,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Mouth_Interior\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Mouth_Interior\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -627,7 +627,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Jaw_Pivot\/Lower_Jaw\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Jaw_Pivot\/Lower_Jaw\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -648,7 +648,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Tongue\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Tongue\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -669,7 +669,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Nostril_Left\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Nostril_Left\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -690,7 +690,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Tooth_Left\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Tooth_Left\/Surface",
       "roughness" : 0.34999999403953552,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -711,7 +711,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Eye_Cushion\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Eye_Cushion\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -732,196 +732,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Sclera\/Surface",
-      "roughness" : 0.34999999403953552,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.082352705299854279,
-        0.23137244582176208,
-        0.1921553909778595,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Pupil\/Surface",
-      "roughness" : 0.2800000011920929,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emission" : [
-        1,
-        1,
-        1,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Pupil\/Catchlight\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emission" : [
-        0.090195216238498688,
-        0.23529359698295593,
-        0.18431365489959717,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Closed_Eye_Line\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.24313771724700928,
-        0.5137256383895874,
-        0.37254846096038818,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Upper_Lid\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.24313771724700928,
-        0.5137256383895874,
-        0.37254846096038818,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Left\/Lower_Lid\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emission" : [
-        0.090195216238498688,
-        0.23529359698295593,
-        0.18431365489959717,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Nostril_Right\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.98039203882217407,
-        0.97647076845169067,
-        0.92156869173049927,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Tooth_Right\/Surface",
-      "roughness" : 0.34999999403953552,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.24313771724700928,
-        0.5137256383895874,
-        0.37254846096038818,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Eye_Cushion\/Surface",
-      "roughness" : 0.72000002861022949,
-      "specular" : 0.5,
-      "type" : "PhysicallyBasedMaterial"
-    },
-    {
-      "clearcoat" : 0,
-      "color" : [
-        0.98039203882217407,
-        0.97647076845169067,
-        0.92156869173049927,
-        1
-      ],
-      "emission" : [
-        0,
-        0,
-        0,
-        1
-      ],
-      "emissiveIntensity" : 1,
-      "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Sclera\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Sclera\/Surface",
       "roughness" : 0.34999999403953552,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -942,7 +753,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Pupil\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Pupil\/Surface",
       "roughness" : 0.2800000011920929,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -963,7 +774,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Pupil\/Catchlight\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Pupil\/Catchlight\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -984,7 +795,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Closed_Eye_Line\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Closed_Eye_Line\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -1005,7 +816,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Upper_Lid\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Upper_Lid\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -1026,7 +837,154 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Eye_Right\/Lower_Lid\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Left\/Lower_Lid\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emission" : [
+        0.090195216238498688,
+        0.23529359698295593,
+        0.18431365489959717,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Nostril_Right\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.98039203882217407,
+        0.97647076845169067,
+        0.92156869173049927,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Tooth_Right\/Surface",
+      "roughness" : 0.34999999403953552,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.24313771724700928,
+        0.5137256383895874,
+        0.37254846096038818,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Eye_Cushion\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.98039203882217407,
+        0.97647076845169067,
+        0.92156869173049927,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Sclera\/Surface",
+      "roughness" : 0.34999999403953552,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.082352705299854279,
+        0.23137244582176208,
+        0.1921553909778595,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Pupil\/Surface",
+      "roughness" : 0.2800000011920929,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emission" : [
+        1,
+        1,
+        1,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Pupil\/Catchlight\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emission" : [
+        0.090195216238498688,
+        0.23529359698295593,
+        0.18431365489959717,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Closed_Eye_Line\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -1047,7 +1005,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Crown_Ridge_0\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Upper_Lid\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -1068,7 +1026,7 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Crown_Ridge_1\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Eye_Right\/Lower_Lid\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"
@@ -1089,7 +1047,49 @@
       ],
       "emissiveIntensity" : 1,
       "metallic" : 0,
-      "path" : "\/Gator_B\/Head_Pivot\/Crown_Ridge_2\/Surface",
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Crown_Ridge_0\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.24313771724700928,
+        0.5137256383895874,
+        0.37254846096038818,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Crown_Ridge_1\/Surface",
+      "roughness" : 0.72000002861022949,
+      "specular" : 0.5,
+      "type" : "PhysicallyBasedMaterial"
+    },
+    {
+      "clearcoat" : 0,
+      "color" : [
+        0.24313771724700928,
+        0.5137256383895874,
+        0.37254846096038818,
+        1
+      ],
+      "emission" : [
+        0,
+        0,
+        0,
+        1
+      ],
+      "emissiveIntensity" : 1,
+      "metallic" : 0,
+      "path" : "\/HotCrossBuns_B\/Head_Pivot\/Crown_Ridge_2\/Surface",
       "roughness" : 0.72000002861022949,
       "specular" : 0.5,
       "type" : "PhysicallyBasedMaterial"

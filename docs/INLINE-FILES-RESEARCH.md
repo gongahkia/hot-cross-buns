@@ -1,4 +1,4 @@
-# Files inside Gator chat
+# Files inside Hot Cross Buns chat
 
 Research and implementation decision, 22 October 2026. **The user approved A
 and B: inline file workflows plus native Word, Excel and PowerPoint content
@@ -9,8 +9,8 @@ record of why canonical file services were needed.
 ## What the user means
 
 Keep the conversation as the working surface. A file supplied by the user or
-created by Gator should be something they can open, read, change themselves,
-and refine with Gator without leaving that conversation. The user explicitly
+created by Hot Cross Buns should be something they can open, read, change themselves,
+and refine with Hot Cross Buns without leaving that conversation. The user explicitly
 requested this inside chat. An inline file card should expand in its message;
 the right-hand inspector is not the proposed destination for this interaction.
 
@@ -21,19 +21,19 @@ needed for the proposed workflow.
 
 ## Official references inspected
 
-| Reference | Confirmed behavior | Lesson for Gator |
+| Reference | Confirmed behavior | Lesson for Hot Cross Buns |
 | --- | --- | --- |
 | [ChatGPT Work: Work with files](https://learn.chatgpt.com/docs/artifacts-viewer?surface=app) | Generated documents, spreadsheets, presentations and PDFs can be reviewed with the conversation. Desktop previews sit alongside chat; Work on the web supports reviewing generated files in chat, download and targeted feedback. Supported annotations supply a selected area as context for a revision. | The result is reviewable work. A request to change a passage or cell should carry its exact file/selection, rather than making the user re-describe it. |
 | [Claude: What are artifacts and how do I use them?](https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them) | Artifacts normally open beside the conversation. Template artifacts can be edited directly or through Claude; a highlighted passage in a doc/Markdown document can be sent to Edit with Claude. | Direct manipulation and conversational revision are complementary controls on the same file. |
 | [Claude Docs](https://support.claude.com/en/articles/16923645-get-started-with-claude-docs) | Users can type directly, ask for edits in the conversation, or request edits through comments. Direct edits save automatically. Export includes Word, PDF and Markdown. | A document should feel like a document. Preserve changes and make the current editable version clear. |
 
-The inline placement below is Gator's proposed adaptation to the user's
+The inline placement below is Hot Cross Buns's proposed adaptation to the user's
 instruction, not a claim that every reference uses inline placement or offers
 identical editing for arbitrary uploaded Office files. Native Office editing,
 rich-text documents, preview rendering and agent-driven file revision are
 different capabilities and should be presented accurately.
 
-## Before implementation: Gator capability
+## Before implementation: Hot Cross Buns capability
 
 | Capability | Current state | Evidence |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ verifiable; editing them in place would invalidate their recorded contents.
    code/JSON use a source view; CSV uses a table. Show Edit only when that exact
    format is supported. Large previews can scroll within the expanded surface.
 3. **Make a focused request.** Select a passage or table range and choose
-   Ask Gator. Stage a request with the file, version and selection attached;
+   Ask Hot Cross Buns. Stage a request with the file, version and selection attached;
    keep the normal chat send/queue behavior. The user can also ask for a whole
    file revision. A follow-up should target the version the user is reading.
 4. **Save and revisit.** Save/Discard should be explicit in the first release,
@@ -74,7 +74,7 @@ verifiable; editing them in place would invalidate their recorded contents.
 Only the current file view needs controls; don't repeat a large toolbar below
 every response. The expanded surface should not automatically take keyboard
 focus or follow the latest agent update while someone is editing. Keep the
-existing Gator palette, radii, typography, focus rings and reduced motion.
+existing Hot Cross Buns palette, radii, typography, focus rings and reduced motion.
 
 ### Suggested format scope
 
@@ -139,7 +139,7 @@ restored as a new version; there is no side-by-side semantic diff viewer.
   excerpts never become save buffers. An older unavailable output may still
   show its retained excerpt, explicitly labeled, without Edit controls.
 - Private copies, immutable versions and edit drafts live in
-  `GATOR_STATE_DIR/gator/files`. Edits do not mutate original uploads or sealed
+  `HOT_CROSS_BUNS_STATE_DIR/hot-cross-buns/files`. Edits do not mutate original uploads or sealed
   Work bundles. Output identities use profile-relative bundle locations so
   versions survive a backup restored into another folder. Uploaded derivatives
   keep aliases to their version history.
@@ -148,7 +148,7 @@ restored as a new version; there is no side-by-side semantic diff viewer.
   latest version without deleting another editor's newer draft. The UI keeps
   unsaved edits visible and blocks Send/removal until Save or Discard.
 - Save includes the resulting bytes in the next message when limits permit.
-  Ask Gator stages exact saved bytes plus filename, version and selection.
+  Ask Hot Cross Buns stages exact saved bytes plus filename, version and selection.
   Neither automatically submits a message. Agent tools still use the existing
   work contracts and approval paths.
 - History/all-private-content deletion includes the retained copies, versions,
@@ -177,13 +177,13 @@ or a manual test in Microsoft Office.
 
 **Mode:** full, scoped to the new file workflow. React DOM, existing native CSS
 variables, Lucide icons and preload IPC. This is not another audit of unrelated
-Gator screens. The app keeps its established dark theme under either OS color
+Hot Cross Buns screens. The app keeps its established dark theme under either OS color
 preference; white Office/PDF paper is deliberate document content.
 
 | Category | Evidence inspected | Result |
 | --- | --- | --- |
 | Typography | File titles, Markdown/source editors, Word/slide text, formula bar, version dates | Existing font stack and tokens; source/formulas use monospace, numeric metadata uses tabular figures |
-| Surfaces | Pending, sent-input and generated cards; editor toolbars, paper/table/PDF surfaces, history, Ask Gator, empty/error states | Nested radii and structural borders; bounded scroll keeps composer controls reachable |
+| Surfaces | Pending, sent-input and generated cards; editor toolbars, paper/table/PDF surfaces, history, Ask Hot Cross Buns, empty/error states | Nested radii and structural borders; bounded scroll keeps composer controls reachable |
 | Animations | File chevron open/close, interrupted reversal, inherited button feedback, reduced motion | Restrained 140 ms chevron; no animated document reflow or per-keystroke entrance |
 | Icons | File, preview/edit, export, history, save, ask, pagination, Markdown and row/column controls | Existing Lucide/currentColor conventions; controls have accessible names and selected/disabled states |
 | Performance | Main IPC projection, lazy PDF bundle/worker, bounded native parsers, grid paging, edit drafts | File bytes load on demand, not in every backend snapshot; large tables page instead of creating a full-sheet DOM |
@@ -195,12 +195,12 @@ preference; white Office/PDF paper is deliberate document content.
 | HIGH | `desktop/src/Attachments.tsx:41`, `desktop/src/OutputCards.tsx:5` | Filename chips or extracted previews could not support direct editing | Compact cards open full authorized content on demand | The editable buffer must represent the actual file |
 | MEDIUM | `desktop/src/WorkDetails.tsx:109`, `desktop/src/App.tsx:131` | A file already in chat opened another primary preview surface | File index entries open/focus their exact card in the transcript | Keeps work in the conversation and preserves provenance |
 | HIGH | `desktop/src/FileSurface.tsx:45`, `desktop/electron/files.mjs` | No canonical Save, conflict handling, recoverable edit draft or version history | Explicit Save/Discard, immutable versions, optimistic saves, crash-lock recovery and history restore | Prevents silent loss and stale overwrites |
-| HIGH | `desktop/src/App.tsx:145`, `desktop/src/Attachments.tsx:41` | Sending/removing a file could use old bytes during direct editing | Dirty edits block Send/removal; Save replaces the attachment in place and uses current bytes | Prevents a mismatch between the visible editor and what Gator receives |
+| HIGH | `desktop/src/App.tsx:145`, `desktop/src/Attachments.tsx:41` | Sending/removing a file could use old bytes during direct editing | Dirty edits block Send/removal; Save replaces the attachment in place and uses current bytes | Prevents a mismatch between the visible editor and what Hot Cross Buns receives |
 | MEDIUM | `desktop/src/styles.css:896` | Several attachments plus an expanded editor pushed Send outside the window | Bound pending-file height, full-width expansion and independent document scrolling; hide the greeting while an attached file is open | Maintains a usable composer in normal and narrow windows |
 | MEDIUM | `desktop/src/FileGrid.tsx:6`, `desktop/src/TextFileEditor.tsx:4` | Source-only Markdown and isolated spreadsheet inputs | Modest Markdown tools, value/formula bar, rows/columns and keyboard navigation | Supports direct manipulation without introducing an IDE or full Office ribbon |
 | MEDIUM | `desktop/src/FileSurface.tsx:110`, `desktop/src/styles.css:858` | Embedded images sat inside editable Word text; paper used the browser's blue focus treatment | Images remain outside editable paragraphs; paper has a legible green focus ring | Text editing does not imply image deletion and keyboard focus stays visible |
 | MEDIUM | `desktop/src/PDFPreview.tsx:6`, `desktop/electron/file-content.mjs` | Document metadata/extracted text stood in for visual previews | Bundled PDF pages and actual image previews, with no Edit control for unsupported editing | Accurate capabilities and reviewable output |
-| LOW | `desktop/src/styles.css:821` | New surfaces could introduce unrelated spacing, borders, controls or motion | Reuse Gator tokens, 40 px desktop controls, contained outlines and reduced-motion rules | Keeps the feature consistent with the existing product |
+| LOW | `desktop/src/styles.css:821` | New surfaces could introduce unrelated spacing, borders, controls or motion | Reuse Hot Cross Buns tokens, 40 px desktop controls, contained outlines and reduced-motion rules | Keeps the feature consistent with the existing product |
 | MEDIUM | `desktop/src/FileSurface.tsx:67`, `desktop/src/App.tsx:357` | Missing/stale files and failed saves had no file-specific recovery path | Retained excerpts are labeled, errors stay inline, edits remain, navigation explains draft retention | Failure states preserve the user's work and explain what is actionable |
 
 ### Considered but rejected
@@ -219,7 +219,7 @@ All interactive checks used isolated profiles and local fixture providers.
 Real user files, credentials and InvestmentGini repositories were not changed.
 
 - `go test` passed for `internal/worksession`, `internal/workapp`,
-  `internal/workrun`, `internal/attachment`, `cmd/gator` and `internal/lifecycle`
+  `internal/workrun`, `internal/attachment`, `cmd/hot-cross-buns` and `internal/lifecycle`
   across the scoped runs. The new lifecycle test checks backup inclusion and
   explicit history deletion of versions/drafts; runtime tests cover restored
   input references and verified artifact digests. After updating the bundled
@@ -235,7 +235,7 @@ Real user files, credentials and InvestmentGini repositories were not changed.
   archive made while source files were changing failed the packaged launch
   check; rebuilding from a fixed snapshot resolved it. The packaged main,
   file-service and Office modules were compared byte-for-byte with source.
-- With `GATOR_DESKTOP_TEST_EXECUTABLE` pointing at the packaged app,
+- With `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE` pointing at the packaged app,
   `npm run test:e2e --prefix desktop -- inline-files.spec.ts files.spec.ts
   work-details.spec.ts attachments.spec.ts --reporter=line
   --output=node_modules/.cache/inline-files-packaged-results` passed **all eight

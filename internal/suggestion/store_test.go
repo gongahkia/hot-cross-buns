@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 func TestSuggestionRemainsPendingUntilOneReviewDecision(t *testing.T) {

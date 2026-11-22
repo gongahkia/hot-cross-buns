@@ -11,7 +11,7 @@ func TestLocalBindingsRemainOptionalValidatedAndPreservedByUpdate(t *testing.T) 
 		t.Fatal(err)
 	}
 	initial := Default()
-	initial.CustomProviders = []CustomProvider{{ID: "gator-local", BaseURL: "http://127.0.0.1:11434/v1/chat/completions", Models: []string{"qwen3:4b"}, DefaultModel: "qwen3:4b"}}
+	initial.CustomProviders = []CustomProvider{{ID: "hot-cross-buns-local", BaseURL: "http://127.0.0.1:11434/v1/chat/completions", Models: []string{"qwen3:4b"}, DefaultModel: "qwen3:4b"}}
 	if err := store.Save(initial); err != nil {
 		t.Fatal("older tag-only configuration rejected", err)
 	}

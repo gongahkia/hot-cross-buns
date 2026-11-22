@@ -11,8 +11,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 )
 
 type Source struct {

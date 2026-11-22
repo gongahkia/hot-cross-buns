@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 // Controller leases are deliberately separate from socket readiness. An

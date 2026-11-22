@@ -1,5 +1,5 @@
 Traceback (most recent call last):
-  File "/Users/gongahkia/Desktop/coding/projects/gator/macos/local/lab/read_only_status_fixture.py", line 43, in <module>
+  File "/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/local/lab/read_only_status_fixture.py", line 43, in <module>
     assert 0.85 < ratio < 1.15, "CPU counter units could not be verified"
            ^^^^^^^^^^^^^^^^^^^
 AssertionError: CPU counter units could not be verified

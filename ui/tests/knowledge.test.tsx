@@ -4,18 +4,18 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("saved knowledge filters preserve identity and guarded corrections, omission and forgetting preserve unrelated notes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-knowledge-"))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const cli = (...args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-knowledge-"))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const cli = (...args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
   const note = cli("note", "add", "--title", "Offsite planning notes", "--body", "Venue shortlist: Sentosa or East Coast.", "--source-ref", "planning-brief.md").split(/\s/)[0]
   const other = cli("note", "add", "--title", "Communication preferences", "--body", "Prefer concise summaries.").split(/\s/)[0]
   const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-  let client = new GatorClient(new Application(options))
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -36,7 +36,7 @@ test("saved knowledge filters preserve identity and guarded corrections, omissio
     await edit("Corrected shortlist: East Coast.\nConfirm capacity first."); setup.mockInput.pressKey("r", { ctrl: true }); await until(() => client.state?.panel?.title === "Offsite planning notes", "saved correction")
     expect(cli("note", "show", note)).toContain("Corrected shortlist: East Coast.\nConfirm capacity first."); expect(cli("note", "show", note)).toContain("planning-brief.md")
     setup.mockInput.pressKey("x", { ctrl: true }); await until(() => client.state?.panel?.title === "Forget saved knowledge?", "explicit forget review"); setup.mockInput.pressEscape(); await flush(); expect(cli("note", "list")).toContain(note)
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await open(); await flush()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await open(); await flush()
     expect(JSON.stringify(client.state?.panel)).toContain("Corrected shortlist: East Coast."); expect(client.draft.text).toBe("Keep knowledge draft")
     setup.mockInput.pressKey("x", { ctrl: true }); await flush(); setup.mockInput.pressEnter(); await until(() => client.state?.panel?.title === "Saved knowledge", "forgotten selected note")
     expect(cli("note", "list")).not.toContain(note); expect(cli("note", "show", other)).toContain("Prefer concise summaries."); expect(client.state?.messages).toHaveLength(0)

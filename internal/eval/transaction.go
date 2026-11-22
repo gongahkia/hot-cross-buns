@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/delivery"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/delivery"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 // TransactionDimension is one independently inspectable property of Work.
@@ -148,7 +148,7 @@ func historyDimension(stateRoot string, record workhistory.Record, expectedMode 
 	if record.Evidence.ArtifactManifestPath == "" {
 		problems = append(problems, "artifact manifest reference is missing")
 	}
-	wantDeliveries := filepath.Join(stateRoot, "gator", "delivery", record.ID)
+	wantDeliveries := filepath.Join(stateRoot, "hot-cross-buns", "delivery", record.ID)
 	if record.Evidence.DeliveriesPath != wantDeliveries {
 		problems = append(problems, "delivery evidence reference does not match Work ID")
 	}

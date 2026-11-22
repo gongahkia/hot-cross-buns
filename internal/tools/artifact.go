@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // WorkFiles returns the narrow local surface for a non-code work run. Source
@@ -104,7 +104,7 @@ type WriteTableArtifact struct {
 func (t WriteTableArtifact) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
 		Name:        "write_table_artifact",
-		Description: "Create or replace a rectangular CSV deliverable in isolated output. Gator handles quoting and rejects duplicate headers or ragged rows.",
+		Description: "Create or replace a rectangular CSV deliverable in isolated output. Hot Cross Buns handles quoting and rejects duplicate headers or ragged rows.",
 		Parameters: schema(`{"type":"object","additionalProperties":false,"required":["path","headers","rows"],"properties":{
 "path":{"type":"string","minLength":1,"description":"Portable output-relative .csv artifact path"},
 "headers":{"type":"array","minItems":1,"maxItems":256,"items":{"type":"string","maxLength":65536}},

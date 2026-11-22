@@ -2,8 +2,8 @@ package jobs
 
 import (
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"strings"
 	"testing"
 	"time"

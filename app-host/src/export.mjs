@@ -17,7 +17,7 @@ export class ExportStore {
     const canonical = join(parent, basename(path));
     for (const root of this.protectedRoots) {
       const protectedPath = await realpath(root).catch(() => resolve(root));
-      if (inside(protectedPath, canonical)) throw new Error("Export outside Gator's private storage to preserve retained files and sealed outputs.");
+      if (inside(protectedPath, canonical)) throw new Error("Export outside Hot Cross Buns's private storage to preserve retained files and sealed outputs.");
     }
     return canonical;
   }

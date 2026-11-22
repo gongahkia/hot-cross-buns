@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/hostproc"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 var (
@@ -52,7 +52,7 @@ func Create(ctx context.Context, repositoryPath, runID string) (Worktree, error)
 
 // CreateWithOptions creates a detached worktree from HEAD or an explicitly
 // selected Git revision. It can copy only the exact ignored files listed in a
-// tracked .gator/worktreeinclude file when the caller explicitly opts in.
+// tracked .hot-cross-buns/worktreeinclude file when the caller explicitly opts in.
 func CreateWithOptions(ctx context.Context, repositoryPath, runID string, options Options) (Worktree, error) {
 	if !runIDPattern.MatchString(runID) {
 		return Worktree{}, fmt.Errorf("invalid run id %q", runID)
@@ -118,15 +118,15 @@ func create(ctx context.Context, repositoryPath, runID, revisionSpec string) (Wo
 	if err != nil {
 		return Worktree{}, err
 	}
-	base := filepath.Join(filepath.Dir(repository), filepath.Base(repository)+"-gator-runs")
+	base := filepath.Join(filepath.Dir(repository), filepath.Base(repository)+"-hot-cross-buns-runs")
 	if err := os.MkdirAll(base, 0o700); err != nil {
-		return Worktree{}, fmt.Errorf("create Gator worktree directory: %w", err)
+		return Worktree{}, fmt.Errorf("create Hot Cross Buns worktree directory: %w", err)
 	}
 	path := filepath.Join(base, runID)
 	if _, err := os.Lstat(path); err == nil {
-		return Worktree{}, fmt.Errorf("Gator worktree already exists for run %q", runID)
+		return Worktree{}, fmt.Errorf("Hot Cross Buns worktree already exists for run %q", runID)
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return Worktree{}, fmt.Errorf("inspect Gator worktree path: %w", err)
+		return Worktree{}, fmt.Errorf("inspect Hot Cross Buns worktree path: %w", err)
 	}
 
 	command := hostproc.CommandContext(ctx, "git", "worktree", "add", "--detach", path, revisionSpec)
@@ -137,7 +137,7 @@ func create(ctx context.Context, repositoryPath, runID, revisionSpec string) (Wo
 	}
 	root, err := workspace.Open(path)
 	if err != nil {
-		return Worktree{}, fmt.Errorf("open created Gator worktree: %w", err)
+		return Worktree{}, fmt.Errorf("open created Hot Cross Buns worktree: %w", err)
 	}
 	baseCommit, err := revision(ctx, root.Path())
 	if err != nil {
@@ -227,7 +227,7 @@ func resolveRevision(ctx context.Context, repository, reference string) (string,
 }
 
 const (
-	worktreeIncludePath = ".gator/worktreeinclude"
+	worktreeIncludePath = ".hot-cross-buns/worktreeinclude"
 	maxSetupFiles       = 128
 	maxSetupFileBytes   = 8 * 1024 * 1024
 	maxSetupTotalBytes  = 32 * 1024 * 1024

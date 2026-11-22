@@ -1,15 +1,15 @@
-# Gator: maintaining understanding across knowledge bases
+# Hot Cross Buns: maintaining understanding across knowledge bases
 
 30 October 2026 · Research hypothesis, not a validated market or a shipped promise.
 
 ## Recommendation
 
 Investigate **helping committed personal knowledge-management users keep their
-existing notes useful as new evidence arrives across tools**. Retain Gator's
+existing notes useful as new evidence arrives across tools**. Retain Hot Cross Buns's
 agent foundation. Narrow the user, recurring task, and success measures before
 expanding integrations or shared workspaces.
 
-Proposed positioning: **Gator helps keep the knowledge you already maintain
+Proposed positioning: **Hot Cross Buns helps keep the knowledge you already maintain
 current, connected, and ready to use.**
 
 The initial job is: **“I learned something new. Show me what it changes in my
@@ -24,7 +24,7 @@ Recruit people who have maintained an Obsidian/Markdown knowledge base for at
 least six months, use at least two additional information sources, and regularly
 produce a research brief, article, technical decision, or project update. Possible
 sources include Readwise, Zotero, shared documents, and project trackers. These
-are recruiting criteria, not implemented Gator integrations.
+are recruiting criteria, not implemented Hot Cross Buns integrations.
 
 Start with individual owners of a knowledge base who work on continuing research
 or projects. Their collaborators' documents can be inputs where access permits;
@@ -45,7 +45,7 @@ for the phrase “second brain.”
 ## Evidence and its limits
 
 This is a targeted desk review of research, public user accounts, current product
-documentation, and Gator's retained evaluation. It is not a systematic literature
+documentation, and Hot Cross Buns's retained evaluation. It is not a systematic literature
 review, representative user survey, or hands-on competitor benchmark. Product
 pages establish documented capabilities and positioning, not reliability.
 
@@ -66,9 +66,9 @@ material could increase the maintenance burden.
 Documentation checked on 30 October 2026. Absence from these pages is not proof
 that a competitor lacks a capability.
 
-| Existing option | Relevant documented capability | Consequence for Gator |
+| Existing option | Relevant documented capability | Consequence for Hot Cross Buns |
 | --- | --- | --- |
-| [Mem](https://get.mem.ai/) and its [agent](https://get.mem.ai/product/agent) | Markets continuously updated project understanding, visible memory, and proactive follow-up. Its [Claude connector](https://claude.com/marketplace/connectors/mem) includes note creation and updates. | “Living memory” and “AI that updates notes” are already occupied promises. Gator must demonstrate a better specific workflow. |
+| [Mem](https://get.mem.ai/) and its [agent](https://get.mem.ai/product/agent) | Markets continuously updated project understanding, visible memory, and proactive follow-up. Its [Claude connector](https://claude.com/marketplace/connectors/mem) includes note creation and updates. | “Living memory” and “AI that updates notes” are already occupied promises. Hot Cross Buns must demonstrate a better specific workflow. |
 | [Khoj](https://docs.khoj.dev/) | Personal AI over documents, Markdown, and Notion, with Obsidian access and self-hosting. | Local control and conversational access across sources are not unique on their own. |
 | [Notion enterprise search](https://www.notion.com/help/enterprise-search) | Searches workspace and connected apps, including Drive and Jira, with citations. | Cross-tool search with sources is an established capability. |
 | [Gemini Notebook / NotebookLM source management](https://support.google.com/gemininotebook/answer/16215270?hl=en) | Current documentation says Drive sources auto-update. Generated studio outputs do not change when their source changes or is deleted; it cannot edit original Drive files. | Do not use the outdated claim that all Drive sources require manual refresh. Source freshness and maintenance of derived work are separate tasks. |
@@ -85,13 +85,13 @@ an unserved market.
 
 ## A narrow first workflow
 
-Illustrative scenario, not a current Gator demo: a person has an Obsidian note
+Illustrative scenario, not a current Hot Cross Buns demo: a person has an Obsidian note
 comparing retrieval techniques, paper annotations, and a shared project brief.
 A new paper qualifies an earlier conclusion; a project decision also changes
 which trade-off matters.
 
 1. The user selects a project, its sources, and its canonical note folder.
-2. Gator explains what changed, linking the evidence and affected note passages.
+2. Hot Cross Buns explains what changed, linking the evidence and affected note passages.
 3. It distinguishes a genuine correction from a different context, opinion, or
    unresolved disagreement. A newer date alone does not establish truth.
 4. It proposes a small diff to the existing note, retaining links, formatting,
@@ -99,7 +99,7 @@ which trade-off matters.
 5. After review, the accepted version is available in the original knowledge
    base and in later conversations. Undo and concurrent-edit protection work.
 6. The user uses that understanding to write the project brief or continue
-   learning. Measure the resulting work, not how many notes Gator generates.
+   learning. Measure the resulting work, not how many notes Hot Cross Buns generates.
 
 Initially use one writable home: a selected local Markdown/Obsidian folder.
 Other knowledge bases supply selected read-only sources. Prototype with explicit
@@ -124,7 +124,7 @@ collaborative editing, universal web monitoring, and a replacement note editor.
 Open-ended web research and learning exercises can support this workflow later;
 they are not additional promises needed to validate the initial problem.
 
-## Fit with Gator today
+## Fit with Hot Cross Buns today
 
 The [live assessment](../LEARNING_KM_ASSESSMENT.md) establishes useful foundations:
 retained work, memory correction and withdrawal, scoped retrieval, source
@@ -135,7 +135,7 @@ The nearest concrete blocker is reviewed editing of an existing note through the
 agent. The live test and actual acceptance produced another note while leaving
 the original stale. The current [suggestion tool](../../internal/tools/suggestion.go)
 has no target-note/revision contract, and
-[acceptance](../../cmd/gator/command_suggestion.go) creates a new note. The
+[acceptance](../../cmd/hot-cross-buns/command_suggestion.go) creates a new note. The
 [note store](../../internal/knowledge/review.go) already supports guarded owner
 edits, which can inform the missing agent protocol.
 
@@ -185,7 +185,7 @@ of understanding. A later follow-up would be needed to measure learning retentio
 | --- | --- |
 | Recurring need | At least 6 of 8 target interviews show a recent consequential maintenance episode and a recurring workaround. |
 | End-to-end value | At least 30% lower median active completion time, including review/correction, with no reduction in source-grounded correctness. Retain individual results. |
-| Useful suggestions | At least 70% judged useful by the owner, including rejected and deferred proposals in the denominator. Also record important changes Gator missed. |
+| Useful suggestions | At least 70% judged useful by the owner, including rejected and deferred proposals in the denominator. Also record important changes Hot Cross Buns missed. |
 | Trust | No silent overwrites, duplicate canonical notes, cross-project disclosure, or fabricated source support in the pilot. One occurrence blocks widening writes. Passing is not a universal safety guarantee. |
 | Continued use | At least 4 of 5 return without researcher prompting in week two; record actual willingness to pay separately from compliments. |
 

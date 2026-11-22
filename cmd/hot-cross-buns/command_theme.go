@@ -1,0 +1,37 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+)
+
+const themeUsage = "usage: hot-cross-buns theme list | hot-cross-buns theme set terminal|hot-cross-buns|light|contrast|mono"
+
+func themeCommand(arguments []string, out io.Writer) error {
+	if len(arguments) == 1 && arguments[0] == "list" {
+		_, err := fmt.Fprintln(out, "terminal\nhot-cross-buns\nlight\ncontrast\nmono")
+		return err
+	}
+	if len(arguments) != 2 || arguments[0] != "set" {
+		return errors.New(themeUsage)
+	}
+	if err := saveTheme(arguments[1]); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(out, "Theme set to %q.\n", strings.ToLower(strings.TrimSpace(arguments[1])))
+	return err
+}
+
+func saveTheme(name string) error {
+	store, err := config.DefaultStore()
+	if err != nil {
+		return err
+	}
+	name = strings.ToLower(strings.TrimSpace(name))
+	_, err = store.UpdateTerminalPreferences(config.TerminalPreferencesPatch{Theme: &name}, nil)
+	return err
+}

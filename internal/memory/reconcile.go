@@ -11,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gongahkia/gator/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 )
 
 // Reconciliation chooses an inspected record as the surviving representation.

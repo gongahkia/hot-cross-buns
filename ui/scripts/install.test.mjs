@@ -8,11 +8,11 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile), script = resolve("ui/scripts/install.mjs");
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "gator-install-atomic-")), artifact = join(directory, "artifact"), prefix = join(directory, "prefix");
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns-install-atomic-")), artifact = join(directory, "artifact"), prefix = join(directory, "prefix");
   for (const path of ["bin", "runtime", "ui/dist", "app-host"]) await mkdir(join(artifact, path), { recursive: true });
-  await writeFile(join(artifact, "gator-distribution.json"), JSON.stringify({ product: "gator-terminal", version: 1, platform: process.platform, arch: process.arch }));
-  for (const path of ["bin/gator", `runtime/${process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"}`, "ui/dist/index.js", "ui/package.json", "app-host/package.json"]) await writeFile(join(artifact, path), "fixture contents\n");
-  return { directory, artifact, prefix, root: join(prefix, "lib/gator-terminal"), launcher: join(prefix, "bin", process.platform === "win32" ? "gator.cmd" : "gator") };
+  await writeFile(join(artifact, "hot-cross-buns-distribution.json"), JSON.stringify({ product: "hot-cross-buns-terminal", version: 1, platform: process.platform, arch: process.arch }));
+  for (const path of ["bin/hot-cross-buns", `runtime/${process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"}`, "ui/dist/index.js", "ui/package.json", "app-host/package.json"]) await writeFile(join(artifact, path), "fixture contents\n");
+  return { directory, artifact, prefix, root: join(prefix, "lib/hot-cross-buns-terminal"), launcher: join(prefix, "bin", process.platform === "win32" ? "hot-cross-buns.cmd" : "hot-cross-buns") };
 }
 const run = (...args) => execute(process.execPath, [script, ...args], { timeout: 15000 });
 
@@ -25,7 +25,7 @@ test("concurrent installers publish one complete package and preserve existing i
     const manifest = await readFile(join(f.root, "installation.json"), "utf8");
     await assert.rejects(run(f.artifact, f.prefix));
     assert.equal(await readFile(join(f.root, "installation.json"), "utf8"), manifest);
-    assert.deepEqual((await readdir(join(f.prefix, "lib"))).filter(name => name.startsWith(".gator-terminal-install-")), []);
+    assert.deepEqual((await readdir(join(f.prefix, "lib"))).filter(name => name.startsWith(".hot-cross-buns-terminal-install-")), []);
     await run("--recover", f.prefix);
   } finally { await rm(f.directory, { recursive: true, force: true }); }
 });

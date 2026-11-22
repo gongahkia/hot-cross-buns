@@ -7,7 +7,7 @@ import (
 
 const (
 	// MemoryMultiplier deliberately reserves one model-sized allocation in
-	// addition to the published pull size. It is Gator's conservative
+	// addition to the published pull size. It is Hot Cross Buns's conservative
 	// admission guardrail, not an upstream model requirement or a benchmark.
 	MemoryMultiplier uint64 = 2
 
@@ -16,7 +16,7 @@ const (
 	DiskOverheadPercent uint64 = 20
 )
 
-// Host is the non-secret, local machine evidence used to decide whether Gator
+// Host is the non-secret, local machine evidence used to decide whether Hot Cross Buns
 // may pull, select, or run a reviewed local model. Zero resource values mean
 // that the corresponding measurement was unavailable.
 type Host struct {
@@ -33,7 +33,7 @@ type Host struct {
 	DiskError            string
 }
 
-// Eligibility is the auditable result of applying Gator's local-model
+// Eligibility is the auditable result of applying Hot Cross Buns's local-model
 // admission guardrail to one model and one host.
 type Eligibility struct {
 	Allowed             bool
@@ -43,7 +43,7 @@ type Eligibility struct {
 	Advice              []string
 }
 
-// Assess applies Gator's intentionally conservative local-model guardrail.
+// Assess applies Hot Cross Buns's intentionally conservative local-model guardrail.
 // It blocks unsupported OS/architectures and resource shortfalls, but it does
 // not claim to identify an Ollama-compatible GPU or predict generation speed.
 func Assess(model Model, host Host) Eligibility {
@@ -52,12 +52,12 @@ func Assess(model Model, host Host) Eligibility {
 		RequiredMemoryBytes: requiredMemoryBytes(model),
 		RequiredDiskBytes:   requiredDiskBytes(model),
 		Advice: []string{
-			"Gator's RAM limit is a conservative admission guardrail, not an upstream performance guarantee.",
-			"GPU compatibility and VRAM are selected by Ollama at load time and are not inferred by Gator.",
+			"Hot Cross Buns's RAM limit is a conservative admission guardrail, not an upstream performance guarantee.",
+			"GPU compatibility and VRAM are selected by Ollama at load time and are not inferred by Hot Cross Buns.",
 		},
 	}
 	if !supportedOS(host.OS) {
-		return result.block(fmt.Sprintf("%s is not a supported local-model OS; Gator verifies Ollama hosts on Linux, macOS, and Windows", host.OS))
+		return result.block(fmt.Sprintf("%s is not a supported local-model OS; Hot Cross Buns verifies Ollama hosts on Linux, macOS, and Windows", host.OS))
 	}
 	if !supportedArchitecture(host.Architecture) {
 		return result.block(fmt.Sprintf("%s is not a supported 64-bit local-model architecture", host.Architecture))
@@ -66,23 +66,23 @@ func Assess(model Model, host Host) Eligibility {
 		return result.block("this catalog entry has no published package-size metadata")
 	}
 	if host.TotalMemoryBytes == 0 {
-		message := "Gator could not inspect total system memory"
+		message := "Hot Cross Buns could not inspect total system memory"
 		if host.MemoryError != "" {
 			message += ": " + host.MemoryError
 		}
 		return result.block(message)
 	}
 	if host.TotalMemoryBytes < result.RequiredMemoryBytes {
-		return result.block(fmt.Sprintf("requires at least %s total RAM under Gator's guardrail; detected %s", FormatBytes(result.RequiredMemoryBytes), FormatBytes(host.TotalMemoryBytes)))
+		return result.block(fmt.Sprintf("requires at least %s total RAM under Hot Cross Buns's guardrail; detected %s", FormatBytes(result.RequiredMemoryBytes), FormatBytes(host.TotalMemoryBytes)))
 	}
 	if availableMemoryKnown(host) && host.AvailableMemoryBytes < result.RequiredMemoryBytes {
-		return result.block(fmt.Sprintf("requires %s currently available RAM under Gator's guardrail; detected %s", FormatBytes(result.RequiredMemoryBytes), FormatBytes(host.AvailableMemoryBytes)))
+		return result.block(fmt.Sprintf("requires %s currently available RAM under Hot Cross Buns's guardrail; detected %s", FormatBytes(result.RequiredMemoryBytes), FormatBytes(host.AvailableMemoryBytes)))
 	}
 	if availableDiskKnown(host) && host.AvailableDiskBytes < result.RequiredDiskBytes {
 		return result.block(fmt.Sprintf("requires %s free in the Ollama model filesystem; detected %s", FormatBytes(result.RequiredDiskBytes), FormatBytes(host.AvailableDiskBytes)))
 	}
 	if !availableMemoryKnown(host) {
-		result.Advice = append(result.Advice, "Current available RAM could not be measured; Gator checked physical RAM only.")
+		result.Advice = append(result.Advice, "Current available RAM could not be measured; Hot Cross Buns checked physical RAM only.")
 	}
 	if !availableDiskKnown(host) {
 		advice := "Ollama model filesystem capacity could not be measured"

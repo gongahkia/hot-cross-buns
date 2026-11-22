@@ -1,4 +1,4 @@
-# Gator native parity P02 — retained conversation catalog
+# Hot Cross Buns native parity P02 — retained conversation catalog
 
 Date: 2026-11-18. Selected scope: **CH03 — search retained conversations; CH04 — rename a retained conversation.** P01 transcript Find remains intact. This is parity increment P02, not migration Tranche 09.
 
@@ -8,7 +8,7 @@ Implemented a native All Conversations window backed by Go's existing indexed ca
 
 **Coverage limitation is explicit:** Go currently indexes retained Work request/revision text, titles and folders, not conversation-only dialogue. Native UI states this and preserves incomplete/skipped/index-fallback notices. “All Conversations” is the catalog workflow; it is not a claim of unlimited or exhaustive content coverage beyond Go's existing bounds.
 
-Candidate: `/tmp/Gator-Native-Parity-P02.app`. P01 bundle preserved at `/tmp/Gator-Native-Parity-P01.app`. No commits, README edits, signing, notarization, dependency installation, paid provider requests or live external actions.
+Candidate: `/tmp/HotCrossBuns-Native-Parity-P02.app`. P01 bundle preserved at `/tmp/HotCrossBuns-Native-Parity-P01.app`. No commits, README edits, signing, notarization, dependency installation, paid provider requests or live external actions.
 
 ## 1. Baseline and discovery
 
@@ -38,7 +38,7 @@ Host verification: arm64 macOS 26.5.2, Apple Swift 6.3.3, Swift tools 6.1 / Swif
 | `SessionStore.Load` | Fresh authoritative metadata for selection, inspection and destination validation. |
 | Managed `create/select/focus` | Existing one-owner-per-conversation rules, cached/disconnected handling, four-owner capacity and recovery retention. |
 
-Terminal references: `ui/src/gator/actions.tsx` catalog actions and `/conversations`, `client.ts` navigation/panel result handling, and the picker/panel components. Terminal rename binds a reviewed panel identity and row; the underlying mutation is the same Go CAS operation. Native preserves the authority and semantics through typed page/row evidence rather than reproducing the terminal panel visually.
+Terminal references: `ui/src/hot-cross-buns/actions.tsx` catalog actions and `/conversations`, `client.ts` navigation/panel result handling, and the picker/panel components. Terminal rename binds a reviewed panel identity and row; the underlying mutation is the same Go CAS operation. Native preserves the authority and semantics through typed page/row evidence rather than reproducing the terminal panel visually.
 
 The canonical catalog/storage/index implementation files are unchanged. The existing SQLite index remains disposable; conversation/revision/journal files and presentation metadata remain authoritative.
 
@@ -125,7 +125,7 @@ Archive transactions/conflict detection, request admission, execution leases, ap
 
 All Conversations is a separate ordinary macOS window, reachable from the full toolbar, Recent Conversations menu, native Conversation menu and compact More menu. Command-Shift-O opens it. Recents retain their bounded label and path. The notch has no catalog UI.
 
-The native list shows title, source/workspace, indexed snippet when returned, date when parseable, pinned/archived metadata and current-conversation status. No missing metadata is fabricated. Native selection, a contextual Rename action, explicit Open/Rename, segmented scope, loading/empty/error states and bounded scrollable notices use established Gator styling. The editor and controls remain usable at the 540-point minimum width; the tested minimum outer height was 512 points.
+The native list shows title, source/workspace, indexed snippet when returned, date when parseable, pinned/archived metadata and current-conversation status. No missing metadata is fabricated. Native selection, a contextual Rename action, explicit Open/Rename, segmented scope, loading/empty/error states and bounded scrollable notices use established Hot Cross Buns styling. The editor and controls remain usable at the 540-point minimum width; the tested minimum outer height was 512 points.
 
 Command-F remains transcript Find when the conversation window is active. In All Conversations it focuses catalog search and the Edit-menu action is labeled accordingly. Tab reaches the results list; arrows select; Return on the list opens the exact row. Rename has focused native text editing and explicit Save/Cancel. Escape cancels the editor or dismisses the catalog. Search/rename results do not request keyboard focus.
 
@@ -138,17 +138,17 @@ Physical VoiceOver, IME, alternate keyboard layouts/preferences, macOS 15 hardwa
 P01 baseline: 182 tests. Added 17 Swift tests: nine protocol/state/projection tests, six owner/identity/capacity tests and two real-Go catalog/integration/measurement tests. Existing managed real-Go tests gain assertions for P01 read-only search, catalog operations during work, current rename and rename overlapping background completion. No existing assertion was removed or weakened.
 
 ```sh
-go build -trimpath -o /tmp/gator-p02-runtime ./cmd/gator
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-GATOR_TEST_BINARY=/tmp/gator-p02-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel
-go test ./cmd/gator ./internal/workapp ./internal/worksession
+go build -trimpath -o /tmp/hot-cross-buns-p02-runtime ./cmd/hot-cross-buns
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-p02-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/worksession
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test \
   app-host/tests/native.test.mjs app-host/tests/sessions.test.mjs \
   app-host/tests/drafts.test.mjs app-host/tests/reading-state.test.mjs \
   app-host/tests/backend.test.mjs
-GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P02.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P02.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'catalogProtocol|catalogDecoding|catalogTitleValidation|catalogNativeAPI|transcriptSearch|transcriptFind|actualGoManagedDialogueKeepsMainWorkIndependentAndRetainsChildResult|catalogActualGoPages'
 git diff --check
@@ -159,7 +159,7 @@ git diff --check
 | Native build / packaging / plist | PASS; declared and Mach-O minimum macOS 15.0 |
 | Complete sequential Swift suite after final title correction | **199 PASS**, 122.979 s |
 | Strict Swift 6 and actual packaged Go selected integration | **17 PASS**, 16.489 s; warnings treated as errors |
-| Go command/bridge/workapp/canonical catalog suites | PASS: cmd/gator 33.943 s; workapp 12.383 s; worksession cached PASS |
+| Go command/bridge/workapp/canonical catalog suites | PASS: cmd/hot-cross-buns 33.943 s; workapp 12.383 s; worksession cached PASS |
 | Host native/session/draft/reading/backend suites | **41 PASS**, 0 failed/skipped, 10.177 s; Node 26.7.0 |
 | Whitespace diff check | PASS |
 
@@ -183,7 +183,7 @@ Swift projection of a 50-row result, including JSONValue encoding plus typed dec
 
 ## 11. Targeted native evidence
 
-Used disposable profile `/tmp/gator-p02-1wwsts32`, separate preference domain `dev.gator.native.p02-disposable`, fixture-only retained records and an unreachable loopback provider. No desktop message was submitted. Real-Go work tests use the existing inert loopback provider fixtures, not paid providers or external connectors.
+Used disposable profile `/tmp/hot-cross-buns-p02-1wwsts32`, separate preference domain `dev.hot-cross-buns.native.p02-disposable`, fixture-only retained records and an unreachable loopback provider. No desktop message was submitted. Real-Go work tests use the existing inert loopback provider fixtures, not paid providers or external connectors.
 
 | Observation | Evidence |
 | --- | --- |
@@ -205,21 +205,21 @@ Desktop-only reproduction helpers are in `evidence/p02/`: fixture setup, isolate
 
 | Area | Files / purpose |
 | --- | --- |
-| Go native bridge | `cmd/gator/ui_bridge.go`; finite dispatch/metadata refresh. `internal/workapp/bridge_native_catalog.go`; request/page evidence, canonical query/rename/open/inspect/verify, cancellation and metadata propagation. |
+| Go native bridge | `cmd/hot-cross-buns/ui_bridge.go`; finite dispatch/metadata refresh. `internal/workapp/bridge_native_catalog.go`; request/page evidence, canonical query/rename/open/inspect/verify, cancellation and metadata propagation. |
 | Go integration | `app.go`, `bridge.go`, `update.go`, `models.go`; state/result fields, completion routing and query cleanup. `conversation.go`; captures existing destination load failures. `restart.go`; guards pending native title mutation. |
 | Swift Core | `NativeCatalogProtocol.swift`, `NativeConversationCatalog.swift`; typed bounded data and state. `ManagedSessionProtocol.swift`; private finite host commands. `ManagedSessionCoordinator.swift`; origin binding, canonical handoff, safe candidate cleanup, metadata refresh and closing participation. |
-| Native UI | `ConversationCatalogView.swift`; window, list, editor and scoped Find. `GatorApp.swift`; scene/menu/shortcuts. `ConversationView.swift`, `RecentConversationsMenu.swift`; entry points. `NativeWindowConfiguration.swift`; catalog window does not replace conversation registration. |
-| Go tests | `internal/workapp/bridge_native_catalog_test.go`, `cmd/gator/ui_bridge_test.go`. |
+| Native UI | `ConversationCatalogView.swift`; window, list, editor and scoped Find. `HotCrossBunsApp.swift`; scene/menu/shortcuts. `ConversationView.swift`, `RecentConversationsMenu.swift`; entry points. `NativeWindowConfiguration.swift`; catalog window does not replace conversation registration. |
+| Go tests | `internal/workapp/bridge_native_catalog_test.go`, `cmd/hot-cross-buns/ui_bridge_test.go`. |
 | Swift tests | `NativeCatalogTests.swift`, `NativeCatalogOwnerTests.swift`, `NativeCatalogIntegrationTests.swift`; 17 new tests. `ManagedSessionTests.swift`; fixture support. `ManagedGoIntegrationTests.swift`; concurrent work/title assertions, retaining P01 assertions. |
-| Fixture/report | `macos/Tests/GatorCoreTests/Fixtures/native-catalog-seed.go`; canonical disposable setup. This report and `macos/parity/evidence/p02/`. |
+| Fixture/report | `macos/Tests/HotCrossBunsCoreTests/Fixtures/native-catalog-seed.go`; canonical disposable setup. This report and `macos/parity/evidence/p02/`. |
 
-Core/Mac/test paths are under `macos/Sources` or `macos/Tests/GatorCoreTests` respectively. Go integration filenames in the second row are under `internal/workapp`. No production JS, package dependency, README, credential/provider configuration, canonical catalog storage implementation or transport replacement.
+Core/Mac/test paths are under `macos/Sources` or `macos/Tests/HotCrossBunsCoreTests` respectively. Go integration filenames in the second row are under `internal/workapp`. No production JS, package dependency, README, credential/provider configuration, canonical catalog storage implementation or transport replacement.
 
 ## 13. Package and remaining limitations
 
 ```sh
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Parity-P02.app bash macos/scripts/build-dev-app.sh
-xcrun vtool -show-build /tmp/Gator-Native-Parity-P02.app/Contents/MacOS/GatorMac
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Parity-P02.app bash macos/scripts/build-dev-app.sh
+xcrun vtool -show-build /tmp/HotCrossBuns-Native-Parity-P02.app/Contents/MacOS/HotCrossBunsMac
 ```
 
 Packaging and plist validation passed. After the last Go-only cached-title correction, the candidate's Go resource was replaced with the exact `go build -trimpath` runtime used in the passing final suite; packaged-runtime integration checks followed. Swift UI bytes did not change. No signing/notarization/distribution work. P01 and prior safety/UI/UX candidates are preserved, with hashes in the manifest.

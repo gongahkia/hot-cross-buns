@@ -28,7 +28,7 @@ identity services are not simulated into existence.
 
 `results/openai-2026-10-30` preserves the first complete run. Original reports
 retain their absolute disposable-state provenance; portable final artifacts are
-under `gator/` and text baseline turns under `direct/`. The same report includes
+under `hot-cross-buns/` and text baseline turns under `direct/`. The same report includes
 a separate synthetic acceptance of the pending note proposal via the actual
 CLI. Acceptance created a new note rather than updating the existing one.
 
@@ -36,7 +36,7 @@ The first learning comparison had an ambiguous follow-up: the direct model had
 asked a changed-base-rate practice question, so its different numerical answer
 was mathematically valid. Its initial review has an explicit amendment. The
 corpus now specifies the original 20/980 example and gets a focused rerun; do not
-use the original learning review to claim a Gator advantage. Other initial task
+use the original learning review to claim a Hot Cross Buns advantage. Other initial task
 results remain unchanged. The initial raw baseline per-turn usage omitted request
 counts; there are six recorded calls. The runner now explicitly records one
 request per direct call. Provider token counts are unchanged.

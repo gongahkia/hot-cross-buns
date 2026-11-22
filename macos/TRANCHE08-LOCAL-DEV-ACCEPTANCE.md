@@ -6,7 +6,7 @@ Date: 2026-11-17. Starting HEAD: `87339a6112d8c68f9d0a7b64e982b0d7dad6d424`; wor
 
 ## A. Pending-approval navigation — PASS
 
-Used the actual `/tmp/Gator-Native-Tranche08-Enhanced-Final.app`, a disposable workspace/profile, a loopback custom provider and Go's existing `web_access` exact approval. The provider requests a review of access to `https://acceptance.example.invalid` and implements no fetch/search/send. The request was declined. No real account or credential was configured.
+Used the actual `/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app`, a disposable workspace/profile, a loopback custom provider and Go's existing `web_access` exact approval. The provider requests a review of access to `https://acceptance.example.invalid` and implements no fetch/search/send. The request was declined. No real account or credential was configured.
 
 A transparent test-only runtime observer forwarded bridge bytes unchanged to/from the **actual bundled Go runtime**. It recorded owner IDs, interaction IDs, SHA256 hashes of tokens/review content and approval-frame metadata. It neither synthesized snapshots nor changed authorization. Raw tokens stay in the private disposable profile; committed evidence contains hashes only. This instrumentation is an evidence collector, not a product protocol or coordinator.
 
@@ -63,7 +63,7 @@ The offline capture used synthetic credentials and zero network requests. No bas
 
 OpenAI documents both endpoints and their input formats in the [migration reference](https://developers.openai.com/api/docs/guides/migrate-to-responses). Its [regional guidance](https://developers.openai.com/api/docs/guides/data-residency) lists `us.api.openai.com` for US projects and shows this exact model using Responses there. **[Inference]** the global-host request conflicts with this project's US geography configuration. This is not evidence that Responses is unsupported. The US host was not called after the one-request budget was spent; successful regional inference remains unverified.
 
-No Gator adapter defect was found, so no protocol fix or automatic fallback was added. Preserve the explicit known-working Chat endpoint `https://api.openai.com/v1/chat/completions`. No key rotation, `.env` edit or provider-default change occurred. The concrete operator candidate is the existing endpoint override **`https://us.api.openai.com/v1/responses`**, after confirming the project's region. Gator's OpenAI `BaseURL` is a complete endpoint, so include `/responses`; SDK examples instead show a `/v1` base and append the route. The existing native settings field is `provider_endpoints.openai`; it was inspected, not written. The offline `offline-regional-override.jsonl` capture verifies this full URL is respected with no network call or product change. Responses-specific acceptance remains open until that authorized regional route is tested. Existing Gator paths, if needed for deliberate configuration repair, remain `~/.config/gator/config.json` and `~/.local/state/gator/auth.json`; no provider setup was implemented in this pass.
+No Hot Cross Buns adapter defect was found, so no protocol fix or automatic fallback was added. Preserve the explicit known-working Chat endpoint `https://api.openai.com/v1/chat/completions`. No key rotation, `.env` edit or provider-default change occurred. The concrete operator candidate is the existing endpoint override **`https://us.api.openai.com/v1/responses`**, after confirming the project's region. Hot Cross Buns's OpenAI `BaseURL` is a complete endpoint, so include `/responses`; SDK examples instead show a `/v1` base and append the route. The existing native settings field is `provider_endpoints.openai`; it was inspected, not written. The offline `offline-regional-override.jsonl` capture verifies this full URL is respected with no network call or product change. Responses-specific acceptance remains open until that authorized regional route is tested. Existing Hot Cross Buns paths, if needed for deliberate configuration repair, remain `~/.config/hot-cross-buns/config.json` and `~/.local/state/hot-cross-buns/auth.json`; no provider setup was implemented in this pass.
 
 ## C. Accessibility — automated PASS; physical checks NOT TESTED
 
@@ -77,42 +77,42 @@ The concise eight-check operator table is appended to [TRANCHE08-OPERATOR-ACCEPT
 
 Application Swift/Go code: **none**. Tests and evidence only:
 
-- `Tests/GatorCoreTests/Fixtures/dev-acceptance-provider.mjs`: deterministic inert advertised-tool proposal and independently held work.
-- `Tests/GatorCoreTests/Fixtures/dev-acceptance-runtime.py`: transparent, test-only bridge observer.
-- `Tests/GatorCoreTests/NativeReviewIntegrationTests.swift`: optional fixture name on the existing helper; original default unchanged.
-- `Tests/GatorCoreTests/NativeInertApprovalIntegrationTests.swift`: new real-Go regression for owner/draft/approval isolation.
+- `Tests/HotCrossBunsCoreTests/Fixtures/dev-acceptance-provider.mjs`: deterministic inert advertised-tool proposal and independently held work.
+- `Tests/HotCrossBunsCoreTests/Fixtures/dev-acceptance-runtime.py`: transparent, test-only bridge observer.
+- `Tests/HotCrossBunsCoreTests/NativeReviewIntegrationTests.swift`: optional fixture name on the existing helper; original default unchanged.
+- `Tests/HotCrossBunsCoreTests/NativeInertApprovalIntegrationTests.swift`: new real-Go regression for owner/draft/approval isolation.
 - This report, append-only supplements to the three reviewed reports and operator checklist, and `Evidence/Local-Dev-Acceptance/`.
 
-The headless evidence directory also contains the probe/launch/observation source as `.txt` files for review/reproduction. The controlled launcher is run from the repository root after quitting other Gator instances; it launches only a disposable profile and loopback provider. Quit the fixture app and stop its terminal process afterward. Do not run the one-request live source again with a known rejected route without new justification.
+The headless evidence directory also contains the probe/launch/observation source as `.txt` files for review/reproduction. The controlled launcher is run from the repository root after quitting other Hot Cross Buns instances; it launches only a disposable profile and loopback provider. Quit the fixture app and stop its terminal process afterward. Do not run the one-request live source again with a known rejected route without new justification.
 
 ## E. Exact checks and results
 
 All commands ran from the repository root. Full logs are under `Evidence/Local-Dev-Acceptance/headless/`.
 
 ```sh
-GATOR_INSPECT_MODEL=gpt-5.6-terra go run ./.gator/dev-wire-inspection
+HOT_CROSS_BUNS_INSPECT_MODEL=gpt-5.6-terra go run ./.hot-cross-buns/dev-wire-inspection
 # Synthetic request capture; zero network requests. Source archived as offline-wire-comparison.go.txt.
-python3 /tmp/gator-dev-headless-fixture.py
+python3 /tmp/hot-cross-buns-dev-headless-fixture.py
 # Genuine pending approval established before desktop launch; source/log archived.
-GATOR_TEST_BINARY=/tmp/Gator-Native-Tranche08-Enhanced-Final.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   --filter realGoInertApprovalNavigation
 # 1 PASS /0.883s.
 go test ./internal/model/openai ./internal/model/chatcompletions ./internal/model/providerhttp -count=1
 # 3 packages PASS.
-go build -o /tmp/gator-native-runtime ./cmd/gator
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
 # PASS.
 go test ./internal/model/... ./internal/agent ./internal/telemetry ./internal/workrun \
-  ./internal/cliagent ./internal/sandbox ./cmd/gator ./internal/workapp ./internal/attachment -count=1
+  ./internal/cliagent ./internal/sandbox ./cmd/hot-cross-buns ./internal/workapp ./internal/attachment -count=1
 # 15 packages PASS.
-swift build --package-path macos --scratch-path /tmp/gator-native-build
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 # PASS; native executable identical to retained bundle.
-GATOR_TEST_BINARY=/tmp/Gator-Native-Tranche08-Enhanced-Final.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
 # 133 PASS /48.335s, including real bundled-Go integrations.
 fnm exec --using v26.7.0 node --test app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs
 # 16 PASS.
-GATOR_TEST_BINARY=/tmp/Gator-Native-Tranche08-Enhanced-Final.app/Contents/Resources/gator-runtime \
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app/Contents/Resources/hot-cross-buns-runtime \
   /Users/gongahkia/.npm/_npx/22f2fe8d8bc13000/node_modules/.bin/bun test app-host/tests/preparation-recovery.test.ts
 # 9 PASS /208 assertions.
 /Users/gongahkia/.npm/_npx/22f2fe8d8bc13000/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts \
@@ -122,19 +122,19 @@ git diff --check
 # PASS.
 ```
 
-Additional offline check: `go run ./.gator/dev-regional-inspection` PASS, one synthetic regional-endpoint capture and zero network requests; archived source and JSON are under `headless/`.
+Additional offline check: `go run ./.hot-cross-buns/dev-regional-inspection` PASS, one synthetic regional-endpoint capture and zero network requests; archived source and JSON are under `headless/`.
 
 The one canonical live probe was built from the archived Go source and invoked by a private `.env`-loading harness; output was checked for literal credentials before being written. No secret appeared in commands or evidence. No test assertion was weakened. No failed headless test/build occurred in this pass. The initial AX focus-setter mismatch is documented separately from the accepted native keyboard rerun.
 
 ## F. Final local app
 
-Retained: **`/tmp/Gator-Native-Tranche08-Enhanced-Final.app`**.
+Retained: **`/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app`**.
 
 ```sh
-open "/tmp/Gator-Native-Tranche08-Enhanced-Final.app" --args --open-window
+open "/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app" --args --open-window
 ```
 
-No production fix was needed; fixture/test/report changes do not change the app. A new `/tmp/Gator-Native-Dev-Accepted.app` would contain the same application, so it was unnecessary. All six candidate bundle file hashes match the previous record; the native executable matches the fresh build. Actual arm64 native/Go metadata, literal credential scan and unchanged-candidate verification are in `headless/bundle-integrity.json`. The native desktop run and Swift integrations used its actual bundled Go runtime. No signing, notarization, installer, update or release-infrastructure work was performed.
+No production fix was needed; fixture/test/report changes do not change the app. A new `/tmp/HotCrossBuns-Native-Dev-Accepted.app` would contain the same application, so it was unnecessary. All six candidate bundle file hashes match the previous record; the native executable matches the fresh build. Actual arm64 native/Go metadata, literal credential scan and unchanged-candidate verification are in `headless/bundle-integrity.json`. The native desktop run and Swift integrations used its actual bundled Go runtime. No signing, notarization, installer, update or release-infrastructure work was performed.
 
 ## G. Remaining defects and limits
 

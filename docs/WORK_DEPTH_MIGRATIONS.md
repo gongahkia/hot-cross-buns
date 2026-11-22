@@ -22,7 +22,7 @@ Capture IDs and content tree IDs now differ. Snapshot garbage collection retains
 shared trees referenced by any capture and frozen job snapshots. Source refresh
 creates a new capture and never replaces an earlier revision's evidence.
 
-Private paths below `STATE/gator/` include conversations, tasks/RUN, interactions/RUN,
+Private paths below `STATE/hot-cross-buns/` include conversations, tasks/RUN, interactions/RUN,
 candidates/RUN, traces/RUN, jobs/definitions, and jobs/history/JOB/ATTEMPT. Work
 bundles contain deliverables and selected evidence. Portable export excludes raw
 replay and executable project configuration. Trace files default to bounded
@@ -32,33 +32,33 @@ Scheduled execution writes intent before the schedule watermark, then writes a
 stable `try-N.json` Work run reference before each retry. Recovery treats an
 existing slot intent as already claimed, even if the watermark write was lost.
 A foreground supervisor reconciles interrupted attempts into history/inbox;
-it does not repeat unknown effects. Inspect `gator work tasks RUN_ID` and job
+it does not repeat unknown effects. Inspect `hot-cross-buns work tasks RUN_ID` and job
 history before deliberately starting new work. `start_agent` may use `continue`
 with a completed task ID in the current run or `PARENT_RUN/subagent-NNN` from the
 selected parent revision. Interrupted/active retained outcomes cannot be retried
 through that shortcut.
 
 The execution model is bounded durable state, not instruction-level checkpoint
-replay or exactly-once external execution. `gator work decisions` shows recorded
-pending approvals across runs; `gator work decisions RUN_ID --json` includes exact
-previews and the retained resolution for one run. `gator work activity [--json]`
+replay or exactly-once external execution. `hot-cross-buns work decisions` shows recorded
+pending approvals across runs; `hot-cross-buns work decisions RUN_ID --json` includes exact
+previews and the retained resolution for one run. `hot-cross-buns work activity [--json]`
 joins running Work records, specialist statuses, and pending decision IDs
 without exposing approval previews. Stale run records
 remain visible for recovery, but their task checkpoints are not live evidence.
 New foreground runs hold a local process lock while they can ask for approvals;
-`gator work decisions` labels a
+`hot-cross-buns work decisions` labels a
 recorded pending decision as active, stale after the process exits, or
 unconfirmed for older records without a lock. `/status` shows the current Work
-run ID. Another terminal can use `gator work steer RUN_ID TEXT` to queue an
+run ID. Another terminal can use `hot-cross-buns work steer RUN_ID TEXT` to queue an
 instruction for the next model boundary if the run continues, or
-`gator work stop RUN_ID` to request
+`hot-cross-buns work stop RUN_ID` to request
 cancellation. A queued instruction may not apply if the run finishes first.
-`gator work cancel-task RUN_ID TASK_ID` requests cancellation of one active
+`hot-cross-buns work cancel-task RUN_ID TASK_ID` requests cancellation of one active
 specialist and its descendants while the parent continues. It fails for an
-unknown or finished task; inspect `gator work tasks RUN_ID TASK_ID` to see the
+unknown or finished task; inspect `hot-cross-buns work tasks RUN_ID TASK_ID` to see the
 terminal status. Cancellation is a request, not proof that an external side
 effect was undone.
-`gator work steer-task RUN_ID TASK_ID TEXT` queues a bounded instruction for
+`hot-cross-buns work steer-task RUN_ID TASK_ID TEXT` queues a bounded instruction for
 one active LLM specialist through the same private endpoint. The instruction
 applies only at a later model boundary if that specialist continues; a queued
 instruction may never apply if the task finishes first. Hosted Code specialists
@@ -67,7 +67,7 @@ uses the same specialist queue.
 An active foreground run exposes a private loopback endpoint with
 an ephemeral token in a mode-0600 state file; commands verify the run lease and
 endpoint identity. For a pending interactive Work decision, another terminal
-can run `gator work answer RUN_ID DECISION_ID`, inspect the escaped exact preview
+can run `hot-cross-buns work answer RUN_ID DECISION_ID`, inspect the escaped exact preview
 and its SHA-256 digest, and type `yes` or `no`. The live operation compares that
 digest with its original in-memory request before accepting the one-time answer;
 edited previews and replays fail. One-shot CLI Work still uses its own foreground

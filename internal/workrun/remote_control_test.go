@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 )
 
 func TestRemoteSemanticExistingOwnerAcrossProcesses(t *testing.T) {
@@ -28,14 +28,14 @@ func TestRemoteSemanticExistingOwnerAcrossProcesses(t *testing.T) {
 			source := t.TempDir()
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			testName, flag, run := "TestWorkSpecialistSteerHelperProcess", "GATOR_TASK_STEER_HELPER=1", "cross-process-steering"
+			testName, flag, run := "TestWorkSpecialistSteerHelperProcess", "HOT_CROSS_BUNS_TASK_STEER_HELPER=1", "cross-process-steering"
 			if kind == "decision" {
 				testName = "TestWorkDecisionHelperProcess"
-				flag = "GATOR_DECISION_HELPER=1"
+				flag = "HOT_CROSS_BUNS_DECISION_HELPER=1"
 				run = "cross-process-decision"
 			}
 			child := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+testName+"$")
-			child.Env = append(os.Environ(), flag, "GATOR_CONTROL_STATE="+f.state, "GATOR_CONTROL_SOURCE="+source)
+			child.Env = append(os.Environ(), flag, "HOT_CROSS_BUNS_CONTROL_STATE="+f.state, "HOT_CROSS_BUNS_CONTROL_SOURCE="+source)
 			input, err := child.StdinPipe()
 			if err != nil {
 				t.Fatal(err)
@@ -380,8 +380,8 @@ func TestRemoteApprovalReviewRejectsSyntheticChangedAndUnsupportedPreviews(t *te
 	}
 }
 func TestRemoteSemanticCrashWindows(t *testing.T) {
-	if os.Getenv("GATOR_REMOTE_CRASH") != "" {
-		state := os.Getenv("GATOR_REMOTE_STATE")
+	if os.Getenv("HOT_CROSS_BUNS_REMOTE_CRASH") != "" {
+		state := os.Getenv("HOT_CROSS_BUNS_REMOTE_STATE")
 		var input struct {
 			Binding   executiontarget.Binding
 			Authority CompanionAuthority
@@ -394,7 +394,7 @@ func TestRemoteSemanticCrashWindows(t *testing.T) {
 		if err := c.grant(context.Background(), ControlAccess{Actor: input.Actor.ID, Operation: executiontarget.Cancel, Seconds: 60, Authority: input.Authority}); err != nil {
 			os.Exit(3)
 		}
-		if os.Getenv("GATOR_REMOTE_CRASH") == "before" {
+		if os.Getenv("HOT_CROSS_BUNS_REMOTE_CRASH") == "before" {
 			c.afterClaim = func() { os.Exit(19) }
 		} else {
 			c.afterDispatch = func() { os.Exit(19) }
@@ -412,7 +412,7 @@ func TestRemoteSemanticCrashWindows(t *testing.T) {
 			}{f.binding, f.authority, f.actor})
 			os.WriteFile(filepath.Join(f.state, "fixture.json"), data, 0600)
 			child := exec.Command(os.Args[0], "-test.run=^TestRemoteSemanticCrashWindows$")
-			child.Env = append(os.Environ(), "GATOR_REMOTE_CRASH="+window, "GATOR_REMOTE_STATE="+f.state)
+			child.Env = append(os.Environ(), "HOT_CROSS_BUNS_REMOTE_CRASH="+window, "HOT_CROSS_BUNS_REMOTE_STATE="+f.state)
 			if err := child.Run(); err == nil {
 				t.Fatal("no crash")
 			}

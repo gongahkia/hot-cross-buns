@@ -3,7 +3,7 @@
 Run from the repository root, choosing a new report filename in an existing directory:
 
 ```sh
-go run ./scripts/memory-evolution /tmp/gator-memory-evolution.json
+go run ./scripts/memory-evolution /tmp/hot-cross-buns-memory-evolution.json
 ```
 
 This calls the real memory tools/stores and learning store using disposable,

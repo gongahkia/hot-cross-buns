@@ -11,12 +11,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestRetainedKnowledgeReferencesIgnoreConversationTextAndBoundRecentAncestry(t *testing.T) {
@@ -61,7 +61,7 @@ func TestKnowledgeRefreshKeepsCurrentScopeExclusionsAndUnavailableStates(t *test
 		t.Fatal(err)
 	}
 	bad, _ := memories.Add("fact", "CORRUPT VALUE", "", "user", time.Time{})
-	if err := os.WriteFile(filepath.Join(state, "gator/memory", bad.ID+".json"), []byte("{"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(state, "hot-cross-buns/memory", bad.ID+".json"), []byte("{"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	note, _ := notes.AddNote("Current note", "Current note body", "")
@@ -127,7 +127,7 @@ func TestContinuationRefreshesCorrectionsAndWithdrawalWithoutRewritingReplayOrSp
 	if err != nil {
 		t.Fatal(err)
 	}
-	original, err := os.ReadFile(filepath.Join(state, "gator/conversations", first.ConversationID, "revisions", first.RevisionID+".json"))
+	original, err := os.ReadFile(filepath.Join(state, "hot-cross-buns/conversations", first.ConversationID, "revisions", first.RevisionID+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestContinuationRefreshesCorrectionsAndWithdrawalWithoutRewritingReplayOrSp
 	if calls != 1 {
 		t.Fatal("refresh spent another model request", calls)
 	}
-	if current, err := os.ReadFile(filepath.Join(state, "gator/conversations", first.ConversationID, "revisions", first.RevisionID+".json")); err != nil || string(current) != string(original) {
+	if current, err := os.ReadFile(filepath.Join(state, "hot-cross-buns/conversations", first.ConversationID, "revisions", first.RevisionID+".json")); err != nil || string(current) != string(original) {
 		t.Fatal("retained revision changed", err)
 	}
 	sessions, _ := worksession.Open(state)

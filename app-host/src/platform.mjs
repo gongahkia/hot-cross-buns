@@ -2,15 +2,15 @@ import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 
 export function runtimeName(platform = process.platform) {
-  return platform === "win32" || platform === "windows" ? "gator-runtime.exe" : "gator-runtime";
+  return platform === "win32" || platform === "windows" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime";
 }
 
 export function stateDirectory(env = process.env, platform = process.platform) {
-  const override = env.GATOR_STATE_DIR?.trim() || env.XDG_STATE_HOME?.trim();
+  const override = env.HOT_CROSS_BUNS_STATE_DIR?.trim() || env.XDG_STATE_HOME?.trim();
   if (override) return resolve(override);
   if (platform === "win32") {
     if (!env.LOCALAPPDATA?.trim()) throw new Error("Windows Local AppData is unavailable.");
-    return join(env.LOCALAPPDATA, "Gator", "state");
+    return join(env.LOCALAPPDATA, "Hot Cross Buns", "state");
   }
   return join(homedir(), ".local", "state");
 }
@@ -19,7 +19,7 @@ export function stateDirectory(env = process.env, platform = process.platform) {
 // upload/draft namespace remains launch-relative for compatibility, so use this
 // location specifically for authoritative native journals and profile guards.
 export function backendStateDirectory(env, workspace, platform = process.platform) {
-  const override = env.GATOR_STATE_DIR?.trim() || env.XDG_STATE_HOME?.trim();
+  const override = env.HOT_CROSS_BUNS_STATE_DIR?.trim() || env.XDG_STATE_HOME?.trim();
   return platform !== "win32" && override ? resolve(workspace, override) : stateDirectory(env, platform);
 }
 

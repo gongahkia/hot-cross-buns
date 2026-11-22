@@ -6,7 +6,7 @@
 
 The pet may remain visible in fullscreen and shared screens. The Settings explanation explicitly says so; automatic suppression and screen-sharing detection are not implemented. Interactive click/drag behavior from the B1 experiment is not included.
 
-Development bundle: `/tmp/Gator-Native-P04M-B2.app`. The exact final binary was launched from a disposable bundle, showed its pet from a menu-bar-only launch, responded to Tuck Away, and exited through guarded Quit. Its SHA-256 is `a92b8c85a8a782b3d803efe7c51e5c2fa9f7fe9e945680adbfc4d497c4b97857`; see [manifest](evidence/p04m-b2/final-manifest.json).
+Development bundle: `/tmp/HotCrossBuns-Native-P04M-B2.app`. The exact final binary was launched from a disposable bundle, showed its pet from a menu-bar-only launch, responded to Tuck Away, and exited through guarded Quit. Its SHA-256 is `a92b8c85a8a782b3d803efe7c51e5c2fa9f7fe9e945680adbfc4d497c4b97857`; see [manifest](evidence/p04m-b2/final-manifest.json).
 
 The accepted P04/A2 apps, B1 lab, original assets and previous prototypes remain preserved. No P05 or other parity feature was started.
 
@@ -18,10 +18,10 @@ Initial HEAD: `8bd1bcbce6c98cb968314fb1f96fbccd6498f493`, clean worktree. HEAD a
 
 The only persistent additions are native presentation preferences:
 
-- `gator.desktopPet.shown`, default false.
-- `gator.desktopPet.display`, default empty, meaning primary display.
+- `hot-cross-buns.desktopPet.shown`, default false.
+- `hot-cross-buns.desktopPet.display`, default empty, meaning primary display.
 
-Style and animation reuse `gator.mascot.style` and `gator.mascot.animated`; OS Reduce Motion wins. The desktop controller does not read the in-chat `shown` preference. All four combinations of in-chat/desktop visibility are supported and tested. Tuck Away writes the desktop enable flag false; activity, completion, wake and relaunch cannot enable it. No preference goes into a conversation or draft archive.
+Style and animation reuse `hot-cross-buns.mascot.style` and `hot-cross-buns.mascot.animated`; OS Reduce Motion wins. The desktop controller does not read the in-chat `shown` preference. All four combinations of in-chat/desktop visibility are supported and tested. Tuck Away writes the desktop enable flag false; activity, completion, wake and relaunch cannot enable it. No preference goes into a conversation or draft archive.
 
 Go ownership, request admission, provider credentials, workspace scope, approval/plan/recovery identities, archive transactions, and shutdown transport are unchanged. No extra Go owner is created by this presentation. The disposable native session produced zero work-history files and zero request archives; no model credential was supplied. A loopback-only endpoint was configured as additional protection in that test profile. No paid provider request or external action was made.
 
@@ -43,13 +43,13 @@ The 72 × 72 pt panel is centered in the selected screen's usable region, with a
 
 Display choice uses the Core Graphics display UUID. Missing chosen displays fall back to the primary display without overwriting the saved UUID, allowing the choice to recover when that screen returns. No absolute coordinates are stored. If the panel cannot safely fit, it remains hidden. Settings show an explicit unavailable-display/fallback option when appropriate.
 
-Negative origins, a secondary display, missing/no displays, tiny geometry, notch clearance and preserved chosen identity are covered headlessly. Physical monitor unplug/replug, Spaces/Mission Control and actual sleep/wake remain **NOT TESTED**. Sleep/wake notification handling is tested with process-local notifications; that is not a physical sleep trial. There is one pet per running Gator instance, not a cross-process singleton across independently launched apps.
+Negative origins, a secondary display, missing/no displays, tiny geometry, notch clearance and preserved chosen identity are covered headlessly. Physical monitor unplug/replug, Spaces/Mission Control and actual sleep/wake remain **NOT TESTED**. Sleep/wake notification handling is tested with process-local notifications; that is not a physical sleep trial. There is one pet per running Hot Cross Buns instance, not a cross-process singleton across independently launched apps.
 
 ## Controls and actual desktop checks
 
 Settings → Mascot Appearance now distinguishes **Show In-Chat Mascot** from **Show Desktop Pet**, provides display selection, and includes Tuck Away. Both the full-window Conversation menu and compact chat's existing menu expose Show/Tuck Away through the same reusable controls. Shared style and Animate controls remain where they were.
 
-The desktop checks used a disposable copy of the packaged app with only its bundle identifier changed to `dev.gator.pet.b2.fixture`, isolated native/state/config/workspace directories, no credentials and no paid endpoint. Existing B1 allowlisted tools were compiled into `/tmp` with the B2 fixture identifier/title substitutions; original B1 source/evidence was not modified. No system settings or real profile preferences were changed.
+The desktop checks used a disposable copy of the packaged app with only its bundle identifier changed to `dev.hot-cross-buns.pet.b2.fixture`, isolated native/state/config/workspace directories, no credentials and no paid endpoint. Existing B1 allowlisted tools were compiled into `/tmp` with the B2 fixture identifier/title substitutions; original B1 source/evidence was not modified. No system settings or real profile preferences were changed.
 
 Observed:
 
@@ -98,17 +98,17 @@ All commands ran headlessly except the explicitly described native checks. Build
 
 | Command/check | Result |
 |---|---|
-| `swift build --package-path macos --scratch-path /tmp/gator-native-build` | PASS |
+| `swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build` | PASS |
 | Initial `swift test … --no-parallel --filter desktopPet` | 10 focused tests PASS |
-| Final `GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P04.app/Contents/Resources/gator-runtime swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel` | **255 tests PASS**, 139.065 s: 243 baseline + 12 new desktop tests |
-| `swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter 'desktopPet\|mascot'` | **28 tests PASS**; all package/test sources compile strictly |
-| `go test ./cmd/gator ./internal/workapp ./internal/worksession ./internal/workspace ./internal/workactivity ./internal/modelcatalog ./internal/auth ./internal/config` | **Eight packages PASS**, cached |
+| Final `HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P04.app/Contents/Resources/hot-cross-buns-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel` | **255 tests PASS**, 139.065 s: 243 baseline + 12 new desktop tests |
+| `swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter 'desktopPet\|mascot'` | **28 tests PASS**; all package/test sources compile strictly |
+| `go test ./cmd/hot-cross-buns ./internal/workapp ./internal/worksession ./internal/workspace ./internal/workactivity ./internal/modelcatalog ./internal/auth ./internal/config` | **Eight packages PASS**, cached |
 | Node 26: `--test app-host/tests/backend.test.mjs app-host/tests/native.test.mjs app-host/tests/sessions.test.mjs app-host/tests/drafts.test.mjs app-host/tests/reading-state.test.mjs` | **41 tests PASS** |
-| `GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-P04M-B2-Final.app bash macos/scripts/build-dev-app.sh` | PASS; final stage promoted to requested B2 path |
-| `xcrun vtool -show-build …/Contents/MacOS/GatorMac` | minimum macOS 15.0 |
+| `HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-P04M-B2-Final.app bash macos/scripts/build-dev-app.sh` | PASS; final stage promoted to requested B2 path |
+| `xcrun vtool -show-build …/Contents/MacOS/HotCrossBunsMac` | minimum macOS 15.0 |
 | `git diff --check` | PASS |
 
-The first full pass had 253 tests before two more lifecycle tests were added; the final full pass includes all 255. The final strict check recompiles after the only subsequent production edit, removal of an extra trailing blank line. The final bundle was rebuilt and its exact executable smoke-tested. The earlier GUI-checked bundle is preserved at `/tmp/Gator-Native-P04M-B2-GUI-Checked.app`.
+The first full pass had 253 tests before two more lifecycle tests were added; the final full pass includes all 255. The final strict check recompiles after the only subsequent production edit, removal of an extra trailing blank line. The final bundle was rebuilt and its exact executable smoke-tested. The earlier GUI-checked bundle is preserved at `/tmp/HotCrossBuns-Native-P04M-B2-GUI-Checked.app`.
 
 The initial draft build failed on unsupported synthesized equality for `NSEdgeInsets` and an incorrectly unannotated actor-bound closure type. Equality was unnecessary and removed; closure isolation was made explicit. Final build/strict tests pass without weakened checks. A preliminary host run covered 32 tests; the final 41-test run includes the existing draft and reading-state regressions.
 
@@ -120,7 +120,7 @@ Production changes:
 
 - `NativeDesktopPet.swift`: read-only presentation controller, safe placement/display model and passive panel.
 - `AppDelegate.swift`: owns the optional presentation and stops it on final termination; guarded Quit body unchanged.
-- `GatorApp.swift`: initializes that one presentation with public selected-owner projection and adds menu controls.
+- `HotCrossBunsApp.swift`: initializes that one presentation with public selected-owner projection and adds menu controls.
 - `ConversationView.swift`: one shared menu-control insertion; transcript/composer/review layout unchanged.
 - `NativeMascotPreferences.swift`: independent desktop setting, display picker, Tuck Away and manual-hiding explanation; clearer in-chat label.
 

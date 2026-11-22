@@ -15,7 +15,7 @@ flags.push(...googleOAuthFlags());
 const scratch = process.env.GOTMPDIR ? undefined : mkdtempSync(join(output, ".build-"));
 let result;
 try {
-  result = spawnSync("go", ["build", "-trimpath", "-ldflags", flags.join(" "), "-o", join(output, process.env.GOOS === "windows" || !process.env.GOOS && process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"), "./cmd/gator"], { cwd: root, stdio: "inherit", windowsHide: true, env: { ...process.env, GOTMPDIR: process.env.GOTMPDIR || scratch } });
+  result = spawnSync("go", ["build", "-trimpath", "-ldflags", flags.join(" "), "-o", join(output, process.env.GOOS === "windows" || !process.env.GOOS && process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"), "./cmd/hot-cross-buns"], { cwd: root, stdio: "inherit", windowsHide: true, env: { ...process.env, GOTMPDIR: process.env.GOTMPDIR || scratch } });
 } finally {
   if (scratch) rmSync(scratch, { recursive: true, force: true });
 }

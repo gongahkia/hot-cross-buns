@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model/anthropic"
-	"github.com/gongahkia/gator/internal/model/chatcompletions"
-	"github.com/gongahkia/gator/internal/model/gemini"
-	"github.com/gongahkia/gator/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/model/anthropic"
+	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
+	"github.com/gongahkia/hot-cross-buns/internal/model/gemini"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
 )
 
 func openCodeBackend(provider Provider, config Config) (Backend, error) {
@@ -27,7 +27,7 @@ func openCodeBackend(provider Provider, config Config) (Backend, error) {
 	}
 	protocol, found := openCodeModelProtocol(provider, config.Model)
 	if !found {
-		return Backend{}, fmt.Errorf("model %q is not in the embedded %s catalog version %s; choose a documented OpenCode model or update Gator's catalog", config.Model, openCodeProviderName(provider), openCodeCatalogVersion)
+		return Backend{}, fmt.Errorf("model %q is not in the embedded %s catalog version %s; choose a documented OpenCode model or update Hot Cross Buns's catalog", config.Model, openCodeProviderName(provider), openCodeCatalogVersion)
 	}
 	switch protocol {
 	case openCodeResponses:

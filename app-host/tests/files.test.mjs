@@ -8,7 +8,7 @@ import { selectedFileSource } from "../src/file-sources.mjs";
 import { applyContent, inspectContent, parseTable } from "../src/file-content.mjs";
 
 test("files retain full contents, recover drafts, reject stale saves and restore without touching the original", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-file-store-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-file-store-"));
   try {
     const original = Buffer.from("# Original\n"), ref = { kind: "upload", id: `${"a".repeat(32)}/notes.md` }, request = { context: "conversation:one", ref };
     const source = async () => ({ name: "notes.md", bytes: original }), store = new FileStore(root);
@@ -32,7 +32,7 @@ test("files retain full contents, recover drafts, reject stale saves and restore
 });
 
 test("file sources require exact current conversation membership and reject paths, links and bad digests", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-file-authority-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-file-authority-"));
   try {
     const ref = { kind: "upload", id: `${"a".repeat(32)}/notes.md` }, files = new FileStore(join(root, "files"));
     await files.retain(ref, "notes.md", Buffer.from("Retained upload"));
@@ -61,7 +61,7 @@ test("CSV edits preserve quoting and CRLF, while invalid JSON cannot replace sav
 });
 
 test("a stale editor can discard its changes without deleting another editor's draft", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-file-conflict-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-file-conflict-"));
   try {
     const store = new FileStore(root), ref = { kind: "upload", id: `${"d".repeat(32)}/notes.md` }, source = async () => ({ name: "notes.md", bytes: Buffer.from("Original") });
     const request = { context: "one", ref }, first = await store.request({ ...request, action: "open" }, source);
@@ -75,10 +75,10 @@ test("a stale editor can discard its changes without deleting another editor's d
 });
 
 test("output working versions keep their identity after restoring a profile into another folder", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-file-restore-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-file-restore-"));
   try {
     const { cp } = await import("node:fs/promises");
-    const originalRoot = join(root, "old/gator"), newRoot = join(root, "restored/gator");
+    const originalRoot = join(root, "old/hot-cross-buns"), newRoot = join(root, "restored/hot-cross-buns");
     const ref = { kind: "output", bundle: join(originalRoot, "workspaces/run-one"), path: "report.md" };
     const store = new FileStore(join(originalRoot, "files")), source = async () => ({ name: "report.md", bytes: Buffer.from("Original report") });
     const first = await store.request({ action: "open", context: "one", ref }, source);
@@ -90,7 +90,7 @@ test("output working versions keep their identity after restoring a profile into
 });
 
 test("saving recovers an abandoned process lock but respects an active editor", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-file-crash-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-file-crash-"));
   try {
     const { spawnSync } = await import("node:child_process");
     const exited = spawnSync(process.execPath, ["-e", "" ]);

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestPlanSetupOutcomeIsRetainedButLateCancelledOutcomeCannotReviveTask(t *testing.T) {

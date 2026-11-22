@@ -8,10 +8,10 @@ import { addDevice, revokeDevice } from './auth.mjs';
 
 // Uses the companion's pinned Playwright. A path override supports an existing
 // isolated installation without changing this checkout's dependency tree.
-const { chromium, webkit } = await import(process.env.GATOR_PLAYWRIGHT_MODULE || './node_modules/playwright/index.mjs');
-for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',')) {
+const { chromium, webkit } = await import(process.env.HOT_CROSS_BUNS_PLAYWRIGHT_MODULE || './node_modules/playwright/index.mjs');
+for (const name of (process.env.HOT_CROSS_BUNS_COMPANION_BROWSERS || 'chromium').split(',')) {
   test(`${name}: recurring check health stays read-only, scoped and explicitly stale offline`, { timeout: 90000 }, async () => {
-    const root = await mkdtemp(join(tmpdir(), 'gator-phone-health-')), tokenFile = join(root, 'owner.token'), token = 'a'.repeat(64);
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-phone-health-')), tokenFile = join(root, 'owner.token'), token = 'a'.repeat(64);
     const check = { id: 'job-health', title: 'Project deadline <img src=x onerror="window.injected=true">', state: 'offline', issue: 'Daily model request limit reached', unsuccessful: 3, next_action: 'Start the local supervisor', gap_from: '2026-10-29T01:00:00Z', gap_to: '2026-10-29T02:00:00Z' };
     const health = { conversation_id: 'work-health', title: 'Monitored project', messages: [], queue: [], chat_checks: [check] };
     const other = { conversation_id: 'work-other', title: 'Separate chat', messages: [], queue: [] };
@@ -24,7 +24,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         spawnBackend: id => ({ state: id === health.conversation_id ? health : other, async ready() {}, async stop() { this.closed = true; }, async send() { actions++; }, async submitUpload() { actions++; } }),
       });
       const address = await companion.listen();
-      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`GATOR_${name.toUpperCase()}_EXECUTABLE`] });
+      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`HOT_CROSS_BUNS_${name.toUpperCase()}_EXECUTABLE`] });
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }), page = await context.newPage(), errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/v1/chats/work-health', async route => {
@@ -84,7 +84,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
       await page.setViewportSize({ width: 390, height: 844 });
       for (const colorScheme of ['dark', 'light']) {
         await page.emulateMedia({ colorScheme });
-        if (process.env.GATOR_COMPANION_SCREENSHOT) await page.screenshot({ path: `${process.env.GATOR_COMPANION_SCREENSHOT}-${name}-health-${colorScheme}.png`, fullPage: true });
+        if (process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT) await page.screenshot({ path: `${process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT}-${name}-health-${colorScheme}.png`, fullPage: true });
       }
       await page.getByRole('button', { name: 'Conversations', exact: true }).click();
       await page.getByRole('button', { name: /Separate chat/ }).click();
@@ -116,7 +116,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
     } finally { release(); await browser?.close(); await companion?.close(); await rm(root, { recursive: true, force: true }); }
   });
   test(`${name}: individual device tokens connect and revoke without disconnecting another device`, { timeout: 45000 }, async () => {
-    const root = await mkdtemp(join(tmpdir(), 'gator-phone-devices-')), tokenFile = join(root, 'owner.token');
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-phone-devices-')), tokenFile = join(root, 'owner.token');
     let companion, browser;
     try {
       await writeFile(tokenFile, 'a'.repeat(64) + '\n', { mode: 0o600 });
@@ -127,7 +127,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
       }
       companion = createCompanion({ tokenFile, queryCatalog: async () => ({ items: [{ id: 'work-private', title: 'Private device fixture', source: '/host/workspace' }] }) });
       const address = await companion.listen(), base = `http://127.0.0.1:${address.port}`;
-      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`GATOR_${name.toUpperCase()}_EXECUTABLE`] });
+      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`HOT_CROSS_BUNS_${name.toUpperCase()}_EXECUTABLE`] });
       const pages = [];
       for (const device of devices) {
         const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }), page = await context.newPage();
@@ -154,7 +154,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
     } finally { await browser?.close(); await companion?.close(); await rm(root, { recursive: true, force: true }); }
   });
   test(`${name}: follow-up status changes survive reconnect and reject stale decisions`, { timeout: 90000 }, async () => {
-    const root = await mkdtemp(join(tmpdir(), 'gator-phone-updates-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-phone-updates-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
     const actions = [], updates = [
       { id: 'inbox-new', title: 'Check needs attention <img src=x onerror="window.injected=true">', summary: 'Could not read the selected account.', status: 'failed', next_step: 'Reconnect on the host.', evidence: ['Account check: <script>not executable</script>'], created_at: '2026-10-29T01:00:00Z', read: false, resolved: false, version: 0 },
       { id: 'inbox-old', title: 'Earlier update', summary: 'An earlier retained result.', status: 'completed', created_at: '2026-10-28T01:00:00Z', read: false, resolved: false, version: 0 },
@@ -177,7 +177,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         } }; sync(); return backend;
       } });
       const address = await companion.listen(), base = `http://127.0.0.1:${address.port}`;
-      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`GATOR_${name.toUpperCase()}_EXECUTABLE`] });
+      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`HOT_CROSS_BUNS_${name.toUpperCase()}_EXECUTABLE`] });
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'dark' }), page = await context.newPage(), errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(base);
@@ -241,7 +241,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
       await page.setViewportSize({ width: 390, height: 844 });
       for (const colorScheme of ['dark', 'light']) {
         await page.emulateMedia({ colorScheme });
-        if (process.env.GATOR_COMPANION_SCREENSHOT) await page.screenshot({ path: `${process.env.GATOR_COMPANION_SCREENSHOT}-${name}-updates-${colorScheme}.png`, fullPage: true });
+        if (process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT) await page.screenshot({ path: `${process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT}-${name}-updates-${colorScheme}.png`, fullPage: true });
       }
       await context.setOffline(true);
       await page.waitForFunction(() => document.querySelector('#updates button').disabled);
@@ -256,7 +256,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
     } finally { await browser?.close(); await companion?.close(); await rm(root, { recursive: true, force: true }); }
   });
   test(`${name}: new-chat retries survive reload without duplicates or premature work`, { timeout: 90000 }, async () => {
-    const root = await mkdtemp(join(tmpdir(), 'gator-phone-new-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-phone-new-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
     const creations = new Map(), calls = [], submissions = [];
     let browser, companion, failOpen = true;
     try {
@@ -274,7 +274,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         }),
       });
       const address = await companion.listen(), base = `http://127.0.0.1:${address.port}`;
-      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`GATOR_${name.toUpperCase()}_EXECUTABLE`] });
+      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`HOT_CROSS_BUNS_${name.toUpperCase()}_EXECUTABLE`] });
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }), page = await context.newPage(), errors = [];
       page.on('pageerror', error => errors.push(error.message));
       const connect = async () => {
@@ -309,7 +309,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
       assert.deepEqual(calls, [calls[0], calls[0], calls[0]]);
       assert.equal(creations.size, 1);
       assert.equal(submissions.length, 0, 'opening must not start model work');
-      assert.equal(await page.evaluate(() => sessionStorage.getItem('gator.companion.creation.v1')), null);
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('hot-cross-buns.companion.creation.v1')), null);
       await page.locator('#message').fill('Start only after this send.');
       await page.getByRole('button', { name: 'Send message', exact: true }).click();
       await page.waitForFunction(() => document.querySelector('#message').value === '');
@@ -321,7 +321,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
       assert.equal(await page.locator('#message').inputValue(), 'Keep the original draft.');
       await page.getByRole('button', { name: 'Conversations', exact: true }).click();
       await page.locator('.chat-choice').waitFor();
-      if (process.env.GATOR_COMPANION_SCREENSHOT) await page.screenshot({ path: `${process.env.GATOR_COMPANION_SCREENSHOT}-${name}-new-chat.png`, fullPage: true });
+      if (process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT) await page.screenshot({ path: `${process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT}-${name}-new-chat.png`, fullPage: true });
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -339,7 +339,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
       await page.getByText('The host workspace changed. Dismiss this retry before starting another chat.', { exact: true }).waitFor();
       assert.equal(await page.getByRole('button', { name: 'Retry new chat', exact: true }).isDisabled(), true);
       await page.getByRole('button', { name: 'Dismiss retry', exact: true }).click();
-      assert.equal(await page.evaluate(() => sessionStorage.getItem('gator.companion.creation.v1')), null);
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('hot-cross-buns.companion.creation.v1')), null);
       assert.equal(calls.length, beforeDismiss, 'dismissing must not send or retry');
       assert.equal(creations.size, 2, 'dismissing must not delete the already-created chat');
       assert.equal(await page.evaluate(token => JSON.stringify({ ...sessionStorage, ...localStorage }).includes(token), token), false);
@@ -347,7 +347,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
     } finally { await browser?.close(); await companion?.close(); await rm(root, { recursive: true, force: true }); }
   });
   test(`${name}: browse, search and switch chats with independent retained drafts`, { timeout: 90000 }, async () => {
-    const root = await mkdtemp(join(tmpdir(), 'gator-phone-catalog-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-phone-catalog-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
     const queries = [], submissions = [], workers = new Map();
     let browser, companion, failCatalog = false;
     try {
@@ -365,7 +365,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         workers.set(id, worker); return worker;
       } });
       const address = await companion.listen(), base = `http://127.0.0.1:${address.port}`;
-      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`GATOR_${name.toUpperCase()}_EXECUTABLE`] });
+      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`HOT_CROSS_BUNS_${name.toUpperCase()}_EXECUTABLE`] });
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'dark' }), page = await context.newPage(), errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(base);
@@ -382,10 +382,10 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       }
       await page.setViewportSize({ width: 390, height: 844 });
-      if (process.env.GATOR_COMPANION_SCREENSHOT) {
-        await page.screenshot({ path: `${process.env.GATOR_COMPANION_SCREENSHOT}-${name}-catalog.png`, fullPage: true });
+      if (process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT) {
+        await page.screenshot({ path: `${process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT}-${name}-catalog.png`, fullPage: true });
         await page.emulateMedia({ colorScheme: 'light' });
-        await page.screenshot({ path: `${process.env.GATOR_COMPANION_SCREENSHOT}-${name}-catalog-light.png`, fullPage: true });
+        await page.screenshot({ path: `${process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT}-${name}-catalog-light.png`, fullPage: true });
         await page.emulateMedia({ colorScheme: 'dark' });
       }
       await page.getByLabel('Search titles and folders', { exact: true }).fill('missing');
@@ -453,7 +453,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
     } finally { await browser?.close(); await companion?.close(); await rm(root, { recursive: true, force: true }); }
   });
   test(`${name}: mobile reconnect, retained admission, exact approval and revocation`, { timeout: 90000 }, async () => {
-    const root = await mkdtemp(join(tmpdir(), 'gator-phone-'));
+    const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-phone-'));
     const tokenFile = join(root, 'token'), token = 'a'.repeat(64), submitted = [], decisions = [];
     let backend, browser, companion;
     const approval = (id, target) => ({ role: 'assistant', text: `Send the reviewed note to ${target}.`, result: { kind: 'approval', title: 'Review requested action', fields: [{ label: 'Request ID', value: String(id) }], preview: { to: target, body: '<img src=x onerror="window.injected=true">', attachments: ['report.txt'] } } });
@@ -478,7 +478,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         },
       } });
       const address = await companion.listen(), base = `http://127.0.0.1:${address.port}`;
-      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`GATOR_${name.toUpperCase()}_EXECUTABLE`] });
+      browser = await ({ chromium, webkit }[name]).launch({ headless: true, executablePath: process.env[`HOT_CROSS_BUNS_${name.toUpperCase()}_EXECUTABLE`] });
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'dark' });
       const page = await context.newPage(), errors = [];
       page.on('pageerror', error => errors.push(error.message));
@@ -543,7 +543,7 @@ for (const name of (process.env.GATOR_COMPANION_BROWSERS || 'chromium').split(',
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `horizontal overflow at ${width}px`);
       }
       await page.setViewportSize({ width: 390, height: 844 });
-      const screenshot = process.env.GATOR_COMPANION_SCREENSHOT;
+      const screenshot = process.env.HOT_CROSS_BUNS_COMPANION_SCREENSHOT;
       if (screenshot) {
         await page.evaluate(() => scrollTo(0, 0));
         await page.screenshot({ path: `${screenshot}-${name}.png` });

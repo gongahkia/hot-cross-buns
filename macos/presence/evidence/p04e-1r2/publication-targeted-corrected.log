@@ -2,45 +2,45 @@
 Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--58304C5D6DBC2206.txt
-[3/5] Emitting module GatorCoreTests
-[4/5] Compiling GatorCoreTests NativeSnapshotPublicationTests.swift
-[5/36] Compiling GatorCoreTests NativeCatalogTests.swift
-[6/36] Compiling GatorCoreTests NativeClosingSafetyTests.swift
-[7/36] Compiling GatorCoreTests NativeClosureAcceptanceTests.swift
-[8/36] Compiling GatorCoreTests NativeInertApprovalIntegrationTests.swift
-[9/36] Compiling GatorCoreTests NativeAttachmentDraftTests.swift
-[10/36] Compiling GatorCoreTests NativeAttachmentIntegrationTests.swift
-[11/36] Compiling GatorCoreTests NativeCatalogIntegrationTests.swift
-[12/36] Compiling GatorCoreTests NativeCatalogOwnerTests.swift
-[13/36] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
-[14/36] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
-[15/36] Compiling GatorCoreTests RecoveryPreparationTests.swift
-[16/36] Compiling GatorCoreTests NativePerformanceTests.swift
-[17/36] Compiling GatorCoreTests NativePlanAuthorizationTests.swift
-[18/36] Compiling GatorCoreTests NativePlanIntegrationTests.swift
-[19/36] Compiling GatorCoreTests NativeProviderIntegrationTests.swift
-[20/36] Compiling GatorCoreTests ManagedGoIntegrationTests.swift
-[21/36] Compiling GatorCoreTests ManagedSessionTests.swift
-[22/36] Compiling GatorCoreTests NativeArchiveSafetyTests.swift
-[23/36] Compiling GatorCoreTests NativeAttachmentDisconnectTests.swift
-[24/36] Compiling GatorCoreTests ApplicationStateTests.swift
-[25/36] Compiling GatorCoreTests BridgeProtocolTests.swift
-[26/36] Compiling GatorCoreTests BridgeShutdownSafetyTests.swift
-[27/36] Compiling GatorCoreTests GoIntegrationTests.swift
-[28/36] Compiling GatorCoreTests NativeProviderTests.swift
-[29/36] Compiling GatorCoreTests NativeRecoveryIntegrationTests.swift
-[30/36] Compiling GatorCoreTests NativeRecoveryTests.swift
-[31/36] Compiling GatorCoreTests NativeReviewIntegrationTests.swift
-[32/36] Compiling GatorCoreTests NativeTaskReviewTests.swift
-[33/36] Compiling GatorCoreTests NativeTranscriptSearchTests.swift
-[34/36] Compiling GatorCoreTests NativeWorkspaceIntegrationTests.swift
-[35/36] Compiling GatorCoreTests NativeWorkspaceTests.swift
+[3/5] Emitting module HotCrossBunsCoreTests
+[4/5] Compiling HotCrossBunsCoreTests NativeSnapshotPublicationTests.swift
+[5/36] Compiling HotCrossBunsCoreTests NativeCatalogTests.swift
+[6/36] Compiling HotCrossBunsCoreTests NativeClosingSafetyTests.swift
+[7/36] Compiling HotCrossBunsCoreTests NativeClosureAcceptanceTests.swift
+[8/36] Compiling HotCrossBunsCoreTests NativeInertApprovalIntegrationTests.swift
+[9/36] Compiling HotCrossBunsCoreTests NativeAttachmentDraftTests.swift
+[10/36] Compiling HotCrossBunsCoreTests NativeAttachmentIntegrationTests.swift
+[11/36] Compiling HotCrossBunsCoreTests NativeCatalogIntegrationTests.swift
+[12/36] Compiling HotCrossBunsCoreTests NativeCatalogOwnerTests.swift
+[13/36] Compiling HotCrossBunsCoreTests PresenceApprovalClosureTests.swift
+[14/36] Compiling HotCrossBunsCoreTests RecoveryPreparationIntegrationTests.swift
+[15/36] Compiling HotCrossBunsCoreTests RecoveryPreparationTests.swift
+[16/36] Compiling HotCrossBunsCoreTests NativePerformanceTests.swift
+[17/36] Compiling HotCrossBunsCoreTests NativePlanAuthorizationTests.swift
+[18/36] Compiling HotCrossBunsCoreTests NativePlanIntegrationTests.swift
+[19/36] Compiling HotCrossBunsCoreTests NativeProviderIntegrationTests.swift
+[20/36] Compiling HotCrossBunsCoreTests ManagedGoIntegrationTests.swift
+[21/36] Compiling HotCrossBunsCoreTests ManagedSessionTests.swift
+[22/36] Compiling HotCrossBunsCoreTests NativeArchiveSafetyTests.swift
+[23/36] Compiling HotCrossBunsCoreTests NativeAttachmentDisconnectTests.swift
+[24/36] Compiling HotCrossBunsCoreTests ApplicationStateTests.swift
+[25/36] Compiling HotCrossBunsCoreTests BridgeProtocolTests.swift
+[26/36] Compiling HotCrossBunsCoreTests BridgeShutdownSafetyTests.swift
+[27/36] Compiling HotCrossBunsCoreTests GoIntegrationTests.swift
+[28/36] Compiling HotCrossBunsCoreTests NativeProviderTests.swift
+[29/36] Compiling HotCrossBunsCoreTests NativeRecoveryIntegrationTests.swift
+[30/36] Compiling HotCrossBunsCoreTests NativeRecoveryTests.swift
+[31/36] Compiling HotCrossBunsCoreTests NativeReviewIntegrationTests.swift
+[32/36] Compiling HotCrossBunsCoreTests NativeTaskReviewTests.swift
+[33/36] Compiling HotCrossBunsCoreTests NativeTranscriptSearchTests.swift
+[34/36] Compiling HotCrossBunsCoreTests NativeWorkspaceIntegrationTests.swift
+[35/36] Compiling HotCrossBunsCoreTests NativeWorkspaceTests.swift
 [35/37] Write Objects.LinkFileList
-[36/37] Linking GatorNativePackageTests
+[36/37] Linking HotCrossBunsNativePackageTests
 Build complete! (7.38s)
 Test Suite 'Selected tests' started at 2026-11-20 14:17:33.300.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 14:17:33.301.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 14:17:33.301.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 14:17:33.301.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 14:17:33.301.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 14:17:33.301.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

@@ -1,4 +1,4 @@
-// Package connector defines Gator's user-facing connected-source model. A
+// Package connector defines Hot Cross Buns's user-facing connected-source model. A
 // transport such as HTTP or MCP is an implementation detail behind stable,
 // capability-classified operations.
 package connector
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/mcp"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/mcp"
 )
 
 const (
@@ -65,7 +65,7 @@ type Descriptor struct {
 }
 
 // Operation is a connector action surfaced to the product and model. Schemas
-// are bounded exact JSON Schema objects owned by Gator, not a remote server.
+// are bounded exact JSON Schema objects owned by Hot Cross Buns, not a remote server.
 type Operation struct {
 	ID           string            `json:"id"`
 	Description  string            `json:"description"`
@@ -169,7 +169,7 @@ func (d Descriptor) Validate() error {
 	return nil
 }
 
-// CredentialRef derives a resource-bound key for Gator's private auth store.
+// CredentialRef derives a resource-bound key for Hot Cross Buns's private auth store.
 // Changing a connector URL or OAuth app therefore cannot silently reuse an old
 // token under a different identity.
 func (d Descriptor) CredentialRef() string {
@@ -195,7 +195,7 @@ func GoogleAccountPin(descriptor Descriptor, subject string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-// Operations returns independent, Gator-owned operation metadata.
+// Operations returns independent, Hot Cross Buns-owned operation metadata.
 func (d Descriptor) Operations() []Operation {
 	switch d.Kind {
 	case KindHTTPJSON:
@@ -303,7 +303,7 @@ func googleOperations() []Operation {
 		{"sheets_values_update", "Prepare a Google Sheet range update for exact approval.", action.ConnectedMutate},
 		{"sheets_batch_update", "Prepare Google Sheet batch updates for exact approval.", action.ConnectedMutate},
 		{"gmail_send", "Send email with a plain-text body, explicitly listed To/Cc/Bcc recipients and selected-file attachments after exact foreground approval. For original uploaded files, call list_input_files and use its exact input/... references. Other source paths use source/..., output/... or previous/.... The host freezes bytes and adds size/hash metadata to the review. For a reply, read the original thread and preserve its subject; supply thread_id, parent Message-ID and References together in reply. Never retry an uncertain send automatically.", action.Publish},
-		{"batch", "Prepare an ordered batch of Google Docs and Sheets mutations for one exact approval. Gator never retries an ambiguous batch outcome.", action.ConnectedMutate},
+		{"batch", "Prepare an ordered batch of Google Docs and Sheets mutations for one exact approval. Hot Cross Buns never retries an ambiguous batch outcome.", action.ConnectedMutate},
 	})...)
 	for index := range operations {
 		if operations[index].ID == "drive_search" {
@@ -383,7 +383,7 @@ func (r Registry) Operation(connectorID, operationID string) (Descriptor, Operat
 		return Descriptor{}, Operation{}, fmt.Errorf("connector %q is not configured", connectorID)
 	}
 	if descriptor.Kind == KindGoogle && operationID == "calendar_events" {
-		return Descriptor{}, Operation{}, errors.New("Google Calendar support was removed; replace this source with Gator's local plan dates")
+		return Descriptor{}, Operation{}, errors.New("Google Calendar support was removed; replace this source with Hot Cross Buns's local plan dates")
 	}
 	for _, operation := range descriptor.Operations() {
 		if operation.ID == operationID {

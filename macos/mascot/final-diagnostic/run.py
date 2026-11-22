@@ -8,7 +8,7 @@ import time
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--root',required=True)
-parser.add_argument('--app',default='/tmp/Gator-Mascot-Final-Attribution-v2.app')
+parser.add_argument('--app',default='/tmp/HotCrossBuns-Mascot-Final-Attribution-v2.app')
 parser.add_argument('cases',nargs='+')
 args=parser.parse_args()
 root=Path(args.root);root.mkdir(parents=True,exist_ok=True)

@@ -46,7 +46,7 @@ func TestAppearanceSelectionPersistsAndKeepsOldThemeOnFailure(t *testing.T) {
 	}
 }
 func TestAppearanceRefreshesAcrossCachedChats(t *testing.T) {
-	m := New(Config{ManagedSessions: true, Theme: "gator", ReadTheme: func() (string, error) { return "light", nil }})
+	m := New(Config{ManagedSessions: true, Theme: "hot-cross-buns", ReadTheme: func() (string, error) { return "light", nil }})
 	m = m.FocusBridgeSession(true)
 	if m.BridgeState().Theme != "light" {
 		t.Fatal("cached chat restored an earlier theme")

@@ -132,7 +132,7 @@ func NormalizeShortcut(value string) (string, error) {
 	canonical := strings.Join(ordered, "+")
 	physical := physicalShortcut(canonical)
 	if slices.Contains([]string{"Ctrl+Q", "Ctrl+W", "Ctrl+R", "Ctrl+Alt+I", "Ctrl+Shift+I"}, physical) {
-		return "", errors.New("this shortcut is reserved by Gator or the terminal")
+		return "", errors.New("this shortcut is reserved by Hot Cross Buns or the terminal")
 	}
 	if key == "Enter" && mods["Alt"] && len(mods) == 1 {
 		return "", errors.New("Alt+Enter is reserved")

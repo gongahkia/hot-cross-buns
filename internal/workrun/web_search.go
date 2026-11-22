@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
 )
 
 // scopedWebSearch reuses the native search integration for discovery only.

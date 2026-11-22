@@ -4,12 +4,12 @@ import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`original result actions → retained evidence → editable file → update reply at ${width}×${height}`, async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-result-actions-")), workspace = join(root, "workspace"), original = "# Report\nOwner: Mina\nDeadline: Friday\n"
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-result-actions-")), workspace = join(root, "workspace"), original = "# Report\nOwner: Mina\nDeadline: Friday\n"
   const requests: string[] = [], copied: string[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const raw = await request.text(); requests.push(raw)
@@ -22,11 +22,11 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`o
       ] }
     return Response.json({ choices: [{ message, finish_reason: "tool_calls" in message ? "tool_calls" : "stop" }], usage: { total_tokens: 20 } })
   } })
-  await mkdir(workspace); await mkdir(join(root, "config/gator"), { recursive: true }); await writeFile(join(workspace, "project.md"), original)
+  await mkdir(workspace); await mkdir(join(root, "config/hot-cross-buns"), { recursive: true }); await writeFile(join(workspace, "project.md"), original)
   const key = width === 42 ? "k" : "e"
-  await writeFile(join(root, "config/gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }], desktop: { shortcuts: { context_actions: `Ctrl+${key.toUpperCase()}` } } }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace, env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  const host = new Application(options), client = new GatorClient(host)
+  await writeFile(join(root, "config/hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }], desktop: { shortcuts: { context_actions: `Ctrl+${key.toUpperCase()}` } } }))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace, env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  const host = new Application(options), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => undefined, write: async text => { copied.push(text) } }} />, { width, height })
   const flush = async () => { await setup.flush(); await Bun.sleep(35); await setup.flush() }
   const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const end = Date.now() + 20000; while (!await predicate()) { if (Date.now() > end) throw new Error(`${label}: ${client.issue}\n${setup.captureCharFrame()}`); await flush() } }
@@ -37,7 +37,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`o
     await client.edit("Read project.md and write report.md with its owner and deadline."); await client.submit()
     await until(() => !client.state?.running && !!client.state?.messages.some(message => message.bundle?.Artifacts?.some(file => file.Path === "report.md")), "retained report")
     const context = client.context, conversation = client.state!.conversation_id!, bundle = client.state!.messages.find(message => message.bundle?.Artifacts?.some(file => file.Path === "report.md"))!.bundle!
-    const index = client.state!.messages.findIndex(message => message.role === "Gator" && message.run_id === bundle.RunID), message = client.state!.messages[index]!
+    const index = client.state!.messages.findIndex(message => message.role === "Hot Cross Buns" && message.run_id === bundle.RunID), message = client.state!.messages[index]!
     expect(index).toBeGreaterThanOrEqual(0)
     const originalBytes = await readFile(join(bundle.Path, "output/report.md")), manifest = await readFile(join(bundle.Path, "manifest.json")), count = requests.length
     await client.edit("Keep my independent\nmultiline draft"); await client.setPlanFirst(true); await flush()
@@ -76,7 +76,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`o
     const panel = client.state!.panel!, row = panel.rows!.findIndex(row => row.identity?.startsWith(conversation + ":"))
     await client.send({ type: "panel", panel: { id: panel.id!, action: "activate", row } }); await until(() => client.context === context, "original owner restored")
     client.issue = ""; await client.send({ type: "submit", text: "/artifact clear" }); await flush()
-    const inbox = join(options.env.GATOR_STATE_DIR, "gator/inbox"), path = join(inbox, "inbox-report.json")
+    const inbox = join(options.env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/inbox"), path = join(inbox, "inbox-report.json")
     await mkdir(inbox, { recursive: true }); await writeFile(path, JSON.stringify({ version: 1, id: "inbox-report", kind: "job", title: "Report ready", summary: "Review Mina's report.", status: "completed", origin_conversation_id: conversation, job_id: "job-report", evidence: ["source/project.md:2"], created_at: new Date().toISOString() }))
     await until(() => client.state?.chat_updates?.some(update => update.id === "inbox-report") || false, "owned update")
     const scroll = setup.renderer.root.findDescendantById("transcript") as ScrollBoxRenderable
@@ -91,7 +91,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`o
     await client.setPlanFirst(false); await client.edit("Thanks, inspect this update's retained result."); setup.mockInput.pressEnter()
     await until(() => requests.length > count && !client.state?.running, "explicit contextual reply")
     expect(requests.slice(count).join("\n")).toContain("inbox-report")
-    const journal = JSON.parse(await readFile(join(options.env.GATOR_STATE_DIR, "gator/conversations", conversation, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(options.env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", conversation, "requests.json"), "utf8"))
     expect(journal.requests.find((entry: { text: string }) => entry.text.startsWith("Thanks, inspect"))?.options.ReplyToUpdateID).toBe("inbox-report")
     expect(await readFile(join(bundle.Path, "output/report.md"))).toEqual(originalBytes)
   } finally { await client.close(); await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }

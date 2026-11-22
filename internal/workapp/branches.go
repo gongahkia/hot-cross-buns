@@ -42,7 +42,7 @@ func (m Model) BranchConversation(a BranchAction) (tea.Model, tea.Cmd) {
 	}
 	eligible := false
 	for _, message := range m.messages {
-		if message.role == "Gator" && message.result == nil && message.revisionID == a.RevisionID && message.runID == a.RunID && message.text != "" {
+		if message.role == "Hot Cross Buns" && message.result == nil && message.revisionID == a.RevisionID && message.runID == a.RunID && message.text != "" {
 			eligible = true
 			break
 		}

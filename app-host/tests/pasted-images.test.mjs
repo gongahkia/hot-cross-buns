@@ -7,7 +7,7 @@ import { UploadStore, uploadLimits } from "../src/uploads.mjs";
 import { importPastedImages, validatePastedImages } from "../src/pasted-images.mjs";
 
 test("pasted images are bounded bytes and become independent private uploads", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-paste-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-paste-"));
   try {
     const store = new UploadStore(root), data = new Uint8Array([1,2,3]);
     const [file] = await importPastedImages(store, [{ type: "image/png", data }], () => Buffer.from("decoded PNG"));

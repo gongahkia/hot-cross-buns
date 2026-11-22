@@ -3,7 +3,7 @@ package workapp
 import (
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,7 +69,7 @@ func TestUnreadableEffortPreferenceCannotReportSavedOrAdmitWork(t *testing.T) {
 	m := New(config)
 	m.input = "Keep this draft"
 	before := m.composerSettings()
-	path := filepath.Join(root, "gator", "conversations", chat.ID, "preferences.json")
+	path := filepath.Join(root, "hot-cross-buns", "conversations", chat.ID, "preferences.json")
 	if err := os.WriteFile(path, []byte(`{"work_effort":"unsupported"}`), 0600); err != nil {
 		t.Fatal(err)
 	}

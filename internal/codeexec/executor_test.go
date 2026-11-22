@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 type scriptedModel struct {
@@ -48,7 +48,7 @@ func TestExecuteRetainsIsolatedWorktreeAndVerificationEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Worktree.Path == "" || outcome.Worktree.Path == repository || !strings.Contains(outcome.Worktree.Path, "-gator-runs") {
+	if outcome.Worktree.Path == "" || outcome.Worktree.Path == repository || !strings.Contains(outcome.Worktree.Path, "-hot-cross-buns-runs") {
 		t.Fatalf("isolated worktree = %#v", outcome.Worktree)
 	}
 	contents, err := os.ReadFile(filepath.Join(outcome.Worktree.Path, "greeting.txt"))
@@ -96,7 +96,7 @@ func codeRepository(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(repository, "greeting.txt"), []byte("base\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"init", "--quiet"}, {"add", "greeting.txt"}, {"-c", "user.name=Gator", "-c", "user.email=gator@invalid", "commit", "--quiet", "-m", "base"}} {
+	for _, args := range [][]string{{"init", "--quiet"}, {"add", "greeting.txt"}, {"-c", "user.name=Hot Cross Buns", "-c", "user.email=hot-cross-buns@invalid", "commit", "--quiet", "-m", "base"}} {
 		command := exec.Command("git", args...)
 		command.Dir = repository
 		if output, err := command.CombinedOutput(); err != nil {

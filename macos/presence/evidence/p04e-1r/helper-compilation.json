@@ -11,7 +11,7 @@
       "-parse-as-library",
       "macos/presence/acceptance/Controller.swift",
       "-o",
-      "/tmp/gator-presence-r1-controller-check"
+      "/tmp/hot-cross-buns-presence-r1-controller-check"
     ],
     "exit": 0,
     "output": "",
@@ -29,7 +29,7 @@
       "-parse-as-library",
       "macos/presence/acceptance/RecordFixture.swift",
       "-o",
-      "/tmp/gator-presence-r1-record-check"
+      "/tmp/hot-cross-buns-presence-r1-record-check"
     ],
     "exit": 0,
     "output": "",

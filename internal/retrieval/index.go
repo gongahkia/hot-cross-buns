@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 // Document is eligible saved knowledge after its owner has checked scope,
@@ -217,7 +217,7 @@ func indexRoot(stateDir string) (string, error) {
 	if stateDir == "" {
 		return "", errors.New("semantic state directory is required")
 	}
-	root := filepath.Join(stateDir, "gator", "retrieval")
+	root := filepath.Join(stateDir, "hot-cross-buns", "retrieval")
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return "", err
 	}

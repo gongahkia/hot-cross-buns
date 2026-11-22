@@ -38,7 +38,7 @@ jobs:
           node ui/scripts/build-runtime.mjs
           (cd ui && bun run build)
           (cd ui && bun run check && bun run test)
-          GATOR_INDEPENDENCE_BINARY="$PWD/ui/runtime/gator-runtime${{ runner.os == 'Windows' && '.exe' || '' }}" npm test --prefix app-host
+          HOT_CROSS_BUNS_INDEPENDENCE_BINARY="$PWD/ui/runtime/hot-cross-buns-runtime${{ runner.os == 'Windows' && '.exe' || '' }}" npm test --prefix app-host
           node --test ui/scripts/install.test.mjs ui/scripts/uninstall.test.mjs
           node --test scripts/google-oauth-build.test.mjs
           node --test companion/auth.test.mjs companion/server.test.mjs companion/macos-service.test.mjs companion/linux-service.test.mjs companion/health.test.mjs
@@ -49,23 +49,23 @@ jobs:
           set -euo pipefail
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           sudo systemctl start "user@$(id -u).service"
-          export GATOR_TEST_BINARY="$RUNNER_TEMP/gator-companion-runtime"
-          go build -o "$GATOR_TEST_BINARY" ./cmd/gator
-          GATOR_COMPANION_SYSTEMD_TEST=1 node --test companion/linux-service.test.mjs companion/linux-monitoring.test.mjs
+          export HOT_CROSS_BUNS_TEST_BINARY="$RUNNER_TEMP/hot-cross-buns-companion-runtime"
+          go build -o "$HOT_CROSS_BUNS_TEST_BINARY" ./cmd/hot-cross-buns
+          HOT_CROSS_BUNS_COMPANION_SYSTEMD_TEST=1 node --test companion/linux-service.test.mjs companion/linux-monitoring.test.mjs
       - name: Check unattended companion and supervisor startup
         if: runner.os == 'Linux'
         timeout-minutes: 15
-        run: python3 scripts/companion-boot/run.py "$RUNNER_TEMP/gator-companion-runtime" "$RUNNER_TEMP/gator-companion-boot"
+        run: python3 scripts/companion-boot/run.py "$RUNNER_TEMP/hot-cross-buns-companion-runtime" "$RUNNER_TEMP/hot-cross-buns-companion-boot"
       - uses: actions/upload-artifact@v4
         if: always() && runner.os == 'Linux'
         with:
           name: companion-boot-evidence
-          path: ${{ runner.temp }}/gator-companion-boot/
+          path: ${{ runner.temp }}/hot-cross-buns-companion-boot/
           if-no-files-found: ignore
       - name: Check companion browser journeys
         if: runner.os == 'Linux'
         env:
-          GATOR_COMPANION_BROWSERS: chromium,webkit
+          HOT_CROSS_BUNS_COMPANION_BROWSERS: chromium,webkit
         run: |
           npm ci --prefix companion
           npm exec --prefix companion -- playwright install --with-deps chromium webkit
@@ -82,7 +82,7 @@ jobs:
         run: go test ./...
       - name: Race-check Work lifecycle
         if: runner.os == 'Linux'
-        run: go test -race ./internal/agent ./internal/orchestrator ./internal/workrun ./internal/worksession ./internal/jobs ./internal/workapp ./internal/telemetry ./cmd/gator
+        run: go test -race ./internal/agent ./internal/orchestrator ./internal/workrun ./internal/worksession ./internal/jobs ./internal/workapp ./internal/telemetry ./cmd/hot-cross-buns
       - name: Vet
         run: go vet ./...
       - name: Check packaged terminal workflows
@@ -108,34 +108,34 @@ jobs:
         with:
           node-version: "24"
       - name: Generate representative new and edited Office files
-        run: go run ./scripts/office-fixtures .gator/office-fixtures
+        run: go run ./scripts/office-fixtures .hot-cross-buns/office-fixtures
       - name: Roundtrip all three formats through the shared file editor
         run: |
           npm ci --prefix app-host
-          node scripts/office-validation/roundtrip.mjs .gator/office-fixtures
+          node scripts/office-validation/roundtrip.mjs .hot-cross-buns/office-fixtures
       - name: Validate with the independent Open XML SDK
         run: |
           dotnet restore scripts/office-validation/OfficeValidation.csproj --locked-mode
-          dotnet run --no-restore --project scripts/office-validation -- .gator/office-fixtures/*.pptx .gator/office-fixtures/*.docx .gator/office-fixtures/*.xlsx
+          dotnet run --no-restore --project scripts/office-validation -- .hot-cross-buns/office-fixtures/*.pptx .hot-cross-buns/office-fixtures/*.docx .hot-cross-buns/office-fixtures/*.xlsx
       - name: Install independent Office renderers
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-calc libreoffice-writer libreoffice-impress poppler-utils fonts-liberation fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji fonts-crosextra-carlito
       - name: Recalculate spreadsheets with LibreOffice Calc
-        run: python3 scripts/office-validation/recalculate.py .gator/office-fixtures .gator/office-calculated
+        run: python3 scripts/office-validation/recalculate.py .hot-cross-buns/office-fixtures .hot-cross-buns/office-calculated
       - uses: actions/upload-artifact@v4
         with:
           name: office-calculation-evidence
           path: |
-            .gator/office-calculated/calculation-report.json
-            .gator/office-calculated/*.xlsx
+            .hot-cross-buns/office-calculated/calculation-report.json
+            .hot-cross-buns/office-calculated/*.xlsx
       - name: Render Word and PowerPoint layouts independently
-        run: python3 scripts/office-validation/render.py .gator/office-fixtures .gator/office-rendered
+        run: python3 scripts/office-validation/render.py .hot-cross-buns/office-fixtures .hot-cross-buns/office-rendered
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: office-layout-evidence
-          path: .gator/office-rendered/
+          path: .hot-cross-buns/office-rendered/
           if-no-files-found: ignore
 
   browser:
@@ -146,7 +146,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
-      GATOR_BROWSER_INTEGRATION_STATE_DIR: ${{ runner.temp }}/gator-browser-integration
+      HOT_CROSS_BUNS_BROWSER_INTEGRATION_STATE_DIR: ${{ runner.temp }}/hot-cross-buns-browser-integration
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -157,7 +157,7 @@ jobs:
           node-version: "20"
       - name: Test pinned Chromium browser controller
         env:
-          GATOR_BROWSER_INTEGRATION: "1"
+          HOT_CROSS_BUNS_BROWSER_INTEGRATION: "1"
         run: go test -count=1 -run TestSidecarManagedBrowserIntegration ./internal/browser
       - name: Test browser interruption, revocation and native cleanup
         run: go test -count=1 -timeout=3m -run 'TestSidecar(Cancellation|Close|Frozen|Stalled|DaemonCrash)|TestControllerLease|TestDuplicateController|TestService|TestWindows' ./internal/browser
@@ -180,7 +180,7 @@ jobs:
       - name: Use canonical temporary paths for native fixtures
         shell: pwsh
         run: |
-          $directory = Join-Path $env:RUNNER_TEMP 'gator-native-tests'
+          $directory = Join-Path $env:RUNNER_TEMP 'hot-cross-buns-native-tests'
           New-Item -ItemType Directory -Force -Path $directory | Out-Null
           $canonical = node -e "process.stdout.write(require('node:fs').realpathSync.native(process.argv[1]))" $directory
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -192,7 +192,7 @@ jobs:
         run: |
           go test ./internal/filelock ./internal/privatefs ./internal/usage ./internal/hostproc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          go test ./cmd/gator -run 'TestWindows|TestRuntime|TestDesktopUpdate|TestUIBridgeUpdate|TestSupportedPlatforms'
+          go test ./cmd/hot-cross-buns -run 'TestWindows|TestRuntime|TestDesktopUpdate|TestUIBridgeUpdate|TestSupportedPlatforms'
           go test ./internal/workapp -run 'TestRestartReadiness'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           go test ./internal/lifecycle -run 'TestPublishProfile|TestProfilePublication|TestRestore|TestEmptyBackup|TestSourceRelink|TestRelink'
@@ -218,7 +218,7 @@ jobs:
           node ui/scripts/build-runtime.mjs
           (cd ui && bun run build)
           (cd ui && bun run check && bun run test)
-          GATOR_INDEPENDENCE_BINARY="$PWD/ui/runtime/gator-runtime${{ runner.os == 'Windows' && '.exe' || '' }}" npm test --prefix app-host
+          HOT_CROSS_BUNS_INDEPENDENCE_BINARY="$PWD/ui/runtime/hot-cross-buns-runtime${{ runner.os == 'Windows' && '.exe' || '' }}" npm test --prefix app-host
           node --test ui/scripts/install.test.mjs ui/scripts/uninstall.test.mjs
           node --test scripts/google-oauth-build.test.mjs
           node --test companion/auth.test.mjs companion/server.test.mjs companion/macos-service.test.mjs companion/linux-service.test.mjs companion/health.test.mjs
@@ -234,7 +234,7 @@ jobs:
           GOOS: windows
           GOARCH: arm64
           CGO_ENABLED: "0"
-        run: go build -o "$RUNNER_TEMP/gator-runtime-arm64.exe" ./cmd/gator
+        run: go build -o "$RUNNER_TEMP/hot-cross-buns-runtime-arm64.exe" ./cmd/hot-cross-buns
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

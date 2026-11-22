@@ -1,15 +1,15 @@
-# Gator product depth and engineering assessment
+# Hot Cross Buns product depth and engineering assessment
 
 > Historical research report. It predates the Work-convergence tranche; legacy
 > runtime and protocol references below are archival, not supported behavior.
 
-Gator should develop into a provider-independent terminal work environment where a continuing conversation produces reviewable documents, analyses, code changes, and proposed actions. Its strongest differentiator is already present: explicit sources, isolated execution, developer-owned outcome contracts, and retained evidence. The next investment should connect those foundations into complete workflows, deepen the specialist lifecycle, and measure the actual Work product.
+Hot Cross Buns should develop into a provider-independent terminal work environment where a continuing conversation produces reviewable documents, analyses, code changes, and proposed actions. Its strongest differentiator is already present: explicit sources, isolated execution, developer-owned outcome contracts, and retained evidence. The next investment should connect those foundations into complete workflows, deepen the specialist lifecycle, and measure the actual Work product.
 
-The recommended implementation remains native Go. Extend the existing orchestration and evaluation packages; add optional OpenTelemetry export and a LangSmith experiment integration. A wholesale LangChain or LangGraph migration would introduce another runtime and require re-establishing Gator's existing provider, permission, isolation, and evidence behavior. This is an architectural recommendation based on the present code, not a claim that those frameworks cannot be useful.
+The recommended implementation remains native Go. Extend the existing orchestration and evaluation packages; add optional OpenTelemetry export and a LangSmith experiment integration. A wholesale LangChain or LangGraph migration would introduce another runtime and require re-establishing Hot Cross Buns's existing provider, permission, isolation, and evidence behavior. This is an architectural recommendation based on the present code, not a claim that those frameworks cannot be useful.
 
 ## Product intention and current foundation
 
-The clearest product specification is [WORK.md](../WORK.md), read alongside [CODE_TO_GATOR_MIGRATION.md](../CODE_TO_GATOR_MIGRATION.md). Gator is intended for people who already work in terminals and need more than code generation: technical operators, researchers, analysts, founders, and developers. A source folder need not be a Git repository. Coding is an internal specialty within the same conversation and deliverable lifecycle.[^1]
+The clearest product specification is [WORK.md](../WORK.md), read alongside [CODE_TO_HOT_CROSS_BUNS_MIGRATION.md](../CODE_TO_HOT_CROSS_BUNS_MIGRATION.md). Hot Cross Buns is intended for people who already work in terminals and need more than code generation: technical operators, researchers, analysts, founders, and developers. A source folder need not be a Git repository. Coding is an internal specialty within the same conversation and deliverable lifecycle.[^1]
 
 The core product loop is objective → selected sources → isolated work → validated deliverables → review → explicit transfer or action. That is a useful product identity. A general chat interface with many tools would lose the value of the source snapshots, contracts, manifests, and review machinery already implemented.
 
@@ -63,21 +63,21 @@ Deduplicated content and an immutable capture record are different identities. R
 
 ### 4. Code configuration is missing from the frozen source path
 
-**Verified exclusion; verified configuration-loading path.** `snapshot.excludedDirectories` excludes `.gator`. [work_code_agent.go](../../cmd/gator/work_code_agent.go) creates Code's private repository from that frozen source. [run/execution.go](../../internal/run/execution.go) loads project profiles, rules, hooks, MCP, LSP, and extensions through the isolated repository/worktree paths. Project configuration omitted upstream cannot be recovered merely by passing a profile name or capability flag.
+**Verified exclusion; verified configuration-loading path.** `snapshot.excludedDirectories` excludes `.hot-cross-buns`. [work_code_agent.go](../../cmd/hot-cross-buns/work_code_agent.go) creates Code's private repository from that frozen source. [run/execution.go](../../internal/run/execution.go) loads project profiles, rules, hooks, MCP, LSP, and extensions through the isolated repository/worktree paths. Project configuration omitted upstream cannot be recovered merely by passing a profile name or capability flag.
 
-This conflicts with the migration document's promise that project profiles and trusted integrations remain usable through Work. Scoped `AGENTS.md` files outside `.gator` are a separate case; the finding does not mean all instructions disappear.
+This conflicts with the migration document's promise that project profiles and trusted integrations remain usable through Work. Scoped `AGENTS.md` files outside `.hot-cross-buns` are a separate case; the finding does not mean all instructions disappear.
 
-**[Inference]** Restoring configuration files alone may still leave trust lookup mismatches because the integration trust methods receive a newly created scratch repository identity. The remedy should be a deliberately captured configuration bundle containing only approved configuration, with its original canonical trust identity and a pinned digest. Keep source data, executable configuration, credentials, and user grants distinct. Do not indiscriminately snapshot `.gator` or implicitly trust a copied directory.
+**[Inference]** Restoring configuration files alone may still leave trust lookup mismatches because the integration trust methods receive a newly created scratch repository identity. The remedy should be a deliberately captured configuration bundle containing only approved configuration, with its original canonical trust identity and a pinned digest. Keep source data, executable configuration, credentials, and user grants distinct. Do not indiscriminately snapshot `.hot-cross-buns` or implicitly trust a copied directory.
 
 ### 5. The Work model wrapper hides optional capabilities
 
-**Verified by reproduction.** [command_work.go](../../cmd/gator/command_work.go) constructs `nativeWorkBackend` by embedding `agent.Model`. The underlying implementation's `StreamingModel` and `VisualInputModel` interfaces are not exposed through that wrapper. A streaming model therefore fails the runner's streaming type assertion in this path; an explicit text-only capability declaration is also lost.
+**Verified by reproduction.** [command_work.go](../../cmd/hot-cross-buns/command_work.go) constructs `nativeWorkBackend` by embedding `agent.Model`. The underlying implementation's `StreamingModel` and `VisualInputModel` interfaces are not exposed through that wrapper. A streaming model therefore fails the runner's streaming type assertion in this path; an explicit text-only capability declaration is also lost.
 
 Preserve optional capability behavior through composition, explicit forwarding, or an explicit capability descriptor. Test the assembled Work backend, including unsupported capabilities, rather than only the protocol adapters. Provider-neutrality needs predictable capability behavior, not just a list of provider names.
 
 ### 6. The main TUI has a buffered subprocess boundary
 
-**Verified by source inspection.** [work_interactive.go](../../cmd/gator/work_interactive.go) launches `gator work --json`, buffers output, waits for `command.Run()`, and decodes the final response. [worktui/app.go](../../internal/worktui/app.go) receives a final run result through its callback. This path has no live event, steering, cancellation, or approval channel to the running Work operation.
+**Verified by source inspection.** [work_interactive.go](../../cmd/hot-cross-buns/work_interactive.go) launches `hot-cross-buns work --json`, buffers output, waits for `command.Run()`, and decodes the final response. [worktui/app.go](../../internal/worktui/app.go) receives a final run result through its callback. This path has no live event, steering, cancellation, or approval channel to the running Work operation.
 
 Work requests already expose event and steering hooks, and the old TUI/RPC implementations contain useful control patterns. Introduce a shared application service with typed request, event subscription, cancellation, steering, and approval interfaces. Use it from the CLI and Work TUI. If a subprocess boundary is retained, make it a versioned bidirectional protocol with those semantics; buffered CLI output should not be the application API.
 
@@ -105,7 +105,7 @@ Add explicit code review/application behavior at the Work product boundary: chan
 
 ### 10. Evals exercise Code, not the main Work product
 
-**Verified by source inspection.** [eval/eval.go](../../internal/eval/eval.go) accepts `gatorrun.Executor`, calls the coding executor, and sets `DisableWriterDelegation: true`. Its existing suite therefore does not exercise the Work manager's delegation, conversations, contracts, connector selection, or final multi-artifact outcomes.
+**Verified by source inspection.** [eval/eval.go](../../internal/eval/eval.go) accepts `hot-cross-bunsrun.Executor`, calls the coding executor, and sets `DisableWriterDelegation: true`. Its existing suite therefore does not exercise the Work manager's delegation, conversations, contracts, connector selection, or final multi-artifact outcomes.
 
 The foundation is valuable: fixture identity, hidden scoring, strict isolation, environment provenance, repeated attempts, suite aggregation, and tests of scorer soundness. Extend it with versioned workflow targets, including direct Code and full Work. Preserve historical reports and fixtures. A trace dashboard alone would leave this product-evaluation gap open.
 
@@ -119,7 +119,7 @@ Existing artifact checks establish structural properties such as parseability an
 
 ### 12. Scheduled Work loses request fidelity
 
-**Verified by source inspection.** [command_job.go](../../cmd/gator/command_job.go), `runJobProcess`, reconstructs a CLI request from a stored job. It forwards artifact paths and `contains` checks, but does not preserve the full stored contract, including arbitrary media-type constraints, all validations, and byte limits. `RefreshSnapshot` is not forwarded as a policy; execution starts a new source-based Work run.
+**Verified by source inspection.** [command_job.go](../../cmd/hot-cross-buns/command_job.go), `runJobProcess`, reconstructs a CLI request from a stored job. It forwards artifact paths and `contains` checks, but does not preserve the full stored contract, including arbitrary media-type constraints, all validations, and byte limits. `RefreshSnapshot` is not forwarded as a policy; execution starts a new source-based Work run.
 
 The subprocess uses an uncancelled `exec.Command` and a shared, unbounded stdout/stderr buffer. Job records are already more durable than Work's specialist records, so reuse the useful concepts while routing jobs through the same typed application service. Require exact contract and configuration digests at the execution boundary.
 
@@ -135,30 +135,30 @@ Restore a current entry point and a capability matrix distinguishing implemented
 
 Official product documentation supports the broad manager-and-specialist architecture, but it does not establish identical behavior across products. Configuration, permissions, resumption, and experimental features differ. The comparisons below inform design choices; they are not claims of feature parity or comparative performance.
 
-| Reference | Relevant evidence | Recommendation for Gator |
+| Reference | Relevant evidence | Recommendation for Hot Cross Buns |
 | --- | --- | --- |
 | OpenAI Work/Codex subagents | Official guidance exposes specialized agents, independent context, configuration, and agent navigation.[^2] | Make specialist identity, progress, and role configuration inspectable in the main Work experience. |
-| OpenCode | Agents have configurable models and permissions; child-session navigation is part of the documented workflow.[^3] | Add role-specific provider/model selection and transparent effective capabilities. Retain Gator's stricter authority envelope. |
+| OpenCode | Agents have configurable models and permissions; child-session navigation is part of the documented workflow.[^3] | Add role-specific provider/model selection and transparent effective capabilities. Retain Hot Cross Buns's stricter authority envelope. |
 | Claude Code subagents | Custom roles, context choices, foreground/background execution, and main-session handling of child activity are documented.[^4] | Provide selective context, child progress and control, and a clear route for required user interaction. |
 | Claude Code agent teams | Teams are documented as experimental, including resumption and coordination limitations.[^5] | Prioritize reliable supervised tasks before peer messaging, nested teams, or autonomous swarms. |
-| LangChain | Its subagent pattern uses a central agent calling specialist tools, with explicit context/input/output choices.[^6] | Gator already implements the basic pattern. Adopt useful lifecycle and context concepts without replacing the loop merely for a framework name. |
+| LangChain | Its subagent pattern uses a central agent calling specialist tools, with explicit context/input/output choices.[^6] | Hot Cross Buns already implements the basic pattern. Adopt useful lifecycle and context concepts without replacing the loop merely for a framework name. |
 | LangGraph | Checkpointers provide thread state and completed-task writes that can survive another task's failure.[^7] | Specify checkpoint and recovery semantics explicitly. Reassess framework adoption only if requirements justify a second execution runtime. |
-| Google ADK for Go | A Go agent framework exists with model-agnostic design and its own runner/session/tool facilities.[^8] | A native-language alternative exists, but migration would still overlap substantial Gator infrastructure. Require a measured benefit. |
+| Google ADK for Go | A Go agent framework exists with model-agnostic design and its own runner/session/tool facilities.[^8] | A native-language alternative exists, but migration would still overlap substantial Hot Cross Buns infrastructure. Require a measured benefit. |
 | LangSmith | OTLP tracing and experiment/example association can be integrated independently of the LangChain agent loop.[^9][^10] | Recommended optional hosted integration, behind a local evaluation and telemetry contract. |
 | Langfuse | Its native OpenTelemetry ingestion provides another destination for compatible telemetry.[^11] | Keep a vendor-neutral exporter boundary; do not implement two custom dashboards in the first release. |
-| OpenTelemetry | GenAI semantic-convention work has moved to a dedicated repository.[^12] | Pin a supported mapping version and keep Gator's durable event schema independent of evolving vendor attributes. |
+| OpenTelemetry | GenAI semantic-convention work has moved to a dedicated repository.[^12] | Pin a supported mapping version and keep Hot Cross Buns's durable event schema independent of evolving vendor attributes. |
 | Promptfoo | A custom-script provider can invoke an external program for evaluation.[^13] | Optional interoperability adapter after a stable headless Work contract; no mandatory Node orchestration dependency. |
-| Harbor | External and installed-agent interfaces support running headless agents in benchmark environments.[^14] | A later coding benchmark adapter, with explicit translation between Gator's retained patches and benchmark workspace outcomes. |
+| Harbor | External and installed-agent interfaces support running headless agents in benchmark environments.[^14] | A later coding benchmark adapter, with explicit translation between Hot Cross Buns's retained patches and benchmark workspace outcomes. |
 
 ### Recommended stack
 
 Keep `internal/agent`, provider adapters, and existing isolation/evidence domains. Evolve `internal/orchestrator` into a bounded local supervisor. Introduce one shared Work application boundary and a versioned local run/task record. Extend `internal/eval` into the product's local evaluation platform.
 
-Add OpenTelemetry as optional instrumentation. Gator should remain usable without an account, collector, or network connection for its local records and reports. Use an opt-in LangSmith adapter for trace export, dataset/example association, experiment linkage, and evaluation feedback. LangSmith's documented tracing path and its evaluation path are separate integration responsibilities.[^9][^10]
+Add OpenTelemetry as optional instrumentation. Hot Cross Buns should remain usable without an account, collector, or network connection for its local records and reports. Use an opt-in LangSmith adapter for trace export, dataset/example association, experiment linkage, and evaluation feedback. LangSmith's documented tracing path and its evaluation path are separate integration responsibilities.[^9][^10]
 
 Do not mandate Python, a graph server, Redis, a vector database, or a browser dashboard without a demonstrated requirement. Persistent conversational state and deterministic retrieval over selected sources are immediate needs; cross-project semantic memory is a different feature with a different correctness boundary.
 
-LangGraph becomes a stronger candidate if Gator needs distributed graph workers, durable execution across hosts, or a required graph-specific ecosystem. Before adopting it, prototype one representative workflow and compare packaging complexity, permission fidelity, cancellation behavior, state migration, and quality/cost against the native supervisor. Documentation alone cannot establish which implementation performs better.
+LangGraph becomes a stronger candidate if Hot Cross Buns needs distributed graph workers, durable execution across hosts, or a required graph-specific ecosystem. Before adopting it, prototype one representative workflow and compare packaging complexity, permission fidelity, cancellation behavior, state migration, and quality/cost against the native supervisor. Documentation alone cannot establish which implementation performs better.
 
 ## Target architecture and refactoring boundaries
 
@@ -184,7 +184,7 @@ flowchart TD
     EVAL --> REPORT[Local comparisons and optional LangSmith experiments]
 ```
 
-The shared service should resolve requests, configuration, provenance, and lifecycle. `cmd/gator` should parse commands and construct adapters; Bubble Tea should render state and dispatch user actions. Rendering libraries remain in the artifact layer, credentials in their current trusted boundary, and tool execution in existing domain packages.
+The shared service should resolve requests, configuration, provenance, and lifecycle. `cmd/hot-cross-buns` should parse commands and construct adapters; Bubble Tea should render state and dispatch user actions. Rendering libraries remain in the artifact layer, credentials in their current trusted boundary, and tool execution in existing domain packages.
 
 Do not turn every permission into a generic boolean. Command execution, browser navigation, connector reads, connector mutations, and publishing have different approval and evidence needs. Share lifecycle envelopes and identifiers while preserving domain-specific enforcement. A model may request a task; trusted code decides the effective authority and records it.
 
@@ -204,7 +204,7 @@ Incremental extraction is preferable to a broad rewrite. First introduce behavio
 
 The local platform should answer whether a change improves deliverable quality, whether delegation adds value, and what it costs. It should also make individual failures inspectable and reproducible. These are product requirements; uploading spans is only one supporting capability.
 
-Anthropic's agent-evaluation guidance distinguishes task, trial, grader, trajectory, and outcome, and discusses deterministic, model, and human grading. Its emphasis on observed outcomes and repeated trials is relevant here. Gator's proposed design uses those distinctions while preserving its existing hidden-scorer and provenance machinery.[^15]
+Anthropic's agent-evaluation guidance distinguishes task, trial, grader, trajectory, and outcome, and discusses deterministic, model, and human grading. Its emphasis on observed outcomes and repeated trials is relevant here. Hot Cross Buns's proposed design uses those distinctions while preserving its existing hidden-scorer and provenance machinery.[^15]
 
 ### Dataset and execution model
 
@@ -260,7 +260,7 @@ Keep cross-device continuation, distributed workers, unrestricted peer agents, a
 
 The audited repository state is `70adf39b57e7bd5469d792e3674ca7f331f5512e` on `main`. Repository status was clean before artifact creation. The assessment covers manifests, Makefile, installer/release/CI configuration, the documentation set, package boundaries, tests, and the principal execution paths across all 50 Go packages. The deepest review follows Work, Code, orchestration, storage, provider assembly, artifact transfer, and evaluations. This is a package-wide architectural and execution-path assessment, not a claim of formal verification or a line-by-line security audit.
 
-Available Git history includes the earlier coding product and its Work migration. The retained Code executor and pre-Work documentation were examined. No separately identified external Gator Code repository was supplied; **I cannot verify this** report against another original repository or unshared branch. The root README's absence is recorded in history rather than assumed accidental.
+Available Git history includes the earlier coding product and its Work migration. The retained Code executor and pre-Work documentation were examined. No separately identified external Hot Cross Buns Code repository was supplied; **I cannot verify this** report against another original repository or unshared branch. The root README's absence is recorded in history rather than assumed accidental.
 
 Verification on Linux used `go1.26.7-X:nodwarf5`; `go.mod` and CI specify Go 1.25.13. No application code was changed for this assessment.
 
@@ -268,10 +268,10 @@ Verification on Linux used `go1.26.7-X:nodwarf5`; `go.mod` and CI specify Go 1.2
 | --- | --- |
 | `go test -json ./...` | Passed: 50 packages; 1,066 test/subtest pass events, two skips. The count includes subtests. |
 | `go vet ./...` | Passed. |
-| `go build -o /tmp/gator-audit ./cmd/gator` | Passed. |
+| `go build -o /tmp/hot-cross-buns-audit ./cmd/hot-cross-buns` | Passed. |
 | `gofmt -l cmd internal rpc` | No files reported. Read-only formatting check; `make check` was not invoked because its format target writes files. |
 | `go test -race ./internal/agent ./internal/orchestrator ./internal/workrun ./internal/worksession ./internal/jobs ./internal/rpc ./internal/appserver` | All seven packages passed. |
-| `GATOR_BROWSER_INTEGRATION=1 go test -count=1 -v -run '^TestSidecarManagedBrowserIntegration$' ./internal/browser` | Passed separately, including the pinned managed Chromium path, in approximately 32 seconds. |
+| `HOT_CROSS_BUNS_BROWSER_INTEGRATION=1 go test -count=1 -v -run '^TestSidecarManagedBrowserIntegration$' ./internal/browser` | Passed separately, including the pinned managed Chromium path, in approximately 32 seconds. |
 | Five temporary `TestAudit...` diagnostics | Passed by reproducing the current gaps; these are diagnostic results, not product fixes. |
 
 The two ordinary-suite skips were the opt-in Chromium test and the macOS Seatbelt boundary test. Chromium was subsequently run and passed. The macOS-only boundary test remains **unavailable on this Linux host**. Exact Go 1.25.13 compatibility and macOS CI were not rerun locally. Live model quality, real connector credentials, and hosted LangSmith/Langfuse ingestion were not tested; **I cannot verify this** report's proposed integrations against live accounts. These omissions do not invalidate the source-level findings, but they limit end-to-end performance and compatibility claims.
@@ -282,7 +282,7 @@ The companion [diagnostic patch](product-depth-reproductions.patch) and [verific
 
 Repository evidence is tied to the commit above. External documentation was accessed on September 9, 2026. Documentation without a stated publication date is identified by access date; mutable pages should be rechecked during implementation.
 
-1. Gator repository. [Work architecture](../WORK.md), [Code-to-Gator product migration](../CODE_TO_GATOR_MIGRATION.md), [Orchestration](../ORCHESTRATION.md), [Evaluation](../EVALUATION.md), and implementation files linked at each finding. Commit `70adf39b57e7bd5469d792e3674ca7f331f5512e`.
+1. Hot Cross Buns repository. [Work architecture](../WORK.md), [Code-to-Hot Cross Buns product migration](../CODE_TO_HOT_CROSS_BUNS_MIGRATION.md), [Orchestration](../ORCHESTRATION.md), [Evaluation](../EVALUATION.md), and implementation files linked at each finding. Commit `70adf39b57e7bd5469d792e3674ca7f331f5512e`.
 2. OpenAI. [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents). Official Codex subagents URL redirected to this Work/Codex guide. Accessed September 9, 2026.
 3. OpenCode. [Agents](https://opencode.ai/docs/agents/). Accessed September 9, 2026; this source is distinct from the separate v2 documentation path.
 4. Anthropic. [Create custom subagents](https://code.claude.com/docs/en/sub-agents). Accessed September 9, 2026.
@@ -298,7 +298,7 @@ Repository evidence is tied to the commit above. External documentation was acce
 14. Harbor. [Agents](https://www.harborframework.com/docs/agents). Accessed September 9, 2026.
 15. Anthropic; Mikaela Grace, Jeremy Hadfield, Rodrigo Olivares, and Jiri De Jonghe. [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents). January 9, 2026.
 
-[^1]: Gator, [Work architecture](../WORK.md) and [Code-to-Gator product migration](../CODE_TO_GATOR_MIGRATION.md), audited commit above.
+[^1]: Hot Cross Buns, [Work architecture](../WORK.md) and [Code-to-Hot Cross Buns product migration](../CODE_TO_HOT_CROSS_BUNS_MIGRATION.md), audited commit above.
 [^2]: OpenAI, [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), accessed September 9, 2026.
 [^3]: OpenCode, [Agents](https://opencode.ai/docs/agents/), accessed September 9, 2026.
 [^4]: Anthropic, [Create custom subagents](https://code.claude.com/docs/en/sub-agents), accessed September 9, 2026.

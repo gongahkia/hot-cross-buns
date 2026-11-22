@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 // Backend identifies how a specialist executes. The manager only sees
@@ -57,7 +57,7 @@ func (s Specialist) validate() error {
 	}
 }
 
-// LLMSpecialist adapts Gator's provider-neutral agent runner into a
+// LLMSpecialist adapts Hot Cross Buns's provider-neutral agent runner into a
 // fresh-context specialist. It shares the same Result contract as hosted
 // specialists; artifact and baseline fields stay empty unless a caller wraps Run.
 func LLMSpecialist(name, description string, model agent.Model, tools []agent.Tool, system string, maxSteps int, now func() time.Time) Specialist {

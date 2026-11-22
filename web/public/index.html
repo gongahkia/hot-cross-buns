@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Hot Cross Buns</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/boot.mjs"></script>
+</head>
+<body>
+  <header class="top">
+    <button id="history-toggle" class="wordmark quiet" type="button" aria-expanded="false" aria-controls="history">
+      <span class="bread" aria-hidden="true">🍞</span> Hot Cross Buns
+    </button>
+    <div class="top-actions"></div>
+  </header>
+  <aside id="history" class="history" aria-label="Conversation history" hidden>
+    <button id="new-chat" class="quiet new" type="button" data-ui-icon="plus">New chat</button>
+    <div class="section-head"><h2>Chats</h2></div>
+    <div id="chat-menu"></div>
+    <div class="history-settings">
+      <button class="quiet" data-route="/model" data-ui-icon="cpu">Models</button>
+      <button class="quiet" data-route="/connections" data-ui-icon="link">Connections</button>
+      <button class="quiet" data-route="/memory" data-ui-icon="brain">Memory</button>
+      <button class="quiet" data-route="/knowledge" data-ui-icon="bookmark">Saved</button>
+      <button class="quiet" data-route="/scheduled" data-ui-icon="calendar-days">Scheduled tasks</button>
+      <button class="quiet" data-route="/settings" data-ui-icon="settings">Settings</button>
+      <button class="quiet" data-route="/preview/outputs" data-ui-icon="eye">Output preview</button>
+      <button class="quiet" data-route="/preview/memory" data-ui-icon="brain">Memory preview</button>
+    </div>
+  </aside>
+  <main id="main">
+    <section class="paper" aria-label="Conversation">
+      <h1 id="title">New chat</h1>
+      <div id="transcript" aria-label="Messages"></div>
+      <div id="live-activity" hidden></div>
+      <div id="streaming"></div>
+      <div id="active-work"></div>
+      <div id="status" role="status" aria-live="polite"></div>
+    </section>
+    <div class="composer-wrap">
+      <form id="composer" class="composer">
+        <div id="attachments" class="attachments" hidden></div>
+        <label class="sr-only" for="message">Message</label>
+        <textarea id="message" rows="1" placeholder="Write a message…" maxlength="131072"></textarea>
+        <div class="compose-actions">
+          <button id="attach" type="button" class="quiet icon-button" aria-label="Attach files" title="Attach files" data-ui-icon="plus"></button>
+          <input id="files" type="file" multiple hidden>
+          <div class="compose-trailing">
+            <button id="model-picker" type="button" class="quiet model-picker" aria-label="Choose model" aria-haspopup="dialog" aria-controls="detail"><span id="model-label">Choose model</span></button>
+            <select id="effort" class="quiet composer-select" aria-label="Effort" title="Task effort" disabled>
+              <option value="low">Low</option>
+              <option value="standard" selected>Standard</option>
+              <option value="high">High</option>
+            </select>
+            <button id="send" type="submit" class="send icon-button" aria-label="Send message" title="Send message" data-ui-icon="arrow-up" disabled></button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <div class="section-head modal-head"><button id="back-detail" type="button" class="quiet icon-button" aria-label="Back" title="Back" data-ui-icon="chevron-left" hidden></button><h2 id="detail-title"></h2><button id="close-detail" type="button" class="quiet icon-button" aria-label="Close" title="Close" data-ui-icon="x"></button></div>
+    <div id="detail-body"></div>
+  </dialog>
+</body>
+</html>

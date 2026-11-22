@@ -1,4 +1,4 @@
-// Package openai implements Gator's native adapter for the OpenAI Responses
+// Package openai implements Hot Cross Buns's native adapter for the OpenAI Responses
 // API. It owns only protocol conversion; the agent loop remains in internal/agent.
 package openai
 
@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/model/providerhttp"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/model/providerhttp"
 )
 
 const (
@@ -32,7 +32,7 @@ func DefaultModel() string {
 }
 
 // Responses is a stateless OpenAI Responses API adapter. The core sends the
-// full normalized history on each call, allowing Gator to own persistence and
+// full normalized history on each call, allowing Hot Cross Buns to own persistence and
 // avoid provider-side conversation storage.
 type Responses struct {
 	ProviderID          string

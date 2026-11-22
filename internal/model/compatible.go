@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model/chatcompletions"
+	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
 )
 
 func compatibleConfig(provider Provider, config Config) (chatcompletions.Config, error) {
@@ -27,7 +27,7 @@ func compatibleConfig(provider Provider, config Config) (chatcompletions.Config,
 		return chatcompletions.Config{}, fmt.Errorf("--model is required for provider %q", provider)
 	}
 	if strings.TrimSpace(baseURL) == "" {
-		return chatcompletions.Config{}, fmt.Errorf("--base-url or GATOR_BASE_URL is required for provider %q", provider)
+		return chatcompletions.Config{}, fmt.Errorf("--base-url or HOT_CROSS_BUNS_BASE_URL is required for provider %q", provider)
 	}
 	return chatcompletions.Config{
 		CredentialSource: source, APIKey: apiKey,
@@ -75,7 +75,7 @@ var compatibleProviders = map[Provider]compatibleProvider{
 	XiaomiTokenPlanCN:       {name: "Xiaomi MiMo Token Plan (China)", apiKeyEnv: "MIMO_API_KEY", baseURL: "https://token-plan-cn.xiaomimimo.com/v1/chat/completions"},
 	XiaomiTokenPlanAMS:      {name: "Xiaomi MiMo Token Plan (Amsterdam)", apiKeyEnv: "MIMO_API_KEY", baseURL: "https://token-plan-ams.xiaomimimo.com/v1/chat/completions"},
 	XiaomiTokenPlanSGP:      {name: "Xiaomi MiMo Token Plan (Singapore)", apiKeyEnv: "MIMO_API_KEY", baseURL: "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions"},
-	OpenAICompatible:        {name: "OpenAI-compatible API", apiKeyEnv: "GATOR_COMPATIBLE_API_KEY", baseURL: ""},
+	OpenAICompatible:        {name: "OpenAI-compatible API", apiKeyEnv: "HOT_CROSS_BUNS_COMPATIBLE_API_KEY", baseURL: ""},
 }
 
 // ParseProvider validates a user-visible provider name.

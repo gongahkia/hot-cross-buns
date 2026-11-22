@@ -66,7 +66,7 @@ func TestStrictSandboxDoesNotWriteOutsideWorktree(t *testing.T) {
 	root := t.TempDir()
 	external := t.TempDir()
 	marker := filepath.Join(external, "outside")
-	prepared, err := Prepare(context.Background(), Request{Dir: root, Argv: []string{"/bin/sh", "-c", "touch \"$1\"", "gator", marker}, Policy: DefaultPolicy()})
+	prepared, err := Prepare(context.Background(), Request{Dir: root, Argv: []string{"/bin/sh", "-c", "touch \"$1\"", "hot-cross-buns", marker}, Policy: DefaultPolicy()})
 	if err != nil {
 		t.Fatalf("prepare strict command: %v", err)
 	}

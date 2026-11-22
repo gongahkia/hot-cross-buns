@@ -58,7 +58,7 @@ func TestProcessLease(t *testing.T) {
 	probe := func(want string) {
 		t.Helper()
 		command := exec.Command(os.Args[0], "-test.run=^TestLeaseChild$")
-		command.Env = append(os.Environ(), "GATOR_TEST_LEASE="+path, "GATOR_TEST_LEASE_WANT="+want)
+		command.Env = append(os.Environ(), "HOT_CROSS_BUNS_TEST_LEASE="+path, "HOT_CROSS_BUNS_TEST_LEASE_WANT="+want)
 		if out, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("lease child: %v\n%s", err, out)
 		}
@@ -93,7 +93,7 @@ func TestProcessLease(t *testing.T) {
 }
 
 func TestLeaseChild(t *testing.T) {
-	path := os.Getenv("GATOR_TEST_LEASE")
+	path := os.Getenv("HOT_CROSS_BUNS_TEST_LEASE")
 	if path == "" {
 		return
 	}
@@ -107,7 +107,7 @@ func TestLeaseChild(t *testing.T) {
 		t.Fatalf("lease obstructed metadata read: %q, %v", data, err)
 	}
 	err = Lock(file, Exclusive|Nonblocking)
-	if os.Getenv("GATOR_TEST_LEASE_WANT") == "busy" {
+	if os.Getenv("HOT_CROSS_BUNS_TEST_LEASE_WANT") == "busy" {
 		if !errors.Is(err, ErrWouldBlock) {
 			t.Fatalf("expected busy lease: %v", err)
 		}

@@ -1,6 +1,6 @@
-# Gator desktop
+# Hot Cross Buns desktop
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -13,14 +13,14 @@ retired. This supersedes the earlier decision to ship both interfaces; see
 [Desktop as the primary interface](DESKTOP-PRIMARY.md).
 
 The sibling `Referene` directory contains OpenHands Agent Canvas 1.29.0, a
-React DOM / Tailwind web app with an Electron desktop shell. Gator adapts its
+React DOM / Tailwind web app with an Electron desktop shell. Hot Cross Buns adapts its
 neutral palette, sidebar, spacious conversation area, command menu, and
 optional right detail panel. The main conversation is now the front door, with
 recent topics and secondary Following and Saved drawers. The implementation
 and retained capabilities are mapped in [the conversational review](DESKTOP-CONVERSATIONAL-IMPLEMENTATION.md).
 The selected Tide background, hybrid activity, dated chat search and contextual
 Files view are described in [chat presentation](DESKTOP-CHAT-PRESENTATION.md).
-The standalone New topic entry and Cmd/Ctrl+N are retired; Talk with Gator
+The standalone New topic entry and Cmd/Ctrl+N are retired; Talk with Hot Cross Buns
 returns to the main chat, and saved conversations remain available.
 
 ## Ownership
@@ -33,7 +33,7 @@ React desktop → Electron host → private Go runtime
                                 └─ shared usage and data
 ```
 
-The host launches the bundled `gator-runtime ui-backend` transport and exchanges
+The host launches the bundled `hot-cross-buns-runtime ui-backend` transport and exchanges
 JSON-line display snapshots and typed actions. `desktop/src/protocol.ts` owns
 the frontend contract. The desktop has no separate agent loop, provider
 credentials, goal store, or HTTP listener. Existing state/config overrides and
@@ -53,7 +53,7 @@ current live interaction ID; retained cards have no approval authority.
 | Surface | Behavior |
 | --- | --- |
 | Home | Continuing main conversation; a brief introduction and composer before its first message; model setup preserves the unsent request; ambient sage Tide sits behind the introduction |
-| Navigation | Talk with Gator, Search, recent topics, Following and Saved; one Settings entry retains models, usage, data/backups, recovery and About & updates |
+| Navigation | Talk with Hot Cross Buns, Search, recent topics, Following and Saved; one Settings entry retains models, usage, data/backups, recovery and About & updates |
 | Conversations | Dated recent topics, highlighted title/folder filtering and keyboard navigation; optional folder grouping; the saved chat browser searches up to 50 recent conversations, separately from task runs |
 | Conversation | Bubbles for both speakers, response/code copy, typed results and exact reviews; public narration and tools interleave during work and fold above the final answer; contextual file cards open retained previews; stop/guidance and editable queues remain functional |
 | Reviews | Semantic status and exact structured previews, open by default, with request-bound approve/deny buttons; separate confirmation for workflow writes |
@@ -145,7 +145,7 @@ Enter to drop, or Escape to cancel without stopping the active task. The
 composer draft stays separate from queue edits. Stop and failure retain the
 queue with a Paused label; Send now starts a selected paused message. Remaining
 messages continue in order after a successful run, as before. Guide now uses
-Gator's existing steering channel and becomes available when that task's live
+Hot Cross Buns's existing steering channel and becomes available when that task's live
 operation is ready. It does not interrupt the task.
 
 Go still owns the existing bounded queue and captured run options. The bridge
@@ -191,12 +191,12 @@ Before a main conversation exists, the desktop starts with a private empty
 folder rather than capturing the user's home directory. Later launches restore
 the designated main conversation and its retained scope, without replaying work.
 Choose a workspace with the native folder picker, set
-`GATOR_DESKTOP_WORKSPACE`, or resume existing work. Nothing in the sibling
+`HOT_CROSS_BUNS_DESKTOP_WORKSPACE`, or resume existing work. Nothing in the sibling
 reference repository is required at build or runtime.
 
 ## Host boundary
 
-The window loads bundled local assets through `gator://app`. The renderer is
+The window loads bundled local assets through `hot-cross-buns://app`. The renderer is
 sandboxed, has context isolation enabled, and has no Node or arbitrary IPC
 access. The preload exports narrow methods; main checks the sender frame and
 validates actions. New windows and page navigation are blocked. Browser links
@@ -259,7 +259,7 @@ Both assets are checked in. To regenerate them on macOS, run
 - Desktop TypeScript checks, all six host tests, and frontend/runtime build
   passed.
 - All five Electron integration paths passed against the current packaged
-  `Gator.app`, using its bundled assets and Go executable. Four passed in the
+  `HotCrossBuns.app`, using its bundled assets and Go executable. Four passed in the
   full run; the slow-motion path passed separately after its initial 60-second
   timeout. That path now allows 120 seconds for 10% playback/native startup
   and opens the command menu through keyboard interaction. Queue coverage
@@ -272,7 +272,7 @@ Both assets are checked in. To regenerate them on macOS, run
   detail-panel access, command keyboard navigation, dialog focus trapping and
   restoration, and the grid with its titlebar hidden.
 - `npm run pack --prefix desktop` produced an unsigned macOS x64 application
-  at `desktop/release/mac/Gator.app` (about 362 MB). Test screenshots are under
+  at `desktop/release/mac/HotCrossBuns.app` (about 362 MB). Test screenshots are under
   `desktop/test-results/` and are intentionally untracked.
 
 ### Codex presentation pass, 21 October 2026
@@ -333,7 +333,7 @@ Tailwind v4, and the existing semantic CSS remain the styling system. Other work
 | MEDIUM | `desktop/src/App.tsx:185`, `desktop/src/styles.css:97` | Promotional headings, refresh copy, profile tile, composer footnote and idle send hint | Requested elements and obsolete styles removed | Reduce visual competition with the task |
 | MEDIUM | `desktop/src/App.tsx:79` | Context occupied the first right-panel tab and repeated workspace metadata | Deliverables opens first; Checks remains available | Keep the right panel focused on outputs and follow-ups |
 | MEDIUM | `desktop/src/StarterDashboard.tsx:13` | Static starter grid | Scrollable action dashboard with pause, manual navigation and reduced-motion support | User-requested motion remains controllable |
-| MEDIUM | `desktop/src/UsagePanel.tsx:20`, `internal/uisnapshot/usage.go:5`, `cmd/gator/work_controls.go:82` | Terminal action rows and a long prose dump | Typed quota cards, grouped settings, activity counts and collapsed details | Improve scanning without changing accounting or review ownership |
+| MEDIUM | `desktop/src/UsagePanel.tsx:20`, `internal/uisnapshot/usage.go:5`, `cmd/hot-cross-buns/work_controls.go:82` | Terminal action rows and a long prose dump | Typed quota cards, grouped settings, activity counts and collapsed details | Improve scanning without changing accounting or review ownership |
 | MEDIUM | `desktop/src/ConversationsPanel.tsx:5`, `desktop/src/App.tsx:176`, `desktop/src/StarterDashboard.tsx:9` | Conversations and Work history looked like competing archives | One Conversations sidebar entry, with Chats and Task runs views; recent-work shortcut opens this section | Preserve chat continuation and per-run evidence while removing a duplicate entry point |
 | MEDIUM | `desktop/src/styles.css:71`, `desktop/src/App.tsx:188` | Sidebar width, labels, and header controls snapped between states; opening details could widen a collapsed rail at intermediate widths | Interruptible grid/label/header transitions, stable navigation labels, and consistent collapsed width | Preserve spatial context and accessible controls during resizing |
 | MEDIUM | `desktop/src/motion.tsx:20`, `desktop/src/useModalFocus.ts:3` | Dialogs and details disappeared immediately | Browser-completed exits, immediate inert/hidden state, and immediate focus release; rapid reopening cancels removal | Preserve visible context without keeping dismissed actions or focus traps active |
@@ -344,7 +344,7 @@ Tailwind v4, and the existing semantic CSS remain the styling system. Other work
 | Location | Candidate | Rejected because |
 | --- | --- | --- |
 | Dashboard | Seamless duplicated cards and a continuous animation loop | Duplicate focus targets and constant motion add cost; native scrolling keeps normal keyboard and pointer behavior |
-| Usage | Copy Codex's subscription periods and credit balances | Gator owns daily UTC admission limits; provider billing/subscription data is not available here |
+| Usage | Copy Codex's subscription periods and credit balances | Hot Cross Buns owns daily UTC admission limits; provider billing/subscription data is not available here |
 | Desktop styling | Add a new animation/component framework | Existing CSS and browser scrolling cover the requested behavior |
 
 Verification uses the commands listed above, plus the real Go accounting
@@ -366,7 +366,7 @@ remain unverified.
 
 Full review of the composer and queued-message states in React DOM and the
 existing Tailwind v4/semantic CSS. The reference establishes the interaction
-pattern; this is an adaptation to Gator's queue and steering semantics.
+pattern; this is an adaptation to Hot Cross Buns's queue and steering semantics.
 
 | Category | Evidence inspected | Result |
 | --- | --- | --- |
@@ -386,7 +386,7 @@ pattern; this is an adaptation to Gator's queue and steering semantics.
 
 | Location | Candidate | Rejected because |
 | --- | --- | --- |
-| Queue row | Send now silently interrupts the active task | Gator's existing distinction is queued follow-up versus guidance; stopping must remain explicit |
+| Queue row | Send now silently interrupts the active task | Hot Cross Buns's existing distinction is queued follow-up versus guidance; stopping must remain explicit |
 | Queue ordering | Add drag-and-drop and an animation library | Move-up/down controls work with keyboard and pointer, using the existing stack |
 | Queue editor | Replace the composer's current draft when editing | A separate inline editor preserves both drafts |
 
@@ -418,7 +418,7 @@ an update. Signing account setup and native install/update validation are still
 pending. See [desktop releases](DESKTOP-RELEASES.md).
 
 The [conversation surface proposal](CONVERSATIONAL-SURFACE-PLAN.md) is the product
-direction. Its shell now ships with the existing Gator style and controls;
+direction. Its shell now ships with the existing Hot Cross Buns style and controls;
 [the implementation review](DESKTOP-CONVERSATIONAL-IMPLEMENTATION.md) distinguishes
 working capabilities from the remaining application contracts. The prototype
 continues to use fictional data.

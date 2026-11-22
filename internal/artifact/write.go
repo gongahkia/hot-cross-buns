@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
-// WriteBinary stages one bounded binary artifact produced by trusted Gator renderers.
+// WriteBinary stages one bounded binary artifact produced by trusted Hot Cross Buns renderers.
 func WriteBinary(root workspace.Root, contract Contract, path string, content []byte) error {
 	contract = contract.Normalize()
 	if err := contract.Validate(); err != nil {

@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 // resolveDecision projects the effective host policy into a display-safe route.

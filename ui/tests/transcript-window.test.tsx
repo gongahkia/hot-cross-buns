@@ -5,19 +5,19 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
   test(`bounded history scrolls, reveals original actions, pins selection and restores at ${width}×${height}`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "gator-window-"))
-    const options = { binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-window-"))
+    const options = { binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }
     let host = new FixtureHost(options)
-    host.current = { ...state(), messages: Array.from({ length: 1000 }, (_, index) => ({ role: index % 2 ? "Gator" : "You", text: `Long history target ${index}.\nA readable explanation with café and 日本語.\nLine two remains selectable.`, created_at: new Date(1700000000000 + index * 60000).toISOString() })) }
+    host.current = { ...state(), messages: Array.from({ length: 1000 }, (_, index) => ({ role: index % 2 ? "Hot Cross Buns" : "You", text: `Long history target ${index}.\nA readable explanation with café and 日本語.\nLine two remains selectable.`, created_at: new Date(1700000000000 + index * 60000).toISOString() })) }
     let disconnected = false
     const snapshot = host.snapshot.bind(host)
     host.snapshot = () => ({ ...snapshot(), connection: disconnected ? "disconnected" : "connected" })
-    let client = new GatorClient(host)
+    let client = new HotCrossBunsClient(host)
     const mount = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
     let setup = await mount()
     const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
@@ -95,16 +95,19 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       host.change({ ...host.current, messages: host.current.messages.slice(100) }); await settle()
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       expect(mounted().length).toBeLessThanOrEqual(80)
-      host.change({ ...host.current, messages: [...host.current.messages, { role: "Gator", text: "New answer beyond the rendered window.", created_at: "2026-11-12T00:00:00Z" }] }); await settle()
+      host.change({ ...host.current, messages: [...host.current.messages, { role: "Hot Cross Buns", text: "New answer beyond the rendered window.", created_at: "2026-11-12T00:00:00Z" }] }); await settle()
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       expect(setup.captureCharFrame()).toContain("1 new")
       const retained = structuredClone(host.current)
       await client.close(); await setup.dispose()
-      host = new FixtureHost(options); host.current = retained; client = new GatorClient(host); setup = await mount()
+      host = new FixtureHost(options); host.current = retained; client = new HotCrossBunsClient(host); setup = await mount()
       await client.start(); await settle()
       expect(client.readingAnchors.get("conversation:first")?.key).toBe(saved.key)
       expect(setup.captureCharFrame()).toContain("Long history target 486.")
       await client.navigate("/catch-up"); await settle()
+      // catch-up mounts fresh Markdown; wait for its asynchronous worker as above.
+      const catchUpReadableBy = performance.now() + 2000
+      while (!setup.captureCharFrame().includes("New answer beyond") && performance.now() < catchUpReadableBy) await flush()
       expect(setup.captureCharFrame()).toContain("New answer beyond")
       setup.mockInput.pressKey("l", { ctrl: true }); await settle()
       expect(client.readingAnchors.get("conversation:first")?.following).toBe(true)

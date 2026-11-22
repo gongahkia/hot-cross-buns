@@ -19,11 +19,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/patch"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const Version = 1
@@ -94,7 +94,7 @@ type Record struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-// Store persists local delivery records under Gator's existing state root.
+// Store persists local delivery records under Hot Cross Buns's existing state root.
 // Test-only executor fields let deterministic tests prove partial failure
 // persistence without adding an executor abstraction to the product.
 type Store struct {
@@ -114,7 +114,7 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(absolute, "gator", "delivery")
+	root := filepath.Join(absolute, "hot-cross-buns", "delivery")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return Store{}, fmt.Errorf("create delivery store: %w", err)
 	}
@@ -432,7 +432,7 @@ func (s Store) observeDelivery(record Record) {
 	if err != nil {
 		return
 	}
-	reference := filepath.ToSlash(filepath.Join("gator", "delivery", record.WorkID, record.ID+".json"))
+	reference := filepath.ToSlash(filepath.Join("hot-cross-buns", "delivery", record.WorkID, record.ID+".json"))
 	if failed {
 		_, _ = store.UpsertObservation(learning.ObservationInput{
 			ID: "observation-delivery-failed-" + record.ID, Signal: learning.DeliveryFailed,

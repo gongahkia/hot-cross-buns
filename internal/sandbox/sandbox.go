@@ -1,8 +1,8 @@
-// Package sandbox prepares host processes for constrained Gator execution.
+// Package sandbox prepares host processes for constrained Hot Cross Buns execution.
 //
 // A Git worktree is an edit-isolation mechanism, not a process sandbox. This
 // package provides the separate operating-system boundary used for commands
-// that the agent asks Gator to run.
+// that the agent asks Hot Cross Buns to run.
 package sandbox
 
 import (
@@ -17,17 +17,17 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
 )
 
 // Mode controls whether a command must use an operating-system sandbox.
 type Mode string
 
 const (
-	// Strict refuses to start a command unless Gator can establish a platform
+	// Strict refuses to start a command unless Hot Cross Buns can establish a platform
 	// sandbox. It is the product default.
 	Strict Mode = "strict"
-	// Off intentionally runs a command with the Gator user's host permissions.
+	// Off intentionally runs a command with the Hot Cross Buns user's host permissions.
 	// It exists for a developer who explicitly accepts that tradeoff.
 	Off Mode = "off"
 )
@@ -40,7 +40,7 @@ const (
 	AllowNetwork Network = "allow"
 )
 
-// Policy is the explicit host-execution boundary for one Gator run. Additional
+// Policy is the explicit host-execution boundary for one Hot Cross Buns run. Additional
 // filesystem roots and environment variables are opt-in because both are
 // capability grants to code produced by an agent.
 type Policy struct {
@@ -137,7 +137,7 @@ func validateRoots(label string, roots []string) error {
 	return nil
 }
 
-// Request describes one process to prepare. Dir must be the canonical Gator
+// Request describes one process to prepare. Dir must be the canonical Hot Cross Buns
 // worktree path; it is always added as a writable root.
 type Request struct {
 	Dir  string
@@ -278,7 +278,7 @@ func StrictAvailability() (string, error) {
 }
 
 func processEnvironment(policy Policy) ([]string, string, func(), error) {
-	scratch, err := os.MkdirTemp("", "gator-sandbox-")
+	scratch, err := os.MkdirTemp("", "hot-cross-buns-sandbox-")
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("create sandbox scratch directory: %w", err)
 	}

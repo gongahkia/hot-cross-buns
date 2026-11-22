@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
-  <title>Gator companion</title>
+  <title>Hot Cross Buns companion</title>
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/client.mjs"></script>
 </head>
 <body>
   <main>
-    <header><span class="brand">Gator</span><span class="muted">Companion · preview</span></header>
+    <header><span class="brand">Hot Cross Buns</span><span class="muted">Companion · preview</span></header>
     <h1>Your work, on the host</h1>
     <p class="muted">Check a conversation while your host keeps working.</p>
     <form id="connect-form" class="card">
       <div id="credentials">
       <label for="token">Host access token</label>
-      <input id="token" type="password" autocomplete="off" spellcheck="false" required pattern="([a-f0-9]{64}|gator_device_[a-f0-9]{32}_[a-f0-9]{64})" aria-describedby="token-help">
+      <input id="token" type="password" autocomplete="off" spellcheck="false" required pattern="([a-f0-9]{64}|hot_cross_buns_device_[a-f0-9]{32}_[a-f0-9]{64})" aria-describedby="token-help">
       <p id="token-help" class="hint">Kept in this page’s memory. Closing or reloading asks for it again.</p>
       <details><summary>Open a known conversation</summary>
       <label for="conversation">Conversation ID</label>
@@ -30,7 +30,7 @@
     <p id="error" role="alert" hidden></p>
     <section id="external-terminals" hidden aria-labelledby="external-title">
       <details id="external-open" class="card"><summary id="external-title">External terminals</summary>
-        <p class="hint">Snapshots from locally trusted tmux backends, enrolled and shared with this device. Gator requests reads; server configuration controls command behavior.</p>
+        <p class="hint">Snapshots from locally trusted tmux backends, enrolled and shared with this device. Hot Cross Buns requests reads; server configuration controls command behavior.</p>
         <label for="external-select">Shared terminal</label>
         <select id="external-select"><option value="">Choose a terminal</option></select>
         <button id="external-refresh" type="button" class="secondary">Refresh terminals</button>
@@ -90,7 +90,7 @@
       <p id="host-notice" class="notice" hidden></p>
       <section id="check-health" hidden aria-labelledby="checks-title">
         <h2 id="checks-title" tabindex="-1">Recurring checks</h2>
-        <p class="hint">Open Gator on the host to change or restart a check.</p>
+        <p class="hint">Open Hot Cross Buns on the host to change or restart a check.</p>
         <p id="checks-issue" class="notice" role="alert" hidden></p>
         <p id="checks-freshness" class="hint"></p>
         <div id="checks"></div>
@@ -117,7 +117,7 @@
         <p id="draft-status" class="hint">Drafts stay in this browser tab’s session storage until sent. No attachments yet.</p>
         <button id="send" type="submit">Send message</button>
       </form>
-      <p class="hint">Disconnecting leaves admitted work running. The host must stay online. Open Gator on the host for settings, files and recovery.</p>
+      <p class="hint">Disconnecting leaves admitted work running. The host must stay online. Open Hot Cross Buns on the host for settings, files and recovery.</p>
     </section>
     <dialog id="external-action-dialog"><h2>Review terminal input</h2><pre id="terminal-review"></pre><div class="row"><button id="terminal-confirm" type="button">Confirm terminal input</button><button id="terminal-review-cancel" type="button" class="secondary">Back</button></div></dialog>
   </main>

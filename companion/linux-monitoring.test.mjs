@@ -20,16 +20,16 @@ async function until(read, message, timeout = 30000) {
 }
 
 test('Linux supervisor finishes a scheduled check without the companion and exposes its retained update on reconnect', {
-  skip: process.platform !== 'linux' || process.env.GATOR_COMPANION_SYSTEMD_TEST !== '1', timeout: 120000,
+  skip: process.platform !== 'linux' || process.env.HOT_CROSS_BUNS_COMPANION_SYSTEMD_TEST !== '1', timeout: 120000,
 }, async () => {
-  assert.ok(process.env.GATOR_TEST_BINARY, 'Set GATOR_TEST_BINARY to a Linux Go runtime.');
-  const root = await mkdtemp(join(tmpdir(), 'gator-monitoring-')), suffix = randomUUID();
-  const listenerName = `gator-monitor-listener-${suffix}.service`, supervisorName = `gator-monitor-supervisor-${suffix}.service`;
+  assert.ok(process.env.HOT_CROSS_BUNS_TEST_BINARY, 'Set HOT_CROSS_BUNS_TEST_BINARY to a Linux Go runtime.');
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-monitoring-')), suffix = randomUUID();
+  const listenerName = `hot-cross-buns-monitor-listener-${suffix}.service`, supervisorName = `hot-cross-buns-monitor-supervisor-${suffix}.service`;
   const systemctl = (...args) => execFileSync('systemctl', ['--user', ...args], { encoding: 'utf8', timeout: 20000, stdio: 'pipe' });
   const workspace = join(root, 'workspace'), stateDir = join(root, 'state'), configDir = join(root, 'config');
-  const runtime = join(root, 'gator-runtime'), tokenFile = join(root, 'private/access.token'), token = 'c'.repeat(64);
+  const runtime = join(root, 'hot-cross-buns-runtime'), tokenFile = join(root, 'private/access.token'), token = 'c'.repeat(64);
   // The terminal launcher sets this flag for its retained command families.
-  const unitPath = join(root, listenerName), env = { ...process.env, GATOR_STATE_DIR: stateDir, GATOR_CONFIG_DIR: configDir, GATOR_INTERNAL_COMMANDS: '1' };
+  const unitPath = join(root, listenerName), env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: stateDir, HOT_CROSS_BUNS_CONFIG_DIR: configDir, HOT_CROSS_BUNS_INTERNAL_COMMANDS: '1' };
   const command = (...args) => execFileSync(runtime, args, { env, cwd: workspace, encoding: 'utf8', timeout: 20000, stdio: 'pipe' });
   let linked = false, supervisorStarted = false, requests = 0, providerError;
   let releaseModel;
@@ -48,13 +48,13 @@ test('Linux supervisor finishes a scheduled check without the companion and expo
   });
   try {
     systemctl('show-environment');
-    for (const directory of [workspace, stateDir, join(configDir, 'gator'), join(root, 'private')]) await mkdir(directory, { recursive: true, mode: 0o700 });
-    await cp(resolve(process.env.GATOR_TEST_BINARY), runtime);
+    for (const directory of [workspace, stateDir, join(configDir, 'hot-cross-buns'), join(root, 'private')]) await mkdir(directory, { recursive: true, mode: 0o700 });
+    await cp(resolve(process.env.HOT_CROSS_BUNS_TEST_BINARY), runtime);
     for (const name of ['main.mjs', 'server.mjs', 'auth.mjs', 'public']) await cp(new URL(`./${name}`, import.meta.url), join(root, 'companion', name), { recursive: true });
     await cp(new URL('../app-host/src', import.meta.url), join(root, 'app-host/src'), { recursive: true });
     await writeFile(tokenFile, token + '\n', { mode: 0o600 });
     await new Promise(resolve => provider.listen(0, '127.0.0.1', resolve));
-    await writeFile(join(configDir, 'gator/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${provider.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }), { mode: 0o600 });
+    await writeFile(join(configDir, 'hot-cross-buns/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${provider.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }), { mode: 0o600 });
     const probe = createServer(); await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
     const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
     await prepare({ node: process.execPath, entry: join(root, 'companion/main.mjs'), runtime, workspace, tokenFile, stateDir, configDir, port }, unitPath);
@@ -72,7 +72,7 @@ test('Linux supervisor finishes a scheduled check without the companion and expo
     const jobID = added.match(/Added job (\S+)/)?.[1]; assert.ok(jobID, added);
     // A transient user service invokes the real supervisor command with the same
     // profile. It never installs or replaces the user's persistent supervisor.
-    execFileSync('systemd-run', ['--user', `--unit=${supervisorName}`, '--service-type=exec', '--property=Restart=on-failure', '--property=RestartSec=5', '--property=UMask=0077', '--property=TimeoutStopSec=15', '--property=KillMode=mixed', `--setenv=GATOR_STATE_DIR=${stateDir}`, `--setenv=GATOR_CONFIG_DIR=${configDir}`, runtime, 'job', 'supervisor', '--notify=false'], { encoding: 'utf8', timeout: 20000, stdio: 'pipe' });
+    execFileSync('systemd-run', ['--user', `--unit=${supervisorName}`, '--service-type=exec', '--property=Restart=on-failure', '--property=RestartSec=5', '--property=UMask=0077', '--property=TimeoutStopSec=15', '--property=KillMode=mixed', `--setenv=HOT_CROSS_BUNS_STATE_DIR=${stateDir}`, `--setenv=HOT_CROSS_BUNS_CONFIG_DIR=${configDir}`, runtime, 'job', 'supervisor', '--notify=false'], { encoding: 'utf8', timeout: 20000, stdio: 'pipe' });
     supervisorStarted = true;
     await until(() => { if (providerError) throw providerError; return requests > 0; }, 'The supervisor did not dispatch its scheduled check.');
     assert.match(command('job', 'status'), /Job supervisor running/);
@@ -82,7 +82,7 @@ test('Linux supervisor finishes a scheduled check without the companion and expo
     await assert.rejects(request('/v1/chats'));
     assert.equal(systemctl('show', supervisorName, '--property=ActiveState', '--value').trim(), 'active');
     releaseModel();
-    const history = join(stateDir, 'gator/jobs/history', jobID);
+    const history = join(stateDir, 'hot-cross-buns/jobs/history', jobID);
     const attempts = async () => {
       const names = await readdir(history).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
       const results = [];

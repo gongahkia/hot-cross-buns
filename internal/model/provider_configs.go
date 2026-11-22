@@ -62,10 +62,10 @@ func azureResponsesCredential(config Config) (azureResponsesAuth, error) {
 	if config.Credentials != nil {
 		credential, found, err := config.Credentials.Read(string(AzureOpenAIResponses))
 		if err != nil {
-			return azureResponsesAuth{}, fmt.Errorf("read Gator credential for %q: %w", AzureOpenAIResponses, err)
+			return azureResponsesAuth{}, fmt.Errorf("read Hot Cross Buns credential for %q: %w", AzureOpenAIResponses, err)
 		}
 		if found && credential.IsAPIKey() {
-			return azureResponsesAuth{value: credential.Key, source: "Gator Azure OpenAI Responses API-key credential", resolution: "gator-store", header: "api-key"}, nil
+			return azureResponsesAuth{value: credential.Key, source: "Hot Cross Buns Azure OpenAI Responses API-key credential", resolution: "hot-cross-buns-store", header: "api-key"}, nil
 		}
 	}
 	if value := strings.TrimSpace(os.Getenv("AZURE_OPENAI_API_KEY")); value != "" {
@@ -90,5 +90,5 @@ func miniMaxMessagesURL(configured string, china bool) string {
 }
 
 // openCodeBackend uses the checked-in OpenCode model catalog rather than
-// guessing a protocol from a model-family prefix. Gator never launches
+// guessing a protocol from a model-family prefix. Hot Cross Buns never launches
 // OpenCode or reads its credential store.

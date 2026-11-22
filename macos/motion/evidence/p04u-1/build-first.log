@@ -2,31 +2,31 @@
 Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--58304C5D6DBC2206.txt
-[3/24] Compiling GatorCore NativeRecovery.swift
-[4/24] Compiling GatorCore NativeRecoveryPreparation.swift
-[5/24] Compiling GatorCore NativeProviderProtocol.swift
-[6/24] Compiling GatorCore NativeProviderSetup.swift
-[7/24] Compiling GatorCore NativeTaskReview.swift
-[8/24] Compiling GatorCore NativeTranscriptSearch.swift
-[9/26] Compiling GatorCore NativeUploadStore.swift
-[10/26] Compiling GatorCore NativeWorkspaceSelection.swift
-[11/26] Compiling GatorCore NativeCatalogProtocol.swift
-[12/26] Compiling GatorCore NativeConversationCatalog.swift
-[13/26] Compiling GatorCore NativeDraftAttachments.swift
-[14/26] Compiling GatorCore GoBridgeConnection.swift
-[15/26] Compiling GatorCore ManagedSessionCoordinator.swift
-[16/26] Compiling GatorCore ManagedSessionProtocol.swift
-[17/26] Compiling GatorCore NativeDraftStore.swift
-[18/26] Compiling GatorCore NativeMessageContent.swift
-[19/26] Compiling GatorCore NativePlanExecution.swift
-[20/26] Emitting module GatorCore
-[21/26] Compiling GatorCore BridgePipeIO.swift
-[22/26] Compiling GatorCore BridgeProtocol.swift
-[23/26] Compiling GatorCore GatorApplicationState.swift
+[3/24] Compiling HotCrossBunsCore NativeRecovery.swift
+[4/24] Compiling HotCrossBunsCore NativeRecoveryPreparation.swift
+[5/24] Compiling HotCrossBunsCore NativeProviderProtocol.swift
+[6/24] Compiling HotCrossBunsCore NativeProviderSetup.swift
+[7/24] Compiling HotCrossBunsCore NativeTaskReview.swift
+[8/24] Compiling HotCrossBunsCore NativeTranscriptSearch.swift
+[9/26] Compiling HotCrossBunsCore NativeUploadStore.swift
+[10/26] Compiling HotCrossBunsCore NativeWorkspaceSelection.swift
+[11/26] Compiling HotCrossBunsCore NativeCatalogProtocol.swift
+[12/26] Compiling HotCrossBunsCore NativeConversationCatalog.swift
+[13/26] Compiling HotCrossBunsCore NativeDraftAttachments.swift
+[14/26] Compiling HotCrossBunsCore GoBridgeConnection.swift
+[15/26] Compiling HotCrossBunsCore ManagedSessionCoordinator.swift
+[16/26] Compiling HotCrossBunsCore ManagedSessionProtocol.swift
+[17/26] Compiling HotCrossBunsCore NativeDraftStore.swift
+[18/26] Compiling HotCrossBunsCore NativeMessageContent.swift
+[19/26] Compiling HotCrossBunsCore NativePlanExecution.swift
+[20/26] Emitting module HotCrossBunsCore
+[21/26] Compiling HotCrossBunsCore BridgePipeIO.swift
+[22/26] Compiling HotCrossBunsCore BridgeProtocol.swift
+[23/26] Compiling HotCrossBunsCore HotCrossBunsApplicationState.swift
 error: emit-module command failed with exit code 1 (use -v to see invocation)
-[24/63] Emitting module GatorMac
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
- 2 | import GatorCore
+[24/63] Emitting module HotCrossBunsMac
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+ 2 | import HotCrossBunsCore
  3 | 
  4 | struct NativeMessageBody: View, Equatable {
    |        |                        |- error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
@@ -40,19 +40,19 @@ error: emit-module command failed with exit code 1 (use -v to see invocation)
  8 |         VStack(alignment: .leading, spacing: 10) {
 
 [#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
-[25/63] Compiling GatorMac ExactDecisionButton.swift
-[26/63] Compiling GatorMac ExactReviewContent.swift
-[27/63] Compiling GatorMac GatorApp.swift
-[28/63] Compiling GatorMac MenuBarVisibilityToggle.swift
-[29/63] Compiling GatorMac NativeAcceptanceDiagnostics.swift
-[30/68] Compiling GatorMac NativeTranscriptFind.swift
-[31/68] Compiling GatorMac NativeWindowConfiguration.swift
-[32/68] Compiling GatorMac NativeWorkspacePicker.swift
-[33/68] Compiling GatorMac NotchQuickAccess.swift
-[34/68] Compiling GatorMac PlanReviewContent.swift
-[35/68] Compiling GatorMac NativeMascotView.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
- 2 | import GatorCore
+[25/63] Compiling HotCrossBunsMac ExactDecisionButton.swift
+[26/63] Compiling HotCrossBunsMac ExactReviewContent.swift
+[27/63] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[28/63] Compiling HotCrossBunsMac MenuBarVisibilityToggle.swift
+[29/63] Compiling HotCrossBunsMac NativeAcceptanceDiagnostics.swift
+[30/68] Compiling HotCrossBunsMac NativeTranscriptFind.swift
+[31/68] Compiling HotCrossBunsMac NativeWindowConfiguration.swift
+[32/68] Compiling HotCrossBunsMac NativeWorkspacePicker.swift
+[33/68] Compiling HotCrossBunsMac NotchQuickAccess.swift
+[34/68] Compiling HotCrossBunsMac PlanReviewContent.swift
+[35/68] Compiling HotCrossBunsMac NativeMascotView.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+ 2 | import HotCrossBunsCore
  3 | 
  4 | struct NativeMessageBody: View, Equatable {
    |        |                        |- error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
@@ -66,9 +66,9 @@ error: emit-module command failed with exit code 1 (use -v to see invocation)
  8 |         VStack(alignment: .leading, spacing: 10) {
 
 [#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
-[36/68] Compiling GatorMac NativeMessageBody.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
- 2 | import GatorCore
+[36/68] Compiling HotCrossBunsMac NativeMessageBody.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+ 2 | import HotCrossBunsCore
  3 | 
  4 | struct NativeMessageBody: View, Equatable {
    |        |                        |- error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
@@ -82,9 +82,9 @@ error: emit-module command failed with exit code 1 (use -v to see invocation)
  8 |         VStack(alignment: .leading, spacing: 10) {
 
 [#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
-[37/68] Compiling GatorMac NativeMotionPresentation.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
- 2 | import GatorCore
+[37/68] Compiling HotCrossBunsMac NativeMotionPresentation.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+ 2 | import HotCrossBunsCore
  3 | 
  4 | struct NativeMessageBody: View, Equatable {
    |        |                        |- error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
@@ -98,9 +98,9 @@ error: emit-module command failed with exit code 1 (use -v to see invocation)
  8 |         VStack(alignment: .leading, spacing: 10) {
 
 [#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
-[38/68] Compiling GatorMac NativeMotionVisibility.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
- 2 | import GatorCore
+[38/68] Compiling HotCrossBunsMac NativeMotionVisibility.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+ 2 | import HotCrossBunsCore
  3 | 
  4 | struct NativeMessageBody: View, Equatable {
    |        |                        |- error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
@@ -114,9 +114,9 @@ error: emit-module command failed with exit code 1 (use -v to see invocation)
  8 |         VStack(alignment: .leading, spacing: 10) {
 
 [#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
-[39/68] Compiling GatorMac NativeProviderSecretEntry.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
- 2 | import GatorCore
+[39/68] Compiling HotCrossBunsMac NativeProviderSecretEntry.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMessageBody.swift:4:33: error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
+ 2 | import HotCrossBunsCore
  3 | 
  4 | struct NativeMessageBody: View, Equatable {
    |        |                        |- error: conformance of 'NativeMessageBody' to protocol 'Equatable' crosses into main actor-isolated code and can cause data races [#ConformanceIsolation]
@@ -130,29 +130,29 @@ error: emit-module command failed with exit code 1 (use -v to see invocation)
  8 |         VStack(alignment: .leading, spacing: 10) {
 
 [#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
-[40/68] Compiling GatorMac ProviderSetupView.swift
-[41/68] Compiling GatorMac RecentConversationsMenu.swift
-[42/68] Compiling GatorMac RecoveryInspectorContent.swift
-[43/68] Compiling GatorMac RecoveryPreparationView.swift
-[44/68] Compiling GatorMac TaskInspectorView.swift
-[45/68] Compiling GatorMac NativeAccessibilityStatus.swift
-[46/68] Compiling GatorMac NativeAttachmentActions.swift
-[47/68] Compiling GatorMac NativeComposer.swift
-[48/68] Compiling GatorMac NativeComposerPresentation.swift
-[49/68] Compiling GatorMac NativeDesktopPet.swift
-[50/68] Compiling GatorMac NativeReadingPositions.swift
-[51/68] Compiling GatorMac NativeStatusMessage.swift
-[52/68] Compiling GatorMac NativeStreamingPresentation.swift
-[53/68] Compiling GatorMac NativeStreamingReveal.swift
-[54/68] Compiling GatorMac NativeThinkingPulse.swift
-[55/68] Compiling GatorMac NativeDropInput.swift
-[56/68] Compiling GatorMac NativeErrorDisclosure.swift
-[57/68] Compiling GatorMac NativeMascotModel.swift
-[58/68] Compiling GatorMac NativeMascotPlayback.swift
-[59/68] Compiling GatorMac NativeMascotPreferences.swift
-[60/68] Compiling GatorMac AppDelegate.swift
-[61/68] Compiling GatorMac ApprovalReviewView.swift
-[62/68] Compiling GatorMac AttachmentSelectionView.swift
-[63/68] Compiling GatorMac ComposerView.swift
-[64/68] Compiling GatorMac ConversationCatalogView.swift
-[65/68] Compiling GatorMac ConversationView.swift
+[40/68] Compiling HotCrossBunsMac ProviderSetupView.swift
+[41/68] Compiling HotCrossBunsMac RecentConversationsMenu.swift
+[42/68] Compiling HotCrossBunsMac RecoveryInspectorContent.swift
+[43/68] Compiling HotCrossBunsMac RecoveryPreparationView.swift
+[44/68] Compiling HotCrossBunsMac TaskInspectorView.swift
+[45/68] Compiling HotCrossBunsMac NativeAccessibilityStatus.swift
+[46/68] Compiling HotCrossBunsMac NativeAttachmentActions.swift
+[47/68] Compiling HotCrossBunsMac NativeComposer.swift
+[48/68] Compiling HotCrossBunsMac NativeComposerPresentation.swift
+[49/68] Compiling HotCrossBunsMac NativeDesktopPet.swift
+[50/68] Compiling HotCrossBunsMac NativeReadingPositions.swift
+[51/68] Compiling HotCrossBunsMac NativeStatusMessage.swift
+[52/68] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
+[53/68] Compiling HotCrossBunsMac NativeStreamingReveal.swift
+[54/68] Compiling HotCrossBunsMac NativeThinkingPulse.swift
+[55/68] Compiling HotCrossBunsMac NativeDropInput.swift
+[56/68] Compiling HotCrossBunsMac NativeErrorDisclosure.swift
+[57/68] Compiling HotCrossBunsMac NativeMascotModel.swift
+[58/68] Compiling HotCrossBunsMac NativeMascotPlayback.swift
+[59/68] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[60/68] Compiling HotCrossBunsMac AppDelegate.swift
+[61/68] Compiling HotCrossBunsMac ApprovalReviewView.swift
+[62/68] Compiling HotCrossBunsMac AttachmentSelectionView.swift
+[63/68] Compiling HotCrossBunsMac ComposerView.swift
+[64/68] Compiling HotCrossBunsMac ConversationCatalogView.swift
+[65/68] Compiling HotCrossBunsMac ConversationView.swift

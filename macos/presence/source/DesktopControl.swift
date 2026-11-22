@@ -7,8 +7,8 @@ if args.count == 2 && args[1] == "permissions" {
     print("AXTrusted=\(AXIsProcessTrusted()) screenCapture=\(CGPreflightScreenCaptureAccess()) postEvents=\(CGPreflightPostEventAccess())"); exit(0)
 }
 let pid = Int32(args[1])!, action = args[2]
-guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.gator.presence.acceptance", "dev.gator.presence.finalcheck", "dev.gator.presence.prefprobe", "dev.gator.presence.lifecycleprobe"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
-guard NSRunningApplication(processIdentifier:pid)?.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/gator-native-test-presence-").resolvingSymlinksInPath().path) == true else { exit(2) }
+guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.hot-cross-buns.presence.acceptance", "dev.hot-cross-buns.presence.finalcheck", "dev.hot-cross-buns.presence.prefprobe", "dev.hot-cross-buns.presence.lifecycleprobe"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
+guard NSRunningApplication(processIdentifier:pid)?.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/hot-cross-buns-native-test-presence-").resolvingSymlinksInPath().path) == true else { exit(2) }
 let app = AXUIElementCreateApplication(pid)
 @MainActor func attr(_ e: AXUIElement, _ key: String) -> CFTypeRef? { var v: CFTypeRef?; AXUIElementCopyAttributeValue(e,key as CFString,&v); return v }
 @MainActor func str(_ e: AXUIElement, _ key: String) -> String {

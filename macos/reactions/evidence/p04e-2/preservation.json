@@ -1,12 +1,12 @@
 {
   "spinnerComparisonByteIdentical": true,
   "protectedFilesUnchanged": [
-    "macos/Sources/GatorCore/GatorApplicationState.swift",
-    "macos/Sources/GatorCore/ManagedSessionCoordinator.swift",
-    "macos/Sources/GatorMac/NativeStreamingReveal.swift",
-    "macos/Sources/GatorMac/NativeMotionPresentation.swift",
-    "macos/Sources/GatorMac/NativeThinkingPulse.swift",
-    "macos/Sources/GatorMac/NativeReadingPositions.swift",
+    "macos/Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift",
+    "macos/Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift",
+    "macos/Sources/HotCrossBunsMac/NativeStreamingReveal.swift",
+    "macos/Sources/HotCrossBunsMac/NativeMotionPresentation.swift",
+    "macos/Sources/HotCrossBunsMac/NativeThinkingPulse.swift",
+    "macos/Sources/HotCrossBunsMac/NativeReadingPositions.swift",
     "internal/worksession/dialogue.go"
   ]
 }

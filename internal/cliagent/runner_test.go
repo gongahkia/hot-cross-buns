@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/patch"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 func fixtureRequest(t *testing.T, body string) Request {

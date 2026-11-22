@@ -34,7 +34,7 @@ func TestBrowserFlowCallbackAndExchangeUsesPKCE(t *testing.T) {
 	if err := listener.Close(); err != nil {
 		t.Fatalf("release callback port: %v", err)
 	}
-	attempt, err := BeginBrowserFlow(BrowserFlow{ClientID: "gator-client", AuthorizationURL: "https://auth.example.test/authorize", TokenURL: tokens.URL, RedirectURL: redirect, Scopes: []string{"openid", "offline_access"}, AuthorizeParams: map[string]string{"audience": "gator"}})
+	attempt, err := BeginBrowserFlow(BrowserFlow{ClientID: "hot-cross-buns-client", AuthorizationURL: "https://auth.example.test/authorize", TokenURL: tokens.URL, RedirectURL: redirect, Scopes: []string{"openid", "offline_access"}, AuthorizeParams: map[string]string{"audience": "hot-cross-buns"}})
 	if err != nil {
 		t.Fatalf("begin flow: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestBrowserFlowCallbackAndExchangeUsesPKCE(t *testing.T) {
 		t.Fatalf("parse authorization URL: %v", err)
 	}
 	query := authorize.Query()
-	if query.Get("client_id") != "gator-client" || query.Get("code_challenge") == "" || query.Get("code_challenge_method") != "S256" || query.Get("audience") != "gator" {
+	if query.Get("client_id") != "hot-cross-buns-client" || query.Get("code_challenge") == "" || query.Get("code_challenge_method") != "S256" || query.Get("audience") != "hot-cross-buns" {
 		t.Fatalf("authorization query = %#v", query)
 	}
 	callback, err := attempt.StartCallback()
@@ -129,7 +129,7 @@ func TestBrowserFlowJSONExchangeIncludesState(t *testing.T) {
 	}
 	redirect := "http://" + listener.Addr().String() + "/callback"
 	_ = listener.Close()
-	attempt, err := BeginBrowserFlow(BrowserFlow{ClientID: "gator-client", AuthorizationURL: "https://auth.example.test/authorize", TokenURL: tokens.URL, RedirectURL: redirect, TokenRequestJSON: true, TokenIncludesState: true})
+	attempt, err := BeginBrowserFlow(BrowserFlow{ClientID: "hot-cross-buns-client", AuthorizationURL: "https://auth.example.test/authorize", TokenURL: tokens.URL, RedirectURL: redirect, TokenRequestJSON: true, TokenIncludesState: true})
 	if err != nil {
 		t.Fatalf("begin flow: %v", err)
 	}

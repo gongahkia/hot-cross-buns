@@ -211,7 +211,7 @@ func TestNativeCodexRejectsWrongResumedThread(t *testing.T) {
 func TestCodexDynamicClarificationReturnsAnswerWithoutPermissions(t *testing.T) {
 	wire, _, reader := rpcFixture(t, false)
 	c := &nativeClient{wire: wire, kind: "codex", state: NativeState{ThreadID: "thread", TurnID: "turn", Status: "running"}}
-	if err := c.event([]byte(`{"id":7,"method":"item/tool/call","params":{"threadId":"thread","turnId":"turn","tool":"gator_ask_user","arguments":{"question":"Which format?","options":["Markdown"]}}}`)); err != nil {
+	if err := c.event([]byte(`{"id":7,"method":"item/tool/call","params":{"threadId":"thread","turnId":"turn","tool":"hot_cross_buns_ask_user","arguments":{"question":"Which format?","options":["Markdown"]}}}`)); err != nil {
 		t.Fatal(err)
 	}
 	s := c.State()

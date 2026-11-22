@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/mcp"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/mcp"
 )
 
 const maxHTTPJSONBytes = 256 * 1024
@@ -86,7 +86,7 @@ type PreparedAction struct {
 
 // ExecutionEvidence records what a provider returned after an action. A
 // resource ID names the affected document or sheet; it is not a unique
-// mutation receipt. The digest identifies the response Gator observed, not
+// mutation receipt. The digest identifies the response Hot Cross Buns observed, not
 // proof that a later read will show the intended change.
 type ExecutionEvidence struct {
 	ReceiptID          string
@@ -237,7 +237,7 @@ func (r Runtime) PrepareAction(connectorID, operationID string, input json.RawMe
 		if err != nil {
 			return PreparedAction{}, err
 		}
-		target = strings.TrimRight(descriptor.Resource, "/") + "/gator/google-batch"
+		target = strings.TrimRight(descriptor.Resource, "/") + "/hot-cross-buns/google-batch"
 	}
 	if isServiceKind(descriptor.Kind) {
 		if !(descriptor.Kind == KindGoogle && operation.ID == "batch") {
@@ -914,7 +914,7 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 		return Result{}, err
 	}
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "gator-work/2")
+	request.Header.Set("User-Agent", "hot-cross-buns-work/2")
 	if len(body) > 0 {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -988,7 +988,7 @@ func (r Runtime) fetchHTTPJSON(ctx context.Context, descriptor Descriptor) (Resu
 		return Result{}, fmt.Errorf("create connector request: %w", err)
 	}
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "gator-work/1")
+	request.Header.Set("User-Agent", "hot-cross-buns-work/1")
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -1038,7 +1038,7 @@ func (r Runtime) publishHTTPJSON(ctx context.Context, descriptor Descriptor, pay
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("User-Agent", "gator-work/1")
+	request.Header.Set("User-Agent", "hot-cross-buns-work/1")
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}

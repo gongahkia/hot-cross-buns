@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
 )
 
 type learningForm struct {

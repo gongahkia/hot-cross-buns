@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
 )
 
 const playwrightVersion = "1.56.1"
@@ -28,7 +28,7 @@ var runtimePackageLock []byte
 var runtimeDriver []byte
 
 // RuntimeStatus reports only local runtime metadata. It performs no download
-// and never treats a system browser as an implicit Gator browser capability.
+// and never treats a system browser as an implicit Hot Cross Buns browser capability.
 type RuntimeStatus struct {
 	Installed bool
 	Directory string
@@ -48,7 +48,7 @@ func Runtime(store *Store) RuntimeStatus {
 	status := RuntimeStatus{Directory: directory}
 	node, err := exec.LookPath("node")
 	if err != nil {
-		status.Error = "Node.js is required; install Node.js 18 or newer before running 'gator browser install'"
+		status.Error = "Node.js is required; install Node.js 18 or newer before running 'hot-cross-buns browser install'"
 		return status
 	}
 	status.Node = node
@@ -57,12 +57,12 @@ func Runtime(store *Store) RuntimeStatus {
 		return status
 	}
 	if !runtimeFilesCurrent(directory) {
-		status.Error = "runtime is stale; run 'gator browser install' to refresh the pinned browser controller"
+		status.Error = "runtime is stale; run 'hot-cross-buns browser install' to refresh the pinned browser controller"
 		return status
 	}
 	for _, relative := range []string{"node_modules/playwright/package.json", "browsers"} {
 		if _, err := os.Stat(filepath.Join(directory, relative)); err != nil {
-			status.Error = "runtime is not installed; run 'gator browser install'"
+			status.Error = "runtime is not installed; run 'hot-cross-buns browser install'"
 			return status
 		}
 	}
@@ -88,22 +88,22 @@ func runtimeFilesCurrent(directory string) bool {
 }
 
 // InstallRuntime explicitly installs the lockfile-pinned Playwright package
-// and Chromium below Gator's private state directory. It intentionally never
-// runs during `gator work run`, `gator`, or session start.
+// and Chromium below Hot Cross Buns's private state directory. It intentionally never
+// runs during `hot-cross-buns work run`, `hot-cross-buns`, or session start.
 func InstallRuntime(ctx context.Context, store *Store) (RuntimeStatus, error) {
 	if store == nil {
 		return RuntimeStatus{}, errors.New("browser store is required")
 	}
 	node, err := exec.LookPath("node")
 	if err != nil {
-		return RuntimeStatus{}, errors.New("Node.js is required; install Node.js 18 or newer before running 'gator browser install'")
+		return RuntimeStatus{}, errors.New("Node.js is required; install Node.js 18 or newer before running 'hot-cross-buns browser install'")
 	}
 	if err := validateNodeVersion(node); err != nil {
 		return RuntimeStatus{}, err
 	}
 	npm, err := exec.LookPath("npm")
 	if err != nil {
-		return RuntimeStatus{}, errors.New("npm is required; install Node.js/npm before running 'gator browser install'")
+		return RuntimeStatus{}, errors.New("npm is required; install Node.js/npm before running 'hot-cross-buns browser install'")
 	}
 	directory := runtimeDirectory(store)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
@@ -161,7 +161,7 @@ func validateNodeVersion(node string) error {
 	majorText, _, _ := strings.Cut(value, ".")
 	major, err := strconv.Atoi(majorText)
 	if err != nil || major < 18 {
-		return errors.New("Node.js 18 or newer is required; install a supported Node.js version before running 'gator browser install'")
+		return errors.New("Node.js 18 or newer is required; install a supported Node.js version before running 'hot-cross-buns browser install'")
 	}
 	return nil
 }

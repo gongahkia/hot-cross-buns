@@ -1,10 +1,10 @@
 [0/1] Planning build
 Building for debugging...
 [0/4] Write swift-version--58304C5D6DBC2206.txt
-[2/4] Compiling GatorMacTests NativeInputTests.swift
-[3/4] Emitting module GatorMacTests
+[2/4] Compiling HotCrossBunsMacTests NativeInputTests.swift
+[3/4] Emitting module HotCrossBunsMacTests
 [3/5] Write Objects.LinkFileList
-[4/5] Linking GatorNativePackageTests
+[4/5] Linking HotCrossBunsNativePackageTests
 Build complete! (1.29s)
 Test Suite 'All tests' started at 2026-11-17 09:03:48.484.
 Test Suite 'All tests' passed at 2026-11-17 09:03:48.485.
@@ -105,7 +105,7 @@ Test Suite 'All tests' passed at 2026-11-17 09:03:48.485.
 ◇ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() started.
 ✔ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() passed after 0.217 seconds.
 ◇ Test nativeStreamingSnapshotHandlingBenchmark() started.
-GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=202.43597030639648 medianPerSnapshotMS=6.747865676879883
+HOT_CROSS_BUNS_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=202.43597030639648 medianPerSnapshotMS=6.747865676879883
 ✔ Test nativeStreamingSnapshotHandlingBenchmark() passed after 1.052 seconds.
 ◇ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() started.
 ✔ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() passed after 0.001 seconds.
@@ -114,13 +114,13 @@ GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=217
 ◇ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() started.
 ✔ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":0.50604343414306641,"messages":50,"transcriptMedianMS":0.022053718566894531},{"bytes":240934,"decodeMedianMS":5.2489042282104492,"messages":500,"transcriptMedianMS":0.21493434906005859},{"bytes":964934,"decodeMedianMS":20.595073699951172,"messages":2000,"transcriptMedianMS":0.85306167602539062}],"kind":"native-presentation","peakRSSBytes":44318720,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":0.50604343414306641,"messages":50,"transcriptMedianMS":0.022053718566894531},{"bytes":240934,"decodeMedianMS":5.2489042282104492,"messages":500,"transcriptMedianMS":0.21493434906005859},{"bytes":964934,"decodeMedianMS":20.595073699951172,"messages":2000,"transcriptMedianMS":0.85306167602539062}],"kind":"native-presentation","peakRSSBytes":44318720,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 0.203 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"25987  35984   0.0\n25988  36032   0.0\n25991  36592   0.0\n25994  36544   0.0\n","timeToConnectedMS":[62.497973442077637,79.122066497802734,69.327950477600098,73.236942291259766]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"25987  35984   0.0\n25988  36032   0.0\n25991  36592   0.0\n25994  36544   0.0\n","timeToConnectedMS":[62.497973442077637,79.122066497802734,69.327950477600098,73.236942291259766]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 3.768 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=67.73209571838379 peakRSSBytes=49037312
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=67.73209571838379 peakRSSBytes=49037312
 ✔ Test nativeThumbnailBenchmark() passed after 0.294 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.039 seconds.

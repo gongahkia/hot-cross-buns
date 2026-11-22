@@ -1,9 +1,9 @@
 import subprocess,pathlib,tempfile,json,os,selectors,time
-root=pathlib.Path(tempfile.mkdtemp(prefix='gator-dev-fixture-probe-'));(root/'workspace').mkdir();(root/'config/gator').mkdir(parents=True)
-provider=subprocess.Popen(['node','macos/Tests/GatorCoreTests/Fixtures/dev-acceptance-provider.mjs'],env={'PATH':os.environ['PATH'],'GATOR_FIXTURE_CONTROL':str(root)},stdout=subprocess.PIPE,text=True)
+root=pathlib.Path(tempfile.mkdtemp(prefix='hot-cross-buns-dev-fixture-probe-'));(root/'workspace').mkdir();(root/'config/hot-cross-buns').mkdir(parents=True)
+provider=subprocess.Popen(['node','macos/Tests/HotCrossBunsCoreTests/Fixtures/dev-acceptance-provider.mjs'],env={'PATH':os.environ['PATH'],'HOT_CROSS_BUNS_FIXTURE_CONTROL':str(root)},stdout=subprocess.PIPE,text=True)
 port=json.loads(provider.stdout.readline())['port']
-(root/'config/gator/config.json').write_text(json.dumps({'version':4,'defaults':{'provider':'fixture','model':'fixture'},'custom_providers':[{'id':'fixture','base_url':f'http://127.0.0.1:{port}/chat','models':['fixture'],'default_model':'fixture'}]}))
-p=subprocess.Popen(['/tmp/Gator-Native-Tranche08-Enhanced-Final.app/Contents/Resources/gator-runtime','ui-backend','',''],cwd=root/'workspace',env={'PATH':os.environ['PATH'],'HOME':str(root),'GATOR_CONFIG_DIR':str(root/'config'),'GATOR_STATE_DIR':str(root/'state'),'GATOR_UI_BACKEND':'1','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'},stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=open(root/'go.log','w'),text=True,bufsize=1)
+(root/'config/hot-cross-buns/config.json').write_text(json.dumps({'version':4,'defaults':{'provider':'fixture','model':'fixture'},'custom_providers':[{'id':'fixture','base_url':f'http://127.0.0.1:{port}/chat','models':['fixture'],'default_model':'fixture'}]}))
+p=subprocess.Popen(['/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app/Contents/Resources/hot-cross-buns-runtime','ui-backend','',''],cwd=root/'workspace',env={'PATH':os.environ['PATH'],'HOME':str(root),'HOT_CROSS_BUNS_CONFIG_DIR':str(root/'config'),'HOT_CROSS_BUNS_STATE_DIR':str(root/'state'),'HOT_CROSS_BUNS_UI_BACKEND':'1','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'},stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=open(root/'go.log','w'),text=True,bufsize=1)
 p.stdin.write('{"version":1,"type":"submit","text":"Begin inert pending approval"}\n');p.stdin.flush()
 sel=selectors.DefaultSelector();sel.register(p.stdout,selectors.EVENT_READ);end=time.monotonic()+20;pending=None;latest={}
 while time.monotonic()<end:

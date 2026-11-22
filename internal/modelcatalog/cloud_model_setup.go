@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 type cloudSetupField uint8
@@ -62,7 +62,7 @@ func (m Model) beginCloudModelSetup() (tea.Model, tea.Cmd) {
 	}
 	provider, err := modelprovider.ParseProvider(cloud.provider)
 	if err != nil || !modelprovider.SupportsDirect(provider) {
-		m.notice = notice{text: "This entry is a custom endpoint rather than a built-in Gator cloud provider. Configure its endpoint from the provider manager.", kind: noticeInfo}
+		m.notice = notice{text: "This entry is a custom endpoint rather than a built-in Hot Cross Buns cloud provider. Configure its endpoint from the provider manager.", kind: noticeInfo}
 		return m, nil
 	}
 	form := newCloudModelSetupForm(provider, cloud.model, m.providerEndpoint(cloud.provider), m.providerOptions(cloud.provider), m.inlineWidth())
@@ -415,7 +415,7 @@ func (form *cloudModelSetupForm) configurationHint() string {
 	if form.credentialRetryRequired {
 		return "The failed save cleared the API key input. Re-enter the key to retry, or cancel to keep the previous configuration."
 	}
-	return "API keys are masked and saved only in Gator's private auth file. Leaving the field empty preserves any existing stored key."
+	return "API keys are masked and saved only in Hot Cross Buns's private auth file. Leaving the field empty preserves any existing stored key."
 }
 
 func (form *cloudModelSetupForm) fieldPresentation(field cloudSetupField) (string, string, *textinput.Model) {
@@ -441,7 +441,7 @@ func (form *cloudModelSetupForm) fieldPresentation(field cloudSetupField) (strin
 	case cloudSetupGatewayProtocolField:
 		return "Cloudflare AI Gateway protocol", "Choose the request protocol compatible with the selected model family.", &form.gatewayProtocol
 	case cloudSetupGatewayField:
-		return "Radius gateway URL", "Optional Gator Radius gateway override.", &form.gateway
+		return "Radius gateway URL", "Optional Hot Cross Buns Radius gateway override.", &form.gateway
 	default:
 		return "Deployment or model", "Use the Azure deployment name for Azure; use the provider model ID elsewhere.", &form.model
 	}

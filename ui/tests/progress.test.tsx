@@ -4,11 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 test("progress follows live current-chat operations, clears on errors and ignores human waiting states", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-progress-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-progress-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await Bun.sleep(190); await setup.flush() }
   let release = () => {}, reject = (_error: Error) => {}

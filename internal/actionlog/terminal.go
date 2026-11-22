@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // TerminalReceipt is an additive terminal receipt in the existing action store.
@@ -135,7 +135,7 @@ func (s Store) terminalRecords(create bool) (workspace.Root, error) {
 	return workspace.Open(filepath.Join(s.path, ".terminal", "receipts"))
 }
 
-// LockTerminal serializes all Gator-originated dispatches to this exact target
+// LockTerminal serializes all Hot Cross Buns-originated dispatches to this exact target
 // across helpers. Closing or crashing releases the lock, never its durable claim.
 func (s Store) LockTerminal(target executiontarget.Binding) (func(), error) {
 	root, err := s.terminalRoot(target, true)

@@ -232,18 +232,18 @@ func (c *Controller) Capture(ctx context.Context, expected Native, lines int) (C
 	}
 	// Print a fixed guard-success marker even for a blank pane. capture -p never
 	// writes tmux paste buffers; no style/hyperlink/control output is requested.
-	r, err := c.guarded(ctx, expected.Pane, "display-message -p -t "+expected.Pane+" GATOR_CAPTURE_OK ; capture-pane -p -t "+expected.Pane+" -S "+strconv.Itoa(before.Height-MaxLines)+" -E "+strconv.Itoa(before.Height-1))
+	r, err := c.guarded(ctx, expected.Pane, "display-message -p -t "+expected.Pane+" HOT_CROSS_BUNS_CAPTURE_OK ; capture-pane -p -t "+expected.Pane+" -S "+strconv.Itoa(before.Height-MaxLines)+" -E "+strconv.Itoa(before.Height-1))
 	if err != nil && !errors.Is(err, ErrLimit) {
 		return Capture{}, ErrUnavailable
 	}
-	if !strings.HasPrefix(string(r.Bytes), "GATOR_CAPTURE_OK\n") {
+	if !strings.HasPrefix(string(r.Bytes), "HOT_CROSS_BUNS_CAPTURE_OK\n") {
 		return Capture{}, ErrUnavailable
 	}
 	after, e := c.Resolve(ctx, expected.Pane)
 	if e != nil || after.Incarnation() != before.Incarnation() {
 		return Capture{}, ErrUnavailable
 	}
-	text, truncated := PlainTail(r.Bytes[len("GATOR_CAPTURE_OK\n"):], lines, MaxBytes)
+	text, truncated := PlainTail(r.Bytes[len("HOT_CROSS_BUNS_CAPTURE_OK\n"):], lines, MaxBytes)
 	return Capture{Text: text, Truncated: r.Truncated || truncated || before.Height+before.History > MaxLines, CapturedAt: time.Now().UTC()}, nil
 }
 

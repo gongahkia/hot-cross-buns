@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/workhome"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func goalControlModel(t *testing.T) (Model, goal.Store, goal.Record) {

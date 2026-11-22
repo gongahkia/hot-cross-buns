@@ -5,8 +5,8 @@ import re
 import subprocess
 import time
 
-metadata = json.loads(pathlib.Path('/tmp/gator-p01-session.json').read_text())
-control = ['/tmp/gator-p01-control', str(metadata['pid'])]
+metadata = json.loads(pathlib.Path('/tmp/hot-cross-buns-p01-session.json').read_text())
+control = ['/tmp/hot-cross-buns-p01-control', str(metadata['pid'])]
 events = []
 
 def call(*args):
@@ -34,8 +34,8 @@ def visible(title):
     raise RuntimeError('Expected visible anchor: ' + title + '; last headings=' + text)
 
 def switch(index, label):
-    call('press', 'gator.recent-conversations')
-    call('press', 'gator.recent.' + metadata['conversations'][index])
+    call('press', 'hot-cross-buns.recent-conversations')
+    call('press', 'hot-cross-buns.recent.' + metadata['conversations'][index])
     wait_for(lambda tree: 'History question ' + label + '-' in tree and 'Find in loaded transcript' not in tree)
 
 def find(query):
@@ -46,18 +46,18 @@ def find(query):
 
 try:
     switch(0, 'A')
-    call('set', 'gator.composer.text', 'Draft remains unchanged during Find')
+    call('set', 'hot-cross-buns.composer.text', 'Draft remains unchanged during Find')
     find('A-050'); visible('Retained note A-050')
     call('press', 'Close Find'); visible('Retained note A-050'); call('scrollbars')
     switch(1, 'B')
-    call('set', 'gator.composer.text', 'Independent B draft')
+    call('set', 'hot-cross-buns.composer.text', 'Independent B draft')
     find('B-012'); visible('Retained note B-012')
     children = subprocess.check_output(['pgrep', '-P', str(metadata['pid'])], text=True)
     events.append('Direct Go children=' + children.strip())
     switch(0, 'A'); visible('Retained note A-050'); call('scrollbars')
-    assert 'Draft remains unchanged during Find' in call('inspect', 'gator.composer.text')
+    assert 'Draft remains unchanged during Find' in call('inspect', 'hot-cross-buns.composer.text')
     switch(1, 'B'); visible('Retained note B-012')
-    assert 'Independent B draft' in call('inspect', 'gator.composer.text')
+    assert 'Independent B draft' in call('inspect', 'hot-cross-buns.composer.text')
     assert subprocess.check_output(['pgrep', '-P', str(metadata['pid'])], text=True) == children
     events.append('PASS: independent drafts/anchors; Find scope closes on switch; same two Go owners reused')
     switch(0, 'A'); visible('Retained note A-050')

@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // InteractionDigest binds a decision to the displayed kind and full preview.
@@ -62,7 +62,7 @@ func acquireInteractionRunLock(stateDir, runID string) (*os.File, error) {
 	if stateDir == "" || !validInteractionRunID(runID) {
 		return nil, errors.New("invalid Work interaction state")
 	}
-	base := filepath.Join(stateDir, "gator", "interactions")
+	base := filepath.Join(stateDir, "hot-cross-buns", "interactions")
 	if err := os.MkdirAll(filepath.Join(base, runID), 0700); err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func ReadInteractionRecord(stateDir, runID string, id int) (InteractionRecord, e
 	if !validInteractionRunID(runID) || id < 1 {
 		return InteractionRecord{}, errors.New("invalid Work decision identity")
 	}
-	base := filepath.Join(stateDir, "gator", "interactions")
+	base := filepath.Join(stateDir, "hot-cross-buns", "interactions")
 	root, err := workspace.Open(base)
 	if err != nil {
 		return InteractionRecord{}, err
@@ -176,7 +176,7 @@ func readInteractionRecords(stateDir, runID string, pendingOnly bool) ([]Interac
 	if runID != "" && !validInteractionRunID(runID) {
 		return nil, errors.New("invalid Work run ID")
 	}
-	base := filepath.Join(stateDir, "gator", "interactions")
+	base := filepath.Join(stateDir, "hot-cross-buns", "interactions")
 	entries, err := os.ReadDir(base)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil

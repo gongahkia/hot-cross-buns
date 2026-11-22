@@ -1,38 +1,38 @@
 {
   "safetySources": [
     {
-      "file": "macos/Sources/GatorCore/NativeDraftStore.swift",
+      "file": "macos/Sources/HotCrossBunsCore/NativeDraftStore.swift",
       "sha256": "3aec34b85e60a3a18c08437b0d243df695b448f499b73647a025912df799fab6",
       "matchesStartingHEAD": true
     },
     {
-      "file": "macos/Sources/GatorCore/GatorApplicationState.swift",
+      "file": "macos/Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift",
       "sha256": "88ab986e253566f2e8c2c5dd2518b2610aea57f46987518936a0aeac75fb3ee9",
       "matchesStartingHEAD": true
     },
     {
-      "file": "macos/Sources/GatorCore/ManagedSessionCoordinator.swift",
+      "file": "macos/Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift",
       "sha256": "321032f703356e767ed705bd760512dc7cc764b357c171ecb8b2b82bcf69a02b",
       "matchesStartingHEAD": true
     },
     {
-      "file": "macos/Sources/GatorCore/GoBridgeConnection.swift",
+      "file": "macos/Sources/HotCrossBunsCore/GoBridgeConnection.swift",
       "sha256": "17ada0b512e8e2120dc818c87079fc4245353275932fd7280f57e299421c9c6e",
       "matchesStartingHEAD": true
     },
     {
-      "file": "macos/Sources/GatorCore/BridgePipeIO.swift",
+      "file": "macos/Sources/HotCrossBunsCore/BridgePipeIO.swift",
       "sha256": "b29a2c93affa3761dd75d82853cbf079aba2a5632aa666b69fa48015379f067a",
       "matchesStartingHEAD": true
     },
     {
-      "file": "macos/Sources/GatorMac/AppDelegate.swift",
+      "file": "macos/Sources/HotCrossBunsMac/AppDelegate.swift",
       "sha256": "da85923919736ea90bee823a1de4d8b52f78c9d673c8771ee3dc01a37b247c12",
       "matchesStartingHEAD": true
     }
   ],
   "preservedSafetyBundleSwiftSHA256": "427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04",
-  "candidateIdentifier": "dev.gator.native",
+  "candidateIdentifier": "dev.hot-cross-buns.native",
   "minimumMacOS": "15.0",
   "candidateSwiftSHA256": "a8a4a5b14dda91c7824833b2aca9f3bf12c6f52f77d0b6572910463908430e3b",
   "sourceHEADAtCheck": "2a8b22fcbe3efd7f23fe51e551d855052d005465",
@@ -42,37 +42,37 @@
   "finalHEADAdvancedExternally": true,
   "safetyTests": [
     {
-      "file": "macos/Tests/GatorCoreTests/NativeArchiveSafetyTests.swift",
+      "file": "macos/Tests/HotCrossBunsCoreTests/NativeArchiveSafetyTests.swift",
       "matchesStartingHEAD": true,
       "sha256": "5febae12a5d4afc6ad218dad056a97276201e7f52139d7f519845f3110462bba"
     },
     {
-      "file": "macos/Tests/GatorCoreTests/NativeClosingSafetyTests.swift",
+      "file": "macos/Tests/HotCrossBunsCoreTests/NativeClosingSafetyTests.swift",
       "matchesStartingHEAD": true,
       "sha256": "ef210eb2e2f597164d2264a0b84f9233947c0076d8a217dd7c621e0e99d4c4a4"
     },
     {
-      "file": "macos/Tests/GatorCoreTests/BridgeShutdownSafetyTests.swift",
+      "file": "macos/Tests/HotCrossBunsCoreTests/BridgeShutdownSafetyTests.swift",
       "matchesStartingHEAD": true,
       "sha256": "e955688ce49ec0a4ffb90abf3f9dcca5396e78c0b0b141a8f6124f600932707c"
     },
     {
-      "file": "macos/Tests/GatorCoreTests/Fixtures/native-archive-writer.swift",
+      "file": "macos/Tests/HotCrossBunsCoreTests/Fixtures/native-archive-writer.swift",
       "matchesStartingHEAD": true,
       "sha256": "23eb05e17ed268c50ed3dc0a97d5cb905b045547e311e30faf67b7c83ed9deca"
     },
     {
-      "file": "macos/Tests/GatorCoreTests/Fixtures/pipe-lifecycle.py",
+      "file": "macos/Tests/HotCrossBunsCoreTests/Fixtures/pipe-lifecycle.py",
       "matchesStartingHEAD": true,
       "sha256": "bb8f2037137f59233f5f7c63dcba2c1d1b2f2042a894689db89436a0349ee1a3"
     }
   ],
   "preservedSafetyBundleFiles": {
-    "Contents/MacOS/GatorMac": "427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04",
-    "Contents/Resources/gator-runtime": "6c86d10d25077267a87dfbc6dd9abd5fc5ec11a3e22ad9286e9ea5dc8bf906ba",
+    "Contents/MacOS/HotCrossBunsMac": "427a0bc7039de3ba7770ca4178cb11219e798bee58824fa355a5d29e4aa70a04",
+    "Contents/Resources/hot-cross-buns-runtime": "6c86d10d25077267a87dfbc6dd9abd5fc5ec11a3e22ad9286e9ea5dc8bf906ba",
     "Contents/Resources/AppIcon.icns": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401",
-    "Contents/Resources/GatorHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
-    "Contents/Resources/GatorMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+    "Contents/Resources/HotCrossBunsHead.png": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee",
+    "Contents/Resources/HotCrossBunsMenuBar.png": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
   },
   "checkedAtUTC": "2026-11-17T08:15:44.730159+00:00",
   "candidateGoSHA256": "73a602eca084feba208beb4c0eb7d601b0dcde35f0873f81d0f651496aa6bd10"

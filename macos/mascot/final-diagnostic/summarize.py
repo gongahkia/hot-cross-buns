@@ -10,7 +10,7 @@ import statistics
 evidence=Path(__file__).resolve().parent.parent/'evidence/p04m-a2-final'
 mib=1024**2
 summary={}
-for directory in [Path('/tmp/gator-final-diag-r1'),Path('/tmp/gator-final-diag-r2')]:
+for directory in [Path('/tmp/hot-cross-buns-final-diag-r1'),Path('/tmp/hot-cross-buns-final-diag-r2')]:
     for case in directory.iterdir():
         if not case.is_dir() or not (case/'results.json').exists():continue
         target=evidence/'runs'/case.name;target.mkdir(parents=True,exist_ok=True)
@@ -56,7 +56,7 @@ for directory in [Path('/tmp/gator-final-diag-r1'),Path('/tmp/gator-final-diag-r
         data['result']={k:result[k]for k in ['done','elapsed','decodeCount','frames','live','created','assertions']}
         data['policyEvents']=[x for x in result['events']if x.get('event')=='policy']
         summary[case.name]=data
-endurance=Path('/tmp/gator-final-corrected-endurance/endurance')
+endurance=Path('/tmp/hot-cross-buns-final-corrected-endurance/endurance')
 if (endurance/'results.json').exists():
     result=json.loads((endurance/'results.json').read_text())
     if result['done']:

@@ -1,4 +1,4 @@
     AXUnknown |  | Error: this conversation changed; refresh it before organizing it |  | 
-   AXTextField |  | Conversation title | GUI attempted title | gator.catalog.window
-   AXButton |  | Refresh and Review |  | gator.catalog.window
-   AXButton |  | Save Title |  | gator.catalog.window
+   AXTextField |  | Conversation title | GUI attempted title | hot-cross-buns.catalog.window
+   AXButton |  | Refresh and Review |  | hot-cross-buns.catalog.window
+   AXButton |  | Save Title |  | hot-cross-buns.catalog.window

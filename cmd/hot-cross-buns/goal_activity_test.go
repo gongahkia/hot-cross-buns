@@ -1,0 +1,121 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+)
+
+func TestGoalActivityShowsDurableChecksAndPendingDecisions(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", stateDir)
+	goals, err := goal.Open(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := goals.Add("Plan the offsite", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := goals.InitializePlan(record.ID, "Choose a venue", []string{"Confirm availability"}); err != nil {
+		t.Fatal(err)
+	}
+	jobStore, err := jobs.Open(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := jobStore.Save(jobs.Definition{Name: "Offsite watch", GoalID: record.ID, Enabled: true, Schedule: "0 9 * * *", Timezone: "UTC", Missed: "run_once", SourcePath: record.SourcePath, RefreshSnapshot: true, Objective: "Check venue changes", Mode: action.Inspect, Contract: artifact.InspectionContract()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempt, err := jobStore.Begin(definition, time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempt.Status, attempt.Summary, attempt.FinishedAt = "completed", "Venue A cancelled", time.Now().UTC()
+	runID := attempt.ID + "-try-1"
+	attempt.Runs = []jobs.RunReference{{Try: 1, RunID: runID}}
+	taskDir := filepath.Join(stateDir, "hot-cross-buns", "tasks", runID)
+	if err := os.MkdirAll(taskDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	task, err := json.Marshal(orchestrator.Task{Version: orchestrator.TaskVersion, ID: "subagent-001", Role: "source_researcher", Status: "completed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "subagent-001.json"), task, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := jobStore.Record(attempt); err != nil {
+		t.Fatal(err)
+	}
+	inboxStore, err := inbox.Open(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inboxStore.Add(inbox.Entry{GoalID: record.ID, Title: "Offsite", Status: "completed", Summary: "Review venue cancellation"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inboxStore.Add(inbox.Entry{Title: "Other", Status: "completed", Summary: "Unrelated private alert"}); err != nil {
+		t.Fatal(err)
+	}
+	suggestions, err := suggestion.Open(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := suggestions.Create(suggestion.Record{Kind: "note", WorkID: "work-test", GoalID: record.ID, Title: "Venue fallback", Body: "Venue B is available"}); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := goalCommand([]string{"activity", record.ID}, &output); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"Outcome: Choose a venue", "Step:", "next:", "last:", "Venue A cancelled", "specialist: subagent-001 source_researcher [completed]", "hot-cross-buns work tasks " + runID, "Review venue cancellation", "Venue fallback", "hot-cross-buns goal pause " + record.ID} {
+		if !strings.Contains(output.String(), expected) {
+			t.Fatalf("activity missing %q:\n%s", expected, output.String())
+		}
+	}
+	if strings.Contains(output.String(), "Unrelated private alert") {
+		t.Fatalf("activity leaked another goal's inbox item:\n%s", output.String())
+	}
+	history, err := workhistory.Open(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := history.Start(workhistory.Start{ID: "work-live-goal", Objective: "Draft the offsite update", Mode: action.Draft, ExternalActions: action.Forbid, StartedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := history.AcquireRun("work-live-goal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	output.Reset()
+	if err := renderWorkTUIActivity(stateDir, record.ID, &output); err != nil || !strings.Contains(output.String(), "Outcome: Choose a venue") || !strings.Contains(output.String(), "work-live-goal") || strings.Contains(output.String(), "Unrelated private alert") {
+		t.Fatalf("joined goal and Work activity = %q, %v", output.String(), err)
+	}
+	output.Reset()
+	if err := renderWorkTUIActivity(stateDir, "", &output); err != nil || !strings.Contains(output.String(), "work-live-goal") || strings.Contains(output.String(), "Outcome: Choose a venue") {
+		t.Fatalf("Work activity without selected goal = %q, %v", output.String(), err)
+	}
+	if err := goalCommand([]string{"pause", record.ID}, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	if err := goalCommand([]string{"activity", record.ID}, &output); err != nil || !strings.Contains(output.String(), "goal paused") || strings.Contains(output.String(), "next:") {
+		t.Fatalf("paused activity = %q, %v", output.String(), err)
+	}
+}

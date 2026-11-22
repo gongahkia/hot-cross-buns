@@ -3,13 +3,13 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("provider forms can review and save explicit metadata and rename without trapping Enter in field editing", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-provider-")), config = join(root, "config/gator/config.json")
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config"), OPENAI_API_KEY: "" } }))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-provider-")), config = join(root, "config/hot-cross-buns/config.json")
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace: join(root, "workspace"), userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config"), OPENAI_API_KEY: "" } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 38 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const end = Date.now() + 10000; while (!await predicate()) { if (Date.now() > end) throw new Error(label + ": " + JSON.stringify(client.state?.panel)); await flush() } }
@@ -43,7 +43,7 @@ test("provider forms can review and save explicit metadata and rename without tr
     await field("API key", "sk-terminal-private-fixture")
     expect(setup.captureCharFrame()).not.toContain("sk-terminal-private-fixture")
     expect(JSON.stringify(client.state)).not.toContain("sk-terminal-private-fixture")
-    const auth = join(root, "state/gator/auth.json")
+    const auth = join(root, "state/hot-cross-buns/auth.json")
     expect(await readFile(auth, "utf8").catch(() => "")).not.toContain("sk-terminal-private-fixture")
     const previousSettings = await readFile(config, "utf8")
     await writeFile(auth, "{broken credential fixture", { mode: 0o600 })
@@ -65,11 +65,11 @@ test("provider forms can review and save explicit metadata and rename without tr
     await until(() => client.state?.panel?.title === "Cloud models", "credential catalog")
     expect(client.state?.panel?.notice).toContain("Provider access has not been tested")
     await select(openai)
-    setup.mockInput.pressKey("d"); await until(() => client.state?.panel?.title === "Remove stored Gator credential?", "credential removal review"); await flush()
+    setup.mockInput.pressKey("d"); await until(() => client.state?.panel?.title === "Remove stored Hot Cross Buns credential?", "credential removal review"); await flush()
     setup.mockInput.pressEscape(); await Bun.sleep(80); await flush()
     expect(await readFile(auth, "utf8")).toContain("sk-terminal-private-fixture")
     await until(() => client.state?.panel?.title === "Cloud models", "cancelled credential removal"); await flush()
-    setup.mockInput.pressKey("d"); await until(() => client.state?.panel?.title === "Remove stored Gator credential?", "new removal review"); await flush(); setup.mockInput.pressEnter()
+    setup.mockInput.pressKey("d"); await until(() => client.state?.panel?.title === "Remove stored Hot Cross Buns credential?", "new removal review"); await flush(); setup.mockInput.pressEnter()
     await until(async () => !(await readFile(auth, "utf8")).includes("sk-terminal-private-fixture"), "explicit credential removal")
     await client.navigate("/chat"); expect(client.draft.text).toBe("Keep provider setup draft"); expect(client.state?.messages).toHaveLength(0)
   } finally { await client.close(); await setup.dispose(); await rm(root, { recursive: true, force: true }) }

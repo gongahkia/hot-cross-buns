@@ -3,7 +3,7 @@ package eval
 import (
 	"context"
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/telemetry"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
 	"io"
 	"net/http"
 	"net/http/httptest"

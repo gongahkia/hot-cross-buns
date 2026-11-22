@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/gongahkia/gator/internal/companionaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/companionaccess"
 )
 
 // Preserve T2 JSON and its private method while sharing registry validation.

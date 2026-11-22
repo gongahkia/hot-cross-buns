@@ -4,16 +4,16 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
   test(`closing goal inspection retires late success/failure without stopping work at ${width}×${height}`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "gator-goal-read-"))
-    const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-goal-read-"))
+    const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
     const goal = { id: "goal-" + "a".repeat(24), title: "Venue planning", status: "paused", outcome: "Keep the venue outcome", controllable: true, digest: "b".repeat(64), source: root }
     host.current = { ...state(), running: true, following_goals: [goal] }
-    const client = new GatorClient(host), setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
+    const client = new HotCrossBunsClient(host), setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
     const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
     let release = () => {}
     try {

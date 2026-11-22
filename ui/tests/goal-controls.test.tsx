@@ -4,34 +4,34 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
   test(`paused goal → inspect → reviewed resume → stale pause → restart at ${width}×${height}`, async () => {
-    const root = await mkdtemp(join(tmpdir(), "gator-goal-control-"))
-    const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-    const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-goal-control-"))
+    const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+    const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
     let requests = 0, release = () => {}
     const gate = new Promise<void>(resolve => { release = resolve })
     const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
       await request.json(); requests++; await gate
       return Response.json({ choices: [{ message: { role: "assistant", content: "Original independent task finished after the controlled gate." }, finish_reason: "stop" }], usage: { prompt_tokens: 20, completion_tokens: 10 } })
     } })
-    await mkdir(join(env.GATOR_CONFIG_DIR, "gator"), { recursive: true })
-    await writeFile(join(env.GATOR_CONFIG_DIR, "gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
+    await mkdir(join(env.HOT_CROSS_BUNS_CONFIG_DIR, "hot-cross-buns"), { recursive: true })
+    await writeFile(join(env.HOT_CROSS_BUNS_CONFIG_DIR, "hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
     const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-    const cli = (...args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
+    const cli = (...args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
     const id = cli("goal", "add", "--context", "Keep the venue decision together", "Venue planning").split(/\s/)[0]!
     const peer = cli("goal", "add", "--context", "A separate same-title goal", "Venue planning").split(/\s/)[0]!
     cli("goal", "plan", id, "add", "--title", "Check capacity", "--due", "2030-11-12T10:00:00Z", "--evidence", "planning-brief.md")
     const watch = cli("goal", "watch", id), job = watch.match(/job-[a-zA-Z0-9-]+/)![0]
     cli("goal", "pause", id)
-    const goalFile = join(env.GATOR_STATE_DIR, "gator/goals", id + ".json"), peerFile = join(env.GATOR_STATE_DIR, "gator/goals", peer + ".json"), jobFile = join(env.GATOR_STATE_DIR, "gator/jobs/definitions", job + ".json")
+    const goalFile = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/goals", id + ".json"), peerFile = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/goals", peer + ".json"), jobFile = join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs/definitions", job + ".json")
     const beforePeer = await readFile(peerFile, "utf8"), beforeJob = await readFile(jobFile, "utf8"), beforePlan = cli("goal", "plan", id)
     const savedGoal = async () => JSON.parse(await readFile(goalFile, "utf8"))
-    let client = new GatorClient(new Application(options))
+    let client = new HotCrossBunsClient(new Application(options))
     const mount = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height })
     let setup = await mount()
     const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
@@ -100,7 +100,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) {
       expect(client.context).toBe(originalContext)
       expect(client.state?.messages.some(message => message.text.includes("Original independent task finished"))).toBe(true)
       await client.close(); await setup.dispose()
-      client = new GatorClient(new Application(options)); setup = await mount(); await client.start(); await open()
+      client = new HotCrossBunsClient(new Application(options)); setup = await mount(); await client.start(); await open()
       await setup.mockInput.typeText("Resume this goal"); await flush()
       expect(setup.captureCharFrame()).toContain("Resume this goal")
       expect(client.draft.text).toBe("Keep the multiline\ngoal draft"); expect(client.draft.plan_first).toBe(true)

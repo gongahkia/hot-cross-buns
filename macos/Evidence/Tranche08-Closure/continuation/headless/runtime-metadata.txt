@@ -1,6 +1,6 @@
-/tmp/Gator-Native-Tranche08-Acceptance.app/Contents/Resources/gator-runtime: go1.27.3
-	path	github.com/gongahkia/gator/cmd/gator
-	mod	github.com/gongahkia/gator	v0.0.0-20261117004852-8cb98099ed62+dirty	
+/tmp/HotCrossBuns-Native-Tranche08-Acceptance.app/Contents/Resources/hot-cross-buns-runtime: go1.27.3
+	path	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns
+	mod	github.com/gongahkia/hot-cross-buns	v0.0.0-20261117004852-8cb98099ed62+dirty
 	dep	github.com/Detective-XH/gopdf	v0.8.7	h1:ISH9pBjXlgeo2Jlmai1eW4eTNsAUwvhpOcricQVvgYg=
 	dep	github.com/atotto/clipboard	v0.1.4	h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 	dep	github.com/aymanbagabas/go-osc52/v2	v2.0.1	h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=

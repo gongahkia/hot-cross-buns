@@ -3,7 +3,7 @@ Building for debugging...
 [0/5] Copying Fixtures
 [1/5] Write swift-version--1AB21518FC5DEDBE.txt
 [2/4] Write Objects.LinkFileList
-[3/4] Linking GatorNativePackageTests
+[3/4] Linking HotCrossBunsNativePackageTests
 Build complete! (6.72s)
 ◇ Test run started.
 ↳ Testing Library Version: 124.4
@@ -103,13 +103,13 @@ Build complete! (6.72s)
 ◇ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() started.
 ✔ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":3.110051155090332,"messages":50,"transcriptMedianMS":0.17595291137695312},{"bytes":240934,"decodeMedianMS":69.4580078125,"messages":500,"transcriptMedianMS":1.8230676651000977},{"bytes":964934,"decodeMedianMS":463.47105503082275,"messages":2000,"transcriptMedianMS":8.99505615234375}],"kind":"native-presentation","peakRSSBytes":21823488,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":3.110051155090332,"messages":50,"transcriptMedianMS":0.17595291137695312},{"bytes":240934,"decodeMedianMS":69.4580078125,"messages":500,"transcriptMedianMS":1.8230676651000977},{"bytes":964934,"decodeMedianMS":463.47105503082275,"messages":2000,"transcriptMedianMS":8.99505615234375}],"kind":"native-presentation","peakRSSBytes":21823488,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 3.888 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"97255  25012   0.0\n97259  25716   0.0\n97260  24960   0.0\n97261  24916   0.0\n","timeToConnectedMS":[264.94908332824707,202.81302928924561,243.4920072555542,243.18802356719971]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"97255  25012   0.0\n97259  25716   0.0\n97260  24960   0.0\n97261  24916   0.0\n","timeToConnectedMS":[264.94908332824707,202.81302928924561,243.4920072555542,243.18802356719971]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 6.279 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=512.5299692153931 peakRSSBytes=30539776
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=512.5299692153931 peakRSSBytes=30539776
 ✔ Test nativeThumbnailBenchmark() passed after 1.932 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.047 seconds.

@@ -1,4 +1,4 @@
-// Package browser owns Gator's local, developer-controlled browser sessions.
+// Package browser owns Hot Cross Buns's local, developer-controlled browser sessions.
 //
 // It deliberately does not expose a general remote-control service. A session
 // is a private local capability that may be granted to a bounded native run.
@@ -103,7 +103,7 @@ type AttachOptions struct {
 	VisualCapture bool
 }
 
-// Artifact describes a private browser capture stored below Gator state. It
+// Artifact describes a private browser capture stored below Hot Cross Buns state. It
 // is metadata-safe to show in the CLI and TUI but never contains raw contents.
 type Artifact struct {
 	ID        string    `json:"id"`

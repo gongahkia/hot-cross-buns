@@ -27,11 +27,11 @@ type Guide struct {
 var read = sync.OnceValue(func() Guide {
 	var guide Guide
 	if err := json.Unmarshal(bundled, &guide); err != nil || guide.Version != 1 {
-		panic("invalid bundled Gator capability guide")
+		panic("invalid bundled Hot Cross Buns capability guide")
 	}
 	for _, text := range []string{guide.ConnectionsTitle, guide.ConnectionsSetup, guide.EmptySources, guide.PilotStart, guide.Help, guide.ModelConnections, guide.ModelAvailability} {
 		if strings.TrimSpace(text) == "" {
-			panic("incomplete bundled Gator capability guide")
+			panic("incomplete bundled Hot Cross Buns capability guide")
 		}
 	}
 	return guide

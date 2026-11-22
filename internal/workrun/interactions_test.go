@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 )
 
 func TestReadInteractionRecordsValidatesAndScopesRetainedDecisions(t *testing.T) {
 	state := t.TempDir()
-	base := filepath.Join(state, "gator", "interactions")
+	base := filepath.Join(state, "hot-cross-buns", "interactions")
 	for _, run := range []string{"run-one", "run-two"} {
 		if err := os.MkdirAll(filepath.Join(base, run), 0700); err != nil {
 			t.Fatal(err)
@@ -65,7 +65,7 @@ func TestReadInteractionRecordsValidatesAndScopesRetainedDecisions(t *testing.T)
 
 func TestPendingDecisionReadIgnoresResolvedDisplayCap(t *testing.T) {
 	state := t.TempDir()
-	directory := filepath.Join(state, "gator", "interactions", "long-run")
+	directory := filepath.Join(state, "hot-cross-buns", "interactions", "long-run")
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestInteractionDigestSurvivesRetainedActionPreview(t *testing.T) {
 
 func TestInteractionDigestPreservesLargeJSONNumber(t *testing.T) {
 	state := t.TempDir()
-	directory := filepath.Join(state, "gator", "interactions", "numeric-run")
+	directory := filepath.Join(state, "hot-cross-buns", "interactions", "numeric-run")
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestInteractionRunLockReportsActiveThenStopped(t *testing.T) {
 		second.Close()
 		t.Fatal("concurrent Work run acquired the same lock")
 	}
-	root, err := os.OpenRoot(filepath.Join(state, "gator", "interactions"))
+	root, err := os.OpenRoot(filepath.Join(state, "hot-cross-buns", "interactions"))
 	if err != nil {
 		t.Fatal(err)
 	}

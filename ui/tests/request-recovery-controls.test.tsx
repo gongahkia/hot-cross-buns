@@ -3,20 +3,20 @@ import {testRender} from "@opentui/solid"
 import {mkdtemp,mkdir,writeFile,rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join,resolve} from "node:path"
-import {Application} from "@gator/application-host/application"
-import {GatorClient} from "../src/gator/client"
+import {Application} from "@hot-cross-buns/application-host/application"
+import {HotCrossBunsClient} from "../src/hot-cross-buns/client"
 import {App} from "../src/app"
 async function until(check:()=>boolean,label:string){const end=Date.now()+15000;while(!check()){if(Date.now()>end)throw Error("Timed out: "+label);await Bun.sleep(20)}}
 for(const [width,height] of [[110,34],[80,24],[60,20],[42,14]])test(`native keyboard recovery inspects failure and prepares original task for review at ${width}×${height}`,async()=>{
- const root=await mkdtemp(join(tmpdir(),"gator-recovery-controls-"));let repaired=false,work=0,proposals=0
+ const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-recovery-controls-"));let repaired=false,work=0,proposals=0
  const server=Bun.serve({hostname:"127.0.0.1",port:0,async fetch(request){
   const body=await request.json() as any,system=body.messages.find((m:any)=>m.role==="system")?.content??"";let content:string
   if(system.includes("Propose a plan")){proposals++;content=JSON.stringify({outcome:"Reviewed recovered summary",steps:[{id:"read",text:"Summarize the original input"}],sources:[],effects:["read"]})}
   else{work++;if(!repaired)return Response.json({error:{message:"Controlled credential rejection"}},{status:401});content="Original request completed after review."}
   return Response.json({choices:[{message:{role:"assistant",content},finish_reason:"stop"}],usage:{prompt_tokens:10,completion_tokens:10}})
  }})
- await mkdir(join(root,"config/gator"),{recursive:true});await writeFile(join(root,"config/gator/config.json"),JSON.stringify({version:4,defaults:{provider:"fixture",model:"fixture"},custom_providers:[{id:"fixture",base_url:`http://127.0.0.1:${server.port}/chat`,models:["fixture"],default_model:"fixture"}]}))
- const options={binary:process.env.GATOR_TEST_BINARY||resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"gator-runtime.exe":"gator-runtime")),env:{...process.env,GATOR_STATE_DIR:join(root,"state"),GATOR_CONFIG_DIR:join(root,"config")},userData:join(root,"app"),workspace:join(root,"workspace")},client=new GatorClient(new Application(options))
+ await mkdir(join(root,"config/hot-cross-buns"),{recursive:true});await writeFile(join(root,"config/hot-cross-buns/config.json"),JSON.stringify({version:4,defaults:{provider:"fixture",model:"fixture"},custom_providers:[{id:"fixture",base_url:`http://127.0.0.1:${server.port}/chat`,models:["fixture"],default_model:"fixture"}]}))
+ const options={binary:process.env.HOT_CROSS_BUNS_TEST_BINARY||resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"hot-cross-buns-runtime.exe":"hot-cross-buns-runtime")),env:{...process.env,HOT_CROSS_BUNS_STATE_DIR:join(root,"state"),HOT_CROSS_BUNS_CONFIG_DIR:join(root,"config")},userData:join(root,"app"),workspace:join(root,"workspace")},client=new HotCrossBunsClient(new Application(options))
  const setup=await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>({data:"",mime:"text/plain"}),write:async()=>{}}}/>,{width,height})
  const flush=async()=>{await setup.flush();await Bun.sleep(25);await setup.flush()},choose=async(text:string)=>{setup.mockInput.pressKey("u",{ctrl:true});await setup.mockInput.typeText(text);await flush();setup.mockInput.pressEnter();await flush()}
  try{

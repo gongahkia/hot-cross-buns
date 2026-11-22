@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/state"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestSourceRelinkRepairsMissingProjectsAndPausesAffectedChecks(t *testing.T) {

@@ -3,14 +3,14 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { Application } from "@gator/application-host/application"
-import { GatorClient } from "../src/gator/client"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { App } from "../src/app"
 
 function gate() { let release!: () => void; const wait = new Promise<void>(resolve => { release = resolve }); return { wait, release } }
 
 for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`retained reads cancel, retire late responses and recover without stopping work at ${width}×${height}`, async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-read-view-")), config = join(root, "config/gator"), workspace = join(root, "workspace"), task = gate()
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-read-view-")), config = join(root, "config/hot-cross-buns"), workspace = join(root, "workspace"), task = gate()
   let calls = 0, holdTask = false
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     await request.text(); calls++
@@ -23,7 +23,7 @@ for (const [width, height] of [[110, 34], [80, 24], [60, 20], [42, 14]]) test(`r
   } })
   await mkdir(config, { recursive: true }); await mkdir(workspace); await writeFile(join(workspace, "project.md"), "Owner: Mina\n")
   await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const host = new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/gator-runtime"), userData: join(root, "app"), workspace, env: { ...process.env, GATOR_CONFIG_DIR: join(root, "config"), GATOR_STATE_DIR: join(root, "state") } }), client = new GatorClient(host)
+  const host = new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/hot-cross-buns-runtime"), userData: join(root, "app"), workspace, env: { ...process.env, HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config"), HOT_CROSS_BUNS_STATE_DIR: join(root, "state") } }), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => undefined, write: async () => {} }} />, { width, height })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const until = async (predicate: () => boolean, label: string) => { const end = Date.now() + 15000; while (!predicate()) { if (Date.now() > end) throw new Error(label + ": " + client.issue + "\n" + setup.captureCharFrame()); await flush() } }

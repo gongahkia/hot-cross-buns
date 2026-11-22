@@ -14,14 +14,14 @@ def measure(name,seconds=7,sample=False):
 def open_settings():
     d.act('press','menu','Conversation','conversation');d.act('press','menu','Agent Presence…','conversation')
     d.wait(lambda:any(w['id']==settings for w in d.state()['windows']))
-def select(value):d.act('press',settings,'gator.presence.mode');d.act('press',settings,value)
+def select(value):d.act('press',settings,'hot-cross-buns.presence.mode');d.act('press',settings,value)
 def stop():
     d.check_input();d.act('focus');d.act('quit');d.wait(lambda:any(w.get('description')=='alert' for w in d.state()['windows']))
     a=next(w['id'] for w in d.state()['windows'] if w.get('description')=='alert')
     d.finishing=True;d.act('press',a,'Quit and Keep Retained Work');d.proc.wait(timeout=12);d.sampler.wait(timeout=3)
     print('guarded Quit exit',d.proc.returncode,flush=True)
 try:
-    d.new(21,'/tmp/Gator-Native-P04E1R2-Diagnostic.app','off')
+    d.new(21,'/tmp/HotCrossBuns-Native-P04E1R2-Diagnostic.app','off')
     d.arm_input()
     # adversarial harness checks must refuse before any action.
     for bad in [dict(action='press',window='conversation',target='Approve Exact Action',role='AXButton'),dict(action='press',window='conversation',target='Send message',role='AXButton'),dict(action='press',window='conversation',target='Agent Presence…',role='AXMenuItem',preflightID='stale')]:
@@ -33,14 +33,14 @@ try:
     for f in pathlib.Path(d.metadata['root']).glob('bridge-*.jsonl'):
         for line in f.read_text().splitlines():
             event=json.loads(line)
-            if event.get('direction')=='launch':extraSamplers.append(subprocess.Popen(['/tmp/gator-presence-r2-sample',str(event['pid']),'120'],stdout=open(d.EVIDENCE/f"probe-Go-{event['pid']}.jsonl",'w')))
+            if event.get('direction')=='launch':extraSamplers.append(subprocess.Popen(['/tmp/hot-cross-buns-presence-r2-sample',str(event['pid']),'120'],stdout=open(d.EVIDENCE/f"probe-Go-{event['pid']}.jsonl",'w')))
     d.act('press',target='Back to Conversation');measure('pending-off',sample=True)
     d.act('press',target='An action needs your review');measure('review-off',sample=True)
     open_settings();measure('settings-off')
     select('Emoji only');measure('review-emoji')
     select('Emoji + GIF reactions');measure('review-gif-settled')
-    d.act('press',settings,'gator.desktopPet.shown');measure('review-desktop')
-    d.act('press',settings,'gator.desktopPet.tuck');d.act('close',settings);measure('closed-settings',sample=True)
+    d.act('press',settings,'hot-cross-buns.desktopPet.shown');measure('review-desktop')
+    d.act('press',settings,'hot-cross-buns.desktopPet.tuck');d.act('close',settings);measure('closed-settings',sample=True)
     stop()
     (d.EVIDENCE/'probe-result.json').write_text(json.dumps({'exit':d.proc.returncode,'pending':d.pending,'durable':d.durable(),'inputAudit':str(d.audit),'controllerPID':d.controller.pid},indent=2))
 except Exception as e:

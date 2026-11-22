@@ -1,6 +1,6 @@
 # Subagents and external CLI adapters
 
-Gator can discover, start, inspect, await, steer, answer and cancel bounded specialists.
+Hot Cross Buns can discover, start, inspect, await, steer, answer and cancel bounded specialists.
 It retains task status, inputs, summaries, provenance and patch evidence. Three
 specialists can run concurrently; the default delegation budget is eight tasks.
 Dependencies and explicit continuation from a retained result are supported.
@@ -8,12 +8,12 @@ Restarting does not silently replay interrupted tasks.
 
 ## Create a specialist in conversation
 
-Ask Gator in ordinary chat, for example:
+Ask Hot Cross Buns in ordinary chat, for example:
 
 > Create a research agent to compare these venue proposals. Have it check dates,
 > prices and missing evidence, then report back with sources.
 
-Gator can choose an available native template, define a named specialist with
+Hot Cross Buns can choose an available native template, define a named specialist with
 focused instructions, and launch it immediately through `create_agent`. It can
 run several independent specialists within each owning task's existing
 three-worker concurrency and eight-assignment default limit. Each worker has its own execution context;
@@ -82,7 +82,7 @@ instructions or execution configuration requires a fresh assignment instead of
 continuing an older task under a different identity. Deletion does not cancel a
 worker or erase retained evidence; use the task cancellation control to stop it.
 
-Reusable profiles live under private state `gator/agent-profiles/profiles.json`;
+Reusable profiles live under private state `hot-cross-buns/agent-profiles/profiles.json`;
 task-only definitions live under their task's `roles/` directory. Task records
 capture the definition and digest used for execution. Treat instructions as
 private content: they are sent to the configured model when used and included in
@@ -115,26 +115,25 @@ Delegation is optional; read-only specialists remain read-only. See
 [shared coding capabilities](SHARED-CODING-CAPABILITIES.md) for the direct tools,
 full-file review gate, continuity, UI evidence and current evaluation limits.
 
-The administration commands below are source-checkout maintenance operations,
-not a restored CLI product. Build the private runtime with
-`npm run build:runtime --prefix desktop`. Electron is the primary interface.
+The local web app uses the shared Go runtime. Build it with `make runtime`.
+The administration commands below configure that runtime's CLI adapters.
 
 ## Configure an installed CLI
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime agent cli list
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime agent cli enable codex --model gpt-5.6
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime agent cli enable pi --provider openai --model gpt-5.6
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime agent cli enable claude --api-key-env ANTHROPIC_API_KEY
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime agent cli doctor codex
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime agent cli disable codex
+./ui/runtime/hot-cross-buns-runtime agent cli list
+./ui/runtime/hot-cross-buns-runtime agent cli enable codex
+./ui/runtime/hot-cross-buns-runtime agent cli enable pi --provider openai
+./ui/runtime/hot-cross-buns-runtime agent cli enable claude --api-key-env ANTHROPIC_API_KEY
+./ui/runtime/hot-cross-buns-runtime agent cli doctor codex
+./ui/runtime/hot-cross-buns-runtime agent cli disable codex
 ```
 
 Adapters are off until enabled. Install the CLI separately. Export the selected
-API key variable in the environment that launches Gator. Configuration stores
+API key variable in the environment that launches Hot Cross Buns. Configuration stores
 only the variable name. Saved CLI logins and OAuth sessions are not imported.
 `doctor` checks prerequisites, not provider authentication or protocol compatibility.
-Restart an existing Gator session after changing adapter settings.
+Restart an existing Hot Cross Buns session after changing adapter settings.
 
 For a regional OpenAI project, add `--base-url https://us.api.openai.com/v1` to
 Codex/Pi setup. Other HTTPS API base URLs are supported. They are explicit
@@ -147,11 +146,11 @@ read-only runtime dependency; avoid broad grants such as your entire home.
 By default, agents only inspect their private source copy. Add `--allow-edits`
 when enabling an adapter to permit patch creation in draft/act runs. Inspect
 mode remains read-only. Changes are returned as retained patch artifacts;
-Gator's `integrate_code` checks selected patches together before subsequent
+Hot Cross Buns's `integrate_code` checks selected patches together before subsequent
 assignments can use the verified candidate. Nothing applies to live source
 merely because an external CLI reports success.
 
-## Use from Gator
+## Use from Hot Cross Buns
 
 Enabled adapters appear as `cli_codex`, `cli_claude` and `cli_pi` in foreground
 chat. For example:
@@ -162,14 +161,14 @@ chat. For example:
 Noninteractive Work requires a separate opt-in:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work --source ./project --mode inspect --external-agents \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work --source ./project --mode inspect --external-agents \
   'Use cli_pi to inspect project.md and report the owner and deadline.'
 ```
 
 For patch creation, enable `--allow-edits` and use a draft/act Work run:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work --source ./project --external-agents \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work --source ./project --external-agents \
   'Ask cli_codex to fix the parser. Integrate its patch and write report.md with verification evidence.'
 ```
 
@@ -179,10 +178,10 @@ budgets cannot account for an external CLI's internal provider calls.
 Inspect or control running tasks using the existing task commands:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work tasks RUN_ID
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work tasks RUN_ID TASK_ID
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work cancel-task RUN_ID TASK_ID
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work steer-task RUN_ID TASK_ID 'Focus on the parsing failure.'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work tasks RUN_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work tasks RUN_ID TASK_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work cancel-task RUN_ID TASK_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work steer-task RUN_ID TASK_ID 'Focus on the parsing failure.'
 ```
 
 Live steering works for internal LLM specialists and Codex/Pi. Codex/Pi/Claude
@@ -198,13 +197,13 @@ Codex/Claude clarification requests appear in task details as `native.questions`
 from another terminal (replace QUESTION_ID with that exact current token):
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work answer-task RUN_ID TASK_ID QUESTION_ID '{"format":["Markdown"]}'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work answer-task RUN_ID TASK_ID QUESTION_ID '{"format":["Markdown"]}'
 # Use - instead of the JSON argument to read answers from stdin.
 ```
 
 Answers are bound to the current question and queued once. Approval requests
 are never converted into clarification questions or automatically approved.
-Codex gets a host-defined `gator_ask_user` tool that works in ordinary coding
+Codex gets a host-defined `hot_cross_buns_ask_user` tool that works in ordinary coding
 turns; its built-in `request_user_input` path is also handled. For the host tool,
 the answer key is `answer`. Neither path adds filesystem or execution authority.
 Claude answers map host question keys back to the original question text; the
@@ -224,16 +223,16 @@ enabled editable native CLI worker, explicit host verification commands, and an
 enabled `artifact_reviewer`. Workers and reviews share the normal supervisor
 delegation budget. Each loop allows 1–3 attempts and at most 15 minutes; one
 Work operation can create at most three loops. CLI provider billing remains
-separate from Gator's model-request budget.
+separate from Hot Cross Buns's model-request budget.
 
 For example, after enabling an adapter with `--allow-edits`:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work --source ./project --external-agents --mode draft \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work --source ./project --external-agents --mode draft \
   --scope src --acceptance-check 'python3 -B verify.py' \
   'Use complete_code with cli_codex to fix the parser; require all verifier cases to pass and review the result.'
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work completions RUN_ID
-GATOR_INTERNAL_COMMANDS=1 ./desktop/runtime/gator-runtime work completions RUN_ID COMPLETION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work completions RUN_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work completions RUN_ID COMPLETION_ID
 ```
 
 `--acceptance-check` and `--scope` are repeatable host grants. Check arguments are
@@ -253,7 +252,7 @@ loop; exhausted budgets, invalid review verdicts, cancelled workers and uncertai
 outcomes cannot become successful completions. A success claim without a patch
 is rejected; no-change outcomes currently require separate review.
 
-Records under `gator/completions/RUN_ID` retain objectives, acceptance commands,
+Records under `hot-cross-buns/completions/RUN_ID` retain objectives, acceptance commands,
 worker/reviewer task IDs, patch hashes, candidate checks, findings and stop
 reasons. Failed/conflicting patches remain available as evidence. Original files
 are never changed by the loop. Completed loops are idempotent; an interrupted
@@ -282,23 +281,23 @@ go run ./scripts/cli-agent-eval --completion-loop --kind codex --model gpt-5.6 -
 
 ## Execution boundary and limits
 
-- Each CLI runs in a private source copy under Gator's strict OS sandbox.
+- Each CLI runs in a private source copy under Hot Cross Buns's strict OS sandbox.
   macOS uses Seatbelt; Linux requires usable bubblewrap. Windows currently
-  refuses external CLI execution because Gator has no strict Windows sandbox.
+  refuses external CLI execution because Hot Cross Buns has no strict Windows sandbox.
 - Credentials, private HOME/cache, process cancellation, source write scopes,
-  deadlines and bounded output are handled by Gator. One-shot private copies are
+  deadlines and bounded output are handled by Hot Cross Buns. One-shot private copies are
   removed after execution. Native sessions retain their private checkout and
-  CLI history under `gator/cli-sessions` in the profile state directory, in
+  CLI history under `hot-cross-buns/cli-sessions` in the profile state directory, in
   addition to summaries and reviewed patches. Task cancellation kills
   the owned Unix process group. A hostile executable that deliberately escapes
   its process group is outside this process-management guarantee.
 - Codex runs with its internal sandbox set to `danger-full-access` **inside
-  Gator's already-enforced strict sandbox**. Nested Seatbelt cannot initialize
-  reliably on macOS. Gator never starts it unsandboxed. Its native multi-agent
+  Hot Cross Buns's already-enforced strict sandbox**. Nested Seatbelt cannot initialize
+  reliably on macOS. Hot Cross Buns never starts it unsandboxed. Its native multi-agent
   feature is disabled, and unattended approval requests are denied.
 - Claude uses bare mode with a read/edit tool allowlist; Pi disables project
   trust, extensions, skills, context loading and prompt templates. Neither is
-  granted a shell tool. Codex may run commands inside Gator's OS boundary.
+  granted a shell tool. Codex may run commands inside Hot Cross Buns's OS boundary.
 - Network access is enabled for model calls. It is not a domain-filtered
   network sandbox. Instructions prohibit unrelated external actions, but that
   instruction is not a technical egress restriction.
@@ -310,7 +309,7 @@ go run ./scripts/cli-agent-eval --completion-loop --kind codex --model gpt-5.6 -
   admission budget of 256 commands. Both limit JSON lines to 1 MiB and summaries
   to 32 KiB. Claude also gets its native max-turn limit. These are **not** hard
   counts of provider requests.
-- CLI provider costs and request counts are separate from Gator's model budget.
+- CLI provider costs and request counts are separate from Hot Cross Buns's model budget.
   One-shot reported token usage is retained per task; native-session token usage
   is not yet collected. `model_requests: 0` in CLI
   evidence means unavailable, not zero billed requests. Wall/output limits
@@ -333,7 +332,7 @@ Live synthetic checks on 2026-10-30 with OpenAI `gpt-5.6`:
 
 | Check | Result |
 | --- | --- |
-| Gator manager starts two internal researchers and combines their findings | Pass |
+| Hot Cross Buns manager starts two internal researchers and combines their findings | Pass |
 | Codex reads source, returns correct owner/deadline, leaves original unchanged | Pass |
 | Codex produces a reviewable status-change patch | Pass |
 | Pi reads source, returns correct owner/deadline, leaves original unchanged | Pass |
@@ -346,7 +345,7 @@ credential was supplied. Claude native sessions, resumption, questions,
 permission denial and interruption have deterministic protocol/process coverage;
 they still require verification against a real authenticated Claude CLI.
 
-The separate `session-manager-*` reports exercise a **live Gator manager and
+The separate `session-manager-*` reports exercise a **live Hot Cross Buns manager and
 live Codex/Pi worker** through the normal Work service. Each run makes two
 assignments with a native process restart between them. Both providers retained
 the same native conversation and recalled the codeword, owner and deadline
@@ -380,8 +379,8 @@ go run ./scripts/cli-agent-eval --controls --kind codex --model gpt-5.6 --base-u
 
 These commands use `OPENAI_API_KEY` from the current environment. They do not
 change user configuration or personal memory. The internal-manager smoke test
-uses `GATOR_LIVE_SUBAGENT_REPORT` (a new report filename), `GATOR_LIVE_MODEL`,
-`GATOR_LIVE_ENDPOINT` and `OPENAI_API_KEY`:
+uses `HOT_CROSS_BUNS_LIVE_SUBAGENT_REPORT` (a new report filename), `HOT_CROSS_BUNS_LIVE_MODEL`,
+`HOT_CROSS_BUNS_LIVE_ENDPOINT` and `OPENAI_API_KEY`:
 `go test ./internal/workrun -run '^TestLiveSubagentManager$' -count=1`.
 
 Protocol references checked against installed CLI help and official docs:

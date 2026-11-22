@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
 )
 
 func TestChatCheckHealthKeepsOriginAndReportsStaleCoverage(t *testing.T) {

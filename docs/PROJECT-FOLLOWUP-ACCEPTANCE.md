@@ -6,8 +6,8 @@ not a claim of product readiness or completed user acceptance.
 
 ## Outcome
 
-A solo user selects a project folder and asks Gator to track meaningful deadline,
-decision and blocker changes. Gator reviews scope, timing, permissions and limits,
+A solo user selects a project folder and asks Hot Cross Buns to track meaningful deadline,
+decision and blocker changes. Hot Cross Buns reviews scope, timing, permissions and limits,
 establishes a useful initial understanding, and prepares a short project update
 when warranted. Updates return to the requesting conversation. The user can
 correct context, review/edit the draft, and pause or change the agreement.
@@ -26,8 +26,8 @@ intact.
 ## Existing implementation to reuse
 
 - `internal/followup` reviewed agreements, local scope and per-check/day budgets.
-- `cmd/gator/work_app_followup.go` conversational prepare/review/apply adapter.
-- `cmd/gator/work_followup.go`, existing jobs/watch runner and local supervisor.
+- `cmd/hot-cross-buns/work_app_followup.go` conversational prepare/review/apply adapter.
+- `cmd/hot-cross-buns/work_followup.go`, existing jobs/watch runner and local supervisor.
 - Work source snapshots, evidence, artifact validation and retained revisions.
 - Existing saved knowledge/corrections and scoped recall; no second memory system.
 - Existing chat updates, reply binding, file preview/edit/export and receipt paths.
@@ -64,7 +64,7 @@ No persisted schema or execution behavior changes.
 Regression evidence so far:
 
 ```sh
-go test ./internal/workhome ./cmd/gator -run 'Test(CheckHealth|CheckAvailability|ChatFollowup|ReviewedFollowup|ReviewedProjectFollowup|DailyFollowup)' -count=1
+go test ./internal/workhome ./cmd/hot-cross-buns -run 'Test(CheckHealth|CheckAvailability|ChatFollowup|ReviewedFollowup|ReviewedProjectFollowup|DailyFollowup)' -count=1
 ```
 
 Both packages passed. New cases check overdue vs skip/offline semantics,
@@ -141,7 +141,7 @@ Current inspection found an important distinction: Work exposes selected-origin
 exists in `internal/tools/http.go`, but requires `BRAVE_SEARCH_API_KEY`, which is
 not currently available, and the Work evidence adapter currently exposes only
 fetch. Neither a fixture response nor the coding assistant's own web search will
-be represented as a successful live Gator search. Reuse the existing integration
+be represented as a successful live Hot Cross Buns search. Reuse the existing integration
 and preserve explicit query/source authority when addressing this gap; report
 missing search credentials and live verification honestly. Public URL reads and
 other workflow improvements can proceed independently.

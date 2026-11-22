@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func TestCommandResultsCarryTypedStatusAndError(t *testing.T) {
@@ -16,7 +16,7 @@ func TestCommandResultsCarryTypedStatusAndError(t *testing.T) {
 	if len(state.Messages) != 1 || state.Messages[0].Result == nil || state.Messages[0].Result.Kind != "details" {
 		t.Fatalf("status result = %#v", state.Messages)
 	}
-	if !strings.Contains(state.Messages[0].Text, "Gator orchestration") || len(state.Messages[0].Result.Fields) < 12 {
+	if !strings.Contains(state.Messages[0].Text, "Hot Cross Buns orchestration") || len(state.Messages[0].Result.Fields) < 12 {
 		t.Fatalf("status lost original text or fields: %#v", state.Messages[0])
 	}
 	next, _ = next.(Model).SubmitText("/mode impossible")

@@ -2,17 +2,17 @@
 """Mac/Linux checkout launcher PTY check with an isolated retained conversation."""
 import fcntl, json, os, pathlib, pty, select, shlex, shutil, struct, subprocess, tempfile, termios, time
 repo = pathlib.Path(__file__).resolve().parents[2]
-bun = shutil.which('bun') or str(repo / '.gator/native-tools/node_modules/.bin/bun')
-launcher = repo / 'ui/launcher/gator.mjs'
-with tempfile.TemporaryDirectory(prefix='gator-resume-') as temporary:
+bun = shutil.which('bun') or str(repo / '.hot-cross-buns/native-tools/node_modules/.bin/bun')
+launcher = repo / 'ui/launcher/hot-cross-buns.mjs'
+with tempfile.TemporaryDirectory(prefix='hot-cross-buns-resume-') as temporary:
     root = pathlib.Path(temporary)
     workspace = root / 'workspace'; workspace.mkdir()
-    config = root / 'config/gator'; config.mkdir(parents=True)
+    config = root / 'config/hot-cross-buns'; config.mkdir(parents=True)
     (config / 'config.json').write_text(json.dumps({'version':4,'defaults':{'provider':'fixture','model':'fixture'},'custom_providers':[{'id':'fixture','base_url':'http://127.0.0.1:9','models':['fixture'],'default_model':'fixture'}]}))
     identity = 'work-resume-fixture'
-    folder = root / 'state/gator/conversations' / identity; folder.mkdir(parents=True)
+    folder = root / 'state/hot-cross-buns/conversations' / identity; folder.mkdir(parents=True)
     (folder / 'conversation.json').write_text(json.dumps({'version':2,'id':identity,'title':'Resume fixture','source_path':str(workspace),'snapshot_id':'snap-resume','created_at':'2026-10-29T00:00:00Z','updated_at':'2026-10-29T00:00:00Z'}))
-    env = {**os.environ, 'GATOR_STATE_DIR':str(root/'state'), 'GATOR_CONFIG_DIR':str(root/'config'), 'GATOR_TERMINAL_USER_DATA':str(root/'app'), 'GATOR_TERMINAL_WORKSPACE':str(workspace), 'TERM':'xterm-256color', 'GATOR_REDUCED_MOTION':'1'}
+    env = {**os.environ, 'HOT_CROSS_BUNS_STATE_DIR':str(root/'state'), 'HOT_CROSS_BUNS_CONFIG_DIR':str(root/'config'), 'HOT_CROSS_BUNS_TERMINAL_USER_DATA':str(root/'app'), 'HOT_CROSS_BUNS_TERMINAL_WORKSPACE':str(workspace), 'TERM':'xterm-256color', 'HOT_CROSS_BUNS_REDUCED_MOTION':'1'}
     def run(command, typed):
         master, slave = pty.openpty(); fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH',32,110,0,0))
         process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, cwd=root, env=env, start_new_session=True); os.close(slave)

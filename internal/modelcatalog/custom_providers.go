@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/config"
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 func (m Model) customProvider(name string) (config.CustomProvider, bool) {

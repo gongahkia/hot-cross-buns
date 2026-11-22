@@ -1,14 +1,14 @@
-// Package localmodel defines Gator's reviewed local Work and coding-model
+// Package localmodel defines Hot Cross Buns's reviewed local Work and coding-model
 // catalog and its loopback-only Ollama runtime client.
 package localmodel
 
 import "strings"
 
 const (
-	// ProviderID is the Gator-owned custom provider selected through the TUI.
+	// ProviderID is the Hot Cross Buns-owned custom provider selected through the TUI.
 	// Keeping it separate from a user-defined provider avoids overwriting a
 	// manually configured local endpoint.
-	ProviderID = "gator-local"
+	ProviderID = "hot-cross-buns-local"
 
 	// DefaultBaseURL is Ollama's documented local API address.
 	DefaultBaseURL = "http://127.0.0.1:11434"
@@ -175,12 +175,12 @@ var catalog = []Model{
 	},
 }
 
-// Catalog returns a copy so callers cannot alter Gator's reviewed selection.
+// Catalog returns a copy so callers cannot alter Hot Cross Buns's reviewed selection.
 func Catalog() []Model {
 	return append([]Model(nil), catalog...)
 }
 
-// Resolve accepts a stable Gator catalog ID or its exact Ollama model tag.
+// Resolve accepts a stable Hot Cross Buns catalog ID or its exact Ollama model tag.
 func Resolve(value string) (Model, bool) {
 	value = strings.TrimSpace(value)
 	for _, model := range catalog {

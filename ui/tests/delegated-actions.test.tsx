@@ -4,12 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 for (const [width, height] of [[110,34],[80,24],[60,20],[42,14]]) test(`conversation-only replies expose configured item actions at ${width}×${height}`, async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-dialogue-actions-")), copied:string[]=[]
-  const host = new FixtureHost({ binary:"/unused", userData:root, workspace:root, env:{GATOR_STATE_DIR:root,GATOR_CONFIG_DIR:root} }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-dialogue-actions-")), copied:string[]=[]
+  const host = new FixtureHost({ binary:"/unused", userData:root, workspace:root, env:{HOT_CROSS_BUNS_STATE_DIR:root,HOT_CROSS_BUNS_CONFIG_DIR:root} }), client = new HotCrossBunsClient(host)
   host.change({ ...state(), desktop:{shortcuts:{context_actions:"Ctrl+K"}}, dialogue:[{id:"reply-one",sequence:1,text:"My question",response:"A retained direct reply.",state:"answered",created_at:new Date().toISOString(),updated_at:new Date().toISOString()}] })
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{read:async()=>undefined,write:async text=>{copied.push(text)}}}/>,{width,height})
   const flush = async()=>{await setup.flush();await Bun.sleep(35);await setup.flush()}

@@ -7,7 +7,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",
@@ -18,7 +18,7 @@
     ],
     "exit": 0,
     "seconds": 3.2385341670014895,
-    "testGoBinary": "/tmp/Gator-Native-Parity-P04.app/Contents/Resources/gator-runtime"
+    "testGoBinary": "/tmp/HotCrossBuns-Native-Parity-P04.app/Contents/Resources/hot-cross-buns-runtime"
   },
   {
     "name": "package-final",
@@ -28,7 +28,7 @@
     ],
     "exit": 0,
     "seconds": 15.968873208010336,
-    "testGoBinary": "/tmp/Gator-Native-Parity-P04.app/Contents/Resources/gator-runtime"
+    "testGoBinary": "/tmp/HotCrossBuns-Native-Parity-P04.app/Contents/Resources/hot-cross-buns-runtime"
   },
   {
     "name": "full-final",
@@ -38,11 +38,11 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel"
     ],
     "exit": 0,
     "seconds": 148.31497141698492,
-    "testGoBinary": "/tmp/Gator-Native-P04E-Emoji-Verified.app/Contents/Resources/gator-runtime"
+    "testGoBinary": "/tmp/HotCrossBuns-Native-P04E-Emoji-Verified.app/Contents/Resources/hot-cross-buns-runtime"
   }
 ]

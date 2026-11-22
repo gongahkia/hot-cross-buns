@@ -1,0 +1,506 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/personalization"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
+)
+
+const memoryUsage = `Hot Cross Buns memory — explicit, inspectable personal knowledge
+
+  hot-cross-buns memory add [--kind fact|preference|decision|note] [--goal ID] [--source REF|--source-file PATH] [--expires YYYY-MM-DD] TEXT
+  hot-cross-buns memory list [--goal ID] [--all]
+  hot-cross-buns memory search [--goal ID] QUERY
+  hot-cross-buns memory diagnose
+  hot-cross-buns memory summary [--json]
+  hot-cross-buns memory maintain [--status]
+  hot-cross-buns memory show ID
+  hot-cross-buns memory review [--goal ID]
+  hot-cross-buns memory confirm ID --expected-updated TIMESTAMP
+  hot-cross-buns memory reconcile --keep ID [--aliases LABEL,LABEL] ID=TIMESTAMP [ID=TIMESTAMP ...]
+  hot-cross-buns memory correct ID [--source-file PATH] TEXT
+  hot-cross-buns memory forget ID
+  hot-cross-buns memory forget ID --topic "the user's abstract attribute" --expected-updated TIMESTAMP
+  hot-cross-buns memory withdrawals [--goal ID]
+  hot-cross-buns memory withdrawals review ID --scope personal|goal --goal ID --expected REVISION --topic TOPIC
+  hot-cross-buns memory embeddings status
+  hot-cross-buns memory embeddings set ollama|openai|gemini [--allow-upload]
+  hot-cross-buns memory embeddings install --yes
+
+Goal memories are visible only in that goal; global memories are shared.
+The agent uses bounded, relevant active memories as context, never as authority.`
+
+func memoryCommand(args []string, out io.Writer) error {
+	if len(args) == 0 || isHelpArgument(args[0]) {
+		_, err := fmt.Fprintln(out, memoryUsage)
+		return err
+	}
+	stateDir, err := state.ResolveDir(os.Getenv("HOT_CROSS_BUNS_STATE_DIR"))
+	if err != nil {
+		return err
+	}
+	store, err := memory.Open(stateDir)
+	if err != nil {
+		return err
+	}
+	switch args[0] {
+	case "withdrawals":
+		return memoryWithdrawalsCommand(store, args[1:], out)
+	case "reconcile":
+		flags := flag.NewFlagSet("memory reconcile", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		keep := flags.String("keep", "", "inspected memory whose text will be kept")
+		aliases := flags.String("aliases", "", "comma-separated equivalent subject labels")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		input := memory.Reconciliation{KeepID: *keep, Revisions: map[string]string{}}
+		if *aliases != "" {
+			input.Aliases = strings.Split(*aliases, ",")
+		}
+		for _, pair := range flags.Args() {
+			id, revision, ok := strings.Cut(pair, "=")
+			if !ok || id == "" || revision == "" || input.Revisions[id] != "" {
+				return errors.New("supply each inspected memory once as ID=TIMESTAMP")
+			}
+			input.Revisions[id] = revision
+		}
+		record, err := store.Reconcile(input)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "Reconciled into %s. Kept text: %s\nFact confirmation date unchanged; reviewed aliases share this concept.\n", record.ID, record.Text)
+		return err
+	case "review":
+		flags := flag.NewFlagSet("memory review", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		goalID := flags.String("goal", "", "goal ID")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if len(flags.Args()) != 0 {
+			return errors.New("usage: hot-cross-buns memory review [--goal ID]")
+		}
+		records, readErr := store.List(*goalID, true)
+		var pending []memory.Record
+		for _, record := range records {
+			if !record.Recallable() || !record.ExpiresAt.IsZero() && !record.ExpiresAt.After(time.Now()) {
+				pending = append(pending, record)
+			}
+		}
+		return printMemoryRead(out, pending, readErr)
+	case "confirm":
+		if len(args) != 4 || args[2] != "--expected-updated" {
+			return errors.New("usage: hot-cross-buns memory confirm ID --expected-updated TIMESTAMP (inspect with memory show first)")
+		}
+		record, err := store.ConfirmReviewed(args[1], args[3])
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "Confirmed %s without changing its text.\n", record.ID)
+		return err
+	case "maintain":
+		if len(args) > 2 || len(args) == 2 && args[1] != "--status" {
+			return errors.New("usage: hot-cross-buns memory maintain [--status]")
+		}
+		lessons, err := learning.Open(stateDir)
+		if err != nil {
+			return err
+		}
+		var report learning.MaintenanceReport
+		if len(args) == 2 {
+			report, err = lessons.MaintenanceStatus()
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			report, err = lessons.Maintain(ctx)
+		}
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(out).Encode(report)
+	case "summary":
+		if len(args) > 2 || len(args) == 2 && args[1] != "--json" {
+			return errors.New("usage: hot-cross-buns memory summary [--json]")
+		}
+		summary, err := personalization.Read(stateDir)
+		if err != nil {
+			return err
+		}
+		if len(args) == 2 {
+			return json.NewEncoder(out).Encode(summary)
+		}
+		_, err = fmt.Fprintln(out, "What Hot Cross Buns knows about you\n\n"+strings.Join(summary.Lines(), "\n")+"\n\nInspect: hot-cross-buns memory show ID\nCorrect: hot-cross-buns memory correct ID TEXT\nForget: hot-cross-buns memory forget ID\nGuidance: hot-cross-buns learnings show ID; hot-cross-buns learnings edit ID TEXT; hot-cross-buns learnings disable ID\nInferred guidance must be reviewed; replace its wording by adding user-authored guidance.")
+		return err
+	case "embeddings":
+		return memoryEmbeddingsCommand(args[1:], out)
+	case "diagnose":
+		if len(args) != 1 {
+			return errors.New("usage: hot-cross-buns memory diagnose")
+		}
+		_, readErr := store.List("", true)
+		var issues *memory.ReadIssues
+		if errors.As(readErr, &issues) {
+			if _, err := fmt.Fprintln(out, issues.Error()); err != nil {
+				return err
+			}
+			for _, issue := range issues.Items {
+				if _, err := fmt.Fprintf(out, "Unreadable record: %q\n", issue.File); err != nil {
+					return err
+				}
+			}
+			if issues.Count > len(issues.Items) {
+				_, err = fmt.Fprintf(out, "%d additional unreadable records.\n", issues.Count-len(issues.Items))
+				return err
+			}
+			_, err = fmt.Fprintln(out, "No files were modified. Restore damaged records from a verified backup; do not replace them with invented facts.")
+			return err
+		}
+		if readErr != nil {
+			return readErr
+		}
+		_, err = fmt.Fprintln(out, "No unreadable memory records found.")
+		return err
+	case "add":
+		flags := flag.NewFlagSet("memory add", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		kind := flags.String("kind", "fact", "memory kind")
+		goalID := flags.String("goal", "", "goal ID")
+		source := flags.String("source", "user", "source reference")
+		sourceFile := flags.String("source-file", "", "link to a bounded local file and detect changes")
+		expires := flags.String("expires", "", "expiry date")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *goalID != "" {
+			goals, err := goal.Open(stateDir)
+			if err != nil {
+				return err
+			}
+			if _, err := goals.Load(*goalID); err != nil {
+				return err
+			}
+		}
+		var expiry time.Time
+		if *expires != "" {
+			expiry, err = time.ParseInLocation("2006-01-02", *expires, time.Local)
+			if err != nil {
+				return errors.New("--expires must be YYYY-MM-DD")
+			}
+			expiry = expiry.AddDate(0, 0, 1)
+			if !expiry.After(time.Now()) {
+				return errors.New("expiry must be in the future")
+			}
+		}
+		if *sourceFile != "" && *source != "user" {
+			return errors.New("choose --source or --source-file, not both")
+		}
+		var record memory.Record
+		if *sourceFile != "" {
+			record, err = store.AddFromFile(*kind, strings.Join(flags.Args(), " "), *goalID, *sourceFile, expiry)
+		} else {
+			record, err = store.Add(*kind, strings.Join(flags.Args(), " "), *goalID, *source, expiry)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "%s  %s\n", record.ID, record.Text)
+		return err
+	case "list":
+		flags := flag.NewFlagSet("memory list", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		goalID := flags.String("goal", "", "goal ID")
+		all := flags.Bool("all", false, "include expired")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if len(flags.Args()) != 0 {
+			return errors.New("usage: hot-cross-buns memory list [--goal ID] [--all]")
+		}
+		records, err := store.List(*goalID, *all)
+		return printMemoryRead(out, records, err)
+	case "search":
+		flags := flag.NewFlagSet("memory search", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		goalID := flags.String("goal", "", "goal ID")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		records, err := store.Search(strings.Join(flags.Args(), " "), *goalID, 30)
+		return printMemoryRead(out, records, err)
+	case "show":
+		if len(args) != 2 {
+			return errors.New("usage: hot-cross-buns memory show ID")
+		}
+		record, err := store.Inspect(args[1])
+		if err != nil {
+			return err
+		}
+		if record.RecallIssue != "" {
+			if _, err := fmt.Fprintln(out, "Recall warning: "+record.RecallIssue); err != nil {
+				return err
+			}
+		}
+		if record.Subject != "" {
+			if _, err := fmt.Fprintf(out, "Subject: %s\nCanonical subject: %s\nConcept identity: %s\n", record.Subject, memory.CanonicalSubject(record.Subject), record.ConceptID); err != nil {
+				return err
+			}
+		}
+		_, err = fmt.Fprintf(out, "ID: %s\nKind: %s\nGoal: %s\nSource: %s\nSource status: %s\nExpires: %s\nCreated: %s\nUpdated: %s\nText: %s\n", record.ID, record.Kind, valueOrDash(record.GoalID), valueOrDash(record.Source), valueOrDash(record.SourceStatus), formatMemoryExpiry(record.ExpiresAt), record.CreatedAt.Format(time.RFC3339), record.UpdatedAt.Format(time.RFC3339), record.Text)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "Last observed: %s\nLast confirmed: %s\nReview after: %s\nConfirmation revision: %s\n", formatMemoryEvidenceTime(record.LastObservedAt), formatMemoryEvidenceTime(record.LastConfirmedAt), formatMemoryEvidenceTime(record.ReviewAfter), record.UpdatedAt.Format(time.RFC3339Nano))
+		if err != nil {
+			return err
+		}
+		for _, evidence := range record.Evidence {
+			if _, err = fmt.Fprintf(out, "Evidence: %s · %s · conversation %s · run %s · text SHA256 %s\n", evidence.ObservedAt.Format(time.RFC3339Nano), evidence.Basis, valueOrDash(evidence.ConversationID), valueOrDash(evidence.RunID), evidence.TextSHA256); err != nil {
+				return err
+			}
+		}
+		return err
+	case "correct":
+		if len(args) < 3 {
+			return errors.New("usage: hot-cross-buns memory correct ID [--source-file PATH] TEXT")
+		}
+		flags := flag.NewFlagSet("memory correct", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		sourceFile := flags.String("source-file", "", "relink to a reviewed local source file")
+		if err := flags.Parse(args[2:]); err != nil {
+			return err
+		}
+		if len(flags.Args()) == 0 {
+			return errors.New("memory correction text is required")
+		}
+		previous, err := store.Load(args[1])
+		if err != nil {
+			return err
+		}
+		var record memory.Record
+		if *sourceFile != "" {
+			record, err = store.CorrectFromFile(args[1], strings.Join(flags.Args(), " "), *sourceFile)
+		} else {
+			record, err = store.Correct(args[1], strings.Join(flags.Args(), " "), previous.Source)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "Corrected %s.\n", record.ID)
+		return err
+	case "forget":
+		if len(args) < 2 {
+			return errors.New("usage: hot-cross-buns memory forget ID [--topic TOPIC --expected-updated TIMESTAMP]")
+		}
+		flags := flag.NewFlagSet("memory forget", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		topic := flags.String("topic", "", "approved abstract attribute; omit the forgotten value")
+		updated := flags.String("expected-updated", "", "inspected memory revision")
+		if err := flags.Parse(args[2:]); err != nil {
+			return err
+		}
+		if len(flags.Args()) != 0 || (*topic == "") != (*updated == "") {
+			return errors.New("supply --topic and --expected-updated together")
+		}
+		if *topic != "" {
+			err = store.ForgetWithTopic(args[1], *updated, *topic)
+		} else {
+			err = store.Forget(args[1])
+		}
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "Forgot %s. Inspect retained abstract withdrawal topics with: hot-cross-buns memory withdrawals\n", args[1])
+		return err
+	default:
+		return fmt.Errorf("unknown memory command %q", args[0])
+	}
+}
+
+func memoryWithdrawalsCommand(store memory.Store, args []string, out io.Writer) error {
+	review := len(args) > 0 && args[0] == "review"
+	id := ""
+	if review {
+		if len(args) < 2 {
+			return errors.New("usage: hot-cross-buns memory withdrawals review ID --scope personal|goal [--goal ID] --expected REVISION --topic TOPIC")
+		}
+		id, args = args[1], args[2:]
+	}
+	flags := flag.NewFlagSet("memory withdrawals", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	goalID := flags.String("goal", "", "goal ID")
+	scope := flags.String("scope", "", "explicit scope for reviewed legacy metadata")
+	expected := flags.String("expected", "", "inspected withdrawal revision")
+	topic := flags.String("topic", "", "abstract attribute without the forgotten value")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if len(flags.Args()) != 0 {
+		return errors.New("unexpected withdrawal arguments")
+	}
+	if review {
+		if (*scope != "personal" && *scope != "goal") || (*scope == "goal" && *goalID == "") || (*scope == "personal" && *goalID != "") {
+			return errors.New("choose --scope personal, or --scope goal --goal ID")
+		}
+		rule, err := store.ReviewWithdrawal(id, *expected, *goalID, *topic)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(out, "Reviewed withdrawal %s. Historical barriers preserved; no fact was restored.\n", rule.ID)
+		return err
+	}
+	if *scope != "" || *expected != "" || *topic != "" {
+		return errors.New("metadata changes require withdrawals review ID")
+	}
+	rules, err := store.WithdrawalRules(*goalID)
+	if err != nil {
+		return err
+	}
+	var entries []map[string]any
+	for _, rule := range rules {
+		entries = append(entries, map[string]any{"id": rule.ID, "scope": rule.Scope, "scope_unknown": rule.ScopeUnknown, "topic": rule.Topic, "forgotten_at": rule.ForgottenAt, "restored_at": rule.RestoredAt, "migration_pending": rule.ScopeUnknown || rule.Topic == "", "revision": memory.WithdrawalRevision(rule)})
+	}
+	return json.NewEncoder(out).Encode(map[string]any{"withdrawals": entries, "notice": "Abstract topics only; fact values are not retained. Pending metadata withholds unchecked historical context. Review a topic without repeating the forgotten value; explicit new memory requests restore the topic without reopening old sources."})
+}
+
+func memoryEmbeddingsCommand(args []string, out io.Writer) error {
+	if len(args) > 0 && args[0] == "install" {
+		if len(args) != 2 || args[1] != "--yes" {
+			return errors.New("embeddinggemma:latest is a 622 MB Ollama download from https://ollama.com/library/embeddinggemma; repeat with install --yes")
+		}
+		client, err := localmodel.NewClient("")
+		if err != nil {
+			return err
+		}
+		model := localmodel.Model{OllamaModel: retrieval.LocalModel, SourceURL: "https://ollama.com/library/embeddinggemma", Download: "622 MB", DownloadBytes: 622_000_000}
+		if err := client.Pull(context.Background(), model, func(progress localmodel.Progress) {
+			if progress.Status != "" {
+				_, _ = fmt.Fprintln(out, progress.Status)
+			}
+		}); err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(out, "Local semantic recall is ready.")
+		return err
+	}
+	settingsStore, err := config.DefaultStore()
+	if err != nil {
+		return err
+	}
+	settings, err := settingsStore.Load()
+	if err != nil {
+		return err
+	}
+	if len(args) == 0 || args[0] == "status" && len(args) == 1 {
+		provider := settings.Embeddings.Provider
+		if provider == "" {
+			provider = "ollama"
+		}
+		status := "configured"
+		if provider == "ollama" {
+			status = "unavailable; using lexical search"
+			if client, clientErr := localmodel.NewClient(""); clientErr == nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				models, modelErr := client.Models(ctx)
+				cancel()
+				if modelErr == nil {
+					status = "model missing; using lexical search (hot-cross-buns memory embeddings install --yes)"
+					for _, model := range models {
+						if model.Name == retrieval.LocalModel {
+							status = "ready"
+							break
+						}
+					}
+				}
+			}
+		} else if !settings.Embeddings.CloudUploadApproved {
+			status = "upload disabled; using lexical search"
+		}
+		_, err := fmt.Fprintf(out, "Memory search: %s embeddings (%s); lexical fallback on failure.\n", provider, status)
+		return err
+	}
+	if args[0] != "set" || len(args) < 2 || len(args) > 3 {
+		return errors.New("usage: hot-cross-buns memory embeddings set ollama|openai|gemini [--allow-upload]")
+	}
+	provider := args[1]
+	if provider != "ollama" && provider != "openai" && provider != "gemini" {
+		return errors.New("embeddings provider must be ollama, openai, or gemini")
+	}
+	approved := len(args) == 3 && args[2] == "--allow-upload"
+	if len(args) == 3 && !approved {
+		return errors.New("unknown embeddings option")
+	}
+	if provider != "ollama" && !approved {
+		return errors.New("cloud embeddings upload saved memory and note text; repeat with --allow-upload to opt in")
+	}
+	settings.Embeddings = config.EmbeddingSettings{Provider: provider, CloudUploadApproved: approved && provider != "ollama"}
+	if err := settingsStore.Save(settings); err != nil {
+		return err
+	}
+	if provider == "ollama" {
+		_, err = fmt.Fprintln(out, "Memory search uses local Ollama embeddinggemma:latest when installed, otherwise lexical fallback. Run hot-cross-buns memory embeddings install --yes to install it.")
+	} else {
+		_, err = fmt.Fprintf(out, "Memory search uses %s embeddings and may upload saved memory and note text. Configure its API key via /model Cloud or hot-cross-buns provider login %s.\n", provider, provider)
+	}
+	return err
+}
+
+func printMemories(out io.Writer, records []memory.Record) error {
+	for _, record := range records {
+		line := record.Text
+		if record.RecallIssue != "" {
+			line += " [" + record.RecallIssue + "]"
+		}
+		if record.SourceStatus == "changed" || record.SourceStatus == "unavailable" {
+			line += " [source " + record.SourceStatus + "; excluded from automatic recall]"
+		}
+		if len(record.MatchedTerms) > 0 {
+			line += " [lexical match: " + strings.Join(record.MatchedTerms, ", ") + "; scope: " + record.MatchScope + "]"
+		}
+		if _, err := fmt.Fprintf(out, "%s  %-10s %-29s %s\n", record.ID, record.Kind, valueOrDash(record.GoalID), line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func formatMemoryExpiry(value time.Time) string {
+	if value.IsZero() {
+		return "-"
+	}
+	return value.Format("2006-01-02")
+}
+
+func formatMemoryEvidenceTime(value time.Time) string {
+	if value.IsZero() {
+		return "unknown (legacy record)"
+	}
+	return value.Format(time.RFC3339Nano)
+}
+
+// Partial reads remain visible in script and terminal output; ordinary failures
+// still return an error and are never presented as an empty memory store.
+func printMemoryRead(out io.Writer, records []memory.Record, readErr error) error {
+	if warning := memory.ReadWarning(readErr); warning != "" {
+		if _, err := fmt.Fprintln(out, "Warning: "+warning); err != nil {
+			return err
+		}
+	} else if readErr != nil {
+		return readErr
+	}
+	return printMemories(out, records)
+}

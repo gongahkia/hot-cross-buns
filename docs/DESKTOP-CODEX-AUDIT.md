@@ -1,6 +1,6 @@
 # Codex Desktop presentation audit
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -17,7 +17,7 @@ and local host persistence needed for the next three agreed priorities.
 
 ## Reference and scope
 
-Full review of Gator's desktop shell, home, conversation/composer/queue,
+Full review of Hot Cross Buns's desktop shell, home, conversation/composer/queue,
 Conversations and task runs, overview, goals, inbox, follow-ups, saved knowledge,
 model setup, usage, data, recovery, command search, forms, and confirmations.
 React DOM, Tailwind v4, semantic CSS, and Lucide remain the existing stack.
@@ -39,31 +39,31 @@ screenshots, rather than claiming an installed Codex build was measured:
   review presentation.
 
 Reference images were inspected in a temporary directory; OpenAI branding,
-assets, private app code, and account controls are not copied into Gator.
-Gator retains its alligator identity and personal-agent destinations.
+assets, private app code, and account controls are not copied into Hot Cross Buns.
+Hot Cross Buns retains its alligator identity and personal-agent destinations.
 
 ## Difference map
 
-| ID | Surface | Codex reference / Gator difference | Presentation adaptation | Status |
+| ID | Surface | Codex reference / Hot Cross Buns difference | Presentation adaptation | Status |
 | --- | --- | --- | --- | --- |
-| P1 | Typography and surfaces | Codex uses readable system typography; many Gator labels and controls are 10–12px | Shared text/radius tokens, larger text, restrained borders and consistent focus/hover | Implemented: typography commit |
-| P2 | New conversation | Codex places the prompt beside the starting question; Gator pins it far below a dashboard | Center the starting composer; put the existing live overview and requested scrolling dashboard below it | Implemented: home commit |
-| P3 | Navigation and settings | Codex has one Settings entry and a category rail; Gator spreads four settings links down the workspace sidebar | One Settings entry, categorized views for existing models, usage, data, and recovery; preserve all Go navigation/actions; Cmd/Ctrl+, opens it | Implemented: settings commit |
-| P4 | Conversation | Gator repeats avatars, names, and a left gutter on every message | Right-aligned user bubbles and an unboxed assistant reading column; preserve meaningful result roles and accessible speaker labels | Implemented: conversation commit |
-| P5 | Response/code actions | Codex provides usable copy controls; Gator has plain code blocks and no response copy | Language-labelled code headers and explicit response/code copy feedback, without adding IPC or model actions | Implemented: copy controls commit |
-| P6 | Lists and forms | Gator stretches terminal-style rows across the whole window and duplicates row actions in its footer | Bounded content width, native page toolbars, single row actions, direct keyboard list navigation/page shortcuts with typing guards, and better empty states | Implemented: native panels commit |
+| P1 | Typography and surfaces | Codex uses readable system typography; many Hot Cross Buns labels and controls are 10–12px | Shared text/radius tokens, larger text, restrained borders and consistent focus/hover | Implemented: typography commit |
+| P2 | New conversation | Codex places the prompt beside the starting question; Hot Cross Buns pins it far below a dashboard | Center the starting composer; put the existing live overview and requested scrolling dashboard below it | Implemented: home commit |
+| P3 | Navigation and settings | Codex has one Settings entry and a category rail; Hot Cross Buns spreads four settings links down the workspace sidebar | One Settings entry, categorized views for existing models, usage, data, and recovery; preserve all Go navigation/actions; Cmd/Ctrl+, opens it | Implemented: settings commit |
+| P4 | Conversation | Hot Cross Buns repeats avatars, names, and a left gutter on every message | Right-aligned user bubbles and an unboxed assistant reading column; preserve meaningful result roles and accessible speaker labels | Implemented: conversation commit |
+| P5 | Response/code actions | Codex provides usable copy controls; Hot Cross Buns has plain code blocks and no response copy | Language-labelled code headers and explicit response/code copy feedback, without adding IPC or model actions | Implemented: copy controls commit |
+| P6 | Lists and forms | Hot Cross Buns stretches terminal-style rows across the whole window and duplicates row actions in its footer | Bounded content width, native page toolbars, single row actions, direct keyboard list navigation/page shortcuts with typing guards, and better empty states | Implemented: native panels commit |
 | P7 | Diagnostic text and shortcuts | Metadata, key legends, and command-like instructions compete with primary page content | Disclose supporting diagnostics/shortcuts; keep forms, review details, warnings, and all underlying text accessible | Implemented: disclosure commit |
-| P8 | Approvals and details | Most Gator results have identical document-card treatment | Clear semantic status icons, deliberate review hierarchy, and exact action details visible before approval | Implemented: result/review commit |
-| P9 | Page header | Gator repeats the conversation title on unrelated settings/list pages | Show the active page and workspace/settings context; keep conversation tools on conversation surfaces | Implemented: page header commit |
-| P10 | Detail tabs | Gator tab roles lacked linked panels and arrow navigation | Roving focus, Arrow/Home/End keys, and labelled tab/panel relationships | Implemented: detail tabs commit |
-| K1 | Queue | Gator already has visible editable/reorderable queued cards | Retain Go acknowledgement, captured options, pause/resume, and draft protection; do not change scheduling | Retained |
-| K2 | Motion | Gator already has interruptible transitions and reduced-motion support | Keep existing motion rules; no entrance replay during typing or provider updates | Retained |
-| K3 | Usage | Gator accounts for local provider admission; Codex screenshots can show account/subscription quotas | Keep real local daily counters, uncapped states, UTC reset, and the separate review/confirm flow | Intentional difference |
+| P8 | Approvals and details | Most Hot Cross Buns results have identical document-card treatment | Clear semantic status icons, deliberate review hierarchy, and exact action details visible before approval | Implemented: result/review commit |
+| P9 | Page header | Hot Cross Buns repeats the conversation title on unrelated settings/list pages | Show the active page and workspace/settings context; keep conversation tools on conversation surfaces | Implemented: page header commit |
+| P10 | Detail tabs | Hot Cross Buns tab roles lacked linked panels and arrow navigation | Roving focus, Arrow/Home/End keys, and labelled tab/panel relationships | Implemented: detail tabs commit |
+| K1 | Queue | Hot Cross Buns already has visible editable/reorderable queued cards | Retain Go acknowledgement, captured options, pause/resume, and draft protection; do not change scheduling | Retained |
+| K2 | Motion | Hot Cross Buns already has interruptible transitions and reduced-motion support | Keep existing motion rules; no entrance replay during typing or provider updates | Retained |
+| K3 | Usage | Hot Cross Buns accounts for local provider admission; Codex screenshots can show account/subscription quotas | Keep real local daily counters, uncapped states, UTC reset, and the separate review/confirm flow | Intentional difference |
 | D1 | Projects, pins, recent chats in sidebar | The initial snapshot had no stable recent/project tree or pin actions | The daily-use iteration adds Go-owned recent conversations grouped by workspace; global projects and pins remain separate product decisions | Recent groups implemented below; project/pin actions deferred |
 | D2 | Git review, file tree and terminal | Existing deliverable summary is not Codex's diff/worktree/terminal model | Keep Deliverables and Checks; no fake diff panes, commit controls, or arbitrary file/process actions | Deferred: backend capability |
-| D3 | Attachments, voice, remote/cloud, plugins | Gator does not expose equivalent native desktop capabilities for all these controls | Keep real commands and terminal handoffs; do not add unsupported composer buttons | Deferred: capability |
+| D3 | Attachments, voice, remote/cloud, plugins | Hot Cross Buns does not expose equivalent native desktop capabilities for all these controls | Keep real commands and terminal handoffs; do not add unsupported composer buttons | Deferred: capability |
 | D4 | Theme editor / native translucency | Reference settings include custom colors/fonts and OS translucency | This pass adopts the type scale and neutral surfaces; custom/light/system themes need a presentation preference consistent with the shared Go theme, plus accessibility and native-material review | Deferred: separate UI scope |
-| D5 | Profile, sharing, cloud/account quotas | Gator is a local profile; the user previously removed the profile tile | Retain the local identity and factual counters | Intentional difference |
+| D5 | Profile, sharing, cloud/account quotas | Hot Cross Buns is a local profile; the user previously removed the profile tile | Retain the local identity and factual counters | Intentional difference |
 
 ## Review coverage
 
@@ -95,9 +95,9 @@ Gator retains its alligator identity and personal-agent destinations.
 | Location | Candidate | Rejected because |
 | --- | --- | --- |
 | Sidebar | Copy Codex's project/pin tree using remembered frontend labels | No stable authoritative tree/action contract exists in the current snapshot |
-| Composer | Add microphone, attachment, cloud and plugin icons for visual parity | Controls must correspond to capabilities Gator actually exposes |
+| Composer | Add microphone, attachment, cloud and plugin icons for visual parity | Controls must correspond to capabilities Hot Cross Buns actually exposes |
 | Review pane | Reuse deliverable status as Git diff/commit status | These represent different records and permissions |
-| Settings | Copy subscription periods, profile menu, and account balances | Gator's local profile and shared provider counters have different meanings |
+| Settings | Copy subscription periods, profile menu, and account balances | Hot Cross Buns's local profile and shared provider counters have different meanings |
 | Whole app | Introduce another component or animation framework | The existing React/CSS system covers this presentation work |
 
 ## Verification and rollback
@@ -144,8 +144,8 @@ Verified locally on macOS on 21 October 2026, at the initial presentation pass
 - `npm run check --prefix desktop`: passed.
 - `npm test --prefix desktop`: all six host tests passed.
 - `npm run pack --prefix desktop`: built the UI/runtime and unsigned macOS x64
-  bundle at `desktop/release/mac/Gator.app`.
-- `GATOR_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/Gator.app/Contents/MacOS/Gator" npm run test:e2e --prefix desktop`:
+  bundle at `desktop/release/mac/HotCrossBuns.app`.
+- `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns" npm run test:e2e --prefix desktop`:
   all six integration paths passed together, **50.8 seconds**. They cover:
   - motion at 10% playback, reversals, inert dismissed controls, focus return,
     reduced motion, no entrance replay on refresh/typing, and narrow drawers;
@@ -256,15 +256,15 @@ bounded range is `9c4121f5a..46187b81b`. The completion documentation is separat
 - `npm run check --prefix desktop` and `npm run check --prefix ui`: passed.
 - `npm test --prefix desktop`: all ten host/store/policy tests passed.
 - `go test ./internal/worktui -count=1`: passed.
-- `go test ./cmd/gator`: passed on the full package rerun (97.264 seconds).
+- `go test ./cmd/hot-cross-buns`: passed on the full package rerun (97.264 seconds).
   The first broader run failed `TestGoalWatchRetainsGateAndConversationAfterManyQuietMinutes`
   with `job attempt is invalid`; the focused rerun and then the full package
   rerun passed. No scheduler/job implementation was changed.
 - `go test -race ./internal/worktui -run 'TestBridge(Recent|Recents)' -count=1`:
   passed.
-- `go vet ./internal/worktui ./cmd/gator`: passed.
+- `go vet ./internal/worktui ./cmd/hot-cross-buns`: passed.
 - `npm run pack --prefix desktop`: rebuilt the unsigned macOS x64 app.
-- `GATOR_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/Gator.app/Contents/MacOS/Gator" npm run test:e2e --prefix desktop`:
+- `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns" npm run test:e2e --prefix desktop`:
   all **nine** packaged Electron paths passed together in **1.2 minutes**,
   including the existing motion, queue, forms, usage, approvals, and secret
   handling checks. No scoped rerun was needed for the final packaged run.
@@ -364,16 +364,16 @@ Later changes depend on the earlier projection. Roll back in reverse order.
 
 - `npm run check --prefix desktop` and `npm run check --prefix ui`: passed.
 - `npm test --prefix desktop`: all ten host/storage/policy tests passed.
-- `go test ./internal/worktui ./internal/artifact ./cmd/gator -count=1`:
+- `go test ./internal/worktui ./internal/artifact ./cmd/hot-cross-buns -count=1`:
   all packages passed; the CLI package took 155.342 seconds.
-- `go test ./cmd/gator -run TestWorkBundleDetailsBoundsPreviewReadsAndMatchesSelectedPaths -count=1`:
+- `go test ./cmd/hot-cross-buns -run TestWorkBundleDetailsBoundsPreviewReadsAndMatchesSelectedPaths -count=1`:
   passed after adding the large-file/UTF-8/budget/path-identity regression.
-- `go vet ./internal/worktui ./internal/artifact ./cmd/gator`: passed.
+- `go vet ./internal/worktui ./internal/artifact ./cmd/hot-cross-buns`: passed.
 - `npm run pack --prefix desktop`: rebuilt the unsigned macOS x64 application.
   After the final preview-position refinement, `npm run build:ui --prefix desktop`
   and `./node_modules/.bin/electron-builder --dir --publish never` (from `desktop/`)
   rebuilt its UI and package again.
-- `GATOR_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/Gator.app/Contents/MacOS/Gator" npm run test:e2e --prefix desktop`:
+- `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE="$PWD/desktop/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns" npm run test:e2e --prefix desktop`:
   all **ten** packaged desktop paths passed together in **1.2 minutes**.
   This includes the existing recovery, 300-message transcript, real saved
   conversations, 10% motion playback, queue, native forms, usage controls,

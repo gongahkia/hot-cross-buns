@@ -3,13 +3,13 @@ import { testRender } from "@opentui/solid"
 import { copyFile, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 type Request = { messages: { role: string; content: string }[]; tools?: { function: { name: string } }[] }
 async function fixture(installed = false) {
-  const root = await mkdtemp(join(tmpdir(), "gator-browser-ui-")), calls: Request[] = []
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-browser-ui-")), calls: Request[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const payload = await request.json() as Request; calls.push(payload)
     const last = payload.messages.at(-1)
@@ -18,18 +18,18 @@ async function fixture(installed = false) {
       : { role: "assistant", content: "Browser selection checked." }
     return Response.json({ choices: [{ message, finish_reason: "tool_calls" in message ? "tool_calls" : "stop" }], usage: { total_tokens: 20 } })
   } })
-  const config = join(root, "config/gator"), state = join(root, "state")
+  const config = join(root, "config/hot-cross-buns"), state = join(root, "state")
   await mkdir(config, { recursive: true })
   await Bun.write(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
   if (installed) {
-    const runtime = join(state, "gator/browser/runtime/playwright-1.56.1"), source = process.env.GATOR_BROWSER_TEST_RUNTIME!
+    const runtime = join(state, "hot-cross-buns/browser/runtime/playwright-1.56.1"), source = process.env.HOT_CROSS_BUNS_BROWSER_TEST_RUNTIME!
     await mkdir(runtime, { recursive: true })
     for (const file of ["package.json", "package-lock.json", "driver.mjs"]) await copyFile(join(source, file), join(runtime, file))
     for (const directory of ["node_modules", "browsers"]) await symlink(join(source, directory), join(runtime, directory), process.platform === "win32" ? "junction" : "dir")
   }
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-  const env = { ...process.env, GATOR_STATE_DIR: state, GATOR_CONFIG_DIR: join(root, "config") }
-  const client = new GatorClient(new Application({ binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: state, HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const client = new HotCrossBunsClient(new Application({ binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 44 })
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   const until = async (predicate: () => boolean, label: string) => {
@@ -43,11 +43,11 @@ async function fixture(installed = false) {
     setup.mockInput.pressEnter(); await flush()
   }
   const confirm = async () => { await until(() => client.state?.panel?.kind === "confirmation", "review"); setup.mockInput.pressEnter(); await flush() }
-  const sessions = async () => JSON.parse(await readFile(join(state, "gator/browser/sessions.json"), "utf8")).sessions as { id: string; state: string; paused: boolean; visual_capture: boolean }[]
+  const sessions = async () => JSON.parse(await readFile(join(state, "hot-cross-buns/browser/sessions.json"), "utf8")).sessions as { id: string; state: string; paused: boolean; visual_capture: boolean }[]
   const close = async () => {
     await client.close(); await setup.dispose()
     for (const session of await sessions().catch(() => [])) if (session.state === "running") {
-      const stop = Bun.spawn([binary, "browser", "stop", session.id], { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" }, stdout: "ignore", stderr: "ignore" }); await stop.exited
+      const stop = Bun.spawn([binary, "browser", "stop", session.id], { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" }, stdout: "ignore", stderr: "ignore" }); await stop.exited
     }
     server.stop(true); await rm(root, { recursive: true, force: true })
   }
@@ -71,7 +71,7 @@ test("browser setup is discoverable, reviewed and cancellable without downloadin
   } finally { await f.close() }
 }, 30000)
 
-const native = process.env.GATOR_BROWSER_TEST_RUNTIME ? test : test.skip
+const native = process.env.HOT_CROSS_BUNS_BROWSER_TEST_RUNTIME ? test : test.skip
 native("managed browser opens paused, grants one task, supports takeover and stops through terminal controls", async () => {
   const f = await fixture(true)
   try {

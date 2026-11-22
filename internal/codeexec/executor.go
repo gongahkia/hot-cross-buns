@@ -13,20 +13,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/browser"
-	"github.com/gongahkia/gator/internal/extension"
-	"github.com/gongahkia/gator/internal/hooks"
-	"github.com/gongahkia/gator/internal/instructions"
-	"github.com/gongahkia/gator/internal/lsp"
-	"github.com/gongahkia/gator/internal/mcp"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/terminal"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/usage"
-	"github.com/gongahkia/gator/internal/workspace"
-	"github.com/gongahkia/gator/internal/worktree"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/browser"
+	"github.com/gongahkia/hot-cross-buns/internal/extension"
+	"github.com/gongahkia/hot-cross-buns/internal/hooks"
+	"github.com/gongahkia/hot-cross-buns/internal/instructions"
+	"github.com/gongahkia/hot-cross-buns/internal/lsp"
+	"github.com/gongahkia/hot-cross-buns/internal/mcp"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/terminal"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/worktree"
 )
 
 // Request is the narrow handoff from a parent Work execution to one Code
@@ -555,7 +555,7 @@ func joinInstructions(project, request string) string {
 }
 
 func executionPrompt(additional string, verification [][]string) string {
-	prompt := `You are Gator using coding tools in an isolated Git worktree.
+	prompt := `You are Hot Cross Buns using coding tools in an isolated Git worktree.
 
 Treat the assigned task as an implementation request. Explore before changing code. Make the smallest coherent change, add or update focused tests, and use apply_patch rather than describing a patch in prose. Do not use paths outside the workspace. Inspect git_status and git_diff before completion. Report changed paths and exact verification results. Never claim a command passed unless its tool result shows exit code 0.
 

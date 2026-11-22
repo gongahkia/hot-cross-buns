@@ -1,4 +1,4 @@
-// Package action defines the authority model for general Gator work.
+// Package action defines the authority model for general Hot Cross Buns work.
 //
 // Capability is deliberately separate from tool names. A connector or tool
 // cannot avoid a high-risk approval merely by choosing a different name for

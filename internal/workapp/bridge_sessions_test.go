@@ -3,7 +3,7 @@ package workapp
 import (
 	"testing"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestManagedChatNavigationKeepsExecutionAndLastOpenedOwnership(t *testing.T) {

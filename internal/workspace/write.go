@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 // WriteRegularFileAtomic replaces a bounded regular file inside the workspace.
@@ -93,7 +93,7 @@ func createTemporaryFile(root *os.Root, parent string) (string, *os.File, error)
 		if _, err := rand.Read(entropy); err != nil {
 			return "", nil, err
 		}
-		name := filepath.Join(parent, ".gator-write-"+hex.EncodeToString(entropy))
+		name := filepath.Join(parent, ".hot-cross-buns-write-"+hex.EncodeToString(entropy))
 		file, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {
 			return name, file, nil

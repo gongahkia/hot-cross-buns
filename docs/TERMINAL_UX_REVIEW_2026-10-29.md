@@ -1,6 +1,6 @@
 # Terminal chat UX review — 2026-10-29
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -29,18 +29,18 @@ runtime dependency. Desktop and companion styling are outside this review.
 
 | Severity | Location | Before | After | Why |
 | --- | --- | --- | --- | --- |
-| Medium | `ui/src/gator/panel.tsx`, `display.ts`, `actions.tsx` | Raw fractional timestamps and full paths wrapped every chat; repeated shortcuts | Two-line rows, local short dates, folder names, dim metadata, conditional paging; F1 help and F3 full details | Text wrapping and hierarchy: more chats remain visible without discarding metadata |
-| High | `ui/src/gator/transcript.tsx`, `markdown.tsx` | Markdown punctuation was literal text; missing dates appeared as year 0001 | Native styled Markdown; headings 1–6; compact dates; omit absent dates and empty Deliverables headings | Readable typography; preserve code literals, evidence, raw data and transcript indices |
-| Medium | `ui/src/gator/working-status.tsx`, `component/spinner*.ts*` | Fading implementation jargon | Rattles Dots preset plus “Thinking…” and elapsed time; retain meaningful backend statuses | Motion restraint: fixed-width glyph, static approval/stopping labels, reduced motion |
-| High | `ui/src/context/theme.tsx`, `index.tsx`, `gator/{files,panel,transcript}.tsx`, `component/prompt/index.tsx`, `ui/dialog.tsx` | Forced green canvas and white default labels on light backgrounds | Native default foreground/background intent and terminal palette accents; explicitly colored text/editor defaults | Surfaces and contrast follow the terminal, including terminals that cannot answer palette queries |
+| Medium | `ui/src/hot-cross-buns/panel.tsx`, `display.ts`, `actions.tsx` | Raw fractional timestamps and full paths wrapped every chat; repeated shortcuts | Two-line rows, local short dates, folder names, dim metadata, conditional paging; F1 help and F3 full details | Text wrapping and hierarchy: more chats remain visible without discarding metadata |
+| High | `ui/src/hot-cross-buns/transcript.tsx`, `markdown.tsx` | Markdown punctuation was literal text; missing dates appeared as year 0001 | Native styled Markdown; headings 1–6; compact dates; omit absent dates and empty Deliverables headings | Readable typography; preserve code literals, evidence, raw data and transcript indices |
+| Medium | `ui/src/hot-cross-buns/working-status.tsx`, `component/spinner*.ts*` | Fading implementation jargon | Rattles Dots preset plus “Thinking…” and elapsed time; retain meaningful backend statuses | Motion restraint: fixed-width glyph, static approval/stopping labels, reduced motion |
+| High | `ui/src/context/theme.tsx`, `index.tsx`, `hot-cross-buns/{files,panel,transcript}.tsx`, `component/prompt/index.tsx`, `ui/dialog.tsx` | Forced green canvas and white default labels on light backgrounds | Native default foreground/background intent and terminal palette accents; explicitly colored text/editor defaults | Surfaces and contrast follow the terminal, including terminals that cannot answer palette queries |
 | Medium | `ui/src/component/session-tabs{,-rail}.tsx`, `ui/dialog.tsx` | Decorative half-block rail depended on fixed RGB fills; translucent black modal backdrop | Plain Search control with hover feedback, rail divider, terminal-default modal canvas and top rule | Surface consistency without opaque branded fills or decorative bars |
-| Low | `ui/src/app.tsx`, `gator/connection-status.tsx` | Plain Gator title and unstyled connection word | 🐊 Gator; green/yellow/red palette dot with label; long title truncates ahead of status | Clear state without relying only on color |
-| Medium | `ui/src/gator/hub.tsx`, `panel.tsx` | Appearance implied desktop presets controlled terminal colors | Explain that terminal colors come from terminal settings and presets apply to desktop | Accurate control descriptions |
+| Low | `ui/src/app.tsx`, `hot-cross-buns/connection-status.tsx` | Plain Hot Cross Buns title and unstyled connection word | 🐊 Hot Cross Buns; green/yellow/red palette dot with label; long title truncates ahead of status | Clear state without relying only on color |
+| Medium | `ui/src/hot-cross-buns/hub.tsx`, `panel.tsx` | Appearance implied desktop presets controlled terminal colors | Explain that terminal colors come from terminal settings and presets apply to desktop | Accurate control descriptions |
 
 Connection status describes the local application host connection, not account
 sign-in or provider reachability. Transparency is controlled by the terminal;
-Gator emits its default background instead of painting a green or white canvas.
-`NO_COLOR` preserves labels with neutral colors. `GATOR_REDUCED_MOTION=1` keeps
+Hot Cross Buns emits its default background instead of painting a green or white canvas.
+`NO_COLOR` preserves labels with neutral colors. `HOT_CROSS_BUNS_REDUCED_MOTION=1` keeps
 working feedback static. Spinner notices ship in packaged distributions.
 
 ## Considered but rejected
@@ -57,11 +57,11 @@ working feedback static. Spinner notices ship in packaged distributions.
 Commands used from the repository root (Bun is locally installed):
 
 ```sh
-.gator/native-tools/node_modules/.bin/bun run --cwd ui check
-PATH="$PWD/.gator/native-tools/node_modules/.bin:$PATH" bun run --cwd ui build
-.gator/native-tools/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts tests
-env -u NO_COLOR .gator/native-tools/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts tests/terminal-colors.test.tsx tests/markdown.test.tsx tests/working-status.test.tsx tests/appearance.test.tsx tests/catalog.test.tsx
-.gator/native-tools/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts tests/updates.test.tsx
+.hot-cross-buns/native-tools/node_modules/.bin/bun run --cwd ui check
+PATH="$PWD/.hot-cross-buns/native-tools/node_modules/.bin:$PATH" bun run --cwd ui build
+.hot-cross-buns/native-tools/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts tests
+env -u NO_COLOR .hot-cross-buns/native-tools/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts tests/terminal-colors.test.tsx tests/markdown.test.tsx tests/working-status.test.tsx tests/appearance.test.tsx tests/catalog.test.tsx
+.hot-cross-buns/native-tools/node_modules/.bin/bun test --cwd ui --preload ./scripts/preload.ts tests/updates.test.tsx
 ```
 
 - Type check and production build pass.
@@ -81,8 +81,8 @@ env -u NO_COLOR .gator/native-tools/node_modules/.bin/bun test --cwd ui --preloa
 - Captured native frames were previewed on light and dark canvases and inspected
   at 110 and 60 columns. They are visualizations of native renderer output,
   not screenshots of the user's terminal emulator. Local evidence is under
-  `.gator/native-tools/terminal-ux-*`; frame capture source is retained under
-  `.gator/native-tools/terminal-ux-evidence/`.
+  `.hot-cross-buns/native-tools/terminal-ux-*`; frame capture source is retained under
+  `.hot-cross-buns/native-tools/terminal-ux-evidence/`.
 - The preview replays recorded spinner frames at 800ms (10% speed). Automated
   native frame checks verify motion and fixed text; continuous human playback at
   that speed is **not verified**. Mouse hover handlers were reviewed; keyboard

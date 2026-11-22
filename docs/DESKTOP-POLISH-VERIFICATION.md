@@ -1,6 +1,6 @@
 # Desktop polish: implementation and verification
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -21,7 +21,7 @@ screen families requested for this implementation now use the compact direction
 in the exercised states: concise work summaries, direct native controls,
 progressive disclosure, explicit review actions, and consistent semantic colors.
 
-This is a presentation review of Gator's existing capabilities. Context capacity
+This is a presentation review of Hot Cross Buns's existing capabilities. Context capacity
 still says **Not measured**; selecting a connection does not imply authorization;
 file checks do not imply delivery. The agent loop, scheduling policy, approval
 requirements, and canonical data services retain their existing behavior.
@@ -105,8 +105,8 @@ line numbers in the baseline audit.
 | MEDIUM · F4 | `desktop/src/Panel.tsx:15` | Empty views offered unavailable selection/details or implied the whole library was empty after filtering | Useful empty/no-match guidance; unavailable actions removed; filtered guidance has its own empty state | Empty states explain the next available step |
 | MEDIUM · F5 | `desktop/src/Panel.tsx:33`, `:80` | Long unsearchable model list and broad administration toolbar | Local provider/model filter with counts, original row indices, grouped provider administration and disabled selection on no match | Selection stays quick and refers to the model the user sees |
 | MEDIUM · F6 | `internal/worktui/recall.go:114`; `desktop/src/PanelBlocks.tsx:9` | Diagnostics, provider labels and setup controls competed with readiness | Recall readiness first; distinct processing choices; supporting information disclosed progressively | Users can understand readiness and setup consequences |
-| MEDIUM · F7 | `desktop/src/PanelBlocks.tsx:5`; `desktop/src/presentation.ts:1`; `desktop/src/DraftManager.tsx:8`; `internal/worktui/bridge_panel.go:245`, `:314`; `internal/worktui/followup.go:369`; `internal/worktui/context.go:153`; `cmd/gator/work_data.go:19`; `cmd/gator/work_recovery.go:51`; `cmd/gator/work_overview.go:53` | Long paths, IDs and equal-weight diagnostics dominated lists/details | Shared compact facts, readable row previews, shortened workspace/time metadata, health/content/next-action hierarchy and supporting disclosures; exact review paths stay visible | Information hierarchy makes work scannable without dropping facts |
-| MEDIUM · F8 | `internal/worktui/controls.go:233`; `internal/worktui/followup.go:369`; `internal/worktui/context.go:153`; `internal/modelcatalog/panel_snapshot.go:91`; `cmd/gator/work_data.go:239`; `desktop/src/Panel.tsx:127` | Repeated descriptions, generic confirmations, duplicate destructive action, repeated old excerpt, meaningless empty review body | One review summary, labeled facts, specific verbs, single destructive affordance, complete agreements, content-only correction editor, no empty hint on complete reviews | Decisions remain explicit and consequences readable |
+| MEDIUM · F7 | `desktop/src/PanelBlocks.tsx:5`; `desktop/src/presentation.ts:1`; `desktop/src/DraftManager.tsx:8`; `internal/worktui/bridge_panel.go:245`, `:314`; `internal/worktui/followup.go:369`; `internal/worktui/context.go:153`; `cmd/hot-cross-buns/work_data.go:19`; `cmd/hot-cross-buns/work_recovery.go:51`; `cmd/hot-cross-buns/work_overview.go:53` | Long paths, IDs and equal-weight diagnostics dominated lists/details | Shared compact facts, readable row previews, shortened workspace/time metadata, health/content/next-action hierarchy and supporting disclosures; exact review paths stay visible | Information hierarchy makes work scannable without dropping facts |
+| MEDIUM · F8 | `internal/worktui/controls.go:233`; `internal/worktui/followup.go:369`; `internal/worktui/context.go:153`; `internal/modelcatalog/panel_snapshot.go:91`; `cmd/hot-cross-buns/work_data.go:239`; `desktop/src/Panel.tsx:127` | Repeated descriptions, generic confirmations, duplicate destructive action, repeated old excerpt, meaningless empty review body | One review summary, labeled facts, specific verbs, single destructive affordance, complete agreements, content-only correction editor, no empty hint on complete reviews | Decisions remain explicit and consequences readable |
 | MEDIUM · F9 | `desktop/src/Panel.tsx:35`, `:115`; `internal/worktui/context.go:153` | No quick knowledge filter and hidden collection boundary | Filter loaded items; visible count/up-to-100 boundary; separate explanation of full-search commands | Finding content does not overstate search coverage |
 | MEDIUM · F10 | `desktop/src/DesktopHelp.tsx:18`; `desktop/src/App.tsx:71`; `internal/worktui/bridge_panel.go:43`; `desktop/src/Panel.tsx:10`, `:95`; `internal/worktui/recall.go:114` | Terminal guidance, inconsistent names, generic Back label and action casing | Desktop shortcut/help presentation; contextual Back; consistent destination names and sentence case; useful guidance-form subtitle; terminal settings named explicitly | Language describes the interface and action actually available |
 | MEDIUM · F11 | `desktop/src/styles.css:1`, `:37`, `:337` | Secondary content bypassed contrast tokens | Secondary text, fills, focus, warning/danger and hover states use shared semantic tokens | Contrast preference applies to content-heavy screens |
@@ -130,8 +130,8 @@ final browser tests and screenshot walks.
 
 | Check | Observed result |
 | --- | --- |
-| `go test ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/gator -count=1` | Pass; all packages with tests pass; `uisnapshot` has no test files |
-| `go vet ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/gator` | Pass |
+| `go test ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/hot-cross-buns -count=1` | Pass; all packages with tests pass; `uisnapshot` has no test files |
+| `go vet ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/hot-cross-buns` | Pass |
 | `npm test` in `desktop` | 10/10 pass |
 | `npm run check` in `desktop` and `ui` | Both pass |
 | `npm run pack` in `desktop` | Pass; macOS development package produced |
@@ -153,8 +153,8 @@ No signing or distribution claim is made by this verification.
 From the repository root:
 
 ```sh
-go test ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/gator -count=1
-go vet ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/gator
+go test ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/hot-cross-buns -count=1
+go vet ./internal/config ./internal/worktui ./internal/modelcatalog ./internal/uisnapshot ./cmd/hot-cross-buns
 npm test --prefix desktop
 npm run check --prefix desktop
 npm run check --prefix ui
@@ -164,7 +164,7 @@ npm run pack --prefix desktop
 Then, from `desktop`, after packaging finishes:
 
 ```sh
-GATOR_DESKTOP_TEST_EXECUTABLE="$PWD/release/mac/Gator.app/Contents/MacOS/Gator" npm run test:e2e
+HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE="$PWD/release/mac/HotCrossBuns.app/Contents/MacOS/Hot Cross Buns" npm run test:e2e
 ```
 
 The new committed `desktop/tests/e2e/polish.spec.ts` checks actual Inbox

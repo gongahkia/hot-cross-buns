@@ -2,7 +2,7 @@ package workapp
 
 import (
 	"errors"
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 	"testing"
 	"time"
 )

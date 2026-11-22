@@ -1,6 +1,6 @@
-# Desktop as Gator's primary interface
+# Desktop as Hot Cross Buns's primary interface
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -15,7 +15,7 @@ Decision: 22 October 2026. Supersedes the earlier dual-interface rollout.
 ## Decision
 
 The Electron application is the primary and currently supported way for users
-to interact with Gator. Retire the standalone Gator CLI and React terminal
+to interact with Hot Cross Buns. Retire the standalone Hot Cross Buns CLI and React terminal
 frontend for now. Keep the Go application and saved data behind the desktop.
 This is one reversible repository change, committed atomically.
 
@@ -26,12 +26,12 @@ This is one reversible repository change, committed atomically.
 - Remove terminal-only status-line controls and command discovery. Legacy
   settings remain readable in old profiles and backups; no data migration or
   deletion is needed.
-- Bundle the Go application as `runtime/gator-runtime`. Bare execution and
+- Bundle the Go application as `runtime/hot-cross-buns-runtime`. Bare execution and
   former public commands explain that the desktop app is the user entry point.
   Rejected commands do not initialize or maintain a saved profile.
 - Retain the private UI transport, app-owned background supervisor, and existing
   canonical command handlers used for app workflows, tests and maintenance.
-  `cmd/gator` remains the internal implementation location, not a CLI product.
+  `cmd/hot-cross-buns` remains the internal implementation location, not a CLI product.
 - The shared conversation model now lives in `internal/workapp`, with
   display-safe projections for the desktop. Bubble Tea provides its headless
   message scheduling; there is no terminal renderer. See [development](DEVELOPMENT.md).
@@ -53,12 +53,12 @@ continue to invoke the supervisor role. Enabling/reinstalling a service from
 Recovery binds it to the new bundled runtime path.
 
 Some reviewed system sign-in, installation or live-action review steps still
-use an app-owned system Terminal handoff and return their status to Gator.
-These do not launch the removed Gator terminal UI. Converting every such step
+use an app-owned system Terminal handoff and return their status to Hot Cross Buns.
+These do not launch the removed Hot Cross Buns terminal UI. Converting every such step
 into a native dialog is separate work; disabling them would remove existing
 capabilities. Handoff arguments and approval semantics remain owned by Go.
 
-The explicit `GATOR_INTERNAL_COMMANDS=1` opt-in retains a developer fixture and
+The explicit `HOT_CROSS_BUNS_INTERNAL_COMMANDS=1` opt-in retains a developer fixture and
 maintenance harness around existing services. It is not a supported user CLI,
 security boundary, or permission grant. The desktop transport enables it for
 its own subprocess workflows; renderer requests still pass the existing narrow
@@ -66,7 +66,7 @@ IPC checks and canonical validations/reviews.
 
 This change does not uninstall third-party/system binaries or delete published
 historical release assets. Repository-generated legacy executables are removed
-from the development workspace. No Gator command was found on the user's PATH
+from the development workspace. No Hot Cross Buns command was found on the user's PATH
 when this change began.
 
 ## Verification
@@ -80,7 +80,7 @@ when this change began.
 | `npm run pack --prefix desktop` | Local macOS application package builds |
 | Packaged `npm run test:e2e` | 15/15 pass, including startup with an empty tool PATH and absence of terminal-only settings |
 | Runtime executable smoke checks | Bare/former CLI commands reject with desktop guidance; help/version work; no profile directory is created |
-| Packaged runtime | SHA-256 matches the tested source build; resource directory contains only `gator-runtime` |
+| Packaged runtime | SHA-256 matches the tested source build; resource directory contains only `hot-cross-buns-runtime` |
 | Legacy installer | Prints retirement/migration guidance with no external tools on PATH; exits without installing |
 | Linux ARM64 | `GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build` passes for the private runtime |
 | Build/release wiring | Make targets inspected with `make -n`; all three changed workflow YAML files parse |

@@ -19,7 +19,7 @@
     "args": [
       "press",
       "menu",
-      "AXMenuItem::Gator"
+      "AXMenuItem::Hot Cross Buns"
     ],
     "exit": 0,
     "output": "press=0\n"

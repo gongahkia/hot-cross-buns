@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 // SuggestWithdrawalTopic proposes metadata for an owning-control review. This

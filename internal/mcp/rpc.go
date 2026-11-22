@@ -66,7 +66,7 @@ func marshalRPC(method string, params any, id *int64, version string) ([]byte, e
 		return nil, errors.New("MCP parameters must be an object")
 	}
 	if version == modernVersion && id != nil {
-		fields["_meta"], _ = json.Marshal(map[string]any{"io.modelcontextprotocol/protocolVersion": version, "io.modelcontextprotocol/clientCapabilities": map[string]any{}, "io.modelcontextprotocol/clientInfo": map[string]string{"name": "gator", "version": "dev"}})
+		fields["_meta"], _ = json.Marshal(map[string]any{"io.modelcontextprotocol/protocolVersion": version, "io.modelcontextprotocol/clientCapabilities": map[string]any{}, "io.modelcontextprotocol/clientInfo": map[string]string{"name": "hot-cross-buns", "version": "dev"}})
 	}
 	message := map[string]any{"jsonrpc": "2.0", "method": method, "params": fields}
 	if id != nil {

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 var errTaskAccess = errors.New("this task requires reviewed connection setup before further execution")
@@ -45,7 +45,7 @@ type taskAccessTool struct {
 }
 
 func (t taskAccessTool) Definition() agent.ToolDefinition {
-	return agent.ToolDefinition{Name: "gator_request_access", Description: "Retain this task's missing account, source or permission requirement for the user to repair and review. Inspect connections first. Choose an exact configured connector_id and operation when known; use kind and operation when no appropriate account is configured or selected. This does not sign in, select an account, grant permission, or execute the operation. It stops further task tools until setup and a fresh plan review. Explain the missing access; do not claim the task completed. Never ask for tokens in chat.", Parameters: json.RawMessage(`{"type":"object","properties":{"connector_id":{"type":"string","maxLength":64},"kind":{"type":"string","enum":["http_json","http_webhook","google_workspace","slack","atlassian","notion","remote_mcp"]},"operation":{"type":"string","maxLength":128}},"required":["kind","operation"],"additionalProperties":false}`)}
+	return agent.ToolDefinition{Name: "hot_cross_buns_request_access", Description: "Retain this task's missing account, source or permission requirement for the user to repair and review. Inspect connections first. Choose an exact configured connector_id and operation when known; use kind and operation when no appropriate account is configured or selected. This does not sign in, select an account, grant permission, or execute the operation. It stops further task tools until setup and a fresh plan review. Explain the missing access; do not claim the task completed. Never ask for tokens in chat.", Parameters: json.RawMessage(`{"type":"object","properties":{"connector_id":{"type":"string","maxLength":64},"kind":{"type":"string","enum":["http_json","http_webhook","google_workspace","slack","atlassian","notion","remote_mcp"]},"operation":{"type":"string","maxLength":128}},"required":["kind","operation"],"additionalProperties":false}`)}
 }
 func (t taskAccessTool) Execute(ctx context.Context, raw json.RawMessage) (agent.ToolResult, error) {
 	if err := ctx.Err(); err != nil {

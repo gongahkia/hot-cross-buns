@@ -10,7 +10,7 @@ if args.count == 2 && args[1] == "permissions" {
 }
 guard args.count>=3,let pid=Int32(args[1]) else{exit(2)}
 let action=args[2]
-guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.gator.pet.b1.lab","dev.gator.pet.focus-fixture","dev.gator.pet.b1.gator-fixture"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
+guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.hot-cross-buns.pet.b1.lab","dev.hot-cross-buns.pet.focus-fixture","dev.hot-cross-buns.pet.b1.hot-cross-buns-fixture"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
 guard NSRunningApplication(processIdentifier:pid)?.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/").resolvingSymlinksInPath().path) == true else { exit(2) }
 let app = AXUIElementCreateApplication(pid)
 func attr(_ e: AXUIElement, _ key: String) -> CFTypeRef? { var v: CFTypeRef?; AXUIElementCopyAttributeValue(e,key as CFString,&v); return v }

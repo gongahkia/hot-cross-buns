@@ -1,6 +1,6 @@
 Test Suite 'Selected tests' started at 2026-11-20 17:09:29.933.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 17:09:29.935.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 17:09:29.935.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 17:09:29.935.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 17:09:29.935.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 17:09:29.935.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds

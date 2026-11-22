@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import { ThemeProvider } from "../src/context/theme"
-import { Markdown } from "../src/gator/markdown"
+import { Markdown } from "../src/hot-cross-buns/markdown"
 
 test("Markdown styles prose and preserves code, lists, links and tables at narrow widths", async () => {
   const text = '# Plan\n\n**Bold** and *italic* with `inline code`.\n\n1. First item\n2. Second item\n\n> A useful quote\n\n[Reference](https://example.com/help)\n\n```text\nconst value = "**literal**"\n```\n\n| Name | State |\n| --- | --- |\n| Report | Ready |\n\n\x1b[31mSafe text\x1b[0m'

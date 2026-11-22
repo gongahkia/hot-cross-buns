@@ -15,15 +15,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/eval"
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/model"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/suggestion"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/eval"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func writeJSON(path string, value any) error {
@@ -229,7 +229,7 @@ func run() (finalErr error) {
 	defer cancel()
 	options := eval.WorkEvalOptions{ID: "learning-km-live-v1", Harness: "learning-km-eval-v1", Provider: string(selected), Model: name, ReportDir: *reportDir, Attempts: 1, Delegation: false, Live: true, MaxRequests: 120, Split: eval.WorkSplitAll}
 	report, err := eval.RunWorkExperiment(ctx, *datasetPath, dataset, options, func(item eval.WorkCase, state string) (workrun.Service, error) {
-		fmt.Println("Gator:", item.ID)
+		fmt.Println("Hot Cross Buns:", item.ID)
 		return workrun.Service{Executor: workrun.Executor{Model: backend, StateDir: state}}, nil
 	})
 	if err != nil {
@@ -252,7 +252,7 @@ func run() (finalErr error) {
 	// Capability gaps are reported separately; failed deterministic requirements
 	// and provider errors still make the experiment command fail.
 	if report.Passed != report.Total {
-		finalErr = errors.New("Gator has failing content/artifact checks; inspect experiment.json")
+		finalErr = errors.New("Hot Cross Buns has failing content/artifact checks; inspect experiment.json")
 	}
 	if probe.Error != "" {
 		finalErr = errors.Join(finalErr, errors.New(probe.Error))

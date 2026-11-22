@@ -13,7 +13,7 @@ func TestDOCXTemplateStyledBodyProducesWellFormedDocument(t *testing.T) {
 	var template bytes.Buffer
 	writer := zip.NewWriter(&template)
 	part, _ := writer.Create("word/document.xml")
-	_, _ = part.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Keep before</w:t></w:r></w:p><w:p w:rsidR="1234"><w:pPr><w:pStyle w:val="Normal"/><w:spacing w:after="120"/></w:pPr><w:r><w:t>{{gator:body}}</w:t></w:r></w:p><w:p><w:r><w:t>Keep after</w:t></w:r></w:p></w:body></w:document>`))
+	_, _ = part.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Keep before</w:t></w:r></w:p><w:p w:rsidR="1234"><w:pPr><w:pStyle w:val="Normal"/><w:spacing w:after="120"/></w:pPr><w:r><w:t>{{hot-cross-buns:body}}</w:t></w:r></w:p><w:p><w:r><w:t>Keep after</w:t></w:r></w:p></w:body></w:document>`))
 	_ = writer.Close()
 	contents, _, err := RenderDOCXTemplate(sample(), bytes.NewReader(template.Bytes()))
 	if err != nil {
@@ -53,7 +53,7 @@ func TestDOCXBodyMarkerOutsideParagraphRejectsWholeRender(t *testing.T) {
 	var template bytes.Buffer
 	writer := zip.NewWriter(&template)
 	part, _ := writer.Create("word/document.xml")
-	_, _ = part.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{{gator:title}}</w:t></w:r></w:p><w:t>{{gator:body}}</w:t></w:body></w:document>`))
+	_, _ = part.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{{hot-cross-buns:title}}</w:t></w:r></w:p><w:t>{{hot-cross-buns:body}}</w:t></w:body></w:document>`))
 	_ = writer.Close()
 	contents, _, err := RenderDOCXTemplate(sample(), bytes.NewReader(template.Bytes()))
 	if err == nil || len(contents) != 0 {
@@ -69,7 +69,7 @@ func TestRenderDOCXTemplateFillsExplicitMarker(t *testing.T) {
 	var template bytes.Buffer
 	writer := zip.NewWriter(&template)
 	part, _ := writer.Create("word/document.xml")
-	_, _ = part.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{{gator:body}}</w:t></w:r></w:p></w:body></w:document>`))
+	_, _ = part.Write([]byte(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{{hot-cross-buns:body}}</w:t></w:r></w:p></w:body></w:document>`))
 	part, _ = writer.Create("[Content_Types].xml")
 	_, _ = part.Write([]byte(`<Types/>`))
 	_ = writer.Close()
@@ -85,7 +85,7 @@ func TestRenderDOCXTemplateFillsExplicitMarker(t *testing.T) {
 			var value bytes.Buffer
 			_, _ = value.ReadFrom(reader)
 			_ = reader.Close()
-			found = strings.Contains(value.String(), "Revenue improved.") && !strings.Contains(value.String(), "{{gator:body}}")
+			found = strings.Contains(value.String(), "Revenue improved.") && !strings.Contains(value.String(), "{{hot-cross-buns:body}}")
 		}
 	}
 	if !found {

@@ -1,0 +1,119 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+)
+
+func configure(arguments []string, out io.Writer) error {
+	store, err := config.DefaultStore()
+	if err != nil {
+		return err
+	}
+	if len(arguments) == 0 || arguments[0] == "show" {
+		jsonOutput := len(arguments) == 2 && arguments[0] == "show" && arguments[1] == "--json"
+		if len(arguments) > 1 && !jsonOutput {
+			return errors.New("usage: hot-cross-buns config [show [--json]]")
+		}
+		settings, err := store.Load()
+		if err != nil {
+			return err
+		}
+		if !jsonOutput {
+			return writeSettingsSummary(out, store.Path(), settings)
+		}
+		payload, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encode configuration: %w", err)
+		}
+		_, err = fmt.Fprintf(out, "Configuration: %s\n%s\n", store.Path(), payload)
+		return err
+	}
+	if len(arguments) != 3 || arguments[0] != "set" {
+		return errors.New("usage: hot-cross-buns config set default-provider PROVIDER | hot-cross-buns config set default-model MODEL | hot-cross-buns config set sandbox strict|off | hot-cross-buns config set network deny|allow\nadvanced settings: hot-cross-buns config show --json")
+	}
+	settings, err := store.Load()
+	if err != nil {
+		return err
+	}
+	value := strings.TrimSpace(arguments[2])
+	if value == "" {
+		return errors.New("configuration value is required")
+	}
+	switch arguments[1] {
+	case "default-provider":
+		provider, _, err := resolveConfiguredProvider(value, "")
+		if err != nil {
+			return err
+		}
+		settings.Defaults.Provider = provider
+	case "default-model":
+		settings.Defaults.Model = value
+	case "sandbox":
+		settings.Execution.Mode = sandbox.Mode(value)
+		if err := settings.Execution.Validate(); err != nil {
+			return err
+		}
+	case "network":
+		settings.Execution.Network = sandbox.Network(value)
+		if err := settings.Execution.Validate(); err != nil {
+			return err
+		}
+	case "snapshot-max-files":
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return errors.New("snapshot-max-files requires an integer")
+		}
+		settings.Snapshots.MaxFiles = parsed
+	case "snapshot-max-total-mib":
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 1 {
+			return errors.New("snapshot-max-total-mib requires a positive integer")
+		}
+		settings.Snapshots.MaxTotalBytes = parsed * 1024 * 1024
+	case "snapshot-max-file-mib":
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 1 {
+			return errors.New("snapshot-max-file-mib requires a positive integer")
+		}
+		settings.Snapshots.MaxFileBytes = parsed * 1024 * 1024
+	case "snapshot-exclude":
+		settings.Snapshots.Excludes = append(settings.Snapshots.Excludes, value)
+	case "desktop-notifications":
+		if value != "on" && value != "off" {
+			return errors.New("desktop-notifications must be on or off")
+		}
+		settings.Notifications.Desktop = value == "on"
+	case "job-timezone":
+		settings.JobDefaults.Timezone = value
+	case "job-missed":
+		settings.JobDefaults.Missed = value
+	default:
+		return fmt.Errorf("unknown configuration key %q", arguments[1])
+	}
+	if err := store.Save(settings); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(out, "Updated %s in %s.\n", arguments[1], store.Path())
+	return err
+}
+
+func writeSettingsSummary(out io.Writer, path string, settings config.Settings) error {
+	model := strings.Trim(strings.TrimSpace(settings.Defaults.Provider)+" / "+strings.TrimSpace(settings.Defaults.Model), " / ")
+	if model == "" {
+		model = "choose one with /model or hot-cross-buns config set default-provider"
+	}
+	theme := strings.TrimSpace(settings.Theme)
+	if theme == "" {
+		theme = "hot-cross-buns"
+	}
+	_, err := fmt.Fprintf(out, "Settings\n  Default model: %s\n  Work safeguards: sandbox %s · network %s\n  Interface: %s theme · desktop notifications %t\n  Jobs: %s timezone · missed runs %s\n\nAdvanced configuration and integration details: hot-cross-buns config show --json\nLocation: %s\n", model, settings.Execution.Mode, settings.Execution.Network, theme, settings.Notifications.Desktop, settings.JobDefaults.Timezone, settings.JobDefaults.Missed, path)
+	return err
+}

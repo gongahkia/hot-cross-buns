@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
 )
 
 type BackupManifest struct {
@@ -59,7 +59,7 @@ func (s Store) Export(ctx context.Context, destination string) (BackupManifest, 
 	}
 	rel, err := filepath.Rel(rootPath, absolute)
 	if err != nil || rel == "." || (!strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != "..") {
-		return manifest, errors.New("place the backup outside the private Gator data directory")
+		return manifest, errors.New("place the backup outside the private Hot Cross Buns data directory")
 	}
 	if _, err = os.Lstat(absolute); err == nil {
 		return manifest, errors.New("backup destination already exists; choose a new path")
@@ -84,7 +84,7 @@ func (s Store) Export(ctx context.Context, destination string) (BackupManifest, 
 		return manifest, err
 	}
 	defer root.Close()
-	f, err := os.CreateTemp(parent, ".gator-backup-*")
+	f, err := os.CreateTemp(parent, ".hot-cross-buns-backup-*")
 	if err != nil {
 		return manifest, err
 	}
@@ -100,7 +100,7 @@ func (s Store) Export(ctx context.Context, destination string) (BackupManifest, 
 		if err = ctx.Err(); err != nil {
 			return manifest, err
 		}
-		if item.Directory || !backupContent("gator/"+filepath.ToSlash(item.Path)) {
+		if item.Directory || !backupContent("hot-cross-buns/"+filepath.ToSlash(item.Path)) {
 			continue
 		}
 		if item.Bytes > 1<<30 {
@@ -114,7 +114,7 @@ func (s Store) Export(ctx context.Context, destination string) (BackupManifest, 
 		if openErr != nil {
 			return manifest, openErr
 		}
-		header := &tar.Header{Name: "gator/" + filepath.ToSlash(item.Path), Mode: 0600, Size: item.Bytes, ModTime: time.Unix(0, item.Modified), Typeflag: tar.TypeReg}
+		header := &tar.Header{Name: "hot-cross-buns/" + filepath.ToSlash(item.Path), Mode: 0600, Size: item.Bytes, ModTime: time.Unix(0, item.Modified), Typeflag: tar.TypeReg}
 		if err = tw.WriteHeader(header); err != nil {
 			file.Close()
 			return manifest, err
@@ -138,7 +138,7 @@ func (s Store) Export(ctx context.Context, destination string) (BackupManifest, 
 	if len(data) > 32<<20 || total+int64(len(data)) > 10<<30 {
 		return manifest, errors.New("backup manifest exceeds its verification bound")
 	}
-	if err = tw.WriteHeader(&tar.Header{Name: "gator-backup.json", Mode: 0600, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
+	if err = tw.WriteHeader(&tar.Header{Name: "hot-cross-buns-backup.json", Mode: 0600, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
 		return manifest, err
 	}
 	if _, err = tw.Write(data); err != nil {
@@ -203,7 +203,7 @@ func readBackup(ctx context.Context, filename string, sink func(*tar.Header, io.
 		if total > 10<<30 {
 			return manifest, errors.New("backup exceeds the 10 GiB verification bound")
 		}
-		if header.Name == "gator-backup.json" {
+		if header.Name == "hot-cross-buns-backup.json" {
 			if seenManifest || header.Size > 32<<20 {
 				return manifest, errors.New("invalid backup manifest")
 			}
@@ -258,10 +258,10 @@ func readBackup(ctx context.Context, filename string, sink func(*tar.Header, io.
 }
 
 func backupContent(name string) bool {
-	if !strings.HasPrefix(name, "gator/") {
+	if !strings.HasPrefix(name, "hot-cross-buns/") {
 		return false
 	}
-	rel := strings.TrimPrefix(name, "gator/")
+	rel := strings.TrimPrefix(name, "hot-cross-buns/")
 	if rel == "memory/.write-lock" {
 		return false
 	}
@@ -283,7 +283,7 @@ func backupContent(name string) bool {
 	if (strings.HasPrefix(rel, "agent-profiles/") || strings.HasPrefix(rel, "tasks/")) && (strings.HasSuffix(rel, ".lock") || strings.HasSuffix(rel, ".tmp")) {
 		return false
 	}
-	if strings.HasPrefix(rel, "external-actions/") && (strings.HasSuffix(rel, ".lock") || strings.HasPrefix(path.Base(rel), ".gator-write-")) {
+	if strings.HasPrefix(rel, "external-actions/") && (strings.HasSuffix(rel, ".lock") || strings.HasPrefix(path.Base(rel), ".hot-cross-buns-write-")) {
 		return false
 	}
 	if strings.HasPrefix(rel, "files/") && (strings.HasSuffix(rel, ".lock") || strings.HasSuffix(rel, ".tmp")) {

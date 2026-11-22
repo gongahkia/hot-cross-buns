@@ -12,11 +12,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func dialogueConfig(t *testing.T) (Config, worksession.Store) {
@@ -159,7 +159,7 @@ func TestDialogueTaskLaunchHasIndependentDurableAdmissionAndNoRetryReplay(t *tes
 	if state := child.dialogueTaskState(); state == nil || state.State != "completed" || state.Summary != "A retained result" {
 		t.Fatalf("result not attached to original task: %+v", state)
 	}
-	child.messages = append(child.messages, message{role: "Gator", text: "Unrelated settings changed."})
+	child.messages = append(child.messages, message{role: "Hot Cross Buns", text: "Unrelated settings changed."})
 	if state := child.dialogueTaskState(); state == nil || state.Summary != "A retained result" {
 		t.Fatal("a later local message replaced the original task result", state)
 	}
@@ -238,7 +238,7 @@ func TestDialogueRevalidatesTargetsAndRetainsUnconfirmedMessagesWithoutReplay(t 
 	}
 	// A damaged retained identity is an error, not permission for another Work admission.
 	turn := m.dialogueTurns[len(m.dialogueTurns)-1]
-	path := filepath.Join(stateDir, "gator", "conversations", m.conversation, "dialogue", fmt.Sprintf("%020d-%s.json", turn.Sequence, turn.ID))
+	path := filepath.Join(stateDir, "hot-cross-buns", "conversations", m.conversation, "dialogue", fmt.Sprintf("%020d-%s.json", turn.Sequence, turn.ID))
 	if err := os.WriteFile(path, []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}

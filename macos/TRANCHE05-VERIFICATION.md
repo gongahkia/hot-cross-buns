@@ -46,21 +46,21 @@ Unresolved work, unknown action evidence and unconfirmed controls prevent unsafe
 
 | File under `macos/` | Purpose |
 | --- | --- |
-| `Sources/GatorCore/NativeRecovery.swift` | Typed recovery/receipt identities, sanitized public presentation, stable deduplication and outcome language. |
-| `Sources/GatorCore/BridgeProtocol.swift` | Finite internal `receipt` command, never exposed as raw view frame-writing. |
-| `Sources/GatorCore/GatorApplicationState.swift` | Per-owner check lifecycle, request/result matching, timeout/disconnect handling and persisted uncertain identity. |
-| `Sources/GatorCore/ManagedSessionCoordinator.swift` | Serialized explicit receipt dispatch to selected original owner, retained-slot explanation and safe eviction guards. |
-| `Sources/GatorCore/NativeDraftStore.swift` | Version 5 optional per-context receipt metadata, owner-scoped merging and bounded completed history without dropping uncertainty. |
-| `Sources/GatorMac/RecoveryInspectorContent.swift` | Contextual public evidence, explicit read-only controls, accessible selectable/scrollable literal text. |
-| `Sources/GatorMac/TaskInspectorView.swift` | Embeds recovery within the shared task inspector. |
-| `Sources/GatorMac/ConversationView.swift` | Contextual recovery entry, keyboard-accessible with existing Command-I; no duplicate shortcut inside inspection. |
-| `Sources/GatorMac/ComposerView.swift` | Requests focus after newly inserted composer presentation; ordinary streamed snapshots do not restart the appearance task. |
-| `Tests/GatorCoreTests/NativeRecoveryTests.swift` | Projection, privacy, identities, deduplication, result/ACK distinction, uncertainty, owner/draft isolation and eviction coverage. |
-| `Tests/GatorCoreTests/NativeRecoveryIntegrationTests.swift` | Actual Go SIGKILL/reconnect recovery, exact receipt checks, foreign-identity rejection and no external writes. |
-| `Tests/GatorCoreTests/Fixtures/recovery-seed/main.go` | Test setup using official Go workspace/artifact/conversation stores to seal an unknown-send fixture, without executing a send. |
-| `Tests/GatorCoreTests/Fixtures/receipt-provider.mjs` | Loopback fake Gmail: only GET allowed, exact correlation read, found/unconfirmed outcomes and request trace. |
-| `Tests/GatorCoreTests/NativePlanIntegrationTests.swift` | Optional transport factory for exact fault injection; prior journeys retained. |
-| `Tests/GatorCoreTests/ManagedSessionTests.swift` | Shared test navigation allowance increased from 150 ms to 2 s for the larger concurrent integration suite; explicit 50 ms timeout cases retained. |
+| `Sources/HotCrossBunsCore/NativeRecovery.swift` | Typed recovery/receipt identities, sanitized public presentation, stable deduplication and outcome language. |
+| `Sources/HotCrossBunsCore/BridgeProtocol.swift` | Finite internal `receipt` command, never exposed as raw view frame-writing. |
+| `Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift` | Per-owner check lifecycle, request/result matching, timeout/disconnect handling and persisted uncertain identity. |
+| `Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift` | Serialized explicit receipt dispatch to selected original owner, retained-slot explanation and safe eviction guards. |
+| `Sources/HotCrossBunsCore/NativeDraftStore.swift` | Version 5 optional per-context receipt metadata, owner-scoped merging and bounded completed history without dropping uncertainty. |
+| `Sources/HotCrossBunsMac/RecoveryInspectorContent.swift` | Contextual public evidence, explicit read-only controls, accessible selectable/scrollable literal text. |
+| `Sources/HotCrossBunsMac/TaskInspectorView.swift` | Embeds recovery within the shared task inspector. |
+| `Sources/HotCrossBunsMac/ConversationView.swift` | Contextual recovery entry, keyboard-accessible with existing Command-I; no duplicate shortcut inside inspection. |
+| `Sources/HotCrossBunsMac/ComposerView.swift` | Requests focus after newly inserted composer presentation; ordinary streamed snapshots do not restart the appearance task. |
+| `Tests/HotCrossBunsCoreTests/NativeRecoveryTests.swift` | Projection, privacy, identities, deduplication, result/ACK distinction, uncertainty, owner/draft isolation and eviction coverage. |
+| `Tests/HotCrossBunsCoreTests/NativeRecoveryIntegrationTests.swift` | Actual Go SIGKILL/reconnect recovery, exact receipt checks, foreign-identity rejection and no external writes. |
+| `Tests/HotCrossBunsCoreTests/Fixtures/recovery-seed/main.go` | Test setup using official Go workspace/artifact/conversation stores to seal an unknown-send fixture, without executing a send. |
+| `Tests/HotCrossBunsCoreTests/Fixtures/receipt-provider.mjs` | Loopback fake Gmail: only GET allowed, exact correlation read, found/unconfirmed outcomes and request trace. |
+| `Tests/HotCrossBunsCoreTests/NativePlanIntegrationTests.swift` | Optional transport factory for exact fault injection; prior journeys retained. |
+| `Tests/HotCrossBunsCoreTests/ManagedSessionTests.swift` | Shared test navigation allowance increased from 150 ms to 2 s for the larger concurrent integration suite; explicit 50 ms timeout cases retained. |
 | `TRANCHE05-VERIFICATION.md` | This evidence ledger and operator checks. |
 
 ## Protocol coverage
@@ -74,24 +74,24 @@ Unresolved work, unknown action evidence and unconfirmed controls prevent unsafe
 | Multi-owner navigation | Existing managed focus/session authority and owner cache; per-owner check state, no recovery-specific subprocess manager. |
 | Disconnect | Draft and operation identity retained, no replay, explicit existing reconnect creates replacement Go owner under execution-lease restrictions. It is not live process reattachment. |
 
-The authoritative implementation remains `internal/workapp/request_recovery.go`, `action_recovery.go`, `receipts.go`, `requests.go` and `cmd/gator/work_receipts.go`. A receipt check's native transport ACK is distinct from both its Go check result and the original external action's uncertain outcome.
+The authoritative implementation remains `internal/workapp/request_recovery.go`, `action_recovery.go`, `receipts.go`, `requests.go` and `cmd/hot-cross-buns/work_receipts.go`. A receipt check's native transport ACK is distinct from both its Go check result and the original external action's uncertain outcome.
 
 ## Verification commands and results
 
-Commands executed from the repository root unless noted. Output logs are under `/tmp/gator-native-t05-*`.
+Commands executed from the repository root unless noted. Output logs are under `/tmp/hot-cross-buns-native-t05-*`.
 
 ```sh
-go build -o /tmp/gator-native-runtime ./cmd/gator
-go test ./cmd/gator ./internal/workapp -count=1
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
+go test ./cmd/hot-cross-buns ./internal/workapp -count=1
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 node --test app-host/tests/sessions.test.mjs app-host/tests/backend.test.mjs app-host/tests/application.test.mjs app-host/tests/policy.test.mjs
 node --test app-host/tests/native.test.mjs
 ```
 
-- Go build passed; Go regression packages passed: `cmd/gator` 266.969 s, `internal/workapp` 51.689 s. These include request recovery, preparation recovery, receipts, execution ownership/leases, task plans, approvals and bridge regressions.
-- Native build passed with Swift 6.1.2, macOS target 15.0 and the installed command-line SDK. Latest explicit build log: `/tmp/gator-native-t05-build-delivery.log`.
-- Final Swift suite: **82 tests passed**, including all 67 earlier tests, new public-projection/ownership checks and three new actual-Go recovery/receipt tests. Final ledger run: `/tmp/gator-native-t05-tests-final-ledger.log`, 16.219 s.
+- Go build passed; Go regression packages passed: `cmd/hot-cross-buns` 266.969 s, `internal/workapp` 51.689 s. These include request recovery, preparation recovery, receipts, execution ownership/leases, task plans, approvals and bridge regressions.
+- Native build passed with Swift 6.1.2, macOS target 15.0 and the installed command-line SDK. Latest explicit build log: `/tmp/hot-cross-buns-native-t05-build-delivery.log`.
+- Final Swift suite: **82 tests passed**, including all 67 earlier tests, new public-projection/ownership checks and three new actual-Go recovery/receipt tests. Final ledger run: `/tmp/hot-cross-buns-native-t05-tests-final-ledger.log`, 16.219 s.
 - Host/session/backend/application/policy: **47 passed**, no failures. Native helper/lifecycle regression file: **9 passed**, no failures.
 
 From `ui/`:
@@ -155,22 +155,22 @@ Recommended Tranche 06: a separately reviewed failed-request access/retry-prepar
 Final packaging used the existing script with a fresh staging destination, then moved that completed bundle into the requested path after quitting the previous test build:
 
 ```sh
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Tranche05-Delivery.app \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Tranche05-Delivery.app \
   bash macos/scripts/build-dev-app.sh
-mv /tmp/Gator-Native-Tranche05-Ready.app /tmp/Gator-Native-Tranche05-PreLedger.app
-mv /tmp/Gator-Native-Tranche05-Delivery.app /tmp/Gator-Native-Tranche05-Ready.app
+mv /tmp/HotCrossBuns-Native-Tranche05-Ready.app /tmp/HotCrossBuns-Native-Tranche05-PreLedger.app
+mv /tmp/HotCrossBuns-Native-Tranche05-Delivery.app /tmp/HotCrossBuns-Native-Tranche05-Ready.app
 ```
 
-Packaging passed, including Info.plist validation. `Contents/MacOS/GatorMac` and executable `Contents/Resources/gator-runtime` are present. Runtime startup is relative to the app bundle, not an absolute repository path. The minimum macOS version is 15.0. Earlier Tranche 01–04 verified bundles are preserved. This is a local development bundle, without distribution signing/notarization.
+Packaging passed, including Info.plist validation. `Contents/MacOS/HotCrossBunsMac` and executable `Contents/Resources/hot-cross-buns-runtime` are present. Runtime startup is relative to the app bundle, not an absolute repository path. The minimum macOS version is 15.0. Earlier Tranche 01–04 verified bundles are preserved. This is a local development bundle, without distribution signing/notarization.
 
 Reproducible controlled native driver (temporary operator artifact):
 
 ```sh
-python3 /tmp/gator-native-tranche05-journeys.py receipt
-python3 /tmp/gator-native-tranche05-journeys.py interrupted
+python3 /tmp/hot-cross-buns-native-tranche05-journeys.py receipt
+python3 /tmp/hot-cross-buns-native-tranche05-journeys.py interrupted
 ```
 
-The driver runs the actual packaged SwiftUI application and its bundled Go runtime, not a mock native view. Each run has a disposable HOME, config, state, native draft store and workspace. Its local model/receipt services are controlled fixtures under `Tests/GatorCoreTests/Fixtures/`. The existing AX helper targets only the launched app PID. A direct status-item click is used to open compact chat; an earlier driver which pressed every AX menu-bar item could close inspection and is not counted as a passed presentation journey.
+The driver runs the actual packaged SwiftUI application and its bundled Go runtime, not a mock native view. Each run has a disposable HOME, config, state, native draft store and workspace. Its local model/receipt services are controlled fixtures under `Tests/HotCrossBunsCoreTests/Fixtures/`. The existing AX helper targets only the launched app PID. A direct status-item click is used to open compact chat; an earlier driver which pressed every AX menu-bar item could close inspection and is not counted as a passed presentation journey.
 
 **Interrupted-work native evidence:** the plan-first request produces a real plan, an exact fresh review starts held execution, and Quit is guarded. Another chat opens with its own draft. Fault injection kills only the original bundled Go owner's PID. The selected unrelated owner remains connected; attention appears without a focus change. Opening the original owner and explicitly reconnecting yields the same durable task with interrupted state/phase, no new original execution and the original draft. The inspector displays retained evidence even without a failed-request recovery entry. Compact/full views show the same inspection. An unrelated chat remains usable. After a guarded shutdown/restart the original interrupted identity is still present and no work resumes.
 
@@ -178,13 +178,13 @@ The driver runs the actual packaged SwiftUI application and its bundled Go runti
 
 The final receipt journey is recorded at:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche05-ui-w7rzomgx/journey.json`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche05-ui-w7rzomgx/journey.json`
 
 Its `receipt-found.png` was visually inspected: the full native window shows the public recipient/subject/error, exact-identity disclosure, original unknown status, found explanation, timestamp and both read-only controls. The inspector scrolls rather than clipping critical receipt text. `receipt-unconfirmed.png` and AX snapshots are retained beside it. Keyboard focus samples reached the named Back, Inspect Saved Check and Check Sent Read-only controls. Programmatic AX/keyboard evidence is distinct from human VoiceOver acceptance.
 
 A complete interrupted/restart journey preceding the final dismissal addition is recorded at:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche05-ui-4k5c3ldv/journey.json`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche05-ui-4k5c3ldv/journey.json`
 
 Original task `0078ef3a1e8abb6c103a49cb0df87b51`, conversation `work-20261114T061235-c064408cbdd2f422`; the original execution count stayed one. Its exact Go owner was interrupted, unrelated work remained usable, then reconnect and application restart retained the same interrupted task without replay. The final artifact journey adds actual dismissal of both presentations while background work is still running; its result is recorded below.
 
@@ -203,22 +203,22 @@ Original task `0078ef3a1e8abb6c103a49cb0df87b51`, conversation `work-20261114T06
 ## Launch and operator inspection
 
 ```sh
-open /tmp/Gator-Native-Tranche05-Ready.app --args --open-window
+open /tmp/HotCrossBuns-Native-Tranche05-Ready.app --args --open-window
 ```
 
-Quit any older Gator build first. Omit `--args --open-window` for menu-bar-first launch. Avoid concurrent native instances sharing one profile.
+Quit any older Hot Cross Buns build first. Omit `--args --open-window` for menu-bar-first launch. Avoid concurrent native instances sharing one profile.
 
 Open an existing conversation, use **Command-I** or **Inspect Recovery Evidence**, expand the public evidence and return with **Command-L/Escape**. A receipt check is available only for an eligible unknown Gmail send with an exact retained bundle identity and existing allowed read access. It is explicitly user-triggered and never resends. The native app does not configure providers/accounts or repair access.
 
 **Final artifact interruption/dismissal journey: PASS.** Evidence:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche05-ui-0fegkwjs/journey.json`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche05-ui-0fegkwjs/journey.json`
 
 Conversation `work-20261114T061759-251ec20e3c355d8f`, task `3f8eb4224866af955117c262fe4156b5`. Both presentations were actually dismissed with the reviewed task still running and both original owner PIDs unchanged. Reopening restored the independent foreground draft without moving execution. After SIGKILL of original owner PID 32850, unrelated foreground remained connected, original task restored interrupted, both inspectors shared it, and application restart preserved the same task with original execution count **one**. The journey ended with all owned Go processes reaped. Screenshots and AX evidence accompany its JSON. Final receipt journey above also passed on this same delivery bundle.
 
 Final executable SHA-256:
 
-- `Contents/MacOS/GatorMac`: `9137d27ec19afe697f67ca5d91f58e95db88d022ad53101b42ad0d5b9d6ecd9f`
-- `Contents/Resources/gator-runtime`: `1f517676d6c6fdc9006f74b56ebfd98e735f65c318f7a018e1741efedaf054c6`
+- `Contents/MacOS/HotCrossBunsMac`: `9137d27ec19afe697f67ca5d91f58e95db88d022ad53101b42ad0d5b9d6ecd9f`
+- `Contents/Resources/hot-cross-buns-runtime`: `1f517676d6c6fdc9006f74b56ebfd98e735f65c318f7a018e1741efedaf054c6`
 
 Final process inspection found no retained test application, Go owner or controlled provider process. Earlier diagnostic applications were deliberately quit through guarded lifecycle controls; failed test-only provider setup processes were cleaned up. The source inventory describes the full tranche even where external repository activity incorporated it into commits during implementation. This agent issued no commit commands. The final verification document remains a local worktree deliverable.

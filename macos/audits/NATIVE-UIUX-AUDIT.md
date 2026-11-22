@@ -1,4 +1,4 @@
-# Gator native macOS UI/UX audit
+# Hot Cross Buns native macOS UI/UX audit
 
 Date: 2026-11-17. Review only; no remediation implemented. Scope: the current local eight-tranche application, including menu bar, notch, full window, managed conversations, composer, tasks, approvals, plans and recovery.
 
@@ -18,11 +18,11 @@ No new P0/P1 was reproduced by the checks performed. This is not a claim that un
 
 Starting HEAD: `13134d5f2c81ae6f4ed8c4bea1948774d15307e6`. The initial working tree already contained report edits and local-development evidence; these were preserved. HEAD later advanced externally to `137fb7ea923d14149badbb02e102ffdfb6e34bed`. This agent created no commits. Source/resource/report hashes and initial status are recorded in [baseline.json](evidence/uiux/headless/baseline.json); final preservation is recorded in `evidence/uiux/headless/final-integrity.json`.
 
-Current application: **`/tmp/Gator-Native-Tranche08-Enhanced-Final.app`**. All six inspected bundle hashes match the accepted candidate, including the native executable and actual bundled Go runtime; see [candidate.json](evidence/uiux/headless/candidate.json). A running user instance was observed but not controlled or inspected. No older remote snapshot was substituted for current source.
+Current application: **`/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app`**. All six inspected bundle hashes match the accepted candidate, including the native executable and actual bundled Go runtime; see [candidate.json](evidence/uiux/headless/candidate.json). A running user instance was observed but not controlled or inspected. No older remote snapshot was substituted for current source.
 
 Host: Apple M3, 16 GiB RAM, macOS 26.5.2, Swift 6.3.3, Go 1.27.3, Node 26.7.0. Supported deployment minimum: **macOS 15**, from [Package.swift](../Package.swift) and application metadata. Host screenshots show macOS 26 system styling. macOS 15/earlier supported-host behavior was not physically tested; current-host toolbar materials must not be generalized to it.
 
-Inspected all 20 files under `Sources/GatorMac/`, relevant `GatorCore` projections/coordinator/drafts/uploads/review/plan/recovery state, package manifest, resources, development scripts, native tests and current verification reports. All four requested reports exist: [closure](../TRANCHE08-ACCEPTANCE-CLOSURE.md), [local-development acceptance](../TRANCHE08-LOCAL-DEV-ACCEPTANCE.md), [menu bar/notch](../MENUBAR-NOTCH-VERIFICATION.md), and [operator acceptance](../TRANCHE08-OPERATOR-ACCEPTANCE.md). Earlier evidence was not overwritten.
+Inspected all 20 files under `Sources/HotCrossBunsMac/`, relevant `HotCrossBunsCore` projections/coordinator/drafts/uploads/review/plan/recovery state, package manifest, resources, development scripts, native tests and current verification reports. All four requested reports exist: [closure](../TRANCHE08-ACCEPTANCE-CLOSURE.md), [local-development acceptance](../TRANCHE08-LOCAL-DEV-ACCEPTANCE.md), [menu bar/notch](../MENUBAR-NOTCH-VERIFICATION.md), and [operator acceptance](../TRANCHE08-OPERATOR-ACCEPTANCE.md). Earlier evidence was not overwritten.
 
 Evidence classes used throughout:
 
@@ -38,10 +38,10 @@ Screenshot paths, pixel dimensions, SHA256 and provenance are in [screenshot-pro
 
 | Surface/component | Implementation and ownership | Native quality assessment |
 | --- | --- | --- |
-| Menu-bar chat | `GatorApp.swift:12–20`; SwiftUI `MenuBarExtra(.window)`, 440×620 points | Appropriate lightweight chat panel; expandable, system menus, template alligator icon. Management/recovery content can overwhelm its small viewport. |
-| Full conversation | `GatorApp.swift:22–30`; one `Window`, default 820×740, minimum 540×480, unified toolbar | Real Mac window and deliberate single selection; lacks persistent history/navigation despite available width. |
+| Menu-bar chat | `HotCrossBunsApp.swift:12–20`; SwiftUI `MenuBarExtra(.window)`, 440×620 points | Appropriate lightweight chat panel; expandable, system menus, template alligator icon. Management/recovery content can overwhelm its small viewport. |
+| Full conversation | `HotCrossBunsApp.swift:22–30`; one `Window`, default 820×740, minimum 540×480, unified toolbar | Real Mac window and deliberate single selection; lacks persistent history/navigation despite available width. |
 | Notch glance | `NotchQuickAccess.swift`; AppKit nonactivating panel and SwiftUI content | Hardware-derived location, restrained black camera-area integration, explicit keyboard entry; not a second agent runtime. |
-| Conversation | `ConversationView.swift`; lazy message stack, bounded 780-point text column, native selectable text | Clear You/Gator hierarchy, restrained user tint, public stream and collapsed tool detail; limited Markdown structure. |
+| Conversation | `ConversationView.swift`; lazy message stack, bounded 780-point text column, native selectable text | Clear You/Hot Cross Buns hierarchy, restrained user tint, public stream and collapsed tool detail; limited Markdown structure. |
 | Composer | `ComposerView.swift` + `NativeComposer.swift`; AppKit `NSTextView` bridge | Native selection, undo, responder commands, marked-text guards, paste/drop; fixed text viewport and weak disabled-state explanation. |
 | Attachments | `NativeAttachmentActions.swift`, `AttachmentSelectionView.swift`, `NativeUploadStore.swift` | Native picker; independent removal, bounded thumbnails, immutable staging and owner isolation; duplicate basenames safely rejected downstream. |
 | Tasks/approvals | `TaskInspectorView.swift`, `ApprovalReviewView.swift`, `ExactReviewContent.swift`, `ExactDecisionButton.swift` | Exact owner/token/generation guard, literal selectable review; decisions outside the review scroller, deliberate Space/click activation. |
@@ -54,7 +54,7 @@ Normal launch suppresses the full window unless `--open-window` is provided. Ful
 
 System typography and native controls are appropriate. Apple's macOS typography guidance lists a 13-point default and 10-point minimum; iPhone type or touch-target rules were not imposed on this desktop application. Body, caption and heading styles largely establish readable hierarchy; monospaced code and literal review text serve their different purposes. The transcript's bounded width and 16-point row spacing are coherent. Fixed 56/76-point composer text height and repeated nested paddings are less adaptable. Not every numeric layout value is arbitrary or a defect. [Apple Typography](https://developer.apple.com/design/human-interface-guidelines/typography)
 
-Real titlebars, traffic lights, standard toolbar placement and resize affordances work in Gator's favor. Full-window space should help maintain orientation and compare context; the present replacement inspector loses that opportunity. A sidebar is a recommendation for this multi-conversation workflow, not an HIG requirement that every app must have one. [Apple Windows](https://developer.apple.com/design/human-interface-guidelines/windows), [Apple Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars), [Apple Toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars)
+Real titlebars, traffic lights, standard toolbar placement and resize affordances work in Hot Cross Buns's favor. Full-window space should help maintain orientation and compare context; the present replacement inspector loses that opportunity. A sidebar is a recommendation for this multi-conversation workflow, not an HIG requirement that every app must have one. [Apple Windows](https://developer.apple.com/design/human-interface-guidelines/windows), [Apple Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars), [Apple Toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars)
 
 The monochrome alligator template is a recognizable identity without recoloring the menu bar. A chat popover is a reasonable complex-interaction exception to a simple menu. The notch supplements menu-bar/full-window entry and does not contain authorization shortcuts. It should remain a glance and route, rather than accumulating management controls. [Apple The menu bar](https://developer.apple.com/design/human-interface-guidelines/the-menu-bar)
 
@@ -63,8 +63,8 @@ Semantic system foregrounds/backgrounds, SF Symbols, separators and restrained g
 Reference review used current public repositories and their published screenshots/source, not installed reference applications:
 
 - [Agentrooms / claude-code-by-agents](https://github.com/baryhuang/claude-code-by-agents): the current README describes a native Swift rewrite. Its published screenshot demonstrates persistent room navigation and a distinct main conversation. This is relevant to orientation, not a requirement to copy its agents, terminology or visible thinking UI. No private reasoning presentation is recommended.
-- [Clarc](https://github.com/ttnear/Clarc): the current README describes native macOS 15+ project conversations; the inspected repository screenshot itself says **1.0.3**, while the README describes **1.3.3**. Its useful reference is separation of navigation, conversation and secondary work. Terminal panes, permission bypass and project features are not proposed for Gator.
-- [boring.notch](https://github.com/TheBoredTeam/boring.notch): hover-driven glance and explicit activation are relevant; media controls and feature breadth are not. Its source/reference is not physical evidence that Gator behaves identically, and no code was imported during this audit.
+- [Clarc](https://github.com/ttnear/Clarc): the current README describes native macOS 15+ project conversations; the inspected repository screenshot itself says **1.0.3**, while the README describes **1.3.3**. Its useful reference is separation of navigation, conversation and secondary work. Terminal panes, permission bypass and project features are not proposed for Hot Cross Buns.
+- [boring.notch](https://github.com/TheBoredTeam/boring.notch): hover-driven glance and explicit activation are relevant; media controls and feature breadth are not. Its source/reference is not physical evidence that Hot Cross Buns behaves identically, and no code was imported during this audit.
 
 ## 5. Scores by dimension
 
@@ -140,7 +140,7 @@ The controlled fixture used for audit preparation is under `evidence/uiux/provid
 
 ### UIUX-01 — P2: warning text has inadequate resolved light-mode contrast
 
-- **Surface/source:** compact/full composer correction and attachment errors, `Sources/GatorMac/ComposerView.swift:19,24`; stale inspector/plan warnings, `TaskInspectorView.swift:24,89`.
+- **Surface/source:** compact/full composer correction and attachment errors, `Sources/HotCrossBunsMac/ComposerView.swift:19,24`; stale inspector/plan warnings, `TaskInspectorView.swift:24,89`.
 - **Reproduction:** resolve `NSColor(Color.orange)` against the corresponding light system text/control backgrounds using `contrast-probe.swift`; for visual confirmation later, trigger a rejected attachment or stale review in a disposable light-mode profile.
 - **Expected / actual:** small warning text should remain readily legible. The fresh process-scoped color probe measures **2.3096:1** against its resolved white backgrounds, below 4.5:1; dark resolves to **7.4673:1**. Named high-contrast appearances alone return the same pairs. This is a color-pair measurement, not a screenshot-pixel or actual preference-variant result.
 - **Evidence:** [probe source](evidence/uiux/headless/contrast-probe.swift), [resolved colors/results](evidence/uiux/headless/contrast-colors.json), direct source. Exact in-window compositing and physical Increase Contrast remain unverified; [Inference] the light warning treatment is insufficient on the near-white native surfaces shown in historical light screenshots.
@@ -158,7 +158,7 @@ The controlled fixture used for audit preparation is under `evidence/uiux/provid
 
 ### UIUX-03 — P2: nested Markdown lists lose hierarchy
 
-- **Surface/source:** conversation and public stream, `Sources/GatorCore/NativeMessageContent.swift:17,29–31`; `Sources/GatorMac/NativeMessageBody.swift:19–20`.
+- **Surface/source:** conversation and public stream, `Sources/HotCrossBunsCore/NativeMessageContent.swift:17,29–31`; `Sources/HotCrossBunsMac/NativeMessageBody.swift:19–20`.
 - **Reproduction:** project `- Parent\n  - Child\n    - Grandchild` with the current parser; the audit probe records every block's kind and text.
 - **Expected / actual:** subordinate bullets retain a distinguishable relationship. Whitespace is trimmed before list conversion, all blocks have the same list kind and no depth, and the renderer places them at the same left edge. Ordered sublists also lose their indentation. The fresh probe reproduces this without a GUI.
 - **Evidence:** [markdown-probe.swift](evidence/uiux/headless/markdown-probe.swift), [markdown-projection.json](evidence/uiux/headless/markdown-projection.json), source. No screenshot is claimed for the reproduction. Tables and blockquotes additionally remain literal text; those are rendering limitations, not separately counted defects here.
@@ -176,7 +176,7 @@ The controlled fixture used for audit preparation is under `evidence/uiux/provid
 
 ### UIUX-05 — P2: slash-prefixed drafts disable Send with only tooltip feedback
 
-- **Surface/source:** compact/full composer, `GatorApplicationState.swift:103–120`, especially `116`; `ComposerView.swift:56–61`.
+- **Surface/source:** compact/full composer, `HotCrossBunsApplicationState.swift:103–120`, especially `116`; `ComposerView.swift:56–61`.
 - **Reproduction recipe:** in an otherwise configured idle chat, type `/Users/example/notes.txt — summarize this path`. Also try an unsupported slash command. Source deterministically returns a disabled reason for either leading slash.
 - **Expected / actual:** the input should explain why it cannot be submitted and how to proceed. All trimmed slash-prefixed text is blocked; the reason is bound to Send's help tooltip, with no generic inline unavailable-reason presentation. A legitimate path-like draft is indistinguishable from a command at this boundary. Keyboard users can encounter an inert Return/Send without a visible explanation.
 - **Evidence:** direct state and view bindings. No fresh disabled-button hover or VoiceOver announcement was tested; tooltip delivery is not assumed to solve keyboard feedback.
@@ -194,7 +194,7 @@ The controlled fixture used for audit preparation is under `evidence/uiux/provid
 
 ### UIUX-07 — P2, inherited: independently selected equal document basenames are rejected
 
-- **Surface/source:** attachment submission; `NativeUploadStore.swift:168`; `internal/attachment/attachment.go:194–207`, `internal/attachment/uploads.go`, `cmd/gator/attachments.go`; `NativeClosureAcceptanceTests.swift:5`.
+- **Surface/source:** attachment submission; `NativeUploadStore.swift:168`; `internal/attachment/attachment.go:194–207`, `internal/attachment/uploads.go`, `cmd/hot-cross-buns/attachments.go`; `NativeClosureAcceptanceTests.swift:5`.
 - **Reproduction:** select two different documents from different directories, both named `report.md`, then submit.
 - **Expected / actual:** users expect distinct selected files to remain usable. Native opaque upload identities/bytes are distinct, but Go converts provider/retention names to basename and shared validation rejects duplicates. Draft, bytes and individual removal survive; no silent overwrite or provider execution occurs.
 - **Evidence:** fresh passing `duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution` test and prior detailed closure investigation. This remains a functional limitation, independent of the visual redesign judgment.
@@ -212,7 +212,7 @@ The controlled fixture used for audit preparation is under `evidence/uiux/provid
 
 ### UIUX-09 — P3: disabled notch preference leaves an enabled no-op command
 
-- **Surface/source:** Conversation menu on notched hardware, `GatorApp.swift:43–44`; `NotchQuickAccess.swift:53–56,83–84`.
+- **Surface/source:** Conversation menu on notched hardware, `HotCrossBunsApp.swift:43–44`; `NotchQuickAccess.swift:53–56,83–84`.
 - **Reproduction recipe:** disable More → Notch Quick Access on a notched display, then inspect/invoke Conversation → Show Notch Quick Access.
 - **Expected / actual:** command availability should match whether it can act, or explicitly re-enable the feature. Disabling hides the panel but retains detected geometry; command disablement tests geometry only, while `show()` rejects a hidden panel. [Inference] it remains enabled and does nothing.
 - **Evidence:** direct inconsistent guards. Physical invocation was not performed. This is an availability-polish issue, not a broken enabled-notch primary path.
@@ -246,7 +246,7 @@ Physical external/flat-display fallback, rearranged displays and Spaces remain N
 
 ## 9. Performance and responsiveness
 
-Fresh measurements come from the current debug test suite, on the host listed above. See [swift-audit.log](evidence/uiux/headless/swift-audit.log) and `Tests/GatorCoreTests/NativePerformanceTests.swift` / `NativeClosureAcceptanceTests.swift`. These are state/projection/processing measurements, not SwiftUI rendering benchmarks. Timings use `Date.timeIntervalSinceReferenceDate`, not an Instruments signpost or frame clock; system load and debug compilation affect comparison. No performance thresholds were invented.
+Fresh measurements come from the current debug test suite, on the host listed above. See [swift-audit.log](evidence/uiux/headless/swift-audit.log) and `Tests/HotCrossBunsCoreTests/NativePerformanceTests.swift` / `NativeClosureAcceptanceTests.swift`. These are state/projection/processing measurements, not SwiftUI rendering benchmarks. Timings use `Date.timeIntervalSinceReferenceDate`, not an Instruments signpost or frame clock; system load and debug compilation affect comparison. No performance thresholds were invented.
 
 | Metric / fixture | Repetitions | Fresh result | Meaning and limitation |
 | --- | --- | --- | --- |
@@ -260,7 +260,7 @@ Fresh measurements come from the current debug test suite, on the host listed ab
 | Cold native startup, menu/notch/full opening, switching render latency | None this audit | **NOT TESTED** | Requires controlled GUI timing; historical startup values were not relabeled as current. |
 | Native app idle CPU/memory, long-session memory/energy, observable layout stutter | None this audit | **NOT TESTED** | No Instruments run, 10-minute idle sample or sustained multi-task GUI workload. |
 
-The historical 2,000-message **191.57 →2.57 ms** result concerns transcript projection. The inspected current implementation preserves the linear projection and dependency-based recomputation (`BridgeProtocol.swift:70–101`, `GatorApplicationState.swift:203–207`) and the new projection result remains bounded. The old before implementation was not restored and remeasured. Different fixture/load/build conditions preclude treating this new number as another before/after speedup. Neither measurement supports saying that all rendering is 74× faster.
+The historical 2,000-message **191.57 →2.57 ms** result concerns transcript projection. The inspected current implementation preserves the linear projection and dependency-based recomputation (`BridgeProtocol.swift:70–101`, `HotCrossBunsApplicationState.swift:203–207`) and the new projection result remains bounded. The old before implementation was not restored and remeasured. Different fixture/load/build conditions preclude treating this new number as another before/after speedup. Neither measurement supports saying that all rendering is 74× faster.
 
 Code review found lazy transcript rows, equatable message rows, bounded activity detail and ImageIO thumbnail downsampling off the main actor. Current code still processes snapshot decoding and observable state on the application path, so very large streaming histories deserve profiling if stutter is reported; this is a measurement proposal, not an invented reproduced performance defect.
 
@@ -269,8 +269,8 @@ Code review found lazy transcript rows, equatable message rows, bounded activity
 Fresh commands run from the repository root:
 
 ```sh
-GATOR_TEST_BINARY=/tmp/Gator-Native-Tranche08-Enhanced-Final.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
 # PASS: 133 Swift Testing tests /37.005 s. XCTest's separate zero-test banner
 # is not the Swift Testing count. Includes actual bundled-Go local integrations.
 
@@ -328,5 +328,5 @@ Effort is relative: S = bounded local presentation/state change; M = coordinated
 | UIUX-02 | P2 | Full window hides navigation and replaces conversation for inspection | S03–S05; shared view branches | Adapt existing navigation/detail placement to width | M | 5 |
 | UIUX-06 | P2 | Recovery overview is dense and technical | S04/S05; recovery strings | Outcome/next-step hierarchy; disclose cache/ID detail | M | 6 |
 | UIUX-07 | P2, inherited | Distinct documents with same basename rejected | Fresh real-Go regression | Explain conflict now; coherent provider/retention identity before support | S feedback /L contract | 7 |
-| UIUX-09 | P3 [Inference] | Show Notch command enabled when preference hides panel | GatorApp 44; Notch 56/84 | Reproduce; align availability with enabled state | S | 8 |
+| UIUX-09 | P3 [Inference] | Show Notch command enabled when preference hides panel | HotCrossBunsApp 44; Notch 56/84 | Reproduce; align availability with enabled state | S | 8 |
 | UIUX-08 | P3 | Long draft has fixed small editing viewport | Composer 40; historical composer images | Validate long-draft need, bounded adaptive editing height | S–M | 9 |

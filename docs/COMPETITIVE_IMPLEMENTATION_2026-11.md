@@ -149,7 +149,7 @@ now **86 requests, 823,892 input / 6,323 output tokens, US$5.095104 upper estima
 with zero unknown-request or search reservations. The total authorization remains
 US$10. This narrow acceptance does not close any of the fifteen audit findings.
 
-Validation: `go test ./...`, `go vet ./...`, `go build ./cmd/gator`, the full
+Validation: `go test ./...`, `go vet ./...`, `go build ./cmd/hot-cross-buns`, the full
 orchestrator/workrun/lifecycle race suites, TypeScript checking, desktop build,
 desktop/application-host tests, and the Electron dynamic-agent journey pass.
 Additional focused race tests cover actual narrowed step limits, promotion after

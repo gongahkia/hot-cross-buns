@@ -2,7 +2,7 @@
 
 The terminal distribution exposes browser commands and a `/browser` panel. The shared application panel also appears in desktop command navigation. Source-checkout shell examples below use an explicit internal opt-in; see [development instructions](DEVELOPMENT.md).
 
-Gator can control a real local Chromium session for browser-based development
+Hot Cross Buns can control a real local Chromium session for browser-based development
 and visual verification. It is not a hosted browser, a remote executor, or a
 general computer-use surface. A browser is available to an agent only when the
 developer explicitly starts or attaches a local session, selects specific tabs,
@@ -16,7 +16,7 @@ Open `/browser` from the command palette. The shared panel provides:
 1. **Install browser**: review the download before installing the pinned runtime.
 2. **Open private browser**: a separate headed window starts paused, with
    screenshots off. Add allowed site origins, including required sign-in redirects.
-3. **Private sign-in**: use that window yourself while access is paused. Gator
+3. **Private sign-in**: use that window yourself while access is paused. Hot Cross Buns
    does not ask for passwords or one-time codes in chat.
 4. **Resume agent access**: review the selected tabs, sites and screenshot setting.
    Choose a different shared tab if needed.
@@ -43,14 +43,14 @@ uploads still use the advanced CLI. This is not proof of a real account sign-in.
 
 ## Setup and lifecycle
 
-Install the pinned Playwright package and Chromium explicitly. Gator never
+Install the pinned Playwright package and Chromium explicitly. Hot Cross Buns never
 downloads a browser while starting a run or opening the TUI:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser install
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser start --visual-capture
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser origins SESSION_ID add http://127.0.0.1:3000
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work --browser-session SESSION_ID --artifact review.md 'Test the approved local UI flow'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser install
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser start --visual-capture
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser origins SESSION_ID add http://127.0.0.1:3000
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work --browser-session SESSION_ID --artifact review.md 'Test the approved local UI flow'
 ```
 
 `browser start` creates a headed Chromium window by default with a new,
@@ -61,20 +61,20 @@ To use an existing Chromium-family browser, start it yourself with a literal
 loopback remote-debugging address, then attach and select tabs deliberately:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser attach --cdp http://127.0.0.1:9222
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser tabs SESSION_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser select SESSION_ID TAB_ID [TAB_ID...]
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser attach --cdp http://127.0.0.1:9222
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser tabs SESSION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser select SESSION_ID TAB_ID [TAB_ID...]
 ```
 
 Attached sessions never expose candidate tabs to the model. The CLI lists them
-only for the developer; agent tools can see only selected tabs. `gator browser
+only for the developer; agent tools can see only selected tabs. `hot-cross-buns browser
 stop SESSION_ID` closes a managed browser, disconnects an attached browser, and
 revokes the local token. The application panel also manages these sessions;
 creating an attached CDP session remains an advanced CLI operation.
 
-List capture metadata with `gator browser artifacts SESSION_ID`; copy one to a
+List capture metadata with `hot-cross-buns browser artifacts SESSION_ID`; copy one to a
 new developer-selected path without overwriting an existing file through
-`gator browser export SESSION_ID ARTIFACT_ID --out /absolute/path`.
+`hot-cross-buns browser export SESSION_ID ARTIFACT_ID --out /absolute/path`.
 
 ## Agent surface and consent
 
@@ -91,14 +91,14 @@ other's browser authority.
   `browser_press` are remote mutations. Each uses a fresh developer approval;
   an “allow always” response is intentionally not remembered for browser
   actions.
-- `browser_download` requires its own approval and writes only to Gator's
+- `browser_download` requires its own approval and writes only to Hot Cross Buns's
   private session artifact directory. Ordinary clicks reject downloads.
 - `browser_upload` requires both a current approval and a file previously
-  registered by the developer with `gator browser allow-upload`. Models use an
+  registered by the developer with `hot-cross-buns browser allow-upload`. Models use an
   opaque upload ID, never a local path.
 
 Tools operate on short-lived element references from the latest accessibility
-snapshot. Gator does not expose raw selectors, DOM evaluation, cookies,
+snapshot. Hot Cross Buns does not expose raw selectors, DOM evaluation, cookies,
 storage, CDP endpoints, clipboard operations, browser permissions, extension
 control, or arbitrary filesystem paths. Password, passkey, username,
 one-time-code, autocomplete-sensitive, and file inputs cannot be filled by an
@@ -110,9 +110,9 @@ Pause agent access **before** entering private information and wait for its
 acknowledgement:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser pause SESSION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser pause SESSION_ID
 # Sign in or make the intended change in the headed browser.
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator browser resume SESSION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser resume SESSION_ID
 ```
 
 Pause is serialized with browser operations. An already-running operation may
@@ -149,13 +149,13 @@ Playwright's documented routing model and its service-worker caveat:
 
 An attached browser is inherently less isolated: it uses the user's existing
 Chromium profile and existing service workers cannot be disabled without
-changing that profile. Gator applies selected-page routing and never exposes
+changing that profile. Hot Cross Buns applies selected-page routing and never exposes
 unselected tabs, but an attached session is appropriate only for a browser
 profile and origins the developer is willing to share. Managed temporary
 sessions are the recommended authenticated or sensitive workflow.
 
 Managed profile state (cookies, cache, storage, credentials, and temporary
-downloads) is removed when the session stops. Gator never exports attached or
+downloads) is removed when the session stops. Hot Cross Buns never exports attached or
 managed cookies/storage. Screenshot and download artifacts are local `0600`
 files; session journals contain only normal tool-result metadata, not raw image
 bytes, cookies, request headers, request bodies, CDP endpoints, or tokens.
@@ -163,11 +163,11 @@ bytes, cookies, request headers, request bodies, CDP endpoints, or tokens.
 ## Runtime and limits
 
 The runtime lockfile pins Playwright 1.56.1 and its Chromium revision under
-Gator's private state directory. Installation requires locally installed Node
+Hot Cross Buns's private state directory. Installation requires locally installed Node
 18+ and npm; it uses the checked-in lockfile and Playwright's explicit Chromium
-installer. When a Gator update changes the embedded controller or lockfile,
-`gator browser status` requires an explicit `gator browser install` refresh.
-Gator does not currently bundle Node in release archives.
+installer. When a Hot Cross Buns update changes the embedded controller or lockfile,
+`hot-cross-buns browser status` requires an explicit `hot-cross-buns browser install` refresh.
+Hot Cross Buns does not currently bundle Node in release archives.
 
 Browser requests have a 30-second controller/driver limit and also honor caller
 cancellation. Stop can interrupt a stalled request. Losing an admitted browser
@@ -181,7 +181,7 @@ cleanup removes it even after forced driver termination. A short bounded retry
 handles lingering native file handles; a cleanup failure is returned to the
 daemon log. If the controller process is killed, its surviving driver closes
 the browser and removes its assigned scratch directory on stdin EOF. On the
-next browser request, a released controller lease causes Gator to revoke the
+next browser request, a released controller lease causes Hot Cross Buns to revoke the
 saved session and remove its token and endpoint. Live or legacy controllers
 are never declared dead merely because of a timeout; legacy controllers without
 leases still require explicit revocation.

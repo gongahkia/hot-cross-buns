@@ -6,8 +6,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type DialogueReaction struct {
@@ -105,7 +105,7 @@ func (m Model) dialogueTaskState() *DialogueTaskState {
 			}
 			for i := len(m.messages) - 1; result.Summary == "" && i >= 0; i-- {
 				message := m.messages[i]
-				if message.role == "Gator" && message.text != "" && (r.RevisionID != "" && message.revisionID == r.RevisionID || message.requestID == r.ID) {
+				if message.role == "Hot Cross Buns" && message.text != "" && (r.RevisionID != "" && message.revisionID == r.RevisionID || message.requestID == r.ID) {
 					result.Summary = boundedConversation(message.text, 8192)
 					break
 				}

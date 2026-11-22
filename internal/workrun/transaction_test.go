@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestServiceRetainsCompletedWorkHistoryWithoutSensitivePayloads(t *testing.T) {
@@ -53,7 +53,7 @@ func TestServiceRetainsCompletedWorkHistoryWithoutSensitivePayloads(t *testing.T
 	if _, err := os.Stat(record.Evidence.TracePath); err != nil {
 		t.Fatalf("history trace does not resolve: %v", err)
 	}
-	if want := filepath.Join(state, "gator", "delivery", record.ID); record.Evidence.DeliveriesPath != want {
+	if want := filepath.Join(state, "hot-cross-buns", "delivery", record.ID); record.Evidence.DeliveriesPath != want {
 		t.Fatalf("delivery history reference = %q, want %q", record.Evidence.DeliveriesPath, want)
 	}
 	sessions, err := worksession.Open(state)

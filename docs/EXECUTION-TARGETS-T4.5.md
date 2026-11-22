@@ -1,6 +1,6 @@
 # Final execution integration scope — T4.5
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -10,15 +10,15 @@
 > historical verification below are retained. See
 > [Electron consolidation](ELECTRON-CONSOLIDATION.md).
 
-Gator remains a terminal-agnostic, local-first personal AI agent for ongoing work:
+Hot Cross Buns remains a terminal-agnostic, local-first personal AI agent for ongoing work:
 conversations, memory, files/research, goals, coding specialists, approvals,
 durable recovery and local interfaces. Remote execution supervision supports that
 agent. It is not the product's primary identity.
 
-The completed integration supports **Gator-owned Work supervision** and
+The completed integration supports **Hot Cross Buns-owned Work supervision** and
 **optional external tmux access**. Ghostty T5/T6 are permanently removed from the
 current roadmap. The interrupted investigation produced no implementation.
-Gator is not becoming an SSH client, terminal emulator, universal session manager,
+Hot Cross Buns is not becoming an SSH client, terminal emulator, universal session manager,
 Ghostty remote-control tool or multiplexer replacement.
 
 ## Final architecture and supported behavior
@@ -26,7 +26,7 @@ Ghostty remote-control tool or multiplexer replacement.
 | Responsibility | Implementation | Boundary |
 | --- | --- | --- |
 | Capability contracts | `internal/executiontarget` | Opaque identity, owner/generation/incarnation, capabilities, actors, grants and delivery classifications |
-| Owned Work inspection | `internal/workrun/inspection.go`, existing control channel, `cmd/gator/companion_inspection.go` | Verify actual live owner using lease/nonce; never create a replacement worker for inspection |
+| Owned Work inspection | `internal/workrun/inspection.go`, existing control channel, `cmd/hot-cross-buns/companion_inspection.go` | Verify actual live owner using lease/nonce; never create a replacement worker for inspection |
 | Semantic Work intervention | `workrun/remote_control.go`, `control_authority.go`, existing native cliagent controls | Cancellation request, supported steering, exact pending question answer, bounded exact command approval |
 | Shared device proof | `internal/companionaccess` | Existing private companion registry and owner-token generation; no second authentication system |
 | External tmux | `executiontarget/tmux` and `executiontarget/external` | Explicit local pane enrollment, reviewed backend trust, separate device Inspect/control grants |
@@ -35,7 +35,7 @@ Ghostty remote-control tool or multiplexer replacement.
 | Presentation | Electron/OpenTUI via app-host; optional companion Active Work/External terminals views | Native Work state and terminal snapshots remain separate |
 
 Work owns its execution context, specialist identities and semantic state. The
-native Codex/Pi/Claude paths retain their own supported controls; Gator does not
+native Codex/Pi/Claude paths retain their own supported controls; Hot Cross Buns does not
 replace those protocols with terminal keys. Steering support depends on engine
 capability (active Claude steering remains unsupported). Remote approvals cover
 bounded, complete command argv previews with existing exact decision/expiry
@@ -45,7 +45,7 @@ progress is not fabricated stdout or a terminal transcript.
 
 An externally started tmux pane is not a Work execution. Its independently owned
 server/processes are verified through explicit native pane/session membership,
-socket and OS process incarnation evidence. Its lifetime is not adopted by Gator.
+socket and OS process incarnation evidence. Its lifetime is not adopted by Hot Cross Buns.
 The short-lived Go helper reads bounded snapshots or dispatches explicitly
 reviewed literal text, text-plus-Enter, finite keys or Ctrl-C, subject to separate
 control trust and exact device grants. Ctrl-C means a terminal key request, not
@@ -77,7 +77,7 @@ and configuration discovery, tests, build scripts and packaging. No Onibi module
 executable, daemon, endpoint, database, auth registry, YAML discovery, ONIBI_*
 override or installer is required. Source provenance mentions are historical,
 not executable imports. `desktop/scripts/collect-licenses.mjs` reads
-`GATOR/third_party/onibi`, not a sibling checkout.
+`HOT CROSS BUNS/third_party/onibi`, not a sibling checkout.
 
 A temporary copied source tree with **no sibling `onibi` directory** successfully
 builds the Go runtime and desktop assets/runtime, runs target/actionlog tests,
@@ -97,23 +97,23 @@ verifies host transport startup, not a physical Electron/OpenTUI rendering sessi
 ## Retained source and licensing
 
 The selected Onibi Apache-2.0 controller/list/capture, text-tail, literal-send and
-finite-key patterns/tests were adapted into Gator-owned tmux code. Bounded runners,
+finite-key patterns/tests were adapted into Hot Cross Buns-owned tmux code. Bounded runners,
 exact identities, OS evidence, local trust, device authorization, actionlog
-admission and companion integration are Gator's implementation. Provenance and
+admission and companion integration are Hot Cross Buns's implementation. Provenance and
 modification records remain in `third_party/onibi/NOTICE.md`, with the complete
 original Apache text in `third_party/onibi/LICENSE`.
 
 Excluded: Onibi daemon, web server/UI, pairing/auth, RPC/socket services, SQLite
 schemas, configuration/intake discovery, session lifecycle management, fonts and
 animations, other muxes, Ghostty, SSH and model terminal tools. No source extraction
-or feature expansion occurs in T4.5. Gator's project licensing is unchanged.
+or feature expansion occurs in T4.5. Hot Cross Buns's project licensing is unchanged.
 
 Desktop packaging already collects the vendored notices. OpenTUI packaging now
 also copies them to `licenses/ONIBI-LICENSE` and `licenses/ONIBI-NOTICE.md`, because
 its Go runtime includes the adapted code even when tmux is unused. This requires
-only files inside Gator. Other redistributors must preserve those notices too.
+only files inside Hot Cross Buns. Other redistributors must preserve those notices too.
 
-Onibi can safely become an archived reference repository: Gator's source,
+Onibi can safely become an archived reference repository: Hot Cross Buns's source,
 execution, tests and build paths do not depend on it. Keep the vendored license,
 attribution and upstream commit provenance. Archiving/moving/deleting Onibi is a
 separate owner action and was not performed here.
@@ -192,8 +192,8 @@ npm test --prefix desktop
 npm run check --prefix ui
 node --test companion/auth.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/external.test.mjs companion/terminal.test.mjs companion/recovery.test.mjs companion/server.test.mjs companion/health.test.mjs
 node --test companion/client.test.mjs companion/inspection-client.test.mjs companion/mutation-client.test.mjs companion/external-client.test.mjs companion/terminal-client.test.mjs
-GATOR_TMUX_LIVE=1 node --test companion/external.test.mjs companion/terminal.test.mjs
-GATOR_TMUX_LIVE=1 go test ./internal/executiontarget/... -count=1
+HOT_CROSS_BUNS_TMUX_LIVE=1 node --test companion/external.test.mjs companion/terminal.test.mjs
+HOT_CROSS_BUNS_TMUX_LIVE=1 go test ./internal/executiontarget/... -count=1
 ```
 
 Native tmux verification uses only disposable isolated servers/sockets. No ordinary

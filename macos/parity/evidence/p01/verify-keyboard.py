@@ -5,9 +5,9 @@ import re
 import subprocess
 import time
 
-metadata = json.loads(pathlib.Path('/tmp/gator-p01-session.json').read_text())
+metadata = json.loads(pathlib.Path('/tmp/hot-cross-buns-p01-session.json').read_text())
 pid = metadata['pid']
-control = ['/tmp/gator-p01-control', str(pid)]
+control = ['/tmp/hot-cross-buns-p01-control', str(pid)]
 events = []
 
 def call(*args):
@@ -27,7 +27,7 @@ def wait_for(test):
 
 try:
     if 'Find in loaded transcript' in call('tree'): call('press', 'Close Find')
-    call('set', 'gator.composer.text', 'Draft remains unchanged during Find')
+    call('set', 'hot-cross-buns.composer.text', 'Draft remains unchanged during Find')
     keys('keystroke "f" using command down')
     wait_for(lambda tree: 'Find in loaded transcript' in tree)
     for _ in range(40):
@@ -42,7 +42,7 @@ try:
     call('inspect', 'Retained note A-050'); call('scrollbars')
     keys('key code 36 using shift down'); wait_for(lambda tree: '1 of 2' in tree)
     keys('key code 53'); wait_for(lambda tree: 'Find in loaded transcript' not in tree)
-    assert 'Draft remains unchanged during Find' in call('inspect', 'gator.composer.text')
+    assert 'Draft remains unchanged during Find' in call('inspect', 'hot-cross-buns.composer.text')
     events.append('PASS typed query, Return next, Shift Return previous, Escape, preserved draft')
     call('scrollbars'); call('press', 'Jump to Latest')
     for _ in range(40):

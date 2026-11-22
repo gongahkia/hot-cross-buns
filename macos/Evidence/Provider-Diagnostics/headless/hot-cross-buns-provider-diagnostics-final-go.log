@@ -1,0 +1,13 @@
+ok  	github.com/gongahkia/hot-cross-buns/internal/model	0.272s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/anthropic	0.236s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions	0.181s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/gemini	0.524s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/openai	0.374s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/providerhttp	0.666s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/radius	0.848s
+ok  	github.com/gongahkia/hot-cross-buns/internal/agent	0.965s
+ok  	github.com/gongahkia/hot-cross-buns/internal/telemetry	1.148s
+ok  	github.com/gongahkia/hot-cross-buns/internal/workrun	26.394s
+ok  	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	42.086s
+ok  	github.com/gongahkia/hot-cross-buns/internal/workapp	10.178s
+ok  	github.com/gongahkia/hot-cross-buns/internal/attachment	0.889s

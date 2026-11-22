@@ -1,0 +1,95 @@
+# Code-to-Hot Cross Buns product migration
+
+## Product decision
+
+Hot Cross Buns is the only user-facing agent. The original Code application is no
+longer a second terminal product: its isolated Git executor is an internal
+specialist that Hot Cross Buns may call with a bounded task. Direct Code mode is retired;
+users describe an outcome in the Hot Cross Buns conversation.
+
+The authority direction is one-way:
+
+```text
+user controls + objective
+          |
+          v
+    Hot Cross Buns manager
+          |
+          +-- immutable capability envelope
+          v
+ internal Code specialist --> summary + changed paths + patch digest
+          |
+          x  no direct UI, no source mutation, no recursive delegation
+```
+
+## Complete legacy-surface map
+
+| Original Code capability or convenience | Product decision | Hot Cross Buns location |
+| --- | --- | --- |
+| Provider, model, credentials, endpoint overrides, provider options, custom providers | Promote unchanged | Shared configuration and model factory used by the Hot Cross Buns manager and Code backend |
+| Centered composer and dock-after-submit layout | Promote | Main `internal/worktui` home and conversation views |
+| Cloud/provider onboarding and credential lifecycle | Promote and simplify | Main `/model` Cloud controls and the `hot-cross-buns provider …` CLI family |
+| Effort presets and exact turn budgets | Promote | Main `/effort`; separate manager and Code budgets |
+| Prompt image/PDF/Office/text attachments | Promote | Main `/attach`, `--image`, and `--attach`; bytes go to the manager, not silently to a child |
+| Prompt queue | Promote | Main 16-item, in-memory FIFO queue; each item captures its own options |
+| Copy latest answer | Promote | Main `/copy` chooser for individual responses or the verified-deliverables summary |
+| Themes | Promote | Main `/theme` and persisted root theme setting |
+| Help, status, permissions, doctor, agent/profile and settings inspection | Promote | Main `/help`, `/status`, `/permissions`, `/doctor`, `/agents`, and `/settings` |
+| Code project verifiers | Retain in the internal delegation policy | Auto-detected for common project roots; direct Work flags are retired |
+| Scoped `AGENTS.md`, rules, and named profiles | Retain in the internal delegation policy | Captured for internal Code requests; no direct user Code mode |
+| Worktree setup commands | Retain in backend | Never accepted from the manager model |
+| Exact and prefix command approvals | Retain in backend | No user-facing Code command grants |
+| Interactive approval prompts | Keep only where the invoking root CLI owns stdin | Headless JSON/TUI child runs require pre-grants; no model-created approval |
+| Sandbox and network selection | Retain as internal Code envelope | Strict/deny by default; no direct Work Code policy flags |
+| LSP, MCP, extensions, HTTP/web research, browser, terminal | Retain as two-key grants | Existing trust/configuration plus an internal request grant; browser also requires a selected session and network |
+| Git isolation, repository instructions, final diff/status, patch evidence | Keep in backend | `internal/codeexec`, invoked only through `work_code_agent.go` for product use |
+| Initial static scouts and dynamic reader/writer children | Reframe | Hot Cross Buns owns source research, artifact review, and Code delegation; Code cannot recursively delegate |
+| Code thread resume/fork/clone | Replace | Hot Cross Buns Work conversations and immutable revision branches |
+| Code recent-run picker and thread tree | Replace | `Ctrl+X` conversation picker plus `/history`, `/revision-back`, and `/revision-forward`; `Ctrl+P` is reserved for actions |
+| Code diff/review/transcript UI | Replace at product boundary | Sealed Work bundle, subagent patch evidence, `hot-cross-buns work review`, `hot-cross-buns work export`, and historical read compatibility |
+| Base-ref selection | Retire for managed delegation | Code receives frozen source plus an explicitly selected accepted candidate |
+| Copy ignored files into a worktree | Retire for managed delegation | Snapshot inclusion/exclusion is explicit, bounded, and recorded before delegation |
+| Sandbox-off/network confirmation modal | Retire from the conversation surface | The manager cannot widen its internal Code envelope |
+| Attached interactive terminal UX | Retire from Code frontend | Terminal can be an explicitly granted internal tool, but has no child-facing UI |
+| Vim composer mode, mouse-heavy diff controls, Code-only drawers and control center | Retire | They do not improve the single, conversation-first Hot Cross Buns surface enough to justify a second UI state machine |
+| Vendor-harness chooser inside Code | Retire | Starting another agent runtime would create a second execution and history model |
+| Extension prompt commands and declarative Code UI cards | Retire from the product surface | Bundle metadata remains readable for compatibility, but only explicitly granted backend tools are active |
+| Machine protocols | Retain only Work-native adapters | `hot-cross-buns work-rpc` is the canonical machine surface; ACP Code mode and legacy RPC/app-server transports are retired |
+
+## Delegation invariants
+
+- The selected source is snapshotted before the manager or Code specialist
+  starts. Code works against a private Git repository made from that snapshot.
+- The manager may choose a narrower task but cannot change provider authority,
+  commands, sandbox, network, integrations, or step limits.
+- `git diff --check` is always required and cannot be removed. Project-specific
+  verifiers are additive.
+- Code writer/scout delegation is always disabled to prevent recursive agent
+  trees. Parallelism belongs to Hot Cross Buns's manager.
+- Integration names are not grants. A capability must be explicitly enabled,
+  and its existing project trust/authentication checks still apply.
+- Internal requests that require Code evidence cannot complete without a
+  successful Code invocation and a retained patch artifact.
+- The child never applies its patch to live source. Review and transfer stay at
+  the Hot Cross Buns product boundary.
+
+## Current port and remaining UX
+
+Work now uses normalized private conversation replay and Code context compaction,
+forwards model streaming/visual declarations, captures approved project
+configuration with original trust identity, and offers live steering,
+cancellation, and exact approval responses. Code candidates support selected
+baselines, integration, independent frozen review, and explicit target apply.
+The main TUI renders sealed artifacts and verified Code candidates inside the
+conversation. `/review`, `/save`, and `/apply` provide preview and a single
+confirmation handoff while preserving bundle verification, checkout cleanliness,
+baseline hashes, and apply-time preflight. Workspace, inferred/explicit outcome
+mode, artifact paths, connected sources, and bounded web origins are session
+controls shown by `/status`.
+See [state migrations](WORK_DEPTH_MIGRATIONS.md) and [current behavior](WORK_DEPTH.md).
+
+The standalone Code frontend, its journals, and legacy RPC/app-server transports
+are retired. ACP and `work-rpc` enter the same Work execution path as the CLI,
+TUI, and jobs. A full historical diff browser and terminal attachment are not
+reintroduced into the Work TUI. Root management commands continue to manage
+providers, browser sessions, integration installation, and project trust.

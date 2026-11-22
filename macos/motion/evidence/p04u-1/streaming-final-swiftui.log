@@ -2,56 +2,56 @@
 Building for debugging...
 [0/8] Write sources
 [2/8] Write swift-version--58304C5D6DBC2206.txt
-[4/45] Compiling GatorMac NativeDropInput.swift
-[5/45] Compiling GatorMac NativeErrorDisclosure.swift
-[6/45] Compiling GatorMac NativeMascotModel.swift
-[7/45] Compiling GatorMac NativeMascotPlayback.swift
-[8/45] Compiling GatorMac NativeMascotPreferences.swift
-[9/50] Compiling GatorMac NativeMascotView.swift
-[10/50] Compiling GatorMac NativeMessageBody.swift
-[11/50] Compiling GatorMac NativeMotionPresentation.swift
-[12/50] Compiling GatorMac NativeMotionVisibility.swift
-[13/50] Compiling GatorMac NativeProviderSecretEntry.swift
-[14/50] Compiling GatorMac NativeReadingPositions.swift
-[15/50] Compiling GatorMac NativeStatusMessage.swift
-[16/50] Compiling GatorMac NativeStreamingPresentation.swift
-[17/50] Compiling GatorMac NativeStreamingReveal.swift
-[18/50] Compiling GatorMac NativeThinkingPulse.swift
-[19/50] Emitting module GatorMac
-[20/50] Compiling GatorMac ExactDecisionButton.swift
-[21/50] Compiling GatorMac ExactReviewContent.swift
-[22/50] Compiling GatorMac GatorApp.swift
-[23/50] Compiling GatorMac MenuBarVisibilityToggle.swift
-[24/50] Compiling GatorMac NativeAcceptanceDiagnostics.swift
-[25/50] Compiling GatorMac ProviderSetupView.swift
-[26/50] Compiling GatorMac RecentConversationsMenu.swift
-[27/50] Compiling GatorMac RecoveryInspectorContent.swift
-[28/50] Compiling GatorMac RecoveryPreparationView.swift
-[29/50] Compiling GatorMac TaskInspectorView.swift
-[30/50] Compiling GatorMac NativeAccessibilityStatus.swift
-[31/50] Compiling GatorMac NativeAttachmentActions.swift
-[32/50] Compiling GatorMac NativeComposer.swift
-[33/50] Compiling GatorMac NativeComposerPresentation.swift
-[34/50] Compiling GatorMac NativeDesktopPet.swift
-[35/50] Compiling GatorMac NativeTranscriptFind.swift
-[36/50] Compiling GatorMac NativeWindowConfiguration.swift
-[37/50] Compiling GatorMac NativeWorkspacePicker.swift
-[38/50] Compiling GatorMac NotchQuickAccess.swift
-[39/50] Compiling GatorMac PlanReviewContent.swift
-[40/50] Compiling GatorMac AppDelegate.swift
-[41/50] Compiling GatorMac ApprovalReviewView.swift
-[42/50] Compiling GatorMac AttachmentSelectionView.swift
-[43/50] Compiling GatorMac ComposerView.swift
-[44/50] Compiling GatorMac ConversationCatalogView.swift
-[45/50] Compiling GatorMac ConversationView.swift
+[4/45] Compiling HotCrossBunsMac NativeDropInput.swift
+[5/45] Compiling HotCrossBunsMac NativeErrorDisclosure.swift
+[6/45] Compiling HotCrossBunsMac NativeMascotModel.swift
+[7/45] Compiling HotCrossBunsMac NativeMascotPlayback.swift
+[8/45] Compiling HotCrossBunsMac NativeMascotPreferences.swift
+[9/50] Compiling HotCrossBunsMac NativeMascotView.swift
+[10/50] Compiling HotCrossBunsMac NativeMessageBody.swift
+[11/50] Compiling HotCrossBunsMac NativeMotionPresentation.swift
+[12/50] Compiling HotCrossBunsMac NativeMotionVisibility.swift
+[13/50] Compiling HotCrossBunsMac NativeProviderSecretEntry.swift
+[14/50] Compiling HotCrossBunsMac NativeReadingPositions.swift
+[15/50] Compiling HotCrossBunsMac NativeStatusMessage.swift
+[16/50] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
+[17/50] Compiling HotCrossBunsMac NativeStreamingReveal.swift
+[18/50] Compiling HotCrossBunsMac NativeThinkingPulse.swift
+[19/50] Emitting module HotCrossBunsMac
+[20/50] Compiling HotCrossBunsMac ExactDecisionButton.swift
+[21/50] Compiling HotCrossBunsMac ExactReviewContent.swift
+[22/50] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[23/50] Compiling HotCrossBunsMac MenuBarVisibilityToggle.swift
+[24/50] Compiling HotCrossBunsMac NativeAcceptanceDiagnostics.swift
+[25/50] Compiling HotCrossBunsMac ProviderSetupView.swift
+[26/50] Compiling HotCrossBunsMac RecentConversationsMenu.swift
+[27/50] Compiling HotCrossBunsMac RecoveryInspectorContent.swift
+[28/50] Compiling HotCrossBunsMac RecoveryPreparationView.swift
+[29/50] Compiling HotCrossBunsMac TaskInspectorView.swift
+[30/50] Compiling HotCrossBunsMac NativeAccessibilityStatus.swift
+[31/50] Compiling HotCrossBunsMac NativeAttachmentActions.swift
+[32/50] Compiling HotCrossBunsMac NativeComposer.swift
+[33/50] Compiling HotCrossBunsMac NativeComposerPresentation.swift
+[34/50] Compiling HotCrossBunsMac NativeDesktopPet.swift
+[35/50] Compiling HotCrossBunsMac NativeTranscriptFind.swift
+[36/50] Compiling HotCrossBunsMac NativeWindowConfiguration.swift
+[37/50] Compiling HotCrossBunsMac NativeWorkspacePicker.swift
+[38/50] Compiling HotCrossBunsMac NotchQuickAccess.swift
+[39/50] Compiling HotCrossBunsMac PlanReviewContent.swift
+[40/50] Compiling HotCrossBunsMac AppDelegate.swift
+[41/50] Compiling HotCrossBunsMac ApprovalReviewView.swift
+[42/50] Compiling HotCrossBunsMac AttachmentSelectionView.swift
+[43/50] Compiling HotCrossBunsMac ComposerView.swift
+[44/50] Compiling HotCrossBunsMac ConversationCatalogView.swift
+[45/50] Compiling HotCrossBunsMac ConversationView.swift
 [45/50] Write Objects.LinkFileList
-[46/50] Linking GatorMac
-[47/50] Applying GatorMac
-[49/61] Compiling GatorMacTests NativeWorkspacePickerTests.swift
-[50/62] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[51/62] Compiling GatorMacTests NativeUIUXRemediationTests.swift
-[52/62] Compiling GatorMacTests NativeStreamingTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:147:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+[46/50] Linking HotCrossBunsMac
+[47/50] Applying HotCrossBunsMac
+[49/61] Compiling HotCrossBunsMacTests NativeWorkspacePickerTests.swift
+[50/62] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[51/62] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
+[52/62] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:147:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 145 | @Test @MainActor func streamingCadenceDoesNotRetainReleasedViewModelOrReadingAnchors() async {
 146 |     let positions = NativeReadingPositions(); positions.remember("A", anchor: "row-9", following: false)
 147 |     var model: NativeStreamingPresentation? = NativeStreamingPresentation(); weak var probe = model
@@ -59,7 +59,7 @@ Building for debugging...
 148 |     model?.receive(motionEntry("One"), policy: .init(), now: 1)
 149 |     model?.receive(motionEntry("One two three four five"), policy: .init(), now: 2)
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:190:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:190:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 188 | @Test @MainActor func streamingVisibilityProbeHasNoFocusAndReleasesObservers() {
 189 |     var probe: NativeMotionVisibility.Probe? = .init(update: { _ in })
 190 |     weak var weakProbe = probe
@@ -68,20 +68,20 @@ Building for debugging...
 192 |     probe?.detach(); probe = nil; #expect(weakProbe == nil)
 
 [#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
-[53/62] Compiling GatorMacTests NotchGeometryTests.swift
-[54/62] Compiling GatorMacTests NativeMotionRenderTests.swift
-[55/62] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[56/62] Compiling GatorMacTests NativeDesktopPetTests.swift
-[57/62] Compiling GatorMacTests NativeInputTests.swift
-[58/62] Compiling GatorMacTests NativeMascotTests.swift
-[59/62] Compiling GatorMacTests NativeMotionGoTests.swift
-[60/62] Emitting module GatorMacTests
+[53/62] Compiling HotCrossBunsMacTests NotchGeometryTests.swift
+[54/62] Compiling HotCrossBunsMacTests NativeMotionRenderTests.swift
+[55/62] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[56/62] Compiling HotCrossBunsMacTests NativeDesktopPetTests.swift
+[57/62] Compiling HotCrossBunsMacTests NativeInputTests.swift
+[58/62] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[59/62] Compiling HotCrossBunsMacTests NativeMotionGoTests.swift
+[60/62] Emitting module HotCrossBunsMacTests
 [60/62] Write Objects.LinkFileList
-[61/62] Linking GatorNativePackageTests
+[61/62] Linking HotCrossBunsNativePackageTests
 Build complete! (12.06s)
 Test Suite 'Selected tests' started at 2026-11-20 16:16:34.465.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 16:16:34.466.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 16:16:34.466.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 16:16:34.466.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 16:16:34.466.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 16:16:34.466.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

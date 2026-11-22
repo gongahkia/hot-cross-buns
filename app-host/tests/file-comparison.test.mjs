@@ -41,7 +41,7 @@ test("Office comparisons show entered content without claiming layout or formula
 });
 
 test("comparison is read-only, scoped to exact file versions and verifies retained bytes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-file-compare-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-file-compare-"));
   try {
     const store = new FileStore(root), ref = { kind: "upload", id: `${"a".repeat(32)}/notes.md` }, request = { context: "conversation:one", ref };
     const original = Buffer.from("Original"), source = async () => ({ name: "notes.md", bytes: original });

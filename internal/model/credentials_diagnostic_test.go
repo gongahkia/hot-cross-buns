@@ -1,8 +1,8 @@
 package model
 
 import (
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
 	"testing"
 )
 
@@ -20,7 +20,7 @@ func TestCredentialDiagnosticSourcePreservesExistingPriority(t *testing.T) {
 		key, source string
 	}{
 		{Config{Provider: OpenAI}, "environment-key", "environment"},
-		{Config{Provider: OpenAI, Credentials: &store}, "stored-key", "gator-store"},
+		{Config{Provider: OpenAI, Credentials: &store}, "stored-key", "hot-cross-buns-store"},
 		{Config{Provider: OpenAI, Credentials: &store, APIKey: "explicit-key"}, "explicit-key", "explicit"},
 	} {
 		backend, err := New(test.config)

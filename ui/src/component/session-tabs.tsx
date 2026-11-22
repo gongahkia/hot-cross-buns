@@ -1,5 +1,5 @@
-// Gator adaptation of upstream session tabs: the rail and narrow-layout rules
-// are retained; session identity/activity comes exclusively from Gator's host.
+// Hot Cross Buns adaptation of upstream session tabs: the rail and narrow-layout rules
+// are retained; session identity/activity comes exclusively from Hot Cross Buns's host.
 import { createMemo, For, Index, Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useData } from "../context/data"
@@ -7,9 +7,9 @@ import { useClient } from "../context/client"
 import { useTheme } from "../context/theme"
 import { SessionTabsRailControls } from "./session-tabs-rail"
 import { Spinner } from "./spinner"
-import { literal } from "../gator/text"
-import { navigationPage } from "../gator/navigation"
-import { useKeyHints } from "../gator/key-hints"
+import { literal } from "../hot-cross-buns/text"
+import { navigationPage } from "../hot-cross-buns/navigation"
+import { useKeyHints } from "../hot-cross-buns/key-hints"
 export type SessionTabsController = { search?: () => void }
 export function SessionTabs(props: { width: number; search(): void }) {
   const data = useData(), client = useClient(), theme = useTheme(), hint = useKeyHints()
@@ -26,6 +26,6 @@ export function SessionTabs(props: { width: number; search(): void }) {
         <Show when={chat().running && chat().status === "Working" && chat().id !== data.state?.conversation_id} fallback={<text fg={theme.text.muted}>{literal(chat().status)}</text>}><Spinner delay={150}>Working</Spinner></Show>
       </box>}</Index>
     </scrollbox>
-    <text fg={theme.text.muted}>{hint("command.palette.show")} commands</text><text fg={theme.text.muted}>{hint("gator.sidebar")} hide rail</text>
+    <text fg={theme.text.muted}>{hint("command.palette.show")} commands</text><text fg={theme.text.muted}>{hint("hot-cross-buns.sidebar")} hide rail</text>
   </box>
 }

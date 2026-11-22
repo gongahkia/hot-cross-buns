@@ -1,5 +1,5 @@
 // Copyright 2026 gongahkia. Apache-2.0; see third_party/onibi/LICENSE.
-// Adapted from Onibi internal/tmux/attach.go SendText/SendKey; modified by Gator
+// Adapted from Onibi internal/tmux/attach.go SendText/SendKey; modified by Hot Cross Buns
 // for exact identity, control trust, bounded finite input and delivery semantics.
 package tmux
 
@@ -9,7 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 )
 
 const ControlTrustScope = "trusted_server_control_command_behavior"

@@ -1,11 +1,11 @@
-import { Application } from "@gator/application-host/application"
-import type { BackendState } from "@gator/application-host/contracts/protocol"
-import type { FrontendFrame } from "@gator/application-host/contracts/frontend"
-import { FrontendPreferences } from "@gator/application-host/preferences"
+import { Application } from "@hot-cross-buns/application-host/application"
+import type { BackendState } from "@hot-cross-buns/application-host/contracts/protocol"
+import type { FrontendFrame } from "@hot-cross-buns/application-host/contracts/frontend"
+import { FrontendPreferences } from "@hot-cross-buns/application-host/preferences"
 
 export function state(id = "first"): BackendState {
   return { mode: "chat", messages: [], commands: [], actions: [], title: id, source: "topic:" + id, conversation_id: id,
-    provider: "fixture", theme: "gator", status_line: [], status_line_enabled: false, running: false, cancelling: false, loading_frame: 0,
+    provider: "fixture", theme: "hot-cross-buns", status_line: [], status_line_enabled: false, running: false, cancelling: false, loading_frame: 0,
     queued: 0, queue: [], home: false, first_run: false, supervisor_needs_start: false }
 }
 export class FixtureHost extends Application {

@@ -1,6 +1,6 @@
 # T3: explicitly enrolled external tmux inspection
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -23,20 +23,20 @@ Physical-phone acceptance was not performed.
 T3 adds read-only observation of independently started tmux panes. External panes
 are not Work executions: no Work owner, worker, run, specialist, recovery, model
 execution or semantic-control routing is involved. T0–T2 remain responsible for
-Gator-owned Work. No external mutation operation is implemented.
+Hot Cross Buns-owned Work. No external mutation operation is implemented.
 
 ## Architecture and provenance
 
 `internal/executiontarget/tmux` adapts Onibi's low-level argv runner/controller,
 list/capture and text-tail patterns from `internal/tmux/attach.go` and
 `internal/render/text.go`; related attach/mux/render test patterns were adapted.
-Gator's implementation replaces session-name targeting, unbounded CombinedOutput,
+Hot Cross Buns's implementation replaces session-name targeting, unbounded CombinedOutput,
 implicit configuration/environment selection and escape-preserving rendering.
 `third_party/onibi/NOTICE.md` records source commit and modified files;
 `third_party/onibi/LICENSE` preserves the complete upstream Apache-2.0 license.
 The desktop license collector includes both in its distributed dependency notices.
 Other binary redistributors must include these files. This does not license the
-rest of Gator: no root project license existed at extraction time. Onibi's fonts,
+rest of Hot Cross Buns: no root project license existed at extraction time. Onibi's fonts,
 animations, daemon, HTTP/auth runtime, RPC, intake, project discovery and SQLite
 schemas were excluded; `../onibi` was read only.
 
@@ -51,7 +51,7 @@ entries remain as tombstones and count toward the enrollment limit.
 proof out of Workrun. Workrun retains its original `CompanionAuthority` contract
 and delegates the same checks. No additional authentication store is created.
 
-The existing Node companion invokes `gator-runtime companion-external` as a
+The existing Node companion invokes `hot-cross-buns-runtime companion-external` as a
 short-lived Go read helper under the companion's OS account/profile. No worker,
 maintenance, provider initialization or new daemon is started. Its environment
 routing flag is not authorization: target-bound grants and enrollment are checked
@@ -70,7 +70,7 @@ Identity includes the native `%pane` ID and `$session` membership/creation time,
 pane PID plus OS process-start evidence, server PID/start_time plus OS process-start
 evidence, and socket device/inode/ctime. macOS uses sysctl process start seconds
 and microseconds; Linux uses boot ID plus `/proc/PID/stat` start ticks. The opaque
-Gator ID and random generation are newly issued on every enrollment. The backend
+Hot Cross Buns ID and random generation are newly issued on every enrollment. The backend
 instance and incarnation hashes expose none of the native configuration.
 
 Active-pane changes, pane ordering and window renaming do not select a different
@@ -133,19 +133,19 @@ a fixed unavailable reason without stderr, filesystem paths or command arguments
 
 ## Host-local workflow
 
-Use the same `GATOR_STATE_DIR` profile as the companion. The executable and socket
+Use the same `HOT_CROSS_BUNS_STATE_DIR` profile as the companion. The executable and socket
 below must refer to an already running, independently managed tmux server. The
 socket parent must be private (mode 0700) and owned by the companion's OS user.
 T3 does not initialize tmux or change existing socket permissions/configuration.
 Local commands use the repository's existing internal administrative convention:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux candidates --reviewed-read-config /absolute/path/to/tmux /private/path/socket
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux list
-node companion/external-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
-node companion/external-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID 0
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux revoke TARGET_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux candidates --reviewed-read-config /absolute/path/to/tmux /private/path/socket
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux list
+node companion/external-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
+node companion/external-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID 0
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux revoke TARGET_ID
 ```
 
 `candidates` lists native identity metadata only on the host. `enroll` returns the
@@ -166,7 +166,7 @@ Authenticated, read-only endpoints:
 - `GET /v1/external/:target?generation=...`: selected metadata, no output.
 - `GET /v1/external/:target/snapshot?generation=...`: bounded snapshot.
 
-Requests select opaque Gator IDs and exact generations only. Unsupported methods
+Requests select opaque Hot Cross Buns IDs and exact generations only. Unsupported methods
 and extra/repeated query parameters are rejected. `external.ts` defines the typed
 response; `external.mjs` validates and explicitly projects backend data before
 returning it (64 KiB maximum). No endpoint accepts a grant or native configuration.
@@ -197,8 +197,8 @@ go test ./internal/executiontarget/...
 go test -race ./internal/executiontarget/... ./internal/companionaccess
 go test ./...
 go vet ./...
-GATOR_TMUX_LIVE=1 go test ./internal/executiontarget/tmux -run TestLive -count=1 -v
-GATOR_TMUX_LIVE=1 node --test companion/external.test.mjs
+HOT_CROSS_BUNS_TMUX_LIVE=1 go test ./internal/executiontarget/tmux -run TestLive -count=1 -v
+HOT_CROSS_BUNS_TMUX_LIVE=1 node --test companion/external.test.mjs
 node --test companion/external-client.test.mjs
 node --test companion/auth.test.mjs companion/server.test.mjs companion/recovery.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs
 npm test --prefix app-host
@@ -236,7 +236,7 @@ Created:
 - `internal/executiontarget/tmux/{controller.go,runner.go,text.go,probe_darwin.go,probe_linux.go,probe_other.go,controller_test.go,live_test.go}`.
 - `internal/executiontarget/external/{catalog.go,catalog_test.go}`.
 - `internal/companionaccess/authority.go` (existing T2 registry proof factored out).
-- `cmd/gator/companion_external.go`.
+- `cmd/hot-cross-buns/companion_external.go`.
 - `app-host/contracts/external.ts`.
 - `companion/{external.mjs,external-access.mjs,external.test.mjs,external-client.test.mjs}`.
 - `companion/public/external-view.mjs`.
@@ -245,7 +245,7 @@ Created:
 Adapted existing files:
 
 - `internal/workrun/control_authority.go`: delegate unchanged authority semantics.
-- `cmd/gator/desktop_runtime.go`: early, maintenance-free helper/admin routing.
+- `cmd/hot-cross-buns/desktop_runtime.go`: early, maintenance-free helper/admin routing.
 - `app-host/contracts/protocol.ts`: export external display contracts.
 - `companion/server.mjs`: read-only external routes/helper and static view module.
 - `companion/public/{client.mjs,index.html,styles.css}`: independent snapshot view.
@@ -271,9 +271,9 @@ Verification on 31 October 2026:
 | `npm run check --prefix ui` | PASS, OpenTUI TypeScript |
 | `node --test companion/auth.test.mjs companion/server.test.mjs companion/recovery.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/health.test.mjs companion/external.test.mjs` | 22 pass, one opt-in live tmux test skipped |
 | `node --test companion/external-client.test.mjs companion/client.test.mjs companion/inspection-client.test.mjs companion/mutation-client.test.mjs` | Nine Chromium journeys pass |
-| `GATOR_TMUX_LIVE=1 go test ./internal/executiontarget/tmux -run TestLive -count=1 -v` | One isolated native test passes, macOS/tmux 3.8 |
-| `GATOR_TMUX_LIVE=1 node --test companion/external.test.mjs companion/external-client.test.mjs` | Four pass, including real Go/helper/paired-device/tmux HTTP path and browser race journey |
-| `GOOS=linux GOARCH=amd64 go test -c ./internal/executiontarget/tmux -o /tmp/gator-t3-tmux-linux.test` and corresponding external catalog command | Compile PASS; native Linux/WSL runtime not exercised |
+| `HOT_CROSS_BUNS_TMUX_LIVE=1 go test ./internal/executiontarget/tmux -run TestLive -count=1 -v` | One isolated native test passes, macOS/tmux 3.8 |
+| `HOT_CROSS_BUNS_TMUX_LIVE=1 node --test companion/external.test.mjs companion/external-client.test.mjs` | Four pass, including real Go/helper/paired-device/tmux HTTP path and browser race journey |
+| `GOOS=linux GOARCH=amd64 go test -c ./internal/executiontarget/tmux -o /tmp/hot-cross-buns-t3-tmux-linux.test` and corresponding external catalog command | Compile PASS; native Linux/WSL runtime not exercised |
 | Corresponding `GOOS=windows GOARCH=amd64 go test -c` commands | Compile PASS; Windows capture remains unsupported |
 | `gofmt -l` on changed Go source; `git diff --check` | PASS, no output |
 | Bun tests | Not run: Bun unavailable; nothing installed |
@@ -283,7 +283,7 @@ No existing Work lifecycle, native coding control, artifact validation, schedule
 provider, memory or UI migration schema was modified. The terminal frontend
 migration remains ongoing independently; T3 adds display contracts without changing
 its frames or execution ownership. The new catalog has its own additive version;
-it performs no migration of existing Gator data.
+it performs no migration of existing Hot Cross Buns data.
 
 ### Explicit local configuration initialization
 
@@ -298,7 +298,7 @@ and satisfy this prerequisite.
 
 This prerequisite is necessary because tmux expands configured aliases before
 executing a command, including the initial safety guard. Safely discovering an
-overridden guard using that same command parser would be circular. Gator does
+overridden guard using that same command parser would be circular. Hot Cross Buns does
 not clear aliases or alter server configuration. Host configurations that cannot
 be reviewed/kept trusted are unsupported. The acknowledgement is a local trust
 decision, not automated configuration attestation; unknown or concurrently changed

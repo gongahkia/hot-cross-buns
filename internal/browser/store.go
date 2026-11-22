@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 	schemaVersion = 1
 )
 
-// Store persists display-safe browser-session metadata beneath Gator's private
+// Store persists display-safe browser-session metadata beneath Hot Cross Buns's private
 // state root. Live browser transport credentials are intentionally owned by a
 // running local controller, never this store.
 type Store struct {
@@ -42,12 +42,12 @@ type storedSessions struct {
 }
 
 // Open creates (if necessary) the private browser state directory. stateDir
-// must already be an absolute Gator state directory resolved by the caller.
+// must already be an absolute Hot Cross Buns state directory resolved by the caller.
 func Open(stateDir string) (*Store, error) {
 	if !filepath.IsAbs(stateDir) {
 		return nil, errors.New("browser state directory must be absolute")
 	}
-	directory := filepath.Join(stateDir, "gator", "browser")
+	directory := filepath.Join(stateDir, "hot-cross-buns", "browser")
 	if err := privatefs.MkdirAll(directory); err != nil {
 		return nil, fmt.Errorf("create browser state directory: %w", err)
 	}

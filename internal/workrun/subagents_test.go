@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestHostedCodeSpecialistUsesHostedBackend(t *testing.T) {

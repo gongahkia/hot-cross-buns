@@ -4,15 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gongahkia/gator/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/reconciliation"
-	"github.com/gongahkia/gator/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/reconciliation"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
 )
 
 // SuggestChange can only queue a reviewed candidate. It has no direct write
@@ -151,6 +151,6 @@ func (t SuggestChange) Execute(_ context.Context, raw json.RawMessage) (agent.To
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
-	content, err := success(map[string]any{"id": record.ID, "status": record.Status, "kind": record.Kind, "review": "gator suggestion show " + record.ID + "; gator suggestion accept " + record.ID})
+	content, err := success(map[string]any{"id": record.ID, "status": record.Status, "kind": record.Kind, "review": "hot-cross-buns suggestion show " + record.ID + "; hot-cross-buns suggestion accept " + record.ID})
 	return agent.ToolResult{Content: content}, err
 }

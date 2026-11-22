@@ -3,7 +3,7 @@ package workapp
 import (
 	"strings"
 
-	"github.com/gongahkia/gator/internal/localmodel"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
 )
 
 // explainRunFailure keeps provider failures useful without hiding the original
@@ -22,7 +22,7 @@ func explainRunFailure(runError string, status ModelStatus) string {
 		selected = "the selected model"
 	}
 
-	if provider == localmodel.ProviderID || strings.Contains(lower, "custom provider gator-local") {
+	if provider == localmodel.ProviderID || strings.Contains(lower, "custom provider hot-cross-buns-local") {
 		switch {
 		case strings.Contains(lower, "connection refused"):
 			return "Local Ollama connection refused for " + selected + " at 127.0.0.1:11434.\n" +
@@ -41,7 +41,7 @@ func explainRunFailure(runError string, status ModelStatus) string {
 			"Detail: " + detail + "\n" +
 			"Recovery: open /model to verify the selected provider and endpoint, then make sure its service is running and reachable."
 	}
-	if strings.Contains(lower, "unknown provider") || strings.Contains(lower, "no direct gator") {
+	if strings.Contains(lower, "unknown provider") || strings.Contains(lower, "no direct hot cross buns") {
 		return "The selected model provider is no longer available.\n" +
 			"Detail: " + detail + "\n" +
 			"Recovery: open /model and choose Cloud API key or Local model before sending the request again."

@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 )
 
 type Draft struct {
@@ -46,7 +46,7 @@ func New(source, goalID string) (Draft, error) {
 
 func (d Draft) Validate() error {
 	if d.CalendarDays != 0 {
-		return errors.New("Google Calendar support was removed; clear the calendar window and track dates in Gator's local plan")
+		return errors.New("Google Calendar support was removed; clear the calendar window and track dates in Hot Cross Buns's local plan")
 	}
 	if _, err := d.EndTime(); err != nil {
 		return err

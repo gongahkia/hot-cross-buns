@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/gongahkia/gator/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,7 +43,7 @@ func main() {
 		check(err)
 		roots = append(roots, filepath.Dir(filepath.Dir(node)))
 	}
-	root, err := os.MkdirTemp("", "gator-cli-eval-")
+	root, err := os.MkdirTemp("", "hot-cross-buns-cli-eval-")
 	check(err)
 	defer os.RemoveAll(root)
 	root, err = filepath.EvalSymlinks(root)

@@ -15,6 +15,6 @@ export function validateTerminalReply(value,id,action){
  return {authorized:false,receipt:{id:r.id,target:{id:r.target.id,generation:r.target.generation},operation:r.operation,kind:r.scope,digest:r.digest,phase:r.phase,delivery:r.delivery,note:r.note,created_at:r.created_at,updated_at:r.updated_at}};
 }
 export function callTerminal(binary,workspace,env,mode,input){return new Promise((resolve,reject)=>{
- const child=execFile(binary,['companion-external-control',mode],{cwd:workspace,env:{...env,GATOR_COMPANION_EXTERNAL_CONTROL:'1'},timeout:20000,maxBuffer:16384,windowsHide:true},(err,out)=>{if(err)return reject(new Error('Terminal action unconfirmed. Retrieve its receipt; do not resend.'));try{resolve(JSON.parse(out));}catch{reject(new Error('Terminal receipt unconfirmed.'));}});
+ const child=execFile(binary,['companion-external-control',mode],{cwd:workspace,env:{...env,HOT_CROSS_BUNS_COMPANION_EXTERNAL_CONTROL:'1'},timeout:20000,maxBuffer:16384,windowsHide:true},(err,out)=>{if(err)return reject(new Error('Terminal action unconfirmed. Retrieve its receipt; do not resend.'));try{resolve(JSON.parse(out));}catch{reject(new Error('Terminal receipt unconfirmed.'));}});
  child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(input));
 });}

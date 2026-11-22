@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 type profileModel struct {
@@ -231,10 +231,10 @@ func TestSpecialistLibraryCASBoundsAndLinks(t *testing.T) {
 		t.Fatal("deleted definition retained", profiles, err)
 	}
 	out := t.TempDir()
-	if err := os.RemoveAll(filepath.Join(root, "gator", "agent-profiles")); err != nil {
+	if err := os.RemoveAll(filepath.Join(root, "hot-cross-buns", "agent-profiles")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(out, filepath.Join(root, "gator", "agent-profiles")); err != nil {
+	if err := os.Symlink(out, filepath.Join(root, "hot-cross-buns", "agent-profiles")); err != nil {
 		t.Skip("link unavailable", err)
 	}
 	if _, err := store.List(); err == nil {

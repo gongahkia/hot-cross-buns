@@ -1,2 +1,2 @@
-ok  	github.com/gongahkia/gator/cmd/gator	1.213s
-ok  	github.com/gongahkia/gator/internal/model/chatcompletions	1.133s [no tests to run]
+ok  	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	1.213s
+ok  	github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions	1.133s [no tests to run]

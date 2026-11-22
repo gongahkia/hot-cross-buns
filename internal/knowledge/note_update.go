@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 )
 
 // ApplyNoteUpdate edits one inspected note and preserves its identity and scope.

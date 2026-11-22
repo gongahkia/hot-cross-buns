@@ -15,7 +15,7 @@ flowchart TD
     Native[Native conversation / model selection / P04 provider setup] --> Host[Existing Go UI bridge and Work application]
     Terminal[Terminal model catalog / local commands] --> Host
     Host --> Supervisor[Go admission, captured RunOptions, scopes, approvals, receipts, recovery]
-    Supervisor --> Local[Reviewed gator-local adapter / Ollama loopback endpoint]
+    Supervisor --> Local[Reviewed hot-cross-buns-local adapter / Ollama loopback endpoint]
     Supervisor --> Specialist[Explicit configured Codex or Claude worker / isolated sandbox]
     Supervisor --> Cloud[Explicit direct provider adapter]
     Terminal --> Manager[Current Go localModelManager]
@@ -24,7 +24,7 @@ flowchart TD
     Supervisor --> Evidence[Private retained Work evidence]
 ```
 
-`gator-local` is an existing managed custom-provider identity, not another agent engine. `provider.go:newCustomExecutorConfiguration` checks a reviewed catalog model, validates the local endpoint and applies eligibility. It wraps the existing Chat Completions backend in `localmodel.TextOnlyModel`, allows an empty API key and preserves the Work executor. It does not download missing models or prove the selected tag is installed at constructor time. The current request serializer does not expose an enforced per-request `num_ctx` or keep-alive policy; a profile's planned 4K context is not proof of actual runtime context.
+`hot-cross-buns-local` is an existing managed custom-provider identity, not another agent engine. `provider.go:newCustomExecutorConfiguration` checks a reviewed catalog model, validates the local endpoint and applies eligibility. It wraps the existing Chat Completions backend in `localmodel.TextOnlyModel`, allows an empty API key and preserves the Work executor. It does not download missing models or prove the selected tag is installed at constructor time. The current request serializer does not expose an enforced per-request `num_ctx` or keep-alive policy; a profile's planned 4K context is not proof of actual runtime context.
 
 `work_service.go` captures the primary and optional role configuration. Its external CLI delegates are enabled for foreground Work; background jobs do not inherit them. Internal configured role models can have distinct providers. A local primary alone therefore does not establish that every role, embedding call or connected tool is local. `work_recall.go` already distinguishes local storage, basic matching, optional local embeddings and explicitly opted-in cloud embeddings. That distinction must survive future local-first presentation.
 
@@ -50,8 +50,8 @@ flowchart TD
 | 14 | Storage | Host disk-capacity check, model-directory source/advice, installed size DTO | No exact shared/reference-aware usage or reclaim preview |
 | 15 | Partial-download recovery | Cancellation returns; explicit re-pull delegates reconciliation to Ollama | Partial: no durable operation identity or verified resume/digest result |
 | 16 | Cleanup | No reference-aware dry-run/reclaim workflow | Missing; no permission to delete a guessed shared directory |
-| 17 | Runtime updates | External Ollama application/manual workflow | No Gator runtime update authority or UI |
-| 18 | Runtime uninstall | No Gator uninstall implementation | Official manual guidance required; preserve library by default |
+| 17 | Runtime updates | External Ollama application/manual workflow | No Hot Cross Buns runtime update authority or UI |
+| 18 | Runtime uninstall | No Hot Cross Buns uninstall implementation | Official manual guidance required; preserve library by default |
 | 19 | Mac resource monitor | Total RAM and disk; current available-memory measurement unimplemented | No pressure, swap, GPU or actual model working-set admission monitor |
 | 20 | Native integration | Existing Go provider/owner boundary reusable | Partial: local selection supported after configuration; lifecycle management absent |
 | 21 | Direct API providers | 38 built-in direct adapters; canonical secure enrollment/settings | P04 native reviewed save/replace/remove remains implemented and unchanged |
@@ -66,11 +66,11 @@ The reviewed catalog currently includes Qwen3 4B/8B/30B, Llama 3.1 8B, Mistral S
 2. **Running runtime:** exact endpoint responds with recognized version.
 3. **Downloaded model:** exact tag and digest exist in that runtime's installed inventory.
 4. **Loaded model:** running inventory confirms residency/context/expiry; not inferred from a file.
-5. **Selected model:** Gator's confirmed future configuration points to that identity.
+5. **Selected model:** Hot Cross Buns's confirmed future configuration points to that identity.
 6. **Successfully tested:** a separately authorized bounded local inference completed, with time/version/digest recorded.
 7. **Used for a task:** a real admitted Work request completed or failed with retained evidence.
 
-Ollama exposes installed identity in [tags](https://docs.ollama.com/api/tags) and loaded-model identity/residency/context in [ps](https://docs.ollama.com/api/ps). Gator currently does not retain all those fields. Neither endpoint establishes model quality.
+Ollama exposes installed identity in [tags](https://docs.ollama.com/api/tags) and loaded-model identity/residency/context in [ps](https://docs.ollama.com/api/ps). Hot Cross Buns currently does not retain all those fields. Neither endpoint establishes model quality.
 
 ## API-key architecture decision
 
@@ -83,7 +83,7 @@ The following quality/maintenance comparisons are **[Inference] design assessmen
 | Reliability | Runtime/memory failures remain local | Local plus CLI/process/provider failure domains | Network/rate-limit/auth/provider failures | Both paths maintained; selected path failures remain explicit |
 | Resources | Unified RAM, context and desktop headroom critical | Local residency plus bounded worker processes | Less local model residency; network dependency | Must manage explicit transition, never alter an in-flight request |
 | API cost | No inference API charge; energy/storage not priced here | Paid worker invocations only when authorized; exact charges may be unknown | Usage/cost provider dependent | User-selected cloud calls only |
-| Credential surface | No inference key; tool credentials may still exist | Explicit worker key environment boundary | Gator direct credential store and endpoint settings | Retained P04 store, off the default setup path |
+| Credential surface | No inference key; tool credentials may still exist | Explicit worker key environment boundary | Hot Cross Buns direct credential store and endpoint settings | Retained P04 store, off the default setup path |
 | Disclosure | Local model; tool/network policies still necessary | Reviewed assignment/evidence subset crosses provider boundary | Supplied model context leaves computer | Explicit destination/data disclosure review |
 | Installation | Ollama + reviewed model | A plus supported CLI executable/key setup | Existing direct adapter setup | A initially; optional existing P04 later |
 | Maintenance | Runtime/model lifecycle + hardware acceptance | A plus worker compatibility/security tests | Existing adapters/credential validation | Preserves compatibility at ongoing adapter cost |
@@ -112,13 +112,13 @@ This is a product proposal. It does not change the current selected primary or g
 
 | Category | Current authority / limits |
 |---|---|
-| Direct provider keys stored by Gator | `internal/auth`, P04 reviewed bridge, `saveTUICloudModelConfiguration`; direct precedence is explicit request credential → Gator store → environment |
+| Direct provider keys stored by Hot Cross Buns | `internal/auth`, P04 reviewed bridge, `saveTUICloudModelConfiguration`; direct precedence is explicit request credential → Hot Cross Buns store → environment |
 | Keys explicitly supplied to CLI workers | `cliagent.Config.APIKeyEnv`, read at execution, inserted only in isolated child environment; not the direct-store credential path |
-| Vendor CLI-managed login | Not imported by current Gator worker; installing/logging into Codex/Claude independently does not authorize Gator to consume that account |
+| Vendor CLI-managed login | Not imported by current Hot Cross Buns worker; installing/logging into Codex/Claude independently does not authorize Hot Cross Buns to consume that account |
 | Local Ollama inference | Managed local provider supports no key; a local URL alone is not proof the server cannot forward to cloud |
 | Connected tool/service credentials | Separate accounts/connectors/embeddings; local inference does not revoke them or make those tools offline |
 
-`cliagent.Config` permits Codex, Claude and the separately existing Pi kind. L1 targets Codex/Claude only and does not expand those protocols. Current worker configuration requires a named `_API_KEY` environment variable even for the native worker lifecycle. Own-vendor subscription/OAuth sign-in is not a supported substitute in this integration. The worker uses a private home, copied/scoped sources, bounded output and an outer OS sandbox; Codex's inner CLI sandbox flags do not remove that outer Gator boundary. Secrets are excluded from argv and fake-secret/patch tests exercise redaction. Its network permission is general `AllowNetwork`, not a provider-domain firewall. Never describe the current worker as technically restricted to one remote inference host.
+`cliagent.Config` permits Codex, Claude and the separately existing Pi kind. L1 targets Codex/Claude only and does not expand those protocols. Current worker configuration requires a named `_API_KEY` environment variable even for the native worker lifecycle. Own-vendor subscription/OAuth sign-in is not a supported substitute in this integration. The worker uses a private home, copied/scoped sources, bounded output and an outer OS sandbox; Codex's inner CLI sandbox flags do not remove that outer Hot Cross Buns boundary. Secrets are excluded from argv and fake-secret/patch tests exercise redaction. Its network permission is general `AllowNetwork`, not a provider-domain firewall. Never describe the current worker as technically restricted to one remote inference host.
 
 Configured task/time limits and supervisor tool limits do not equal a hard maximum vendor billing-request count or USD budget inside an external CLI. L3 must expose this uncertainty and constrain delegation invocations/time; do not equate a stored key with spending consent. No CLI was invoked against a real provider in L1.
 
@@ -153,9 +153,9 @@ The sampled system had 1,007.50 MiB swap used out of 2,048 MiB. VM counters and 
 | Small coordinator | `qwen3:4b` | 2.5 GB decimal | 5.0 GB decimal | Planned 4K / 1 |
 | Larger 16 GB candidate | `qwen3:8b` | 5.2 GB decimal | 10.4 GB decimal | Planned 4K / 1 |
 
-These are comparison candidates, not recommendations proven by live quality. Quantization must be read from the installed digest; do not assume Q4 from a tag. Consider 8K only after 4K quality/resource trials. Upstream [context documentation](https://docs.ollama.com/context-length) describes memory growth and VRAM-dependent defaults; the FAQ also mentions a generic 4096 default. Use an explicit supported per-request context setting and verify observed allocation instead of assuming either default. Gator's current compatibility adapter needs that enforcement before a genuine bounded-context Work benchmark.
+These are comparison candidates, not recommendations proven by live quality. Quantization must be read from the installed digest; do not assume Q4 from a tag. Consider 8K only after 4K quality/resource trials. Upstream [context documentation](https://docs.ollama.com/context-length) describes memory growth and VRAM-dependent defaults; the FAQ also mentions a generic 4096 default. Use an explicit supported per-request context setting and verify observed allocation instead of assuming either default. Hot Cross Buns's current compatibility adapter needs that enforcement before a genuine bounded-context Work benchmark.
 
-For 16 GB admission, preserve the 2× guard and add OS pressure, compression/swap trends, measured model/KV/scratch working sets, Gator/native footprint and ordinary desktop headroom. Initially permit one local inference at a time across cooperating owners; report busy instead of adding a new queue feature. Pressure must block new loads, not stop arbitrary user processes or mutate active RunOptions. Do not estimate free unified memory by total minus summed process RSS. GPU residency can overlap process/driver accounting; measure RSS and physical footprint separately. **8 GB acceptance, local throughput, TTFT, GPU/energy and end-to-end resource headroom are NOT TESTED.**
+For 16 GB admission, preserve the 2× guard and add OS pressure, compression/swap trends, measured model/KV/scratch working sets, Hot Cross Buns/native footprint and ordinary desktop headroom. Initially permit one local inference at a time across cooperating owners; report busy instead of adding a new queue feature. Pressure must block new loads, not stop arbitrary user processes or mutate active RunOptions. Do not estimate free unified memory by total minus summed process RSS. GPU residency can overlap process/driver accounting; measure RSS and physical footprint separately. **8 GB acceptance, local throughput, TTFT, GPU/energy and end-to-end resource headroom are NOT TESTED.**
 
 ## Native requirements and independently gated next increments
 

@@ -1,6 +1,6 @@
 {
   "go-all": {
-    "github.com/gongahkia/gator/cmd/gator": {
+    "github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns": {
       "includingSubtests": {
         "pass": 477,
         "skip": 13,
@@ -27,7 +27,7 @@
         "TestLivePublicWebResearch"
       ]
     },
-    "github.com/gongahkia/gator/internal/workapp": {
+    "github.com/gongahkia/hot-cross-buns/internal/workapp": {
       "includingSubtests": {
         "pass": 358,
         "skip": 0,
@@ -40,7 +40,7 @@
       },
       "skipped": []
     },
-    "github.com/gongahkia/gator/internal/workrun": {
+    "github.com/gongahkia/hot-cross-buns/internal/workrun": {
       "includingSubtests": {
         "pass": 231,
         "skip": 1,
@@ -55,7 +55,7 @@
         "TestLiveSubagentManager"
       ]
     },
-    "github.com/gongahkia/gator/internal/worksession": {
+    "github.com/gongahkia/hot-cross-buns/internal/worksession": {
       "includingSubtests": {
         "pass": 100,
         "skip": 0,
@@ -70,7 +70,7 @@
     }
   },
   "go-race": {
-    "github.com/gongahkia/gator/internal/workapp": {
+    "github.com/gongahkia/hot-cross-buns/internal/workapp": {
       "includingSubtests": {
         "pass": 358,
         "skip": 0,
@@ -83,7 +83,7 @@
       },
       "skipped": []
     },
-    "github.com/gongahkia/gator/internal/workrun": {
+    "github.com/gongahkia/hot-cross-buns/internal/workrun": {
       "includingSubtests": {
         "pass": 231,
         "skip": 1,
@@ -98,7 +98,7 @@
         "TestLiveSubagentManager"
       ]
     },
-    "github.com/gongahkia/gator/internal/worksession": {
+    "github.com/gongahkia/hot-cross-buns/internal/worksession": {
       "includingSubtests": {
         "pass": 100,
         "skip": 0,

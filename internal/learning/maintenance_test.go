@@ -38,7 +38,7 @@ func TestMaintenanceResumesPastFirstPageAndAccumulatesAcrossRestart(t *testing.T
 			t.Fatal(err)
 		}
 		observation.Signal = VerificationFailed
-		observation.EvidenceRefs = []string{"gator/work-history/" + observation.WorkID + ".json"}
+		observation.EvidenceRefs = []string{"hot-cross-buns/work-history/" + observation.WorkID + ".json"}
 		data, _ := json.Marshal(observation)
 		if err := os.WriteFile(path, data, 0600); err != nil {
 			t.Fatal(err)
@@ -89,7 +89,7 @@ func TestMaintenanceRetainedEvidenceDoesNotOutliveItsSource(t *testing.T) {
 
 func addFailure(t *testing.T, s Store, work string, scope *Scope) {
 	t.Helper()
-	if _, err := s.RecordObservation(ObservationInput{WorkID: work, Signal: VerificationFailed, Scope: scope, EvidenceRefs: []string{"gator/work-history/" + work + ".json"}}); err != nil {
+	if _, err := s.RecordObservation(ObservationInput{WorkID: work, Signal: VerificationFailed, Scope: scope, EvidenceRefs: []string{"hot-cross-buns/work-history/" + work + ".json"}}); err != nil {
 		t.Fatal(err)
 	}
 }

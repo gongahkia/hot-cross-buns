@@ -3,18 +3,18 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
-import { GatorClient } from "../src/gator/client"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { App } from "../src/app"
-import type { FileEdit } from "@gator/application-host/contracts/fileProtocol"
+import type { FileEdit } from "@hot-cross-buns/application-host/contracts/fileProtocol"
 import { wordFixture, workbookFixture, slidesFixture } from "../../app-host/tests/office-fixtures.mjs"
 
 const until = async (predicate: () => boolean | Promise<boolean>, label = "file state") => { const deadline = Date.now() + 10000; while (!await predicate()) { if (Date.now() > deadline) throw new Error(`Timed out waiting for ${label}`); await Bun.sleep(20) } }
 
 test("terminal files save exact versions, preserve originals and stage a selected version", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-files-")), path = join(root, "notes.txt")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-files-")), path = join(root, "notes.txt")
   await writeFile(path, "Original file body")
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 36 })
   try {
     await client.start(); await client.attach([path]); const original = client.draft.uploads![0]
@@ -28,7 +28,7 @@ test("terminal files save exact versions, preserve originals and stage a selecte
     expect(saved.text).toContain("Added content"); expect(await readFile(path, "utf8")).toBe("Original file body")
     await setup.flush(); await Bun.sleep(25); setup.mockInput.pressKey("o", { ctrl: true }); await setup.flush(); await Bun.sleep(25)
     await setup.mockInput.typeText("Version 2"); await setup.flush(); await Bun.sleep(25); setup.mockInput.pressEnter(); await setup.flush(); await Bun.sleep(25)
-    await setup.mockInput.typeText("Ask Gator"); await setup.flush(); await Bun.sleep(25); setup.mockInput.pressEnter()
+    await setup.mockInput.typeText("Ask Hot Cross Buns"); await setup.flush(); await Bun.sleep(25); setup.mockInput.pressEnter()
     await until(() => (client.draft.uploads?.length ?? 0) === 2, "staged version")
     const attached = client.draft.uploads![1]
     const selected = await client.host.file({ ...request, ref: { kind: "upload", id: attached.id } })
@@ -38,10 +38,10 @@ test("terminal files save exact versions, preserve originals and stage a selecte
 }, 30000)
 
 test("all native Office content remains accessible through the same file workflow", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-office-"))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-office-"))
   const paths = [join(root, "document.docx"), join(root, "budget.xlsx"), join(root, "slides.pptx")]
   await Promise.all(paths.map((path, index) => writeFile(path, [wordFixture(), workbookFixture(), slidesFixture()][index])))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 36 })
   try {
     await client.start(); await client.attach(paths)

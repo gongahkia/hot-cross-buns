@@ -14,7 +14,7 @@
       "./internal/model/...",
       "./internal/agent",
       "./internal/workrun",
-      "./cmd/gator"
+      "./cmd/hot-cross-buns"
     ],
     "exit": 0,
     "seconds": 51.09829512500437
@@ -31,7 +31,7 @@
       "./internal/localmodel",
       "./internal/config",
       "./internal/cliagent",
-      "./cmd/gator",
+      "./cmd/hot-cross-buns",
       "-run",
       "TestLocalFirst|TestSettingsUpdates|TestNativeProvider|TestCloud|TestNative"
     ],

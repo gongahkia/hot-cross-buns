@@ -1,15 +1,15 @@
 {
   "productionModified": [
-    "macos/Sources/GatorMac/ConversationView.swift",
-    "macos/Sources/GatorMac/GatorApp.swift",
+    "macos/Sources/HotCrossBunsMac/ConversationView.swift",
+    "macos/Sources/HotCrossBunsMac/HotCrossBunsApp.swift",
     "macos/scripts/build-dev-app.sh"
   ],
   "productionAndTestAdded": [
-    "macos/Sources/GatorMac/NativeMascotPlayback.swift",
-    "macos/Sources/GatorMac/NativeMascotPreferences.swift",
-    "macos/Sources/GatorMac/NativeMascotView.swift",
-    "macos/Sources/GatorMac/NativeMascotModel.swift",
-    "macos/Tests/GatorMacTests/NativeMascotTests.swift"
+    "macos/Sources/HotCrossBunsMac/NativeMascotPlayback.swift",
+    "macos/Sources/HotCrossBunsMac/NativeMascotPreferences.swift",
+    "macos/Sources/HotCrossBunsMac/NativeMascotView.swift",
+    "macos/Sources/HotCrossBunsMac/NativeMascotModel.swift",
+    "macos/Tests/HotCrossBunsMacTests/NativeMascotTests.swift"
   ],
   "movedFromStaging": [
     "macos/mascot/2d/playback/NativeMascotModel.swift",
@@ -161,7 +161,7 @@
     "macos/mascot/2d/previews/rendered-working.gif",
     "macos/mascot/2d/previews/styles.png",
     "macos/mascot/2d/source/AnimationRecipe.swift",
-    "macos/mascot/2d/source/ClassicGator.swift",
+    "macos/mascot/2d/source/ClassicHotCrossBuns.swift",
     "macos/mascot/2d/source/Export.swift",
     "macos/mascot/2d/source/export.sh",
     "macos/mascot/2d/source/previews.py"

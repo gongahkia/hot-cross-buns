@@ -8,24 +8,24 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/attachment"
-	"github.com/gongahkia/gator/internal/browser"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/codeexec"
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/desktop"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/projectcapture"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/workactivity"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/browser"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/codeexec"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/desktop"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
@@ -38,7 +38,7 @@ const (
 	CodeCapabilityHooks     = "hooks"
 )
 
-// CodePolicy is the user-owned capability envelope for Gator's internal Code
+// CodePolicy is the user-owned capability envelope for Hot Cross Buns's internal Code
 // tools and specialists. The Work manager can code or delegate, but it cannot
 // widen this policy. Empty policies deliberately resolve to strict, offline
 // execution with only the built-in patch tools and verifier commands.
@@ -230,7 +230,7 @@ type Outcome struct {
 	SourceSnapshot   snapshot.Manifest
 }
 
-// CodeRequest asks Gator's Code specialist to work against the exact
+// CodeRequest asks Hot Cross Buns's Code specialist to work against the exact
 // frozen source selected by a Work run. The implementation must isolate all
 // writes and return a reviewable patch rather than mutate SourcePath.
 type CodeRequest struct {
@@ -248,7 +248,7 @@ type CodeRequest struct {
 	Approve     func(context.Context, []string) (tools.CommandDecision, error)
 }
 
-// CodeResult is the bounded handoff from Gator Code back to Gator Work.
+// CodeResult is the bounded handoff from Hot Cross Buns Code back to Hot Cross Buns Work.
 type CodeResult struct {
 	BaselineSHA256 string
 	Usage          agent.Usage
@@ -267,7 +267,7 @@ type CodeSession struct {
 }
 type CodeSessionFactory func(context.Context, CodeRequest) (*CodeSession, error)
 
-// CodeDelegate adapts Gator's isolated coding workflow into a Work specialist.
+// CodeDelegate adapts Hot Cross Buns's isolated coding workflow into a Work specialist.
 type CodeDelegate func(context.Context, CodeRequest) (CodeResult, error)
 
 // Executor combines a provider-independent model with private workspace

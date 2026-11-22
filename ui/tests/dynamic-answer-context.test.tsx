@@ -6,13 +6,13 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { createHash } from "node:crypto"
-import { Application } from "@gator/application-host/application"
-import { GatorClient } from "../src/gator/client"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { App } from "../src/app"
 
 // Native input, real Go tools and persistence; controlled model, not a live account.
 for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`dynamic knowledge → original answer → correction/forget → restart at ${width}×${height}`, async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-dynamic-context-")), calls: string[] = []
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-dynamic-context-")), calls: string[] = []
   let memoryID = "", noteID = ""
   const memory = "The ceramic delivery arrives Friday.", current = "The ceramic delivery arrives Tuesday.", corrected = "The ceramic delivery arrives Wednesday."
   const note = Array.from({ length: 38 }, (_, i) => `Ceramic dossier line ${i + 1}: bounded saved evidence.`).join("\n") + "\nTail marker: supplier needs a confirmed appointment."
@@ -25,13 +25,13 @@ for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`dynam
       : { role: "assistant", content: "The selected references are ready to inspect." }
     return Response.json({ choices: [{ message, finish_reason: message.tool_calls ? "tool_calls" : "stop" }], usage: { total_tokens: 20 } })
   } })
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/gator-runtime"), env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
-  await mkdir(join(root, "config/gator"), { recursive: true }); await writeFile(join(root, "config/gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/hot-cross-buns-runtime"), env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" }, encoding: "utf8" })
+  await mkdir(join(root, "config/hot-cross-buns"), { recursive: true }); await writeFile(join(root, "config/hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
   memoryID = cli(["memory", "add", "--kind", "fact", "--source", "Planning call", memory]).split(/\s/)[0]!
   noteID = cli(["note", "add", "--title", "Ceramic dossier", "--source-ref", "Supplier call", "--body", note]).split(/\s/)[0]!
   const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-  let host = new Application(options), client = new GatorClient(host)
+  let host = new Application(options), client = new HotCrossBunsClient(host)
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => undefined, write: async () => {} }} />, { width, height })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -41,10 +41,10 @@ for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`dynam
   const press = async (key: string, ctrl = false) => { if (key === "escape") setup.mockInput.pressEscape(); else setup.mockInput.pressKey(key, { ctrl }); await flush() }
   try {
     await client.start(); await client.send({ type: "submit", text: "/mode inspect" }); await client.edit("Summarize."); await client.submit()
-    await until(() => !client.state?.running && !!client.state?.messages.some(message => message.run_id && message.role === "Gator"), "completed real tool run")
-    const context = client.context, run = client.state!.messages.find(message => message.role === "Gator" && message.run_id)!.run_id!
+    await until(() => !client.state?.running && !!client.state?.messages.some(message => message.run_id && message.role === "Hot Cross Buns"), "completed real tool run")
+    const context = client.context, run = client.state!.messages.find(message => message.role === "Hot Cross Buns" && message.run_id)!.run_id!
     let count = calls.length, shownRun = run
-    const history = JSON.parse(await readFile(join(root, "state/gator/work-history", run + ".json"), "utf8"))
+    const history = JSON.parse(await readFile(join(root, "state/hot-cross-buns/work-history", run + ".json"), "utf8"))
     expect(history.decision?.context_items?.some((item: { id: string }) => [memoryID, noteID].includes(item.id)) ?? false).toBe(false)
     const bundle = client.state!.messages.find(message => message.bundle?.RunID === run)!.bundle!, manifestBytes = await readFile(join(bundle.Path, "manifest.json"))
     const evidence = JSON.parse(manifestBytes.toString()).evidence.filter((entry: { locator: string }) => entry.locator.startsWith("knowledge:" + run + "/"))
@@ -56,7 +56,7 @@ for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`dynam
     cli(["memory", "correct", memoryID, current]); await client.edit("Keep my dynamic context draft"); await client.setPlanFirst(true)
     const actions = async () => {
       await client.navigate("/chat"); await flush()
-      const index = client.state!.messages.findIndex(message => message.role === "Gator" && message.run_id === shownRun)
+      const index = client.state!.messages.findIndex(message => message.role === "Hot Cross Buns" && message.run_id === shownRun)
       client.emit("reveal-message", index); await flush()
       setup.mockInput.pressKey("e", { ctrl: true }); await flush()
     }
@@ -95,8 +95,8 @@ for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`dynam
     const retained = await host.sourcePreview({ context, run, path: "evidence:" + evidence[0].id }); expect(retained.notice).toContain("Exact saved-knowledge tool response")
     expect(await readFile(join(bundle.Path, "manifest.json"))).toEqual(manifestBytes); expect(client.draft.text).toBe("Keep my dynamic context draft"); expect(client.draft.plan_first).toBe(true)
     await client.navigate("/chat"); await client.setPlanFirst(false); await client.edit("Continue from retained context."); await client.submit()
-    await until(() => !client.state?.running && !!client.state?.messages.some(message => message.role === "Gator" && message.run_id && message.run_id !== run), "follow-up with carried knowledge")
-    shownRun = client.state!.messages.findLast(message => message.role === "Gator" && message.run_id)!.run_id!
+    await until(() => !client.state?.running && !!client.state?.messages.some(message => message.role === "Hot Cross Buns" && message.run_id && message.run_id !== run), "follow-up with carried knowledge")
+    shownRun = client.state!.messages.findLast(message => message.role === "Hot Cross Buns" && message.run_id)!.run_id!
     expect(calls).toHaveLength(count + 1); count = calls.length
     const followupMessages = JSON.parse(calls.at(-1)!).messages as { role: string; content: string }[]
     const currentInput = followupMessages.filter(message => message.role === "system").map(message => message.content).join("\n")
@@ -121,7 +121,7 @@ for (const [width, height] of [[110,34], [80,24], [60,20], [42,14]]) test(`dynam
     await press("escape"); await openRefresh("Saved knowledge"); expect(block("Supplied excerpt")).toContain("No longer saved"); expect(block("Supplied excerpt")).not.toContain("Tail marker:")
     await press("escape")
     await openRead("Ceramic dossier"); expect(block("Supplied excerpt")).toBe(note); expect(block("Saved state")).toContain("no longer saved")
-    await client.navigate("/chat"); await client.close(); await setup.dispose(); host = new Application(options); client = new GatorClient(host); setup = await render(); await client.start(); await flush()
+    await client.navigate("/chat"); await client.close(); await setup.dispose(); host = new Application(options); client = new HotCrossBunsClient(host); setup = await render(); await client.start(); await flush()
     await inspect(); await openRead("Ceramic dossier"); expect(block("Supplied excerpt")).toBe(note); expect(block("Saved state")).toContain("no longer saved"); expect(calls).toHaveLength(count)
     expect(client.draft.text).toBe("Keep my dynamic context draft"); expect(client.draft.plan_first).toBe(true)
   } finally { await client.close(); if (!setup.renderer.isDestroyed) await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }

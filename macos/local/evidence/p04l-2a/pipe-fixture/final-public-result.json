@@ -64,7 +64,7 @@
         "downloaded": false,
         "loaded": false,
         "eligible": false,
-        "reason": "requires at least 35.4 GiB total RAM under Gator's guardrail; detected 16.0 GiB",
+        "reason": "requires at least 35.4 GiB total RAM under Hot Cross Buns's guardrail; detected 16.0 GiB",
         "source": "https://ollama.com/library/qwen3"
       },
       {
@@ -76,7 +76,7 @@
         "downloaded": false,
         "loaded": false,
         "eligible": false,
-        "reason": "requires at least 27.9 GiB total RAM under Gator's guardrail; detected 16.0 GiB",
+        "reason": "requires at least 27.9 GiB total RAM under Hot Cross Buns's guardrail; detected 16.0 GiB",
         "source": "https://ollama.com/library/mistral-small3.2"
       },
       {
@@ -136,7 +136,7 @@
         "downloaded": false,
         "loaded": false,
         "eligible": false,
-        "reason": "requires at least 16.8 GiB total RAM under Gator's guardrail; detected 16.0 GiB",
+        "reason": "requires at least 16.8 GiB total RAM under Hot Cross Buns's guardrail; detected 16.0 GiB",
         "source": "https://ollama.com/library/qwen2.5-coder"
       },
       {
@@ -148,7 +148,7 @@
         "downloaded": false,
         "loaded": false,
         "eligible": false,
-        "reason": "requires at least 37.3 GiB total RAM under Gator's guardrail; detected 16.0 GiB",
+        "reason": "requires at least 37.3 GiB total RAM under Hot Cross Buns's guardrail; detected 16.0 GiB",
         "source": "https://ollama.com/library/qwen2.5-coder"
       },
       {
@@ -160,7 +160,7 @@
         "downloaded": false,
         "loaded": false,
         "eligible": false,
-        "reason": "requires at least 26.1 GiB total RAM under Gator's guardrail; detected 16.0 GiB",
+        "reason": "requires at least 26.1 GiB total RAM under Hot Cross Buns's guardrail; detected 16.0 GiB",
         "source": "https://ollama.com/library/devstral"
       },
       {
@@ -172,7 +172,7 @@
         "downloaded": false,
         "loaded": false,
         "eligible": false,
-        "reason": "requires at least 35.4 GiB total RAM under Gator's guardrail; detected 16.0 GiB",
+        "reason": "requires at least 35.4 GiB total RAM under Hot Cross Buns's guardrail; detected 16.0 GiB",
         "source": "https://ollama.com/library/qwen3-coder"
       }
     ],

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 // ReviewDigest identifies the saved responsibility, not an authority grant.

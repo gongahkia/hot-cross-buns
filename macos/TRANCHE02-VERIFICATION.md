@@ -4,7 +4,7 @@ Implemented against the current local native frontend and the existing Go/JS ses
 
 ## Result and ownership
 
-Both SwiftUI scenes share one observable `ManagedSessionCoordinator`. The existing `GatorApplicationState` now represents one process owner's state. Selection never moves a running task, stream, approval or submission into another state object.
+Both SwiftUI scenes share one observable `ManagedSessionCoordinator`. The existing `HotCrossBunsApplicationState` now represents one process owner's state. Selection never moves a running task, stream, approval or submission into another state object.
 
 ```mermaid
 flowchart TD
@@ -29,20 +29,20 @@ The compatibility limits remain three working tasks and four cached process owne
 
 | File under `macos/` | Change and responsibility |
 | --- | --- |
-| `Sources/GatorCore/ManagedSessionCoordinator.swift` | New: owner map, serialized transitions/admissions, foreground focus, capacity, host projection/dispatch, unread results, independent recovery and all-owner Quit guard. |
-| `Sources/GatorCore/ManagedSessionProtocol.swift` | New: typed host-private session, dispatch, control and outbound frame contracts. |
-| `Sources/GatorCore/GatorApplicationState.swift` | Existing per-owner state retained; managed readiness, scoped persistence, authoritative navigation/result waits and turn-specific submission outcomes added. |
-| `Sources/GatorCore/GoBridgeConnection.swift` | Opt-in managed launch settings; `focus_session` awaits projected state rather than a nonexistent nonce acknowledgement. Framing and subprocess supervision retained. |
-| `Sources/GatorCore/BridgeProtocol.swift` | Typed host command adapter and retained task context suitable for native navigation. |
-| `Sources/GatorCore/NativeDraftStore.swift` | Shared actor merges owner-scoped drafts and pending admissions; reads legacy archives and writes managed archive version 2. |
-| `Sources/GatorMac/GatorApp.swift` | Both scenes receive the same coordinator. |
-| `Sources/GatorMac/AppDelegate.swift` | Quit inspects and closes every owner. |
-| `Sources/GatorMac/ConversationView.swift` | Bounded expandable chat/task list, stable ID navigation, contextual original-task/parent actions, background attention and dialogue status. |
-| `Sources/GatorMac/ComposerView.swift` | Submissions enter the shared coordinator with the intended owner captured. |
-| `Sources/GatorMac/ApprovalReviewView.swift` | Captures the exact owner for decisions and disables controls during a transition. |
-| `Tests/GatorCoreTests/ManagedSessionTests.swift` | New: twelve controlled owner/coordinator tests covering the multi-owner boundaries below. |
-| `Tests/GatorCoreTests/ManagedGoIntegrationTests.swift` | New: real Go managed dialogue, child bootstrap, exact guide/stop, independent completion and restart. |
-| `Tests/GatorCoreTests/Fixtures/managed-provider.mjs` | New: local controlled Chat Completions provider; file-gated work, deterministic Go routing decisions and no connected services. |
+| `Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift` | New: owner map, serialized transitions/admissions, foreground focus, capacity, host projection/dispatch, unread results, independent recovery and all-owner Quit guard. |
+| `Sources/HotCrossBunsCore/ManagedSessionProtocol.swift` | New: typed host-private session, dispatch, control and outbound frame contracts. |
+| `Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift` | Existing per-owner state retained; managed readiness, scoped persistence, authoritative navigation/result waits and turn-specific submission outcomes added. |
+| `Sources/HotCrossBunsCore/GoBridgeConnection.swift` | Opt-in managed launch settings; `focus_session` awaits projected state rather than a nonexistent nonce acknowledgement. Framing and subprocess supervision retained. |
+| `Sources/HotCrossBunsCore/BridgeProtocol.swift` | Typed host command adapter and retained task context suitable for native navigation. |
+| `Sources/HotCrossBunsCore/NativeDraftStore.swift` | Shared actor merges owner-scoped drafts and pending admissions; reads legacy archives and writes managed archive version 2. |
+| `Sources/HotCrossBunsMac/HotCrossBunsApp.swift` | Both scenes receive the same coordinator. |
+| `Sources/HotCrossBunsMac/AppDelegate.swift` | Quit inspects and closes every owner. |
+| `Sources/HotCrossBunsMac/ConversationView.swift` | Bounded expandable chat/task list, stable ID navigation, contextual original-task/parent actions, background attention and dialogue status. |
+| `Sources/HotCrossBunsMac/ComposerView.swift` | Submissions enter the shared coordinator with the intended owner captured. |
+| `Sources/HotCrossBunsMac/ApprovalReviewView.swift` | Captures the exact owner for decisions and disables controls during a transition. |
+| `Tests/HotCrossBunsCoreTests/ManagedSessionTests.swift` | New: twelve controlled owner/coordinator tests covering the multi-owner boundaries below. |
+| `Tests/HotCrossBunsCoreTests/ManagedGoIntegrationTests.swift` | New: real Go managed dialogue, child bootstrap, exact guide/stop, independent completion and restart. |
+| `Tests/HotCrossBunsCoreTests/Fixtures/managed-provider.mjs` | New: local controlled Chat Completions provider; file-gated work, deterministic Go routing decisions and no connected services. |
 | `TRANCHE02-VERIFICATION.md` | This implementation/evidence record. |
 
 The existing, previously untracked `VERIFICATION.md` was preserved as the Tranche 01 record. Package and packaging-script conventions remain unchanged.
@@ -51,9 +51,9 @@ The existing, previously untracked `VERIFICATION.md` was preserved as the Tranch
 
 | Contract | Native handling and evidence |
 | --- | --- |
-| `GATOR_UI_SESSION_HOST` | Enabled only by the coordinator's owner configuration. The low-level Tranche 01 single-owner configuration remains unmanaged. |
-| `GATOR_UI_BOOT_MODE`, `GATOR_UI_START_SOURCE` | New chat mode and Go-validated source used on creation. Reconnect restores the actual conversation with new-chat boot mode cleared. |
-| `GATOR_UI_VIEW_ORIGIN` | Transport supports the field, but terminal-page/view and goal navigation are explicitly unsupported in this tranche; the original chat remains selected and receives an explanation. |
+| `HOT_CROSS_BUNS_UI_SESSION_HOST` | Enabled only by the coordinator's owner configuration. The low-level Tranche 01 single-owner configuration remains unmanaged. |
+| `HOT_CROSS_BUNS_UI_BOOT_MODE`, `HOT_CROSS_BUNS_UI_START_SOURCE` | New chat mode and Go-validated source used on creation. Reconnect restores the actual conversation with new-chat boot mode cleared. |
+| `HOT_CROSS_BUNS_UI_VIEW_ORIGIN` | Transport supports the field, but terminal-page/view and goal navigation are explicitly unsupported in this tranche; the original chat remains selected and receives an explanation. |
 | `focus_session` | Waits for exact `foreground` and cleared `session_request`. Go deliberately emits no `action_applied` for focus. Failure restores the prior selection/focus without cancelling its work. |
 | `session_request` | Only the current owner's projected request is consumed; monotonic per-owner sequence deduplication and generation checks prevent stale redirection. Recent IDs still go through Go's list identity validation. |
 | `dialogue_host` | Projects task capacity, other active work and exact child peers. Go revalidates each peer against durable task origin. Preference changes refresh cached owners through the existing Go command. |
@@ -71,26 +71,26 @@ The existing, previously untracked `VERIFICATION.md` was preserved as the Tranch
 Successful commands, from the repository root unless indicated:
 
 ```sh
-go build -o /tmp/gator-native-runtime ./cmd/gator
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
 
-go test ./cmd/gator ./internal/workapp -count=1
+go test ./cmd/hot-cross-buns ./internal/workapp -count=1
 
 node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs app-host/tests/policy.test.mjs
 
-swift build --package-path macos --scratch-path /tmp/gator-native-build
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 
-swift test --package-path macos --scratch-path /tmp/gator-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Tranche02-Ready.app bash macos/scripts/build-dev-app.sh
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Tranche02-Ready.app bash macos/scripts/build-dev-app.sh
 
 # From ui/:
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload.ts tests/client.test.ts tests/approvals.test.tsx tests/recovery.test.tsx tests/conversation-during-work.test.tsx
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test --preload ./scripts/preload.ts tests/client.test.ts tests/approvals.test.tsx tests/recovery.test.tsx tests/conversation-during-work.test.tsx
 ```
 
 | Check | Result |
 | --- | --- |
 | Go build | Passed. |
-| Full `cmd/gator` and `internal/workapp` tests | Both passed (182.829 s and 53.230 s). |
+| Full `cmd/hot-cross-buns` and `internal/workapp` tests | Both passed (182.829 s and 53.230 s). |
 | Host regressions, including Sessions | 63 passed, 0 failed. |
 | Terminal regressions, including conversation during work | 17 passed, 0 failed; 255 assertions. |
 | Swift build | Passed on Swift 6.1.2 / macOS 15.5 SDK. |
@@ -98,7 +98,7 @@ GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload
 | Development package | Passed; native executable and real Go runtime bundled and executable; `plutil -lint` passed. |
 | Actual native journey | Passed on the final Ready bundle, using disposable profiles and a local controlled provider. |
 
-Logs: `/tmp/gator-native-tranche02-{build,tests,go,host,tui,package,journey}.log`. Full repository tests outside the listed suites were not run.
+Logs: `/tmp/hot-cross-buns-native-tranche02-{build,tests,go,host,tui,package,journey}.log`. Full repository tests outside the listed suites were not run.
 
 ## Required case coverage
 
@@ -121,21 +121,21 @@ Logs: `/tmp/gator-native-tranche02-{build,tests,go,host,tui,package,journey}.log
 
 Actual AppKit/SwiftUI windows were driven through Accessibility and targeted keyboard events. The provider supplied deterministic decisions to Go; Swift did not classify text. The final journey used root:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche02-verified-ui-2odr8sdx`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche02-verified-ui-2odr8sdx`
 
 Its `journey.json` records IDs, process ownership and successful checkpoints. The run opened both native surfaces, held the original venue comparison, received an ordinary conversational reply before release, started a separate brief task, opened that exact child, returned to the same parent, and exercised a stable activity-list row. Different parent/child drafts were restored, and both native surfaces showed the same selected draft. Closing both presentations left the same two Go PIDs alive.
 
-Releasing only the child produced background completion attention without changing selection. Its retained “jade heron” result and draft were inspected. Quit from this completed child warned about the original working owner; Keep Gator Open preserved both processes. Releasing the original Work retained its result in the background without stealing focus. Returning to it restored its result and original draft. Final idle Quit reaped both Go processes.
+Releasing only the child produced background completion attention without changing selection. Its retained “jade heron” result and draft were inspected. Quit from this completed child warned about the original working owner; Keep Hot Cross Buns Open preserved both processes. Releasing the original Work retained its result in the background without stealing focus. Returning to it restored its result and original draft. Final idle Quit reaped both Go processes.
 
 Screenshots `background-completion.png` and `retained-results.png` in that root were inspected. This is controlled-provider native evidence, not a real account/model-service verification. Early diagnostic journey attempts and fixture-readiness failures were corrected; only the final complete run above is the acceptance evidence.
 
 ## Launch and acceptance boundaries
 
 ```sh
-open /tmp/Gator-Native-Tranche02-Ready.app --args --open-window
+open /tmp/HotCrossBuns-Native-Tranche02-Ready.app --args --open-window
 ```
 
-Omit `--args --open-window` for menu-bar-first launch. The old `/tmp/Gator-Native-Verified.app` is preserved. Packaging refuses an existing destination; choose a fresh `GATOR_NATIVE_APP_PATH` for rebuilds.
+Omit `--args --open-window` for menu-bar-first launch. The old `/tmp/HotCrossBuns-Native-Verified.app` is preserved. Packaging refuses an existing destination; choose a fresh `HOT_CROSS_BUNS_NATIVE_APP_PATH` for rebuilds.
 
 Managed draft archives use version 2. Existing version 1 native drafts are read and preserved; terminal drafts are never opened. The older Tranche 01 bundle rejects version 2 rather than silently dropping per-conversation uncertain request IDs. Compare builds with isolated profiles. Native draft files are not synchronized between separately forced application instances; normal LaunchServices launch should use one application instance per profile.
 

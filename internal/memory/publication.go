@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 func privateDirectory(path string) error {

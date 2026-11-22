@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unix installed-artifact PTY check; never reads the user's Gator profile."""
+"""Unix installed-artifact PTY check; never reads the user's Hot Cross Buns profile."""
 import argparse
 import fcntl
 import glob
@@ -27,12 +27,12 @@ artifact = args.artifact.resolve()
 assert not (artifact / "desktop").exists()
 assert not (artifact / "ui/node_modules/electron").exists()
 assert not (artifact / "ui/node_modules/@opencode/core").exists()
-with tempfile.TemporaryDirectory(prefix="gator-installed-pty-") as temporary:
+with tempfile.TemporaryDirectory(prefix="hot-cross-buns-installed-pty-") as temporary:
     root = Path(temporary)
     (root / "path").mkdir()
     (root / "path/bun").symlink_to(shutil.which("bun"))
-    environment = dict(os.environ, PATH=str(root / "path"), GATOR_STATE_DIR=str(root / "state"), GATOR_CONFIG_DIR=str(root / "config"), GATOR_TERMINAL_USER_DATA=str(root / "app"))
-    payload = b"Visible file content\n\x1b]52;c;R0FUT1JfUFJJVkFURV9DTElQQk9BUkQ=\x07\x1b]0;GATOR_UNTRUSTED_TITLE\x07\x1b[2J\nRetained final line\n"
+    environment = dict(os.environ, PATH=str(root / "path"), HOT_CROSS_BUNS_STATE_DIR=str(root / "state"), HOT_CROSS_BUNS_CONFIG_DIR=str(root / "config"), HOT_CROSS_BUNS_TERMINAL_USER_DATA=str(root / "app"))
+    payload = b"Visible file content\n\x1b]52;c;SE9UX0NST1NTX0JVTlNfUFJJVkFURV9DTElQQk9BUkQ=\x07\x1b]0;HOT_CROSS_BUNS_UNTRUSTED_TITLE\x07\x1b[2J\nRetained final line\n"
     if args.untrusted_file:
         (root / "untrusted.txt").write_bytes(payload)
     if args.editor:
@@ -42,16 +42,16 @@ with tempfile.TemporaryDirectory(prefix="gator-installed-pty-") as temporary:
 from pathlib import Path
 path = Path(sys.argv[1])
 flags = termios.tcgetattr(sys.stdin.fileno())[3]
-print("GATOR_EDITOR_READY", flush=True)
+print("HOT_CROSS_BUNS_EDITOR_READY", flush=True)
 answer = input()
-Path(os.environ["GATOR_EDITOR_RESULT"]).write_text(json.dumps({"canonical": bool(flags & termios.ICANON), "echo": bool(flags & termios.ECHO), "answer": answer, "before": path.read_text(), "temporary": str(path)}))
+Path(os.environ["HOT_CROSS_BUNS_EDITOR_RESULT"]).write_text(json.dumps({"canonical": bool(flags & termios.ICANON), "echo": bool(flags & termios.ECHO), "answer": answer, "before": path.read_text(), "temporary": str(path)}))
 path.write_text("Editor returned draft 🐊\\nSecond retained line")
 ''')
-        environment.update(VISUAL="", EDITOR=f"{shlex.quote(shutil.which('python3'))} {shlex.quote(str(editor))}", GATOR_EDITOR_RESULT=str(root / "editor-result.json"))
+        environment.update(VISUAL="", EDITOR=f"{shlex.quote(shutil.which('python3'))} {shlex.quote(str(editor))}", HOT_CROSS_BUNS_EDITOR_RESULT=str(root / "editor-result.json"))
     master, slave = pty.openpty()
     original_modes = termios.tcgetattr(slave)
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 110, 0, 0))
-    child = subprocess.Popen([str(artifact / "bin/gator")], cwd=root, env=environment, stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
+    child = subprocess.Popen([str(artifact / "bin/hot-cross-buns")], cwd=root, env=environment, stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
     os.close(slave)
     output = bytearray()
     screen = pyte.Screen(110, 32)
@@ -93,18 +93,18 @@ path.write_text("Editor returned draft 🐊\\nSecond retained line")
         os.write(master, "\x1b[200~Installed draft 🐊\nRetain across navigation\x1b[201~".encode())
         wait_for(saved_draft, "private persisted draft")
         os.write(master, b"\x0f")  # Ctrl+O opens contextual help without a function key.
-        wait_for(lambda: visible("Gator terminal help"), "Ctrl+O terminal help")
+        wait_for(lambda: visible("Hot Cross Buns terminal help"), "Ctrl+O terminal help")
         os.write(master, b"\x1b")
-        wait_for(lambda: not visible("Gator terminal help"), "help closed with draft retained")
+        wait_for(lambda: not visible("Hot Cross Buns terminal help"), "help closed with draft retained")
         assert saved_draft(), "Opening help changed the unsent draft"
         os.write(master, b"\x10")  # Ctrl+P, independent of desktop key preferences.
-        wait_for(lambda: visible("Gator commands"), "command palette")
+        wait_for(lambda: visible("Hot Cross Buns commands"), "command palette")
         if args.editor:
             os.write(master, b"external-editor")
             wait_for(lambda: visible("external-editor"), "editor command")
             time.sleep(0.1)
             os.write(master, b"\r")
-            wait_for(lambda: visible("GATOR_EDITOR_READY"), "interactive editor stdin")
+            wait_for(lambda: visible("HOT_CROSS_BUNS_EDITOR_READY"), "interactive editor stdin")
             os.write(master, b"accept\n")
             wait_for(lambda: saved_draft("Editor returned draft"), "returned editor draft")
             result = json.loads((root / "editor-result.json").read_text())
@@ -119,7 +119,7 @@ path.write_text("Editor returned draft 🐊\\nSecond retained line")
             time.sleep(0.1)
         if args.untrusted_file:
             os.write(master, b"\x10")
-            wait_for(lambda: visible("Gator commands"), "attachment command palette")
+            wait_for(lambda: visible("Hot Cross Buns commands"), "attachment command palette")
             os.write(master, b"attach-file")
             time.sleep(0.1)
             os.write(master, b"\r")
@@ -130,23 +130,23 @@ path.write_text("Editor returned draft 🐊\\nSecond retained line")
             wait_for(lambda: visible("untrusted.txt") and not visible("relative path"), "staged untrusted file")
             time.sleep(0.2)
             os.write(master, b"\x10")
-            wait_for(lambda: visible("Gator commands"), "files command palette")
+            wait_for(lambda: visible("Hot Cross Buns commands"), "files command palette")
             os.write(master, b"files")
             time.sleep(0.1)
             os.write(master, b"\r")
-            wait_for(lambda: visible("GATOR › FILES"), "Files command section")
+            wait_for(lambda: visible("HOT CROSS BUNS › FILES"), "Files command section")
             os.write(master, b"files")
             time.sleep(0.1)
             os.write(master, b"\r")
             wait_for(lambda: visible("Files in this conversation"), "retained file list")
             os.write(master, b"\r")
             wait_for(lambda: visible("Retained final line"), "complete untrusted file view")
-            assert b"\x1b]52;c;R0FUT1JfUFJJVkFURV9DTElQQk9BUkQ=" not in output, "Untrusted OSC 52 reached terminal output"
-            assert b"\x1b]0;GATOR_UNTRUSTED_TITLE" not in output, "Untrusted title command reached terminal output"
+            assert b"\x1b]52;c;SE9UX0NST1NTX0JVTlNfUFJJVkFURV9DTElQQk9BUkQ=" not in output, "Untrusted OSC 52 reached terminal output"
+            assert b"\x1b]0;HOT_CROSS_BUNS_UNTRUSTED_TITLE" not in output, "Untrusted title command reached terminal output"
             assert (root / "untrusted.txt").read_bytes() == payload, "Viewing changed original file bytes"
             os.write(master, b"\x0f")  # The file's modal binding takes precedence over help.
             wait_for(lambda: visible("Saved file versions"), "Ctrl+O file versions")
-            assert not visible("Gator terminal help"), "File shortcut opened global help"
+            assert not visible("Hot Cross Buns terminal help"), "File shortcut opened global help"
             os.write(master, b"\x1b")
             wait_for(lambda: not visible("Saved file versions") and not visible("Retained final line"), "file controls closed before quit")
         os.write(master, b"\x11")

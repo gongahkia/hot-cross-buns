@@ -3,22 +3,22 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { memoryComparisonMessage } from "./memory-fixture"
 
 type Request = { messages: { role: string; content: string }[]; tools?: { function: { name: string } }[] }
 test("personal memory crosses chats while earlier-chat retrieval and learning remain independent through restart", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-memory-privacy-")), config = join(root, "config/gator"), quote = "I prefer concise answers with bullet points.", calls: Request[] = []
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-memory-privacy-")), config = join(root, "config/hot-cross-buns"), quote = "I prefer concise answers with bullet points.", calls: Request[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const payload = await request.json() as Request; calls.push(payload); const last = payload.messages.at(-1)
     const message = memoryComparisonMessage(payload) ?? (last?.role === "user" && last.content.includes(quote) ? { role: "assistant", tool_calls: [{ id: "remember-" + calls.length, type: "function", function: { name: "memory_remember", arguments: JSON.stringify({ subject: "preference.response_length", kind: "preference", quote, scope: "personal", explicit: true }) } }] } : { role: "assistant", content: "The supplied preference is available." })
     return Response.json({ choices: [{ message, finish_reason: "tool_calls" in message ? "tool_calls" : "stop" }], usage: { total_tokens: 20 } })
   } })
   await mkdir(config, { recursive: true }); await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 40 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -28,7 +28,7 @@ test("personal memory crosses chats while earlier-chat retrieval and learning re
   const memoryPage = async () => { await client.navigate("/memory"); await until(() => !!setting("Learn from chats") && !client.state?.pending_operation, "memory privacy page ready"); await flush() }
   try {
     await client.start(); await ask("Remember: " + quote); await until(() => !!client.state?.chat_memories?.length, "grounded memory")
-    const origin = client.context, id = client.state!.chat_memories![0].id, path = join(root, "state/gator/memory", id + ".json")
+    const origin = client.context, id = client.state!.chat_memories![0].id, path = join(root, "state/hot-cross-buns/memory", id + ".json")
     expect(JSON.parse(await readFile(path, "utf8")).origin.conversation_id).toBe(origin.slice(13))
     await client.edit("Keep original privacy draft"); await memoryPage()
     const learning = setting("Learn from chats"), beforeHistory = setting("Refer to earlier chats")
@@ -41,7 +41,7 @@ test("personal memory crosses chats while earlier-chat retrieval and learning re
     expect(request.messages.filter(message => message.role === "system").map(message => message.content).join("\n")).toContain(quote)
     expect(client.drafts.get(origin)?.text).toBe("Keep original privacy draft")
     await client.edit("Keep second privacy draft"); const current = client.context, count = calls.length
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await memoryPage()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await memoryPage()
     expect(client.context).toBe(current); expect(client.draft.text).toBe("Keep second privacy draft"); expect(calls).toHaveLength(count)
     expect(setting("Refer to earlier chats")).not.toBe(beforeHistory); expect(setting("Learn from chats")).toBe(learning)
     setup.mockInput.pressKey("h"); await until(() => setting("Refer to earlier chats") === beforeHistory && !client.state?.pending_operation, "restored earlier-chat retrieval"); await flush()

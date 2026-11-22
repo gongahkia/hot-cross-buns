@@ -3,9 +3,9 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@gator/terminal",
+      "name": "@hot-cross-buns/terminal",
       "dependencies": {
-        "@gator/application-host": "file:../app-host",
+        "@hot-cross-buns/application-host": "file:../app-host",
         "@opentui/core": "0.6.8",
         "@opentui/keymap": "0.6.8",
         "@opentui/solid": "0.6.8",
@@ -80,7 +80,7 @@
 
     "@babel/types": ["@babel/types@7.29.11", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.11", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ=="],
 
-    "@gator/application-host": ["@gator/application-host@file:../app-host", { "dependencies": { "@napi-rs/canvas": "1.0.13", "@xmldom/xmldom": "0.9.12", "classic-level": "3.0.0", "fflate": "0.8.3", "pdfjs-dist": "6.4.299" } }],
+    "@hot-cross-buns/application-host": ["@hot-cross-buns/application-host@file:../app-host", { "dependencies": { "@napi-rs/canvas": "1.0.13", "@xmldom/xmldom": "0.9.12", "classic-level": "3.0.0", "fflate": "0.8.3", "pdfjs-dist": "6.4.299" } }],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

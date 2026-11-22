@@ -5,10 +5,10 @@
     "--package-path",
     "macos",
     "--scratch-path",
-    "/tmp/gator-native-build",
+    "/tmp/hot-cross-buns-native-build",
     "--no-parallel"
   ],
-  "GATOR_TEST_BINARY": "/tmp/Gator-Native-P04E-Emoji.app/Contents/Resources/gator-runtime",
+  "HOT_CROSS_BUNS_TEST_BINARY": "/tmp/HotCrossBuns-Native-P04E-Emoji.app/Contents/Resources/hot-cross-buns-runtime",
   "exit": 0,
   "seconds": 150.58232241598307
 }

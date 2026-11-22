@@ -1,8 +1,8 @@
 # Project follow-up pilot
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
-Gator's first guided workflow is: **watch selected project changes, identify the
+Hot Cross Buns's first guided workflow is: **watch selected project changes, identify the
 next useful step, and prepare a response for review**. The target participant
 uses a terminal and manages a project across local notes and, optionally,
 selected planning mail and calendar events.
@@ -18,7 +18,7 @@ pseudonyms. Let each participant choose a real, bounded project; do not connect
 their entire mailbox by default. Observe the first route chosen, setup time,
 wrong turns, requests for help, and the wording they expected.
 
-1. Open Gator and choose a Work model. Model setup explains storage, retrieval,
+1. Open Hot Cross Buns and choose a Work model. Model setup explains storage, retrieval,
    and chat processing separately. `/memory` shows the selected data destinations
    and whether basic or enhanced recall is available.
 2. Open `/followup new`. The starter outcome is project follow-up. Edit the title,
@@ -57,7 +57,7 @@ The fixture has a fixed scenario date; it is not a current real deadline.
 | Correction | Correct a saved preference through `/context` | Subsequent recall uses the correction. The earlier run's retained excerpt still describes its earlier input. |
 | Omission | Select an item in `/context`, press `O`, then run again | Automatic recall and knowledge tools omit it for that run; existing conversation text is not erased. |
 | Failure/recovery | Stop the supervisor or revoke selected test access | Show offline or couldn't-check state, preserve the last successful check, and provide the appropriate recovery. Never present failure as no change. |
-| Restart | Restart Gator and resume the goal | Retain the reviewed scope, last checks, drafts, and pending decisions. |
+| Restart | Restart Hot Cross Buns and resume the goal | Retain the reviewed scope, last checks, drafts, and pending decisions. |
 
 For a controlled model comparison, reuse the same provider/model and source
 versions in a fresh direct-chat baseline. Blind reviewers to which arm produced
@@ -69,9 +69,9 @@ leave quality comparisons unscored when an arm never received a model response.
 For each retained Work run, review content against the actual source truth:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator pilot record --work WORK_ID --reviewer participant-1 --draft light-edits --corrections 2 --followup useful --recovery succeeded --setup-seconds 90 --resume-seconds 15 --repair-seconds 30 --unassisted true --note 'Corrected the owner and shortened the reply.'
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator pilot report --goal GOAL_ID
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator pilot report --goal GOAL_ID --json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns pilot record --work WORK_ID --reviewer participant-1 --draft light-edits --corrections 2 --followup useful --recovery succeeded --setup-seconds 90 --resume-seconds 15 --repair-seconds 30 --unassisted true --note 'Corrected the owner and shortened the reply.'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns pilot report --goal GOAL_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns pilot report --goal GOAL_ID --json
 ```
 
 The correction count is required, including an explicit zero. Draft judgment is
@@ -84,8 +84,8 @@ Setup, resume, and repair times are optional observed seconds. Omitted values
 remain unmeasured. `--unassisted true|false` records whether help was needed;
 omitting it leaves that outcome unreviewed.
 
-Rate shown alerts through `gator job inbox rate ENTRY_ID useful|noise|wrong`.
-Inspect quiet decisions with `gator job quiet-audit JOB_ID`, then label reviewed
+Rate shown alerts through `hot-cross-buns job inbox rate ENTRY_ID useful|noise|wrong`.
+Inspect quiet decisions with `hot-cross-buns job quiet-audit JOB_ID`, then label reviewed
 attempts as `missed` or `correct`; a missed judgment requires a source-supported
 note. Unchanged-input skips are excluded from this model-judgment sample.
 The pilot report joins these ratings for reviewed goals. Unreviewed quiet

@@ -7,7 +7,7 @@ if args.count == 2 && args[1] == "permissions" {
     print("AXTrusted=\(AXIsProcessTrusted()) screenCapture=\(CGPreflightScreenCaptureAccess()) postEvents=\(CGPreflightPostEventAccess())"); exit(0)
 }
 let pid = Int32(args[1])!, action = args[2]
-guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.gator.native.p03.acceptance", "dev.gator.native.p03.acceptance.fixed"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
+guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.hot-cross-buns.native.p03.acceptance", "dev.hot-cross-buns.native.p03.acceptance.fixed"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
 let app = AXUIElementCreateApplication(pid)
 func attr(_ e: AXUIElement, _ key: String) -> CFTypeRef? { var v: CFTypeRef?; AXUIElementCopyAttributeValue(e,key as CFString,&v); return v }
 func str(_ e: AXUIElement, _ key: String) -> String { attr(e,key) as? String ?? "" }

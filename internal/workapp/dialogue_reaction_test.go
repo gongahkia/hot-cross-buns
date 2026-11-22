@@ -10,8 +10,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func reactionConfig(t *testing.T) (Config, worksession.Store) {
@@ -209,7 +209,7 @@ func TestDialogueReactionStorageFailureNeverProjectsSuccess(t *testing.T) {
 	m := New(config).ConfigureDialogueHost(DialogueHost{CanStart: true})
 	m, cmd := dialogueSubmit(t, m, "failed-save-0001", "Thanks")
 	event := cmd()
-	path := filepath.Join(dir, "gator", "conversations", chat.ID, "dialogue")
+	path := filepath.Join(dir, "hot-cross-buns", "conversations", chat.ID, "dialogue")
 	if err = os.Chmod(path, 0500); err != nil {
 		t.Fatal(err)
 	}

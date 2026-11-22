@@ -5,12 +5,12 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("commitment cards inspect, pause, resume and edit the real saved agreement without replaying work", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-following-integration-")), config = join(root, "config/gator")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-following-integration-")), config = join(root, "config/hot-cross-buns")
   let release = () => {}, arrived = 0
   const gate = new Promise<void>(resolve => { release = resolve })
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
@@ -18,14 +18,14 @@ test("commitment cards inspect, pause, resume and edit the real saved agreement 
     return Response.json({ choices: [{ message: { role: "assistant", content: "Task completed after the explicit gate." }, finish_reason: "stop" }], usage: { prompt_tokens: 20, completion_tokens: 10 } })
   } })
   await mkdir(config, { recursive: true }); await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
   const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-  let client = new GatorClient(new Application(options))
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   const until = async (predicate: () => boolean | Promise<boolean>, label: string) => { const deadline = Date.now() + 12000; while (!await predicate()) { if (Date.now() > deadline) throw new Error(label + ": " + client.issue + "\n" + setup.captureCharFrame()); await flush() } }
-  const definitions = async () => Promise.all((await readdir(join(env.GATOR_STATE_DIR, "gator/jobs/definitions")).catch(() => [])).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(join(env.GATOR_STATE_DIR, "gator/jobs/definitions", name), "utf8"))))
+  const definitions = async () => Promise.all((await readdir(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs/definitions")).catch(() => [])).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs/definitions", name), "utf8"))))
   const choose = async (label: string) => { await setup.mockInput.typeText(label); await flush(); setup.mockInput.pressEnter(); await flush() }
   const cardMenu = async () => { await client.navigate("/following"); await flush(); setup.mockInput.pressEnter(); await flush() }
   try {
@@ -43,7 +43,7 @@ test("commitment cards inspect, pause, resume and edit the real saved agreement 
     await cardMenu(); await choose("Pause this check"); expect((await definitions())[0].enabled).toBe(true); setup.mockInput.pressEnter(); await until(async () => (await definitions())[0].enabled === false, "persisted pause"); await flush(); expect(setup.captureCharFrame()).toContain("Check paused"); setup.mockInput.pressEscape(); await flush()
     await cardMenu(); await choose("Resume this check"); setup.mockInput.pressEnter(); await until(async () => (await definitions())[0].enabled === true, "persisted resume"); await flush(); expect(setup.captureCharFrame()).toContain("service is offline"); setup.mockInput.pressEscape(); await flush()
     const stale = client.state!.checks!.find(check => check.id === id)!
-    execFileSync(binary, ["job", "edit", id, "--task", "Changed from another terminal"], { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+    execFileSync(binary, ["job", "edit", id, "--task", "Changed from another terminal"], { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
     const request_id = randomUUID()
     await expect(client.result({ type: "check", check: { action: "pause", id, digest: stale.digest, request_id } }, request_id, state => state.check_result)).rejects.toThrow("changed")
     expect((await definitions())[0].enabled).toBe(true); expect((await definitions())[0].objective).toBe("Changed from another terminal")
@@ -63,7 +63,7 @@ test("commitment cards inspect, pause, resume and edit the real saved agreement 
     expect(client.snapshot.chatActivity.some(task => task.id === origin && task.running)).toBe(true); expect(client.drafts.get(originalContext)?.text).toBe("Keep draft while task runs"); expect(arrived).toBe(1)
     release(); await until(() => !client.snapshot.chatActivity.some(task => task.id === origin && task.running), "original task completion")
     await client.host.sessions.open({ conversation_id: origin }); await client.loadDraft(); expect(client.draft.text).toBe("Keep draft while task runs")
-    const calls = arrived; await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await client.navigate("/following"); await flush()
+    const calls = arrived; await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await client.navigate("/following"); await flush()
     expect(client.state?.checks?.find(check => check.id === id)?.outcome).toBe("Track accessibility and useful venue changes"); expect(client.draft.text).toBe("Keep draft while task runs"); expect(arrived).toBe(calls)
   } finally { release(); await client.close(); if (!setup.renderer.isDestroyed) await setup.dispose(); server.stop(true); await rm(root, { recursive: true, force: true }) }
 }, 60000)

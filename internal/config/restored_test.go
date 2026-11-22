@@ -8,10 +8,10 @@ import (
 
 func TestRestoredProfileUsesFreshConfigUnlessExplicitlyOverridden(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("GATOR_STATE_DIR", root)
-	t.Setenv("GATOR_CONFIG_DIR", "")
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", root)
+	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	marker := filepath.Join(root, "gator", "data-control")
+	marker := filepath.Join(root, "hot-cross-buns", "data-control")
 	if err := os.MkdirAll(marker, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestRestoredProfileUsesFreshConfigUnlessExplicitlyOverridden(t *testing.T) 
 		t.Fatal("restored profile inherited global configuration", dir, err)
 	}
 	override := t.TempDir()
-	t.Setenv("GATOR_CONFIG_DIR", override)
+	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", override)
 	dir, err = ResolveDir("")
 	if err != nil || dir != override {
 		t.Fatal("explicit configuration override was lost")

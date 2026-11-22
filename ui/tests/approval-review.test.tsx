@@ -4,12 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 test("approval reviews show exact content, scroll at all sizes and refuse changed or missing previews", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-exact-review-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-exact-review-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   const flush = async () => { await setup.flush(); await Bun.sleep(20); await setup.flush() }
   const pending = { id: 7, token: "current-token", message_index: 0 }

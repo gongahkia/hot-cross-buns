@@ -31,7 +31,7 @@ func TestCreateIsolatedWorktree(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(worktree.Path, "README.md")); err != nil {
 		t.Fatalf("created worktree did not contain committed file: %v", err)
 	}
-	if !strings.Contains(worktree.Path, "repository-gator-runs") {
+	if !strings.Contains(worktree.Path, "repository-hot-cross-buns-runs") {
 		t.Fatalf("worktree path = %q", worktree.Path)
 	}
 }
@@ -53,7 +53,7 @@ func TestCreateWithOptionsUsesResolvedBaseReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	runGit(t, repository, "add", "README.md")
-	runGit(t, repository, "-c", "user.name=Gator Test", "-c", "user.email=gator@example.invalid", "commit", "--quiet", "-m", "second")
+	runGit(t, repository, "-c", "user.name=Hot Cross Buns Test", "-c", "user.email=hot-cross-buns@example.invalid", "commit", "--quiet", "-m", "second")
 
 	created, err := CreateWithOptions(context.Background(), repository, "run-base-001", Options{BaseRef: first})
 	if err != nil {
@@ -76,14 +76,14 @@ func TestCreateWithOptionsCopiesExplicitIgnoredFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repository, ".gitignore"), []byte(".env\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(repository, ".gator"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repository, ".hot-cross-buns"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "worktreeinclude"), []byte("# explicit setup\n.env\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "worktreeinclude"), []byte("# explicit setup\n.env\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runGit(t, repository, "add", ".gitignore", ".gator/worktreeinclude")
-	runGit(t, repository, "-c", "user.name=Gator Test", "-c", "user.email=gator@example.invalid", "commit", "--quiet", "-m", "setup")
+	runGit(t, repository, "add", ".gitignore", ".hot-cross-buns/worktreeinclude")
+	runGit(t, repository, "-c", "user.name=Hot Cross Buns Test", "-c", "user.email=hot-cross-buns@example.invalid", "commit", "--quiet", "-m", "setup")
 	if err := os.WriteFile(filepath.Join(repository, ".env"), []byte("SECRET=value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -103,14 +103,14 @@ func TestCreateWithOptionsCopiesExplicitIgnoredFiles(t *testing.T) {
 
 func TestCreateWithOptionsRejectsTrackedOrUnignoredSetup(t *testing.T) {
 	repository := initializedRepository(t)
-	if err := os.MkdirAll(filepath.Join(repository, ".gator"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repository, ".hot-cross-buns"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "worktreeinclude"), []byte("README.md\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "worktreeinclude"), []byte("README.md\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runGit(t, repository, "add", ".gator/worktreeinclude")
-	runGit(t, repository, "-c", "user.name=Gator Test", "-c", "user.email=gator@example.invalid", "commit", "--quiet", "-m", "setup")
+	runGit(t, repository, "add", ".hot-cross-buns/worktreeinclude")
+	runGit(t, repository, "-c", "user.name=Hot Cross Buns Test", "-c", "user.email=hot-cross-buns@example.invalid", "commit", "--quiet", "-m", "setup")
 
 	if _, err := CreateWithOptions(context.Background(), repository, "run-setup-reject-001", Options{CopyIgnoredFiles: true}); err == nil || !strings.Contains(err.Error(), "not ignored") {
 		t.Fatalf("create error = %v, want unignored setup error", err)
@@ -143,7 +143,7 @@ func initializedRepository(t *testing.T) string {
 		t.Fatal(err)
 	}
 	runGit(t, repository, "add", "README.md")
-	runGit(t, repository, "-c", "user.name=Gator Test", "-c", "user.email=gator@example.invalid", "commit", "--quiet", "-m", "fixture")
+	runGit(t, repository, "-c", "user.name=Hot Cross Buns Test", "-c", "user.email=hot-cross-buns@example.invalid", "commit", "--quiet", "-m", "fixture")
 	return repository
 }
 

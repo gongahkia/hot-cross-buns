@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 func TestStoreListsRecordsDeterministically(t *testing.T) {

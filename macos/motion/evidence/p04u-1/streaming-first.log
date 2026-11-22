@@ -2,13 +2,13 @@
 Building for debugging...
 [0/6] Write sources
 [1/6] Write swift-version--58304C5D6DBC2206.txt
-[3/46] Compiling GatorMacTests NativeWorkspacePickerTests.swift
-[4/47] Compiling GatorMacTests NotchGeometryTests.swift
-[5/47] Compiling GatorMacTests NativeUIUXRemediationTests.swift
-[6/47] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[7/47] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[8/47] Compiling GatorMacTests NativeStreamingTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:147:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+[3/46] Compiling HotCrossBunsMacTests NativeWorkspacePickerTests.swift
+[4/47] Compiling HotCrossBunsMacTests NotchGeometryTests.swift
+[5/47] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
+[6/47] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[7/47] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[8/47] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:147:87: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 145 | @Test @MainActor func streamingCadenceDoesNotRetainReleasedViewModelOrReadingAnchors() async {
 146 |     let positions = NativeReadingPositions(); positions.remember("A", anchor: "row-9", following: false)
 147 |     var model: NativeStreamingPresentation? = NativeStreamingPresentation(); weak var probe = model
@@ -16,7 +16,7 @@ Building for debugging...
 148 |     model?.receive(motionEntry("One"), policy: .init(), now: 1)
 149 |     model?.receive(motionEntry("One two three four five"), policy: .init(), now: 2)
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeStreamingTests.swift:190:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeStreamingTests.swift:190:14: warning: weak variable 'weakProbe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 188 | @Test @MainActor func streamingVisibilityProbeHasNoFocusAndReleasesObservers() {
 189 |     var probe: NativeMotionVisibility.Probe? = .init(update: { _ in })
 190 |     weak var weakProbe = probe
@@ -25,53 +25,53 @@ Building for debugging...
 192 |     probe?.detach(); probe = nil; #expect(weakProbe == nil)
 
 [#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
-[9/47] Emitting module GatorMacTests
-[10/47] Compiling GatorMacTests NativeMascotTests.swift
-[11/47] Compiling GatorCoreTests ApplicationStateTests.swift
-[12/47] Compiling GatorCoreTests BridgeProtocolTests.swift
-[15/47] Compiling GatorCoreTests BridgeShutdownSafetyTests.swift
-[16/47] Compiling GatorCoreTests GoIntegrationTests.swift
-[17/47] Compiling GatorCoreTests ManagedGoIntegrationTests.swift
-[18/51] Compiling GatorCoreTests NativeCatalogIntegrationTests.swift
-[19/51] Compiling GatorCoreTests NativeCatalogOwnerTests.swift
-[20/51] Compiling GatorCoreTests NativeCatalogTests.swift
-[21/51] Compiling GatorCoreTests NativeClosingSafetyTests.swift
-[22/51] Compiling GatorCoreTests NativeClosureAcceptanceTests.swift
-[23/51] Compiling GatorCoreTests NativePlanIntegrationTests.swift
-[24/51] Compiling GatorCoreTests NativeProviderIntegrationTests.swift
-[25/51] Compiling GatorCoreTests NativeProviderTests.swift
-[26/51] Compiling GatorCoreTests NativeRecoveryIntegrationTests.swift
-[27/51] Compiling GatorCoreTests NativeTranscriptSearchTests.swift
-[28/51] Compiling GatorCoreTests NativeUploadStoreTests.swift
-[29/51] Compiling GatorCoreTests NativeWorkspaceIntegrationTests.swift
-[30/51] Compiling GatorCoreTests NativeWorkspaceTests.swift
-[31/51] Compiling GatorCoreTests NativeDraftStoreTests.swift
-[32/51] Compiling GatorCoreTests NativeInertApprovalIntegrationTests.swift
-[33/51] Compiling GatorCoreTests NativeMessageContentTests.swift
-[34/51] Compiling GatorCoreTests NativePerformanceTests.swift
-[35/51] Compiling GatorCoreTests NativePlanAuthorizationTests.swift
-[36/51] Emitting module GatorCoreTests
-[37/51] Compiling GatorCoreTests NativeRecoveryTests.swift
-[38/51] Compiling GatorCoreTests NativeReviewIntegrationTests.swift
-[39/51] Compiling GatorCoreTests NativeSnapshotPublicationTests.swift
-[40/51] Compiling GatorCoreTests NativeTaskReviewTests.swift
-[41/51] Compiling GatorCoreTests ManagedSessionTests.swift
-[42/51] Compiling GatorCoreTests NativeArchiveSafetyTests.swift
-[43/51] Compiling GatorCoreTests NativeAttachmentDisconnectTests.swift
-[44/51] Compiling GatorCoreTests NativeAttachmentDraftTests.swift
-[45/51] Compiling GatorCoreTests NativeAttachmentIntegrationTests.swift
-[46/51] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
-[47/51] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
-[48/51] Compiling GatorCoreTests RecoveryPreparationTests.swift
-[49/51] Compiling GatorCoreTests resource_bundle_accessor.swift
-[50/53] Compiling GatorNativePackageTests runner.swift
-[51/53] Emitting module GatorNativePackageTests
+[9/47] Emitting module HotCrossBunsMacTests
+[10/47] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[11/47] Compiling HotCrossBunsCoreTests ApplicationStateTests.swift
+[12/47] Compiling HotCrossBunsCoreTests BridgeProtocolTests.swift
+[15/47] Compiling HotCrossBunsCoreTests BridgeShutdownSafetyTests.swift
+[16/47] Compiling HotCrossBunsCoreTests GoIntegrationTests.swift
+[17/47] Compiling HotCrossBunsCoreTests ManagedGoIntegrationTests.swift
+[18/51] Compiling HotCrossBunsCoreTests NativeCatalogIntegrationTests.swift
+[19/51] Compiling HotCrossBunsCoreTests NativeCatalogOwnerTests.swift
+[20/51] Compiling HotCrossBunsCoreTests NativeCatalogTests.swift
+[21/51] Compiling HotCrossBunsCoreTests NativeClosingSafetyTests.swift
+[22/51] Compiling HotCrossBunsCoreTests NativeClosureAcceptanceTests.swift
+[23/51] Compiling HotCrossBunsCoreTests NativePlanIntegrationTests.swift
+[24/51] Compiling HotCrossBunsCoreTests NativeProviderIntegrationTests.swift
+[25/51] Compiling HotCrossBunsCoreTests NativeProviderTests.swift
+[26/51] Compiling HotCrossBunsCoreTests NativeRecoveryIntegrationTests.swift
+[27/51] Compiling HotCrossBunsCoreTests NativeTranscriptSearchTests.swift
+[28/51] Compiling HotCrossBunsCoreTests NativeUploadStoreTests.swift
+[29/51] Compiling HotCrossBunsCoreTests NativeWorkspaceIntegrationTests.swift
+[30/51] Compiling HotCrossBunsCoreTests NativeWorkspaceTests.swift
+[31/51] Compiling HotCrossBunsCoreTests NativeDraftStoreTests.swift
+[32/51] Compiling HotCrossBunsCoreTests NativeInertApprovalIntegrationTests.swift
+[33/51] Compiling HotCrossBunsCoreTests NativeMessageContentTests.swift
+[34/51] Compiling HotCrossBunsCoreTests NativePerformanceTests.swift
+[35/51] Compiling HotCrossBunsCoreTests NativePlanAuthorizationTests.swift
+[36/51] Emitting module HotCrossBunsCoreTests
+[37/51] Compiling HotCrossBunsCoreTests NativeRecoveryTests.swift
+[38/51] Compiling HotCrossBunsCoreTests NativeReviewIntegrationTests.swift
+[39/51] Compiling HotCrossBunsCoreTests NativeSnapshotPublicationTests.swift
+[40/51] Compiling HotCrossBunsCoreTests NativeTaskReviewTests.swift
+[41/51] Compiling HotCrossBunsCoreTests ManagedSessionTests.swift
+[42/51] Compiling HotCrossBunsCoreTests NativeArchiveSafetyTests.swift
+[43/51] Compiling HotCrossBunsCoreTests NativeAttachmentDisconnectTests.swift
+[44/51] Compiling HotCrossBunsCoreTests NativeAttachmentDraftTests.swift
+[45/51] Compiling HotCrossBunsCoreTests NativeAttachmentIntegrationTests.swift
+[46/51] Compiling HotCrossBunsCoreTests PresenceApprovalClosureTests.swift
+[47/51] Compiling HotCrossBunsCoreTests RecoveryPreparationIntegrationTests.swift
+[48/51] Compiling HotCrossBunsCoreTests RecoveryPreparationTests.swift
+[49/51] Compiling HotCrossBunsCoreTests resource_bundle_accessor.swift
+[50/53] Compiling HotCrossBunsNativePackageTests runner.swift
+[51/53] Emitting module HotCrossBunsNativePackageTests
 [51/53] Write Objects.LinkFileList
-[52/53] Linking GatorNativePackageTests
+[52/53] Linking HotCrossBunsNativePackageTests
 Build complete! (7.51s)
 Test Suite 'Selected tests' started at 2026-11-20 16:00:20.932.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 16:00:20.933.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 16:00:20.933.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 16:00:20.933.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 16:00:20.933.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 16:00:20.933.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds

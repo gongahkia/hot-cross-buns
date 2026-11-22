@@ -1,9 +1,9 @@
 {
   "number": 4,
-  "candidate": "/tmp/Gator-Native-P04E1R-Verified.app",
-  "root": "/tmp/gator-native-test-presence-r1-e9fslnpp",
-  "app": "/tmp/gator-native-test-presence-r1-e9fslnpp/PresenceClosure.app",
-  "bundle": "dev.gator.presence.r1",
+  "candidate": "/tmp/HotCrossBuns-Native-P04E1R-Verified.app",
+  "root": "/tmp/hot-cross-buns-native-test-presence-r1-e9fslnpp",
+  "app": "/tmp/hot-cross-buns-native-test-presence-r1-e9fslnpp/PresenceClosure.app",
+  "bundle": "dev.hot-cross-buns.presence.r1",
   "pid": 24456,
   "providerPID": 24448,
   "ids": [

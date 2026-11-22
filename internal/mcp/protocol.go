@@ -76,7 +76,7 @@ func initialize(ctx context.Context, c client) error {
 		}
 	}
 	pc.setProtocol(protocolVersion)
-	raw, err = c.Call(ctx, "initialize", map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "gator", "version": "dev"}})
+	raw, err = c.Call(ctx, "initialize", map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "hot-cross-buns", "version": "dev"}})
 	if err != nil {
 		return err
 	}

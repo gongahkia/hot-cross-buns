@@ -1,4 +1,4 @@
-// Package workbook owns Gator's semantic spreadsheet format and XLSX renderer.
+// Package workbook owns Hot Cross Buns's semantic spreadsheet format and XLSX renderer.
 package workbook
 
 import (
@@ -168,7 +168,7 @@ func RenderXLSX(spec Spec, template io.Reader) ([]byte, Preview, error) {
 	}
 	// A derived workbook may inherit manual calculation and stale cached values.
 	// Ask the spreadsheet application to recalculate; these flags are not evidence
-	// that Gator or a native Office application has evaluated the formulas.
+	// that Hot Cross Buns or a native Office application has evaluated the formulas.
 	automatic, recalculate := "auto", true
 	if err := file.SetCalcProps(&excelize.CalcPropsOptions{CalcMode: &automatic, FullCalcOnLoad: &recalculate, ForceFullCalc: &recalculate}); err != nil {
 		return nil, Preview{}, err
@@ -355,7 +355,7 @@ func chartType(value string) *excelize.ChartType {
 
 func safeTableName(value string) string {
 	var result strings.Builder
-	result.WriteString("Gator_")
+	result.WriteString("HotCrossBuns_")
 	for _, character := range value {
 		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || character == '_' {
 			result.WriteRune(character)

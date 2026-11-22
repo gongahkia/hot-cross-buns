@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 func TestControlEditsRequireReviewAndSecretsStayOutOfBridge(t *testing.T) {
@@ -50,7 +50,7 @@ func TestRemovedDataClearsVisibleHistoryAndGoalOnlyWhenDeleted(t *testing.T) {
 	m := New(Config{ClearGoal: func() { cleared++ }, ResetPrivateState: func() (GoalState, error) { return GoalState{SourcePath: "/project", Title: "Work in project"}, nil }})
 	m.goalID = "goal-current"
 	m.conversation = "conv-old"
-	m.messages = []message{{role: "Gator", text: "private excerpt"}}
+	m.messages = []message{{role: "Hot Cross Buns", text: "private excerpt"}}
 	m.contextState.Items = []KnowledgeItem{{Text: "retained preference"}}
 	m.clearRemovedData(ControlScreen{ResetConversation: true})
 	if len(m.messages) != 0 || len(m.contextState.Items) != 0 || m.conversation != "" || m.goalID != "goal-current" || cleared != 0 {

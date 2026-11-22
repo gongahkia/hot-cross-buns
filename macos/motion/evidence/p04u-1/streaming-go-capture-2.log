@@ -2,20 +2,20 @@
 Building for debugging...
 [0/7] Write sources
 [2/7] Write swift-version--58304C5D6DBC2206.txt
-[4/10] Compiling GatorMac NativeMessageBody.swift
-[5/10] Compiling GatorMac ConversationView.swift
-[6/10] Emitting module GatorMac
+[4/10] Compiling HotCrossBunsMac NativeMessageBody.swift
+[5/10] Compiling HotCrossBunsMac ConversationView.swift
+[6/10] Emitting module HotCrossBunsMac
 [6/11] Write Objects.LinkFileList
-[7/11] Linking GatorMac
-[8/11] Applying GatorMac
-[10/13] Compiling GatorMacTests NativeMotionGoTests.swift
-[11/13] Emitting module GatorMacTests
+[7/11] Linking HotCrossBunsMac
+[8/11] Applying HotCrossBunsMac
+[10/13] Compiling HotCrossBunsMacTests NativeMotionGoTests.swift
+[11/13] Emitting module HotCrossBunsMacTests
 [11/13] Write Objects.LinkFileList
-[12/13] Linking GatorNativePackageTests
+[12/13] Linking HotCrossBunsNativePackageTests
 Build complete! (9.73s)
 Test Suite 'Selected tests' started at 2026-11-20 16:03:10.084.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 16:03:10.085.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 16:03:10.085.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 16:03:10.085.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 16:03:10.085.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 16:03:10.085.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

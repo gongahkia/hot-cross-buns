@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 )
 
 type publicResolver struct{}

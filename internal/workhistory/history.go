@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,7 +19,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 const Version = 1
@@ -160,7 +160,7 @@ type Finish struct {
 
 type Store struct{ root string }
 
-// Open returns the private Work history store in Gator's existing state root.
+// Open returns the private Work history store in Hot Cross Buns's existing state root.
 func Open(stateDir string) (Store, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("work history state directory is required")
@@ -169,7 +169,7 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(absolute, "gator", "work-history")
+	root := filepath.Join(absolute, "hot-cross-buns", "work-history")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return Store{}, fmt.Errorf("create Work history store: %w", err)
 	}

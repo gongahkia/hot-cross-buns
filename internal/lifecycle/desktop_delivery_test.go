@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
 )
 
 func TestDesktopDeliveryBackupRetainsOutcomeWithoutProcessLocks(t *testing.T) {
@@ -28,11 +28,11 @@ func TestDesktopDeliveryBackupRetainsOutcomeWithoutProcessLocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := report.Files["gator/inbox/"+e.ID+".json"]; !ok {
+	if _, ok := report.Files["hot-cross-buns/inbox/"+e.ID+".json"]; !ok {
 		t.Fatal("delivery outcome absent from backup")
 	}
 	for path := range report.Files {
-		if strings.HasPrefix(path, "gator/inbox/") && strings.HasSuffix(path, ".lock") {
+		if strings.HasPrefix(path, "hot-cross-buns/inbox/") && strings.HasSuffix(path, ".lock") {
 			t.Fatal("process lease exported", path)
 		}
 	}

@@ -7,7 +7,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "--filter",
       "mascot|presence|desktopPet|desktopPresence"
@@ -23,7 +23,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel"
     ],
     "exit": 0,
@@ -37,7 +37,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",

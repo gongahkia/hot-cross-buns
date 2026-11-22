@@ -1,8 +1,8 @@
 # Personal agent continuity benchmark
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
-This corpus tests whether Gator can resume an ongoing goal after facts or user
+This corpus tests whether Hot Cross Buns can resume an ongoing goal after facts or user
 direction change. It is separate from the deliverable-focused Work corpus.
 There are 25 two-turn cases: 20 replace a local source document between turns;
 five correct saved goal context, including one plan outcome. Cases cover briefs,
@@ -19,17 +19,17 @@ human review is still needed for usefulness, nuance, and safety.
 ## Run it
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval validate internal/eval/testdata/personal-continuity-v1/dataset.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/personal-continuity-v1/dataset.json \
-  --report-dir /tmp/gator-continuity-agent --id continuity-agent \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval validate internal/eval/testdata/personal-continuity-v1/dataset.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/personal-continuity-v1/dataset.json \
+  --report-dir /tmp/hot-cross-buns-continuity-agent --id continuity-agent \
   --split development --live --provider gemini --model gemini-3.5-flash \
   --max-model-requests 500 --timeout-seconds 7200
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/personal-continuity-v1/dataset.json \
-  --report-dir /tmp/gator-continuity-baseline --id continuity-baseline \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/personal-continuity-v1/dataset.json \
+  --report-dir /tmp/hot-cross-buns-continuity-baseline --id continuity-baseline \
   --split development --live --provider gemini --model gemini-3.5-flash \
   --baseline-no-goal --max-model-requests 500 --timeout-seconds 7200
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval compare /tmp/gator-continuity-baseline/experiment.json \
-  /tmp/gator-continuity-agent/experiment.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval compare /tmp/hot-cross-buns-continuity-baseline/experiment.json \
+  /tmp/hot-cross-buns-continuity-agent/experiment.json
 ```
 
 Use the same provider, model, case split, attempts, and request budget for both
@@ -62,7 +62,7 @@ preference, and a changed goal priority. The agent arm requested Gemini
 `gemini-3.5-flash` with an 80-request and 20-minute cap. It passed the venue
 case. The other two cases failed on HTTP 429; the provider error named
 `gemini-3.6-flash` and reported free-tier request limits. The local raw report
-is at `/tmp/gator-continuity-smoke-agent-20261017/experiment.json`. No baseline
+is at `/tmp/hot-cross-buns-continuity-smoke-agent-20261017/experiment.json`. No baseline
 arm ran, so this result does not show an advantage over the same model without
 goal state, nor does it grade the two interrupted cases as agent failures.
 
@@ -74,36 +74,36 @@ test, but no live relevance result yet.
 ## 2026-10-18 matched smoke attempt
 
 The three-case smoke dataset was rerun with `gemini-3.5-flash` in both arms,
-one attempt per case and an 80-request cap per arm. Gator's goal-context arm
+one attempt per case and an 80-request cap per arm. Hot Cross Buns's goal-context arm
 passed the brief-preference and goal-priority cases; venue-change failed on
 Gemini HTTP 503. The no-goal baseline received Gemini HTTP 429 on all three
 cases. The provider reported a 20-request daily free-tier limit for its
 underlying `gemini-3.6-flash` model and a roughly 23-hour reset. This is **not
 a valid outcome comparison**: zero cases completed without provider failure
-in both arms. `gator work eval compare` now reports that coverage explicitly
+in both arms. `hot-cross-buns work eval compare` now reports that coverage explicitly
 and excludes provider-failed cases from success deltas. Raw local reports and
-traces are in `/tmp/gator-continuity-smoke-agent-20261018` and
-`/tmp/gator-continuity-smoke-baseline-20261018`; those temporary paths are not
+traces are in `/tmp/hot-cross-buns-continuity-smoke-agent-20261018` and
+`/tmp/hot-cross-buns-continuity-smoke-baseline-20261018`; those temporary paths are not
 portable benchmark artifacts.
 
 ## Local-model comparison
 
-Gator's `/model` → **Local model** screen can install and select a reviewed
+Hot Cross Buns's `/model` → **Local model** screen can install and select a reviewed
 Ollama model. After Ollama and that model are available, the same continuity
 evaluation can run without a cloud API quota. For a small smoke run, replace
 `qwen3:4b` below with the exact installed model tag if needed:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/personal-continuity-v1/smoke-dataset.json \
-  --report-dir /tmp/gator-continuity-local-agent --id continuity-local-agent \
-  --split development --live --provider gator-local --model qwen3:4b \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/personal-continuity-v1/smoke-dataset.json \
+  --report-dir /tmp/hot-cross-buns-continuity-local-agent --id continuity-local-agent \
+  --split development --live --provider hot-cross-buns-local --model qwen3:4b \
   --max-model-requests 80 --timeout-seconds 1200
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/personal-continuity-v1/smoke-dataset.json \
-  --report-dir /tmp/gator-continuity-local-baseline --id continuity-local-baseline \
-  --split development --live --provider gator-local --model qwen3:4b \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/personal-continuity-v1/smoke-dataset.json \
+  --report-dir /tmp/hot-cross-buns-continuity-local-baseline --id continuity-local-baseline \
+  --split development --live --provider hot-cross-buns-local --model qwen3:4b \
   --baseline-no-goal --max-model-requests 80 --timeout-seconds 1200
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval compare /tmp/gator-continuity-local-baseline/experiment.json \
-  /tmp/gator-continuity-local-agent/experiment.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval compare /tmp/hot-cross-buns-continuity-local-baseline/experiment.json \
+  /tmp/hot-cross-buns-continuity-local-agent/experiment.json
 ```
 
 Compare local and cloud models as separate experiments; provider and model

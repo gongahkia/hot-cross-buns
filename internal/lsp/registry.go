@@ -9,7 +9,7 @@ import (
 
 const defaultRegistryManagers = 8
 
-// Registry retains trusted language-server processes for a single native Gator
+// Registry retains trusted language-server processes for a single native Hot Cross Buns
 // session. Entries are scoped to one exact worktree and configuration hash; it
 // is intentionally in-memory only and must be closed with the owning session.
 type Registry struct {

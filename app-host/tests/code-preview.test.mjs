@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { codePreview } from "../src/code-preview.mjs";
 const hash = value => createHash("sha256").update(value).digest("hex");
 async function fixture(run, text = "diff --git a/main.go b/main.go\n--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-old\n+new\n") {
- const root = await mkdtemp(join(tmpdir(), "gator-code-preview-")), path = join(root,"output/code/run-one-candidate-one.patch");
+ const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-code-preview-")), path = join(root,"output/code/run-one-candidate-one.patch");
  const candidate = { id:"candidate-one", patch_path:"code/run-one-candidate-one.patch", sha256:hash(text), changed_paths:["main.go"], status:"verified", verification:[{ argv:["go","test","./..."],passed:true,diagnostic:"PRIVATE NOT DISPLAYED" }] };
  const manifest = JSON.stringify({run_id:"run-one",code_candidates:[candidate]});
  await mkdir(join(root,"output/code"),{recursive:true}); await writeFile(path,text);await writeFile(join(root,"manifest.json"),manifest);

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 func fixture(t *testing.T, backend Backend, operations ...Operation) Target {

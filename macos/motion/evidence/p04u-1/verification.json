@@ -14,7 +14,7 @@
     "startedUTC": "2026-11-20T08:20:39.063467+00:00",
     "seconds": 3.9666594169975724,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04U1-Motion.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04U1-Motion.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "e80643697191a50a6c4e68b9711951de739db97d91322ddc80f9eacc686eb354"
   },
   {
@@ -28,7 +28,7 @@
     "startedUTC": "2026-11-20T08:20:39.063537+00:00",
     "seconds": 5.821849792002467,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04U1-Motion.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04U1-Motion.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "e80643697191a50a6c4e68b9711951de739db97d91322ddc80f9eacc686eb354"
   },
   {
@@ -39,12 +39,12 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build"
+      "/tmp/hot-cross-buns-native-build"
     ],
     "startedUTC": "2026-11-20T08:20:39.063239+00:00",
     "seconds": 1.307011875003809,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04U1-Motion.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04U1-Motion.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "e80643697191a50a6c4e68b9711951de739db97d91322ddc80f9eacc686eb354"
   },
   {
@@ -55,13 +55,13 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel"
     ],
     "startedUTC": "2026-11-20T08:20:40.404787+00:00",
     "seconds": 147.92502262501512,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04U1-Motion.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04U1-Motion.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "e80643697191a50a6c4e68b9711951de739db97d91322ddc80f9eacc686eb354"
   },
   {
@@ -72,7 +72,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",
@@ -84,7 +84,7 @@
     "startedUTC": "2026-11-20T08:23:08.398027+00:00",
     "seconds": 20.728746833017794,
     "exit": 1,
-    "runtime": "/tmp/Gator-Native-P04U1-Motion.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04U1-Motion.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "e80643697191a50a6c4e68b9711951de739db97d91322ddc80f9eacc686eb354"
   },
   {
@@ -95,7 +95,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",
@@ -117,7 +117,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",

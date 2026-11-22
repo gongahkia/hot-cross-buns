@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/instructions"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/productguide"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/instructions"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/productguide"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func (m *Model) openCommandPalette() {
@@ -106,11 +106,11 @@ func (m *Model) openCopyPicker() bool {
 	entries := make([]entry, 0, len(m.messages)+1)
 	for index := len(m.messages) - 1; index >= 0; index-- {
 		item := m.messages[index]
-		if item.role != "Gator" || strings.TrimSpace(item.text) == "" {
+		if item.role != "Hot Cross Buns" || strings.TrimSpace(item.text) == "" {
 			continue
 		}
 		entries = append(entries, entry{
-			title:    "Gator response",
+			title:    "Hot Cross Buns response",
 			subtitle: truncate(singleLine(item.text), 80),
 			kind:     "copy",
 			id:       fmt.Sprintf("message:%d", index),
@@ -145,7 +145,7 @@ func (m Model) copySelection(id string) (tea.Model, tea.Cmd) {
 	case strings.HasPrefix(id, "message:"):
 		var index int
 		if _, err := fmt.Sscanf(id, "message:%d", &index); err == nil && index >= 0 && index < len(m.messages) {
-			text, label = m.messages[index].text, "Gator response"
+			text, label = m.messages[index].text, "Hot Cross Buns response"
 		}
 	}
 	if strings.TrimSpace(text) == "" {
@@ -192,16 +192,16 @@ func commandPaletteEntries() []entry {
 		{title: "/new", subtitle: "Start a new conversation", kind: "command", command: "/new"},
 		{title: "/model", subtitle: "Choose a cloud or local model", kind: "command", command: "/model"},
 		{title: "/source", subtitle: "Change the workspace", kind: "command", command: "/source"},
-		{title: "/mode", subtitle: "Choose what Gator may do: auto, inspect, draft, or act", kind: "command-input", command: "/mode"},
+		{title: "/mode", subtitle: "Choose what Hot Cross Buns may do: auto, inspect, draft, or act", kind: "command-input", command: "/mode"},
 		{title: "/attach", subtitle: "Attach a workspace file to the next request", kind: "command-input", command: "/attach"},
 		{title: "/detach", subtitle: "Remove a pending attachment", kind: "command-input", command: "/detach"},
 		{title: "/status", subtitle: "Show current model, workspace, and run", kind: "command", command: "/status"},
-		{title: "/settings", subtitle: "Inspect Gator settings", kind: "command", command: "/settings"},
+		{title: "/settings", subtitle: "Inspect Hot Cross Buns settings", kind: "command", command: "/settings"},
 		{title: "/appearance", subtitle: "Change the color theme", kind: "command", command: "/appearance"},
 		{title: "/theme", subtitle: "Choose dark, light, high contrast, or monochrome", kind: "command-input", command: "/theme"},
 		{title: "/doctor", subtitle: "Check setup and device readiness", kind: "command", command: "/doctor"},
 		{title: "/history", subtitle: "Browse retained work", kind: "command", command: "/history"},
-		{title: "/jobs", subtitle: "Choose when Gator works: schedule and review checks", kind: "command-input", command: "/jobs"},
+		{title: "/jobs", subtitle: "Choose when Hot Cross Buns works: schedule and review checks", kind: "command-input", command: "/jobs"},
 		{title: "/inbox", subtitle: "Review follow-up results", kind: "command-input", command: "/inbox"},
 		{title: "/goals", subtitle: "Resume an ongoing goal", kind: "command", command: "/goals"},
 		{title: "/followup", subtitle: "Watch project changes and review the next step", kind: "command", command: "/followup"},
@@ -229,7 +229,7 @@ func commandPaletteEntries() []entry {
 		{title: "/apply", subtitle: "Apply a verified code change", kind: "command-input", command: "/apply", advanced: true},
 		{title: "/retry", subtitle: "Retry pending delivery", kind: "command-input", command: "/retry", advanced: true},
 		{title: "/copy", subtitle: "Copy a response or output summary", kind: "command", command: "/copy"},
-		{title: "/exit", subtitle: "Leave Gator", kind: "command", command: "/exit"},
+		{title: "/exit", subtitle: "Leave Hot Cross Buns", kind: "command", command: "/exit"},
 		{title: "/effort", subtitle: "Choose low, standard, or high effort", kind: "command", command: "/effort", advanced: true},
 		{title: "/artifact", subtitle: "Set expected output files", kind: "command-input", command: "/artifact", advanced: true},
 		{title: "/connector", subtitle: "Select or manage connected sources", kind: "command-input", command: "/connector", advanced: true},
@@ -325,7 +325,7 @@ func (m Model) commandAvailable(command string) bool {
 			return true
 		}
 		for _, item := range m.messages {
-			if item.role == "Gator" && strings.TrimSpace(item.text) != "" {
+			if item.role == "Hot Cross Buns" && strings.TrimSpace(item.text) != "" {
 				return true
 			}
 		}
@@ -550,10 +550,10 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 				}
 				if strings.EqualFold(fields[1], "ignore") {
 					m.options.IgnoredInstructionPaths = appendUnique(m.options.IgnoredInstructionPaths, path[0])
-					result = "Gator will skip project instruction \"" + path[0] + "\" for this conversation. Resend your request."
+					result = "Hot Cross Buns will skip project instruction \"" + path[0] + "\" for this conversation. Resend your request."
 				} else {
 					m.options.IgnoredInstructionPaths = removeString(m.options.IgnoredInstructionPaths, path[0])
-					result = "Gator will read project instruction \"" + path[0] + "\" again when applicable."
+					result = "Hot Cross Buns will read project instruction \"" + path[0] + "\" again when applicable."
 				}
 			case "ignored":
 				if len(fields) != 2 {
@@ -655,12 +655,12 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "/theme":
 		if len(fields) != 2 || m.config.SetTheme == nil {
-			err = fmt.Errorf("usage: /theme terminal|gator|light|contrast|mono")
+			err = fmt.Errorf("usage: /theme terminal|hot-cross-buns|light|contrast|mono")
 			break
 		}
 		name := normalizeTheme(fields[1])
 		if name != strings.ToLower(fields[1]) {
-			err = fmt.Errorf("usage: /theme terminal|gator|light|contrast|mono")
+			err = fmt.Errorf("usage: /theme terminal|hot-cross-buns|light|contrast|mono")
 			break
 		}
 		err = m.config.SetTheme(name)
@@ -674,7 +674,7 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 			break
 		}
 		if !m.openCopyPicker() {
-			err = fmt.Errorf("there is no Gator response or verified deliverable summary to copy")
+			err = fmt.Errorf("there is no Hot Cross Buns response or verified deliverable summary to copy")
 			break
 		}
 		return m, nil
@@ -894,7 +894,7 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 	if err != nil {
 		result = err.Error()
 	}
-	role := "Gator"
+	role := "Hot Cross Buns"
 	if fields[0] == "/doctor" && err == nil {
 		role = "Doctor"
 	}
@@ -1312,7 +1312,7 @@ func (m Model) workAuthority() string {
 
 func (m Model) workStatus() string {
 	modelSelection, modelAccess := m.configuredModelStatus()
-	status := fmt.Sprintf("Gator orchestration\n  when Gator works: %s\n  what Gator may do: %s (/mode)\n  model: %s\n  model access: %s\n  workspace: %s%s\n  ignored project instructions: %s\n  conversation: %s\n  selected revision: %s\n  mode: %s\n  deliverables: %s\n  connectors: %s\n  web origins: %s\n  effort: %s (%d manager steps)\n  pending attachments: %s\n  queued prompts: %d\n  internal specialists: managed by Gator",
+	status := fmt.Sprintf("Hot Cross Buns orchestration\n  when Hot Cross Buns works: %s\n  what Hot Cross Buns may do: %s (/mode)\n  model: %s\n  model access: %s\n  workspace: %s%s\n  ignored project instructions: %s\n  conversation: %s\n  selected revision: %s\n  mode: %s\n  deliverables: %s\n  connectors: %s\n  web origins: %s\n  effort: %s (%d manager steps)\n  pending attachments: %s\n  queued prompts: %d\n  internal specialists: managed by Hot Cross Buns",
 		m.workTiming(), m.workAuthority(),
 		modelSelection, modelAccess,
 		valueOrNone(m.source), map[bool]string{true: " (refresh next turn)", false: " (frozen per turn)"}[m.options.RefreshSource],
@@ -1328,7 +1328,7 @@ func (m Model) workStatus() string {
 	if m.operation != nil {
 		status += "; steer with /steer MESSAGE"
 		if m.operation.RunID != "" {
-			status += "\n  work run: " + m.operation.RunID + " (inspect from another terminal: gator work decisions " + m.operation.RunID + ")"
+			status += "\n  work run: " + m.operation.RunID + " (inspect from another terminal: hot-cross-buns work decisions " + m.operation.RunID + ")"
 		}
 	}
 	activeTasks := make([]string, 0, len(m.tasks))
@@ -1361,7 +1361,7 @@ func (m Model) workStatus() string {
 }
 
 func (m Model) workPermissions() string {
-	return fmt.Sprintf("Gator Work authority\n  when Gator works: %s\n  what Gator may do: %s (/mode)\n  workspace: read-only immutable snapshots from %s\n  ignored project instructions: %s\n  mode: %s\n  connectors: %s\n  web origins: %s\n  internal specialists: managed by Gator",
+	return fmt.Sprintf("Hot Cross Buns Work authority\n  when Hot Cross Buns works: %s\n  what Hot Cross Buns may do: %s (/mode)\n  workspace: read-only immutable snapshots from %s\n  ignored project instructions: %s\n  mode: %s\n  connectors: %s\n  web origins: %s\n  internal specialists: managed by Hot Cross Buns",
 		m.workTiming(), m.workAuthority(),
 		valueOrNone(m.source), valueOrNone(strings.Join(m.options.IgnoredInstructionPaths, ", ")), valueOrNone(m.options.Mode), valueOrNone(strings.Join(m.options.ConnectorIDs, ", ")),
 		valueOrNone(strings.Join(m.options.WebOrigins, ", ")))
@@ -1459,7 +1459,7 @@ func valueOrNone(value string) string {
 }
 
 func errorsUnavailable(name string) error {
-	return fmt.Errorf("%s is unavailable in this Gator build", strings.TrimPrefix(name, "/"))
+	return fmt.Errorf("%s is unavailable in this Hot Cross Buns build", strings.TrimPrefix(name, "/"))
 }
 
 func (m *Model) refreshInbox() error {
@@ -1475,8 +1475,8 @@ func (m *Model) refreshInbox() error {
 }
 
 func workHelp() string {
-	return `Gator
-  Start Work by writing your request below. Gator retains its output and follows
+	return `Hot Cross Buns
+  Start Work by writing your request below. Hot Cross Buns retains its output and follows
   the current workspace, model, and mode.
 
   Ask in chat to create a focused research, analysis, review or coding specialist

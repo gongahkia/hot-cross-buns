@@ -26,7 +26,7 @@ const (
 	DefaultMaxFileBytes = int64(100 * 1024 * 1024)
 )
 
-// Limits bounds a snapshot before bytes are retained in Gator's private store.
+// Limits bounds a snapshot before bytes are retained in Hot Cross Buns's private store.
 type Limits struct {
 	MaxFiles     int   `json:"max_files"`
 	MaxTotal     int64 `json:"max_total_bytes"`
@@ -107,7 +107,7 @@ func (e *LimitError) Error() string {
 }
 
 var excludedDirectories = map[string]struct{}{
-	".git": {}, ".gator": {}, "node_modules": {}, "vendor": {}, "target": {}, "dist": {}, "build": {},
+	".git": {}, ".hot-cross-buns": {}, "node_modules": {}, "vendor": {}, "target": {}, "dist": {}, "build": {},
 	".cache": {}, ".next": {}, ".turbo": {}, "__pycache__": {}, ".venv": {}, "venv": {},
 }
 
@@ -119,7 +119,7 @@ func secretName(name string) bool {
 	return strings.HasSuffix(lower, ".pem") || strings.HasSuffix(lower, ".key") || strings.HasSuffix(lower, ".p12") || strings.HasSuffix(lower, ".pfx")
 }
 
-// Create freezes source below stateDir/gator/snapshots and returns its manifest.
+// Create freezes source below stateDir/hot-cross-buns/snapshots and returns its manifest.
 func Create(source, stateDir string, options Options) (Manifest, error) {
 	limits := options.Limits.normalize()
 	if err := limits.validate(); err != nil {
@@ -140,14 +140,14 @@ func Create(source, stateDir string, options Options) (Manifest, error) {
 	if within(sourcePath, statePath) {
 		return Manifest{}, errors.New("snapshot state directory must not be inside the source")
 	}
-	store := filepath.Join(statePath, "gator", "snapshots")
+	store := filepath.Join(statePath, "hot-cross-buns", "snapshots")
 	for _, directory := range []string{store, filepath.Join(store, "blobs"), filepath.Join(store, "manifests"), filepath.Join(store, "trees")} {
 		if err := ensureDir(directory, 0o700); err != nil {
 			return Manifest{}, err
 		}
 	}
 	patterns := append([]string(nil), options.Excludes...)
-	patterns = append(patterns, readIgnoreFile(filepath.Join(sourcePath, ".gatorignore"))...)
+	patterns = append(patterns, readIgnoreFile(filepath.Join(sourcePath, ".hot-cross-bunsignore"))...)
 	manifest := Manifest{Version: Version, SourceName: filepath.Base(sourcePath), SourcePath: sourcePath}
 	if options.Now != nil {
 		manifest.CreatedAt = options.Now().UTC()
@@ -233,7 +233,7 @@ func Open(stateDir, id string) (Manifest, error) {
 	if !strings.HasPrefix(id, "snap-") || strings.ContainsAny(id, `/\\`) {
 		return Manifest{}, errors.New("invalid snapshot ID")
 	}
-	store := filepath.Join(stateDir, "gator", "snapshots")
+	store := filepath.Join(stateDir, "hot-cross-buns", "snapshots")
 	payload, err := os.ReadFile(filepath.Join(store, "manifests", id+".json"))
 	if err != nil {
 		return Manifest{}, fmt.Errorf("read snapshot: %w", err)
@@ -263,7 +263,7 @@ func Open(stateDir, id string) (Manifest, error) {
 
 // List returns retained snapshot manifests in newest-first order.
 func List(stateDir string) ([]Manifest, error) {
-	directory := filepath.Join(stateDir, "gator", "snapshots", "manifests")
+	directory := filepath.Join(stateDir, "hot-cross-buns", "snapshots", "manifests")
 	files, err := os.ReadDir(directory)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -292,7 +292,7 @@ func GC(stateDir string, referenced map[string]struct{}) (snapshotsRemoved, blob
 	if err != nil {
 		return 0, 0, err
 	}
-	store := filepath.Join(stateDir, "gator", "snapshots")
+	store := filepath.Join(stateDir, "hot-cross-buns", "snapshots")
 	liveTrees := make(map[string]bool)
 	for _, m := range manifests {
 		if _, keep := referenced[m.ID]; keep {

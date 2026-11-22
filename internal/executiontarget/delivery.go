@@ -1,6 +1,6 @@
 package executiontarget
 
-import "github.com/gongahkia/gator/internal/action"
+import "github.com/gongahkia/hot-cross-buns/internal/action"
 
 type Delivery string
 

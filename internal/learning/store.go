@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const (
@@ -129,7 +129,7 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(absolute, "gator", "learnings")
+	root := filepath.Join(absolute, "hot-cross-buns", "learnings")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return Store{}, fmt.Errorf("create learning store: %w", err)
 	}

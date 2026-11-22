@@ -16,8 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
 )
 
 const LocalTimeout = 180 * time.Second
@@ -33,7 +33,7 @@ func ResolveLocalRuntime() (string, error) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		return "", errors.New("local Whisper currently supports macOS and Linux; Windows remains a preview")
 	}
-	executable := strings.TrimSpace(os.Getenv("GATOR_WHISPER_BINARY"))
+	executable := strings.TrimSpace(os.Getenv("HOT_CROSS_BUNS_WHISPER_BINARY"))
 	if executable == "" {
 		executable = "whisper-cli"
 	}
@@ -152,7 +152,7 @@ func transcribeLocal(ctx context.Context, config Config, recording Recording) (R
 	// An explicit non-'-' output basename preserves the live stdout callback
 	// with stdin input in newer whisper.cpp. No export-format flags are enabled:
 	// neither this basename nor the recording is written as an output file.
-	command := hostproc.CommandContext(ctx, config.Local.Executable, "--model", model, "--file", "-", "--output-file", "gator-stdin", "--no-timestamps", "--no-prints", "--no-gpu", "--language", language, "--threads", "4")
+	command := hostproc.CommandContext(ctx, config.Local.Executable, "--model", model, "--file", "-", "--output-file", "hot-cross-buns-stdin", "--no-timestamps", "--no-prints", "--no-gpu", "--language", language, "--threads", "4")
 	command.Dir = working
 	command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + working, "LANG=C.UTF-8", "LC_ALL=C.UTF-8"}
 	command.Stdin = bytes.NewReader(recording.Data)

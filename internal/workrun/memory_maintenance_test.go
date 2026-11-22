@@ -6,9 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
 )
 
 func TestWorkFinalizationProposesRepeatedFailuresOnlyWhenEnabled(t *testing.T) {

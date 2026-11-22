@@ -9,13 +9,13 @@ Source: https://github.com/gongahkia/onibi, local reference commit
 Adapted files:
 
 - `internal/tmux/attach.go`: runner/controller and capture/list parsing patterns,
-  now in Gator `internal/executiontarget/tmux/controller.go`.
+  now in Hot Cross Buns `internal/executiontarget/tmux/controller.go`.
 - `internal/render/text.go`: escape stripping and bounded tail rendering patterns,
-  now in Gator `internal/executiontarget/tmux/text.go`.
+  now in Hot Cross Buns `internal/executiontarget/tmux/text.go`.
 - Relevant cases from `internal/tmux/attach_test.go`, `internal/mux/mux_test.go`,
-  and `internal/render/text_test.go` inform Gator's adapter tests.
+  and `internal/render/text_test.go` inform Hot Cross Buns's adapter tests.
 
-All adapted source files identify modifications. Gator replaces unbounded output,
+All adapted source files identify modifications. Hot Cross Buns replaces unbounded output,
 session-name targeting, environment/config discovery and ANSI-preserving output
 with bounded reads, explicit native pane identity, OS incarnation evidence,
 hook-aware/no-start command guards and conservative plain text. Input, lifecycle,
@@ -23,10 +23,10 @@ hooks, daemon, intake, database, web UI and project configuration were not copie
 Onibi's third-party fonts and rattles assets/notices are outside this extraction.
 
 This notice licenses the identified adapted material; it does not assign an
-Apache-2.0 license to the remainder of Gator. No root project license was present
+Apache-2.0 license to the remainder of Hot Cross Buns. No root project license was present
 when this adaptation was made.
 
 T4 also adapts the already selected attach.go literal SendText/SendKey patterns in
-`internal/executiontarget/tmux/input.go`. Gator adds control-review/grant gates,
+`internal/executiontarget/tmux/input.go`. Hot Cross Buns adds control-review/grant gates,
 finite keys and input bounds, trailing-semicolon argv escaping, exact native
 identity checks, partial-delivery semantics and no automatic input retries.

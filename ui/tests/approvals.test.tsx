@@ -3,13 +3,13 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { Application } from "@gator/application-host/application"
-import { GatorClient } from "../src/gator/client"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { App } from "../src/app"
 
 async function until(predicate: () => boolean, label: string) { const end = Date.now() + 15000; while (!predicate()) { if (Date.now() > end) throw new Error(`Timed out waiting for ${label}`); await Bun.sleep(20) } }
 test("exact live approval is required before a connected send and stale tokens cannot approve", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-approval-")); let effects = 0
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-approval-")); let effects = 0
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     const url = new URL(request.url), payload = await request.json()
     if (url.pathname.includes("/gmail/")) { effects++; return Response.json({}) }
@@ -19,9 +19,9 @@ test("exact live approval is required before a connected send and stale tokens c
     return Response.json({ choices: [{ message, finish_reason: send ? "tool_calls" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
   } })
   const base = `http://127.0.0.1:${server.port}`
-  await mkdir(join(root, "config/gator"), { recursive: true })
-  await writeFile(join(root, "config/gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Local fixture", kind: "google_workspace", resource: base, authentication: "none" }] }))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  await mkdir(join(root, "config/hot-cross-buns"), { recursive: true })
+  await writeFile(join(root, "config/hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Local fixture", kind: "google_workspace", resource: base, authentication: "none" }] }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   try {
     await client.start()

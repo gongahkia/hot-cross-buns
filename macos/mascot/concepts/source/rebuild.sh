@@ -1,8 +1,8 @@
 #!/bin/bash
-# Isolated design assets only. Does not build/launch Gator or install anything.
+# Isolated design assets only. Does not build/launch Hot Cross Buns or install anything.
 set -euo pipefail
 p04m_root="$(cd "$(dirname "$0")/.." && pwd)"
-p04m_tools="${TMPDIR:-/tmp}/gator-mascot-a1-tools"
+p04m_tools="${TMPDIR:-/tmp}/hot-cross-buns-mascot-a1-tools"
 p04m_arch="$(uname -m)"
 mkdir -p "$p04m_tools"
 p04m_flags=(-parse-as-library -swift-version 6 -target "${p04m_arch}-apple-macosx15.0")
@@ -11,9 +11,9 @@ swiftc "${p04m_flags[@]}" "$p04m_root/source/MascotLab.swift" -o "$p04m_tools/re
 swiftc "${p04m_flags[@]}" "$p04m_root/source/DesignBoards.swift" -o "$p04m_tools/boards"
 "$p04m_tools/boards" "$p04m_root"
 for p04m_id in A B C; do
-    /usr/bin/usdcat "$p04m_root/models/Gator-$p04m_id.usda" -o "$p04m_root/models/Gator-$p04m_id.usdc"
-    /usr/bin/usdzip -a "$p04m_root/models/Gator-$p04m_id.usdc" "$p04m_root/models/Gator-$p04m_id.usdz"
-    /usr/bin/usdchecker "$p04m_root/models/Gator-$p04m_id.usdz" > "$p04m_root/evidence/usd-$p04m_id.log" 2>&1
+    /usr/bin/usdcat "$p04m_root/models/HotCrossBuns-$p04m_id.usda" -o "$p04m_root/models/HotCrossBuns-$p04m_id.usdc"
+    /usr/bin/usdzip -a "$p04m_root/models/HotCrossBuns-$p04m_id.usdc" "$p04m_root/models/HotCrossBuns-$p04m_id.usdz"
+    /usr/bin/usdchecker "$p04m_root/models/HotCrossBuns-$p04m_id.usdz" > "$p04m_root/evidence/usd-$p04m_id.log" 2>&1
 done
 swiftc "${p04m_flags[@]}" "$p04m_root/source/RealityKitProbe.swift" -o "$p04m_tools/reality-probe"
 "$p04m_tools/reality-probe" "$p04m_root/models" > "$p04m_root/evidence/realitykit-import.log" 2>&1

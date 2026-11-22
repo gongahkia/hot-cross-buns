@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/gongahkia/gator/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
 )
 
 func (m Model) openModelCatalog() (tea.Model, tea.Cmd) {
@@ -272,7 +272,7 @@ func (m Model) updateLocalModelConfirmation(message tea.KeyMsg) (tea.Model, tea.
 		case "esc", "n", "ctrl+c":
 			m.localModels.confirmation = localModelNoConfirmation
 			m.localModels.startDismissed = true
-			m.notice = notice{text: "Runtime start declined. Press s to start it with Gator later, or r to refresh.", kind: noticeInfo}
+			m.notice = notice{text: "Runtime start declined. Press s to start it with Hot Cross Buns later, or r to refresh.", kind: noticeInfo}
 			return m, nil
 		case "enter", "y":
 			m.localModels.confirmation = localModelNoConfirmation
@@ -290,7 +290,7 @@ func (m Model) updateLocalModelConfirmation(message tea.KeyMsg) (tea.Model, tea.
 		m.localModels.discovery = nil
 		switch confirmation {
 		case localModelConfirmRemoveCredential:
-			m.notice = notice{text: "Credential removal cancelled. The stored Gator credential was not changed.", kind: noticeInfo}
+			m.notice = notice{text: "Credential removal cancelled. The stored Hot Cross Buns credential was not changed.", kind: noticeInfo}
 		case localModelConfirmRemoveCustom:
 			m.notice = notice{text: "Custom provider removal cancelled. Configuration was not changed.", kind: noticeInfo}
 		case localModelConfirmSaveCustom:
@@ -343,7 +343,7 @@ func (m Model) updateLocalModelConfirmation(message tea.KeyMsg) (tea.Model, tea.
 				installer, ok := m.localModels.manager.(LocalInstaller)
 				if !ok {
 					m.localModels.installation = nil
-					m.notice = notice{text: "This Gator build cannot run the Ollama installer. Use the official source shown here.", kind: noticeError}
+					m.notice = notice{text: "This Hot Cross Buns build cannot run the Ollama installer. Use the official source shown here.", kind: noticeError}
 					return m, nil
 				}
 				m.localModels.installation = nil
@@ -362,7 +362,7 @@ func (m Model) updateLocalModelConfirmation(message tea.KeyMsg) (tea.Model, tea.
 func (m Model) prepareLocalInstallation() (tea.Model, tea.Cmd) {
 	installer, ok := m.localModels.manager.(LocalInstaller)
 	if !ok {
-		m.notice = notice{text: "This Gator build cannot launch an Ollama installer. Use the official source shown here, then press r to refresh.", kind: noticeInfo}
+		m.notice = notice{text: "This Hot Cross Buns build cannot launch an Ollama installer. Use the official source shown here, then press r to refresh.", kind: noticeInfo}
 		return m, nil
 	}
 	plan, err := installer.InstallationPlan()
@@ -401,7 +401,7 @@ func (m *Model) requestLocalRuntimeRecovery() {
 		m.notice = notice{text: "Ollama is not installed. Choose whether to open installation help.", kind: noticeInfo}
 		return
 	}
-	m.notice = notice{text: "The local runtime is unavailable. Choose whether Gator should start Ollama.", kind: noticeInfo}
+	m.notice = notice{text: "The local runtime is unavailable. Choose whether Hot Cross Buns should start Ollama.", kind: noticeInfo}
 }
 
 func (m Model) localRuntimeConfirmation() localModelConfirmation {
@@ -437,7 +437,7 @@ func (m Model) localMissingDependencies() []LocalDependency {
 			Name:         "Ollama",
 			Purpose:      "reviewed local coding models",
 			HelpURL:      "https://ollama.com/download",
-			Instructions: []string{"Install Ollama from its official download page, then return to Gator and refresh the Local model section."},
+			Instructions: []string{"Install Ollama from its official download page, then return to Hot Cross Buns and refresh the Local model section."},
 		})
 	}
 	return missing

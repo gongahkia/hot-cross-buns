@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 func proposalFixture(t *testing.T) action.Proposal {
@@ -137,7 +137,7 @@ func TestActionLogBoundsAndCorruptionFailClosed(t *testing.T) {
 	}
 }
 func TestActionLogCrashHelper(t *testing.T) {
-	state := os.Getenv("GATOR_TEST_ACTIONLOG_CHILD")
+	state := os.Getenv("HOT_CROSS_BUNS_TEST_ACTIONLOG_CHILD")
 	if state == "" {
 		return
 	}
@@ -160,7 +160,7 @@ func TestActionLogProcessDeathLeavesUncertainReceiptWithoutReplaying(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestActionLogCrashHelper$")
-	child.Env = append(os.Environ(), "GATOR_TEST_ACTIONLOG_CHILD="+state)
+	child.Env = append(os.Environ(), "HOT_CROSS_BUNS_TEST_ACTIONLOG_CHILD="+state)
 	input, err := child.StdinPipe()
 	if err != nil {
 		t.Fatal(err)

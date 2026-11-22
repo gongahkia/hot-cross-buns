@@ -9,12 +9,12 @@
       },
       "result": {
         "action": "activate",
-        "bundle": "dev.gator.presence.r1",
+        "bundle": "dev.hot-cross-buns.presence.r1",
         "controllerPID": 25636,
         "elapsed": 0.05931198596954346,
         "focusedElement": {
-          "description": "Message Gator",
-          "id": "gator.composer.text",
+          "description": "Message Hot Cross Buns",
+          "id": "hot-cross-buns.composer.text",
           "role": "AXTextArea",
           "title": ""
         },
@@ -22,7 +22,7 @@
           "description": "",
           "id": "conversation",
           "role": "AXWindow",
-          "title": "Gator \u2013 Review mascot"
+          "title": "Hot Cross Buns \u2013 Review mascot"
         },
         "frontPID": 1649,
         "ok": true,
@@ -38,7 +38,7 @@
       },
       "result": {
         "action": "state",
-        "bundle": "dev.gator.presence.r1",
+        "bundle": "dev.hot-cross-buns.presence.r1",
         "capture": [
           {
             "kCGWindowAlpha": 1,
@@ -51,7 +51,7 @@
             "kCGWindowIsOnscreen": true,
             "kCGWindowLayer": 0,
             "kCGWindowMemoryUsage": 2368,
-            "kCGWindowName": "Gator",
+            "kCGWindowName": "Hot Cross Buns",
             "kCGWindowNumber": 62299,
             "kCGWindowOwnerName": "PresenceClosure",
             "kCGWindowOwnerPID": 25302,
@@ -62,8 +62,8 @@
         "controllerPID": 25636,
         "elapsed": 0.027515888214111328,
         "focusedElement": {
-          "description": "Message Gator",
-          "id": "gator.composer.text",
+          "description": "Message Hot Cross Buns",
+          "id": "hot-cross-buns.composer.text",
           "role": "AXTextArea",
           "title": ""
         },
@@ -71,7 +71,7 @@
           "description": "",
           "id": "conversation",
           "role": "AXWindow",
-          "title": "Gator \u2013 Review mascot"
+          "title": "Hot Cross Buns \u2013 Review mascot"
         },
         "frontPID": 25302,
         "ok": true,
@@ -83,7 +83,7 @@
             "description": "",
             "id": "conversation",
             "role": "AXWindow",
-            "title": "Gator \u2013 Review mascot"
+            "title": "Hot Cross Buns \u2013 Review mascot"
           }
         ]
       }
@@ -94,8 +94,8 @@
         "window": "conversation",
         "expectedWindow": "conversation",
         "expectedFocus": {
-          "description": "Message Gator",
-          "id": "gator.composer.text",
+          "description": "Message Hot Cross Buns",
+          "id": "hot-cross-buns.composer.text",
           "role": "AXTextArea",
           "title": ""
         },
@@ -103,12 +103,12 @@
       },
       "result": {
         "action": "quit",
-        "bundle": "dev.gator.presence.r1",
+        "bundle": "dev.hot-cross-buns.presence.r1",
         "controllerPID": 25636,
         "elapsed": 0.04572701454162598,
         "focusedElement": {
-          "description": "Message Gator",
-          "id": "gator.composer.text",
+          "description": "Message Hot Cross Buns",
+          "id": "hot-cross-buns.composer.text",
           "role": "AXTextArea",
           "title": ""
         },
@@ -116,7 +116,7 @@
           "description": "",
           "id": "conversation",
           "role": "AXWindow",
-          "title": "Gator \u2013 Review mascot"
+          "title": "Hot Cross Buns \u2013 Review mascot"
         },
         "frontPID": 25302,
         "ok": true,
@@ -133,7 +133,7 @@
       },
       "result": {
         "action": "state",
-        "bundle": "dev.gator.presence.r1",
+        "bundle": "dev.hot-cross-buns.presence.r1",
         "capture": [
           {
             "kCGWindowAlpha": 1,
@@ -146,7 +146,7 @@
             "kCGWindowIsOnscreen": true,
             "kCGWindowLayer": 0,
             "kCGWindowMemoryUsage": 2368,
-            "kCGWindowName": "Gator",
+            "kCGWindowName": "Hot Cross Buns",
             "kCGWindowNumber": 62299,
             "kCGWindowOwnerName": "PresenceClosure",
             "kCGWindowOwnerPID": 25302,
@@ -157,8 +157,8 @@
         "controllerPID": 25636,
         "elapsed": 0.0025789737701416016,
         "focusedElement": {
-          "description": "Message Gator",
-          "id": "gator.composer.text",
+          "description": "Message Hot Cross Buns",
+          "id": "hot-cross-buns.composer.text",
           "role": "AXTextArea",
           "title": ""
         },
@@ -166,7 +166,7 @@
           "description": "",
           "id": "conversation",
           "role": "AXWindow",
-          "title": "Gator \u2013 Review mascot"
+          "title": "Hot Cross Buns \u2013 Review mascot"
         },
         "frontPID": 25302,
         "ok": true,
@@ -178,7 +178,7 @@
             "description": "",
             "id": "conversation",
             "role": "AXWindow",
-            "title": "Gator \u2013 Review mascot"
+            "title": "Hot Cross Buns \u2013 Review mascot"
           }
         ]
       }
@@ -190,7 +190,7 @@
       },
       "result": {
         "action": "state",
-        "bundle": "dev.gator.presence.r1",
+        "bundle": "dev.hot-cross-buns.presence.r1",
         "capture": [
           {
             "kCGWindowAlpha": 0.014370417222380638,
@@ -221,7 +221,7 @@
             "kCGWindowIsOnscreen": true,
             "kCGWindowLayer": 0,
             "kCGWindowMemoryUsage": 2368,
-            "kCGWindowName": "Gator",
+            "kCGWindowName": "Hot Cross Buns",
             "kCGWindowNumber": 62299,
             "kCGWindowOwnerName": "PresenceClosure",
             "kCGWindowOwnerPID": 25302,
@@ -259,7 +259,7 @@
             "description": "",
             "id": "conversation",
             "role": "AXWindow",
-            "title": "Gator \u2013 Review mascot"
+            "title": "Hot Cross Buns \u2013 Review mascot"
           }
         ]
       }
@@ -280,7 +280,7 @@
       },
       "result": {
         "action": "press",
-        "bundle": "dev.gator.presence.r1",
+        "bundle": "dev.hot-cross-buns.presence.r1",
         "controllerPID": 25636,
         "elapsed": 0.006763935089111328,
         "focusedElement": {

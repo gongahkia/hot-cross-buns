@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 type lspOperation string
@@ -98,11 +98,11 @@ func (t Tool) description() string {
 	case completionOperation:
 		return "Read-only LSP completion lookup using " + server + ". line is one-based; character is a zero-based UTF-16 offset. It returns bounded suggestions and does not apply edits."
 	case codeActionsOperation:
-		return "Read-only LSP code-action lookup using " + server + ". It returns bounded, workspace-confined suggested edits for the selected range. Gator never executes server-provided commands or applies the edits automatically."
+		return "Read-only LSP code-action lookup using " + server + ". It returns bounded, workspace-confined suggested edits for the selected range. Hot Cross Buns never executes server-provided commands or applies the edits automatically."
 	case formatOperation:
-		return "Read-only LSP document-format lookup using " + server + ". It returns bounded suggested edits for this workspace file; Gator does not apply them automatically."
+		return "Read-only LSP document-format lookup using " + server + ". It returns bounded suggested edits for this workspace file; Hot Cross Buns does not apply them automatically."
 	case renameOperation:
-		return "Read-only LSP rename lookup using " + server + ". It returns bounded, workspace-confined suggested edits; Gator does not apply them automatically."
+		return "Read-only LSP rename lookup using " + server + ". It returns bounded, workspace-confined suggested edits; Hot Cross Buns does not apply them automatically."
 	case definitionOperation:
 		return "Read-only LSP go-to-definition lookup using " + server + ". line is one-based; character is a zero-based UTF-16 offset. Only workspace locations are returned."
 	case referencesOperation:

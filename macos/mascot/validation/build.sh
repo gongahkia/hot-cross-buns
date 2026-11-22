@@ -1,8 +1,8 @@
 #!/bin/bash
-# isolated validation bundle only; no Gator production build or launch
+# isolated validation bundle only; no Hot Cross Buns production build or launch
 set -euo pipefail
 mascot_validation_root="$(cd "$(dirname "$0")" && pwd)"
-mascot_validation_app="${P04M_VALIDATION_APP:-/tmp/Gator-Mascot-A2-Lab.app}"
+mascot_validation_app="${P04M_VALIDATION_APP:-/tmp/HotCrossBuns-Mascot-A2-Lab.app}"
 if [[ -e "$mascot_validation_app" ]]; then
   echo "Choose a fresh P04M_VALIDATION_APP; destination exists." >&2
   exit 1
@@ -17,8 +17,8 @@ cat > "$mascot_validation_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>dev.gator.mascot.a2.validation</string>
-<key>CFBundleName</key><string>Gator Mascot Validation</string>
+<key>CFBundleIdentifier</key><string>dev.hot-cross-buns.mascot.a2.validation</string>
+<key>CFBundleName</key><string>Hot Cross Buns Mascot Validation</string>
 <key>CFBundleExecutable</key><string>MascotValidation</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>15.0</string>

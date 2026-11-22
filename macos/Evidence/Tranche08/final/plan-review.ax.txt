@@ -1,5 +1,5 @@
-AXApplication | Gator |  | 
-AXWindow | Gator – New chat |  | 
+AXApplication | Hot Cross Buns |  |
+AXWindow | Hot Cross Buns – New chat |  |
 AXGroup |  |  | 
 AXDisclosureTriangle |  | Open chats and retained tasks | 
 AXHeading |  | Task details | 
@@ -55,7 +55,7 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | New chat
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

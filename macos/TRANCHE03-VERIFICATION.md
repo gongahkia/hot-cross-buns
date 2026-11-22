@@ -29,23 +29,23 @@ Paths are relative to `macos/`. Some implementation files were incorporated by e
 
 | File | Responsibility |
 | --- | --- |
-| `Sources/GatorCore/NativeTaskReview.swift` | New: stable task/plan identity, correction context, public task summaries, literal public review fields, finite work modes and testable interaction semantics. |
-| `Sources/GatorCore/GatorApplicationState.swift` | Exact review retirement/freshness guards; read-only plan results matched by request ID and revision/digest; correction draft lifecycle; Plan First and authoritative work-mode readback; composer focus requests. |
-| `Sources/GatorCore/ManagedSessionCoordinator.swift` | Shared inspector contexts; original-parent correction drafts; freshness checks at preparation/submission; owner-bound exact decisions; distinction between correction admission and actual replacement availability. Existing host dispatch/capacity remains authoritative. |
-| `Sources/GatorCore/BridgeProtocol.swift` | Existing `upload_submit.plan_first`, read-only `task_plan.inspect`, finite existing `/mode` adapter; no new protocol or arbitrary visual frame construction. |
-| `Sources/GatorCore/NativeDraftStore.swift` | Separate correction draft and target identity, suspended ordinary draft and Plan First preference; version 3 archive with backward reads. |
-| `Sources/GatorMac/TaskInspectorView.swift` | New: contextual compact/full task inspector, public activity, owner navigation, exact pending proposal and revision-bound plan inspection/request. Stable task rows survive plan revision. |
-| `Sources/GatorMac/ExactReviewContent.swift` | New: literal selectable wrapping account/destination/content, full exact-data disclosure and meaningful accessibility fields. Decodes only Go's known encoded public preview envelope. |
-| `Sources/GatorMac/ExactDecisionButton.swift` | New: owner-bound native decision button; Return/keypad Enter cannot decide; explicit click, accessibility press or unmodified nonrepeating Space. |
-| `Sources/GatorMac/NativeAccessibilityStatus.swift` | New: polite meaningful status announcements only in the active presentation; no streaming narration or focus movement. |
-| `Sources/GatorMac/ApprovalReviewView.swift` | Full scrollable exact review, stale state/current-proposal recovery, explicit correction, decision safety and owner context. |
-| `Sources/GatorMac/ComposerView.swift` | Native correction banner/cancel/target inspection, Plan First, preferred native font and IME-aware send. Focus requests wait for window attachment/activation and do not follow background updates. |
-| `Sources/GatorMac/ConversationView.swift` | Shared contextual inspection, work mode menu, correction progress, accessible task controls, reduced-motion treatment and existing visual system. |
-| `Sources/GatorMac/GatorApp.swift` | Command-L composer, Command-I task inspection, Command-Shift-R pending review. Both scenes retain the same coordinator. |
-| `Tests/GatorCoreTests/NativeTaskReviewTests.swift` | New: fourteen focused identity, draft, stale-review, plan-result, accessibility-semantics, no-replay and native work-mode tests. |
-| `Tests/GatorCoreTests/NativeReviewIntegrationTests.swift` | New: two actual Go/coordinator correction/revision journeys, original-owner/fresh-review checks and controlled effect evidence. |
-| `Tests/GatorCoreTests/Fixtures/review-provider.mjs` | New: isolated local provider, file-gated work/revision and fake Gmail sink. No external account credentials or services. |
-| `Tests/GatorCoreTests/ManagedSessionTests.swift` | Submission fixture supports Plan First; explicit test admission timeout supports meaningful revision/result waits under load. |
+| `Sources/HotCrossBunsCore/NativeTaskReview.swift` | New: stable task/plan identity, correction context, public task summaries, literal public review fields, finite work modes and testable interaction semantics. |
+| `Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift` | Exact review retirement/freshness guards; read-only plan results matched by request ID and revision/digest; correction draft lifecycle; Plan First and authoritative work-mode readback; composer focus requests. |
+| `Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift` | Shared inspector contexts; original-parent correction drafts; freshness checks at preparation/submission; owner-bound exact decisions; distinction between correction admission and actual replacement availability. Existing host dispatch/capacity remains authoritative. |
+| `Sources/HotCrossBunsCore/BridgeProtocol.swift` | Existing `upload_submit.plan_first`, read-only `task_plan.inspect`, finite existing `/mode` adapter; no new protocol or arbitrary visual frame construction. |
+| `Sources/HotCrossBunsCore/NativeDraftStore.swift` | Separate correction draft and target identity, suspended ordinary draft and Plan First preference; version 3 archive with backward reads. |
+| `Sources/HotCrossBunsMac/TaskInspectorView.swift` | New: contextual compact/full task inspector, public activity, owner navigation, exact pending proposal and revision-bound plan inspection/request. Stable task rows survive plan revision. |
+| `Sources/HotCrossBunsMac/ExactReviewContent.swift` | New: literal selectable wrapping account/destination/content, full exact-data disclosure and meaningful accessibility fields. Decodes only Go's known encoded public preview envelope. |
+| `Sources/HotCrossBunsMac/ExactDecisionButton.swift` | New: owner-bound native decision button; Return/keypad Enter cannot decide; explicit click, accessibility press or unmodified nonrepeating Space. |
+| `Sources/HotCrossBunsMac/NativeAccessibilityStatus.swift` | New: polite meaningful status announcements only in the active presentation; no streaming narration or focus movement. |
+| `Sources/HotCrossBunsMac/ApprovalReviewView.swift` | Full scrollable exact review, stale state/current-proposal recovery, explicit correction, decision safety and owner context. |
+| `Sources/HotCrossBunsMac/ComposerView.swift` | Native correction banner/cancel/target inspection, Plan First, preferred native font and IME-aware send. Focus requests wait for window attachment/activation and do not follow background updates. |
+| `Sources/HotCrossBunsMac/ConversationView.swift` | Shared contextual inspection, work mode menu, correction progress, accessible task controls, reduced-motion treatment and existing visual system. |
+| `Sources/HotCrossBunsMac/HotCrossBunsApp.swift` | Command-L composer, Command-I task inspection, Command-Shift-R pending review. Both scenes retain the same coordinator. |
+| `Tests/HotCrossBunsCoreTests/NativeTaskReviewTests.swift` | New: fourteen focused identity, draft, stale-review, plan-result, accessibility-semantics, no-replay and native work-mode tests. |
+| `Tests/HotCrossBunsCoreTests/NativeReviewIntegrationTests.swift` | New: two actual Go/coordinator correction/revision journeys, original-owner/fresh-review checks and controlled effect evidence. |
+| `Tests/HotCrossBunsCoreTests/Fixtures/review-provider.mjs` | New: isolated local provider, file-gated work/revision and fake Gmail sink. No external account credentials or services. |
+| `Tests/HotCrossBunsCoreTests/ManagedSessionTests.swift` | Submission fixture supports Plan First; explicit test admission timeout supports meaningful revision/result waits under load. |
 | `TRANCHE03-VERIFICATION.md` | This verification and acceptance record. |
 
 ## Contract coverage
@@ -68,33 +68,33 @@ Plan approve/start, manual plan editing and broad queue controls are deliberatel
 Run from the repository root unless marked otherwise:
 
 ```sh
-go build -o /tmp/gator-native-runtime ./cmd/gator
-go test ./cmd/gator ./internal/workapp -count=1
+go build -o /tmp/hot-cross-buns-native-runtime ./cmd/hot-cross-buns
+go test ./cmd/hot-cross-buns ./internal/workapp -count=1
 
 node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs app-host/tests/policy.test.mjs
 
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
 
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Tranche03-Ready.app bash macos/scripts/build-dev-app.sh
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Tranche03-Ready.app bash macos/scripts/build-dev-app.sh
 
 # Run from ui/:
-GATOR_TEST_BINARY=/tmp/gator-native-runtime bun test --preload ./scripts/preload.ts tests/client.test.ts tests/approvals.test.tsx tests/approval-review.test.tsx tests/conversation-during-work.test.tsx tests/action-corrections.test.ts tests/plan-corrections.test.tsx tests/running-plan-correction.test.ts tests/repeated-plan-owners.test.ts tests/recovery.test.tsx
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-native-runtime bun test --preload ./scripts/preload.ts tests/client.test.ts tests/approvals.test.tsx tests/approval-review.test.tsx tests/conversation-during-work.test.tsx tests/action-corrections.test.ts tests/plan-corrections.test.tsx tests/running-plan-correction.test.ts tests/repeated-plan-owners.test.ts tests/recovery.test.tsx
 ```
 
-Packaging refuses an existing destination. For another build, choose a fresh `GATOR_NATIVE_APP_PATH`; do not overwrite a running app or the preserved Tranche 01/02 bundles.
+Packaging refuses an existing destination. For another build, choose a fresh `HOT_CROSS_BUNS_NATIVE_APP_PATH`; do not overwrite a running app or the preserved Tranche 01/02 bundles.
 
 | Check | Result |
 | --- | --- |
 | Go build | PASS. |
-| Full Go bridge/workapp package tests | PASS: `cmd/gator` 253.606 s; `internal/workapp` 70.235 s. |
+| Full Go bridge/workapp package tests | PASS: `cmd/hot-cross-buns` 253.606 s; `internal/workapp` 70.235 s. |
 | JS host/session/draft/upload/policy regressions | PASS: 63 tests, zero failed/skipped. |
 | Targeted TUI/client/dialogue/approval/plan/recovery regressions | PASS: 52 tests across 9 files, 979 assertions, zero failed; 214.11 s. |
 | Swift build | PASS: installed Swift 6.1.2, macOS 15.5 SDK; macOS 15 minimum. |
 | Swift tests | PASS: 50 tests, including all 34 Tranche 01/02 cases, fourteen new native review cases and two real Go correction/revision cases; final run 11.556 s. |
 | Development package | PASS: `Info.plist` lint and bundled executable native app plus real Go runtime. No runtime dependency on an absolute repository path. |
 
-Logs: `/tmp/gator-native-t03-{go,host,tui,build,tests,package}.log`. Full repository suites beyond those listed were not run. No live account or outbound model-provider verification was performed.
+Logs: `/tmp/hot-cross-buns-native-t03-{go,host,tui,build,tests,package}.log`. Full repository suites beyond those listed were not run. No live account or outbound model-provider verification was performed.
 
 ## Real Go integration evidence
 
@@ -123,14 +123,14 @@ Actual launched-app keyboard/Accessibility evidence is recorded below separately
 
 ## Actual launched native journeys
 
-Both final journeys launched `/tmp/Gator-Native-Tranche03-Ready.app/Contents/MacOS/GatorMac --open-window`, using its bundled real Go runtime, a disposable profile and the local controlled provider. Native windows and controls were exercised through macOS Accessibility and targeted keyboard events, not Swift state mocks or screenshots alone.
+Both final journeys launched `/tmp/HotCrossBuns-Native-Tranche03-Ready.app/Contents/MacOS/HotCrossBunsMac --open-window`, using its bundled real Go runtime, a disposable profile and the local controlled provider. Native windows and controls were exercised through macOS Accessibility and targeted keyboard events, not Swift state mocks or screenshots alone.
 
 Machine-local acceptance drivers, retained for reproduction on this Mac:
 
 ```sh
-swiftc /tmp/gator-native-ax.swift -o /tmp/gator-native-ax
-python3 /tmp/gator-native-tranche03-journeys.py action
-python3 /tmp/gator-native-tranche03-journeys.py plan
+swiftc /tmp/hot-cross-buns-native-ax.swift -o /tmp/hot-cross-buns-native-ax
+python3 /tmp/hot-cross-buns-native-tranche03-journeys.py action
+python3 /tmp/hot-cross-buns-native-tranche03-journeys.py plan
 ```
 
 The Python driver references the repository's controlled provider fixture; run from the repository root. Accessibility/event-posting permission is required and was available here. These `/tmp/` driver sources and evidence are local artifacts, not installed application dependencies. The persistent, account-free Go/coordinator reproduction is also covered by `NativeReviewIntegrationTests.swift` in the normal Swift test command.
@@ -139,9 +139,9 @@ The Python driver references the repository's controlled provider fixture; run f
 
 Final evidence root:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche03-ui-0jf71w_p`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche03-ui-0jf71w_p`
 
-`journey.json` records the parent/child identities, original owner PIDs, zero effects and every completed checkpoint. The final driver exited zero; log `/tmp/gator-native-t03-native-action.log`.
+`journey.json` records the parent/child identities, original owner PIDs, zero effects and every completed checkpoint. The final driver exited zero; log `/tmp/hot-cross-buns-native-t03-native-action.log`.
 
 The app explicitly selected Go's Propose Actions mode, started held unrelated Work, and delegated the controlled proposed message to another Go owner. Inspecting that background proposal did not change foreground selection. Exact native review exposed the original subject and entire long body through its accessibility content, including `FINAL REVIEW LINE`.
 
@@ -151,9 +151,9 @@ The approval button was actually focused: targeted Return did not approve. Comma
 
 Final evidence root:
 
-`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche03-ui-rb5uyvjd`
+`/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche03-ui-rb5uyvjd`
 
-`journey.json` records the unchanged task/owner, revision 1 to 3, changed exact digest, zero effects and completed checkpoints. The driver exited zero; log `/tmp/gator-native-t03-native-plan.log`.
+`journey.json` records the unchanged task/owner, revision 1 to 3, changed exact digest, zero effects and completed checkpoints. The driver exited zero; log `/tmp/hot-cross-buns-native-t03-native-plan.log`.
 
 Native Plan First produced a real proposed plan. Command-I opened task details; Inspect Current Plan loaded its objective/steps. Request Plan Revision opened a draft without execution. While a fixture gate held preparation, the UI reported revision requested, not completed. Releasing it produced the actual changed objective/step and a new revision/digest. The old read was visibly stale; a fresh inspect loaded the replacement. No Approve/Start plan buttons or execution were present. Escape restored the ordinary draft and actual composer focus. Guarded Quit retained the queued plan and reaped its owner.
 
@@ -161,7 +161,7 @@ Native Plan First produced a real proposed plan. Command-I opened task details; 
 
 Performed in Journey A on the final bundle. Correction draft, task inspector and exact original owner survived compact-to-full expansion and navigation. After declining the replacement, both native presentations were dismissed. The driver counted actual normal and menu-bar panel window layers, verified both original Go PIDs remained alive, and checked the authoritative request journal still reported the held parent's request as running. It then released that Work while both presentations were closed. Reopening showed the retained completed result and original draft. Final Quit reaped both Go owners. No background completion redirected the selected conversation.
 
-The final original-review and revised-plan screenshots were inspected. A fully rendered replacement-review screenshot from the preceding check of the same final bundle was also inspected at `/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/gator-native-tranche03-ui-myek9847/replacement-review.png`. They show the existing native typography/materials, literal scrollable review and proposed-versus-completed hierarchy. The last driver's replacement capture was partial while the full window was inactive and is not visual acceptance evidence; its complete replacement text and identity were verified through the actual AX tree and Go state. Physical human scroll/VoiceOver traversal is not inferred from screenshots.
+The final original-review and revised-plan screenshots were inspected. A fully rendered replacement-review screenshot from the preceding check of the same final bundle was also inspected at `/var/folders/pq/lllswlg16q396qgx147zv_mm0000gn/T/hot-cross-buns-native-tranche03-ui-myek9847/replacement-review.png`. They show the existing native typography/materials, literal scrollable review and proposed-versus-completed hierarchy. The last driver's replacement capture was partial while the full window was inactive and is not visual acceptance evidence; its complete replacement text and identity were verified through the actual AX tree and Go state. Physical human scroll/VoiceOver traversal is not inferred from screenshots.
 
 Diagnostic acceptance attempts exposed two driver issues: repeated traversal of both complete accessibility trees could outlast Go's five-minute held-provider timeout, and active Work was incorrectly checked in finish-only activity files. The final driver avoids redundant traversal, explicitly dismisses compact after verifying shared inspection, counts the menu-bar panel's actual window layer, and checks the actual Go request journal. No backend timeout, permission, execution or approval restriction was relaxed. Diagnostic timeout/error screenshots are not happy-path evidence; the final complete runs above are. Performance with exhaustive simultaneous accessibility-tree traversal still merits physical VoiceOver follow-up.
 
@@ -186,10 +186,10 @@ No Following, voice, attachment import, provider setup/login, file editing/expor
 ## Launch and manual inspection
 
 ```sh
-open /tmp/Gator-Native-Tranche03-Ready.app --args --open-window
+open /tmp/HotCrossBuns-Native-Tranche03-Ready.app --args --open-window
 ```
 
-Omit `--args --open-window` for menu-bar-first launch. The development bundle contains both executable Mach-O files at `Contents/MacOS/GatorMac` and `Contents/Resources/gator-runtime`; `plutil -lint` passed. Tranche 01 `/tmp/Gator-Native-Verified.app` and Tranche 02 `/tmp/Gator-Native-Tranche02-Ready.app` remain preserved.
+Omit `--args --open-window` for menu-bar-first launch. The development bundle contains both executable Mach-O files at `Contents/MacOS/HotCrossBunsMac` and `Contents/Resources/hot-cross-buns-runtime`; `plutil -lint` passed. Tranche 01 `/tmp/HotCrossBuns-Native-Verified.app` and Tranche 02 `/tmp/HotCrossBuns-Native-Tranche02-Ready.app` remain preserved.
 
 Open the menu-bar icon, then Expand to the full window. Command-L focuses the shared composer; Command-I opens current task details; Command-Shift-R opens a pending exact action. Escape returns to the conversation. The activity disclosure exposes owner-bound task inspection/navigation. A correction opens an editable composer and requires explicit Send. Plan First requests a proposal; Inspect Current Plan loads its exact review. Proposed plans have no native Approve/Start control in this tranche.
 

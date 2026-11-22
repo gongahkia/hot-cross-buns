@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
 )
 
 func (s Store) inputNamesPath(conversation, revision string) string {

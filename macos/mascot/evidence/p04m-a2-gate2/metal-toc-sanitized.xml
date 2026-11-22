@@ -62,7 +62,7 @@
             <process name="com.apple.cmio.registerassistan" pid="401" path="com.apple.cmio.r" />
             <process name="CoreServicesUIAgent" pid="612" path="/System/Library/CoreServices/CoreServicesUIAgent.app/Contents/MacOS/CoreServicesUIAgent" />
             <process name="Google Chrome" pid="35438" path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" />
-            <process name="Gate2Lab" pid="40048" path="/private/tmp/Gator-Gate2-Profile-v4.app/Contents/MacOS/Gate2Lab" />
+            <process name="Gate2Lab" pid="40048" path="/private/tmp/HotCrossBuns-Gate2-Profile-v4.app/Contents/MacOS/Gate2Lab" />
             <process name="PAH_Extension" pid="753" path="/System/Library/Input Methods/PressAndHold.app/Contents/PlugIns/PAH_Extension.appex/Contents/MacOS/PAH_Extension" />
             <process name="com.apple.SafariPlatformSupport" pid="40146" path="/System/Library/PrivateFrameworks/SafariPlatformSupport.framework/Versions/A/XPCServices/com.apple.SafariPlatformSupport.Helper.xpc/Contents/MacOS/com.apple.SafariPlatformSupport.Helper" />
             <process name="Alcove" pid="891" path="/Applications/Alcove.app/Contents/MacOS/Alcove" />
@@ -72,7 +72,7 @@
             <process name="com.apple.SafariPlatformSupport" pid="40035" path="/System/Library/PrivateFrameworks/SafariPlatformSupport.framework/Versions/A/XPCServices/com.apple.SafariPlatformSupport.Helper.xpc/Contents/MacOS/com.apple.SafariPlatformSupport.Helper" />
             <process name="com.apple.SafariPlatformSupport" pid="35453" path="/System/Library/PrivateFrameworks/SafariPlatformSupport.framework/Versions/A/XPCServices/com.apple.SafariPlatformSupport.Helper.xpc/Contents/MacOS/com.apple.SafariPlatformSupport.Helper" />
             <process name="kernel" pid="0" path="/System/Library/Kernels/kernel.release.t8122" />
-            <process name="Gate2Lab" pid="40140" path="/private/tmp/Gator-Mascot-P04M-A2-Gate2.app/Contents/MacOS/Gate2Lab" />
+            <process name="Gate2Lab" pid="40140" path="/private/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app/Contents/MacOS/Gate2Lab" />
             <process name="NotificationCenter" pid="714" path="/System/Library/CoreServices/NotificationCenter.app/Contents/MacOS/NotificationCenter" />
             <process name="mediaanalysisd" pid="777" path="/System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd" />
             <process name="TextInputMenuAgent" pid="871" path="/System/Library/CoreServices/TextInputMenuAgent.app/Contents/MacOS/TextInputMenuAgent" />

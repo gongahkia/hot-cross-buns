@@ -1,6 +1,6 @@
 # Historical Code TUI capability map
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -8,11 +8,11 @@
 **Historical record.** The standalone CLI and terminal renderer were retired on 22 October 2026. See [the desktop decision](DESKTOP-PRIMARY.md) and [current development instructions](DEVELOPMENT.md). Original observations below are retained.
 
 > This document records the retired standalone Code interface for migration
-> and regression archaeology. It is not a current product contract. Gator's
+> and regression archaeology. It is not a current product contract. Hot Cross Buns's
 > active terminal surface is `internal/worktui`; see
-> [Code-to-Gator product migration](CODE_TO_GATOR_MIGRATION.md).
+> [Code-to-Hot Cross Buns product migration](CODE_TO_HOT_CROSS_BUNS_MIGRATION.md).
 
-This document maps the public CLI in `cmd/gator/main.go` to the interactive
+This document maps the public CLI in `cmd/hot-cross-buns/main.go` to the interactive
 TUI. It is intentionally a capability audit, not a promise that every
 machine-oriented protocol should become an interactive screen.
 
@@ -45,7 +45,7 @@ provider shown in that catalog has a configuration path:
   AI Gateway also configures its request protocol;
 - Radius configures its optional gateway URL;
 - Claude Code uses a masked Anthropic API key and selects its delegated
-  harness. Gator never imports Claude.ai subscription credentials;
+  harness. Hot Cross Buns never imports Claude.ai subscription credentials;
 - Codex and Copilot configure their model/endpoint here and use `l` for their
   provider-owned OAuth sign-in. Kimi, xAI, OpenRouter, and Radius also expose
   their supported OAuth routes through `l`.
@@ -79,7 +79,7 @@ package manager.
 | `child list/show/batches/batch` | `/manage` selects arbitrary retained runs and browses writer-child status, role, patch size, worktree, batch schedules, and path-conflict evidence | complete | — |
 | `hook status/trust/untrust` | `/manage` shows configured hash/state and confirms trust changes | complete | — |
 | `lsp status/trust/untrust` | `/manage` shows configured hash/state, idle session-cache status, and confirms trust changes; runtime operations still require approval | complete | Opening `/manage` inspects the cache without starting servers. |
-| `mcp status/trust/untrust/login/logout` | `/manage` shows configured hash/state, display-safe auth status, and confirms trust, loopback PKCE login, or credential removal | complete | Login stays unavailable until the current `.gator/mcp.json` hash is trusted. |
+| `mcp status/trust/untrust/login/logout` | `/manage` shows configured hash/state, display-safe auth status, and confirms trust, loopback PKCE login, or credential removal | complete | Login stays unavailable until the current `.hot-cross-buns/mcp.json` hash is trusted. |
 | `worktree list/prune/remove` | `/manage` lists retained worktrees and confirms metadata pruning or deletion | complete | — |
 | `extension list/status` | `/manage` shows installed extension metadata/state; `/extensions` renders trusted static cards | complete | — |
 | `extension install/enable/disable/remove/trust/untrust` | `/manage` stages a local directory or HTTPS Git source, reviews the hash, and commits those exact bytes after confirmation | complete | TUI install rejects SSH/`git@`/plain HTTP. CLI may still clone those sources. |
@@ -90,10 +90,10 @@ package manager.
 | `local pull/use/remove` | Curated pull/use/remove with confirmation | complete | The per-command `--url` override has no TUI editor. |
 | `theme list/set` | `/theme` | complete | — |
 | `connect PROVIDER` | Main `/connect [PROVIDER]`; the no-argument form opens a searchable provider picker | complete | Provider-specific CLI flags remain CLI-only. |
-| `login PROVIDER` | Main `/login [PROVIDER]`; API keys use a hidden terminal prompt and OAuth uses the native browser/device flow | complete | Re-running `/login` replaces the existing native Gator credential. |
+| `login PROVIDER` | Main `/login [PROVIDER]`; API keys use a hidden terminal prompt and OAuth uses the native browser/device flow | complete | Re-running `/login` replaces the existing native Hot Cross Buns credential. |
 | `logout PROVIDER` | Main `/logout [PROVIDER]`; the no-argument form opens a searchable provider picker | complete | Environment variables, AWS/ADC, and vendor CLI logins are never unset from the TUI. |
 | `delegate codex/copilot/claude/kimi run` | `/model` selects the matching harness; send a task to run it in an isolated worktree | partial | Login options and exact one-shot CLI flags are absent. |
-| `delegate opencode login/status/run` | `/opencode` runs status/login in the vendor CLI and selects `PROVIDER/MODEL` for the next task | complete | Gator keeps the isolated-worktree and verification boundary; OpenCode keeps credentials, tools, approvals, and session state. |
+| `delegate opencode login/status/run` | `/opencode` runs status/login in the vendor CLI and selects `PROVIDER/MODEL` for the next task | complete | Hot Cross Buns keeps the isolated-worktree and verification boundary; OpenCode keeps credentials, tools, approvals, and session state. |
 | `delegate external run` | None | CLI only | Arbitrary command execution belongs to the explicit CLI boundary. |
 | `doctor [--provider]` | `/doctor` reports Git, provider auth kind/status, sandbox availability, web search, dependencies, and local models | complete | Inspect-only: it never starts Ollama, OAuth, or mutates configuration. |
 | `run` basic task | Composer, model selection, verifier editor, plan/execute mode, approvals, and review | complete | — |
@@ -107,9 +107,9 @@ package manager.
 | `resume` | `/recent`/`Ctrl+O` list, `p` text target, or `/resume TARGET [instruction…]` | complete | Exact CLI `--max-steps` remains `/run` / `/effort`. |
 | `fork` | `/tree`, `/fork`, or `/fork TARGET [instruction…]` | complete | Exact CLI `--max-steps` remains `/run` / `/effort`. |
 | `clone` | `/clone` or `/clone TARGET [instruction…]` | complete | Exact CLI `--max-steps` remains `/run` / `/effort`. |
-| `transcript RUN_RECORD_PATH` | `/manage` selects retained runs and writes private HTML exports below Gator's state directory; active transcript remains scrollable and copyable | complete | — |
+| `transcript RUN_RECORD_PATH` | `/manage` selects retained runs and writes private HTML exports below Hot Cross Buns's state directory; active transcript remains scrollable and copyable | complete | — |
 | `review RUN_RECORD_PATH [--open]` | `/review`, `/review TARGET`, and `b` loopback browser review | complete | Listen stays loopback-only and is not an execution API. |
-| `export RUN_RECORD_PATH` | `/manage` selects retained runs and writes private patch exports below Gator's state directory | complete | — |
+| `export RUN_RECORD_PATH` | `/manage` selects retained runs and writes private patch exports below Hot Cross Buns's state directory | complete | — |
 | `apply [--check] RUN_RECORD_PATH` | `/manage` requires a successful clean-checkout compatibility check for the selected run, then a separate apply confirmation | complete | — |
 | `eval DIR` | None | CLI only | Offline `--script` or `--live` evaluation; writes a JSON report. Not a TUI workflow. |
 
@@ -120,7 +120,7 @@ configuration surface. Completed portions are marked below; remaining detail
 defines the next bounded iteration rather than implying broad parity.
 
 1. **Credential lifecycle in `/model`** — implemented: `d` removes a stored
-   Gator credential after confirmation, names the credential kind, and reports
+   Hot Cross Buns credential after confirmation, names the credential kind, and reports
    remaining ambient sources. Environment variables and vendor CLI stores are
    not unset. Claude Code removal targets the Anthropic store key.
 2. **Persistent execution-policy editor** — implemented in `/manage` for the

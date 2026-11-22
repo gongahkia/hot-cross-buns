@@ -3,13 +3,13 @@ package workrun
 import (
 	"context"
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,7 +71,7 @@ func TestExternalNativeSessionContinuesAcrossWorkConversationTurns(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := orchestrator.ReadTasks(filepath.Join(state, "gator", "tasks", "first"))
+	first, err := orchestrator.ReadTasks(filepath.Join(state, "hot-cross-buns", "tasks", "first"))
 	if err != nil || len(first) != 1 || first[0].Status != "completed" {
 		t.Fatalf("first task: %+v %v", first, err)
 	}
@@ -82,7 +82,7 @@ func TestExternalNativeSessionContinuesAcrossWorkConversationTurns(t *testing.T)
 	if _, err := service.Execute(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	sibling, err := orchestrator.ReadTasks(filepath.Join(state, "gator", "tasks", "sibling"))
+	sibling, err := orchestrator.ReadTasks(filepath.Join(state, "hot-cross-buns", "tasks", "sibling"))
 	if err != nil || len(sibling) != 1 || sibling[0].Status != "completed" {
 		t.Fatalf("sibling task: %+v %v", sibling, err)
 	}
@@ -99,7 +99,7 @@ func TestExternalNativeSessionContinuesAcrossWorkConversationTurns(t *testing.T)
 	if _, err := service.Execute(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	second, err := orchestrator.ReadTasks(filepath.Join(state, "gator", "tasks", "second"))
+	second, err := orchestrator.ReadTasks(filepath.Join(state, "hot-cross-buns", "tasks", "second"))
 	if err != nil || len(second) != 1 || second[0].Status != "completed" {
 		t.Fatalf("continued task: %+v %v", second, err)
 	}
@@ -111,7 +111,7 @@ func TestExternalNativeSessionContinuesAcrossWorkConversationTurns(t *testing.T)
 	if _, err := service.Execute(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	rejected, err := orchestrator.ReadTasks(filepath.Join(state, "gator", "tasks", "wrong-branch"))
+	rejected, err := orchestrator.ReadTasks(filepath.Join(state, "hot-cross-buns", "tasks", "wrong-branch"))
 	if err != nil || len(rejected) != 0 {
 		t.Fatalf("resumed sibling branch task: %+v %v", rejected, err)
 	}

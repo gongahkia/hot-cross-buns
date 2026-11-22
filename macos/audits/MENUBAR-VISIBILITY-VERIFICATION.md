@@ -6,15 +6,15 @@ Date: 2026-11-18. Completed before CH08 implementation. Starting HEAD for this a
 
 The scene consumes a read-only binding to the preference. A direct AppStorage insertion binding reproduced a SwiftUI scene-update loop; a guarded writable binding still allowed stale scene insertion callbacks to overwrite the preference. Both intermediate versions were rejected. The final read-only scene binding passed hide/restore, Quit/relaunch and reopen checks.
 
-Desktop verification used `/tmp/Gator-Native-MenuBar-Desktop.app`, preference domain `dev.gator.native.menubar-test-37d0637e`, disposable profile `/tmp/gator-menubar-test-r92gipgw`, and an unreachable loopback-only provider. No message was sent. Process 62128 retained direct Go child 62129 across hide/restore and window close/reopen. Both exited after guarded Quit. Relaunch process 65345 started with the icon absent, the full window present and the exact draft “Draft survives hiding the menu-bar icon” intact. Restoring showed the status item again; hiding it removed it again. Stored preference was false after Quit and relaunch. Final idle launch did not reproduce the scene loop. Screenshot: [setting](../parity/evidence/p01/menu-bar-setting.png).
+Desktop verification used `/tmp/HotCrossBuns-Native-MenuBar-Desktop.app`, preference domain `dev.hot-cross-buns.native.menubar-test-37d0637e`, disposable profile `/tmp/hot-cross-buns-menubar-test-r92gipgw`, and an unreachable loopback-only provider. No message was sent. Process 62128 retained direct Go child 62129 across hide/restore and window close/reopen. Both exited after guarded Quit. Relaunch process 65345 started with the icon absent, the full window present and the exact draft “Draft survives hiding the menu-bar icon” intact. Restoring showed the status item again; hiding it removed it again. Stored preference was false after Quit and relaunch. Final idle launch did not reproduce the scene loop. Screenshot: [setting](../parity/evidence/p01/menu-bar-setting.png).
 
-Changed sources: `GatorApp.swift`, `MenuBarVisibilityToggle.swift`, `ConversationView.swift`, `NotchQuickAccess.swift`, `AppDelegate.swift`; the latter adds only reopen presentation routing, preserving Quit. `NativeInputTests.swift` adds the existing-scene reopen regression.
+Changed sources: `HotCrossBunsApp.swift`, `MenuBarVisibilityToggle.swift`, `ConversationView.swift`, `NotchQuickAccess.swift`, `AppDelegate.swift`; the latter adds only reopen presentation routing, preserving Quit. `NativeInputTests.swift` adds the existing-scene reopen regression.
 
 Verification:
 
 ```sh
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-swift build --package-path macos --scratch-path /tmp/gator-native-build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 ```
 
-171 tests passed in 50.211 seconds (`/tmp/gator-menubar-verified-tests.log`); strict build passed in 10.31 seconds (`/tmp/gator-menubar-verified-strict.log`). The package remains Swift 6 / macOS 15. Physical macOS 15, VoiceOver and forced termination during preference propagation were not tested. The normal Quit/relaunch persistence path was tested. Prior verified bundles were preserved.
+171 tests passed in 50.211 seconds (`/tmp/hot-cross-buns-menubar-verified-tests.log`); strict build passed in 10.31 seconds (`/tmp/hot-cross-buns-menubar-verified-strict.log`). The package remains Swift 6 / macOS 15. Physical macOS 15, VoiceOver and forced termination during preference propagation were not tested. The normal Quit/relaunch persistence path was tested. Prior verified bundles were preserved.

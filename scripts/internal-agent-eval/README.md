@@ -7,10 +7,10 @@ external account, browser or real user memory is loaded. Regular tests skip it.
 Export `OPENAI_API_KEY` locally. Then, from the repository root:
 
 ```sh
-GATOR_LIVE_MODEL=gpt-5.6 \
-GATOR_LIVE_ENDPOINT=https://us.api.openai.com/v1/responses \
-GATOR_LIVE_INTERNAL_REPORT="$PWD/internal-agent-report-new.json" \
-go test ./cmd/gator -run '^TestLiveInternalAgentLifecycle$' -count=1 -v -timeout 12m
+HOT_CROSS_BUNS_LIVE_MODEL=gpt-5.6 \
+HOT_CROSS_BUNS_LIVE_ENDPOINT=https://us.api.openai.com/v1/responses \
+HOT_CROSS_BUNS_LIVE_INTERNAL_REPORT="$PWD/internal-agent-report-new.json" \
+go test ./cmd/hot-cross-buns -run '^TestLiveInternalAgentLifecycle$' -count=1 -v -timeout 12m
 ```
 
 Choose an endpoint appropriate to the account. The example is the regional
@@ -43,10 +43,10 @@ and verifies that the normal runner writes and checks a draft artifact, then
 holds for owner review without marking the task done.
 
 ```sh
-GATOR_LIVE_MODEL=gpt-5.6 \
-GATOR_LIVE_ENDPOINT=https://us.api.openai.com/v1/responses \
-GATOR_LIVE_CONTINUITY_REPORT="$PWD/continuity-report-new.json" \
-go test ./cmd/gator -run '^TestLiveAgentContinuity$' -count=1 -v -timeout 12m
+HOT_CROSS_BUNS_LIVE_MODEL=gpt-5.6 \
+HOT_CROSS_BUNS_LIVE_ENDPOINT=https://us.api.openai.com/v1/responses \
+HOT_CROSS_BUNS_LIVE_CONTINUITY_REPORT="$PWD/continuity-report-new.json" \
+go test ./cmd/hot-cross-buns -run '^TestLiveAgentContinuity$' -count=1 -v -timeout 12m
 ```
 
 This test has an aggregate 80-request / 250,000-token budget (checked between

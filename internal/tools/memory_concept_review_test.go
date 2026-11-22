@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 func TestUnknownMemoryCategoryCannotSilentlyBypassConflictOrForget(t *testing.T) {

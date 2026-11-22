@@ -12,13 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestLoadPinsExecutableAndTrustsOnlyMatchingBundle(t *testing.T) {
 	directory := t.TempDir()
-	writeFile(t, directory, ".gator/diagnostic-server", "#!/bin/sh\n", 0o755)
-	writeFile(t, directory, ".gator/lsp.json", `{"version":1,"servers":[{"name":"fixture","command":[".gator/diagnostic-server"],"language":"go"}]}`, 0o600)
+	writeFile(t, directory, ".hot-cross-buns/diagnostic-server", "#!/bin/sh\n", 0o755)
+	writeFile(t, directory, ".hot-cross-buns/lsp.json", `{"version":1,"servers":[{"name":"fixture","command":[".hot-cross-buns/diagnostic-server"],"language":"go"}]}`, 0o600)
 
 	digest, err := BundleHash(directory)
 	if err != nil {
@@ -39,7 +39,7 @@ func TestLoadPinsExecutableAndTrustsOnlyMatchingBundle(t *testing.T) {
 		t.Fatalf("trusted LSP bundle = %#v", trusted)
 	}
 
-	writeFile(t, directory, ".gator/diagnostic-server", "#!/bin/sh\necho changed\n", 0o755)
+	writeFile(t, directory, ".hot-cross-buns/diagnostic-server", "#!/bin/sh\necho changed\n", 0o755)
 	changed, err := BundleHash(directory)
 	if err != nil {
 		t.Fatalf("hash changed LSP bundle: %v", err)
@@ -109,7 +109,7 @@ func TestToolsFormatReadOnlyNavigationAndKeepLocationsInWorkspace(t *testing.T) 
 	writeFile(t, root.Path(), "pkg/example.go", "package pkg\n", 0o600)
 	writeFile(t, root.Path(), "pkg/target.go", "package pkg\n", 0o600)
 	localURI := fileURI(filepath.Join(root.Path(), "pkg", "target.go"))
-	externalURI := fileURI("/outside/gator-secret.go")
+	externalURI := fileURI("/outside/hot-cross-buns-secret.go")
 	location := func(uri string) map[string]any {
 		return map[string]any{"uri": uri, "range": map[string]any{"start": map[string]int{"line": 2, "character": 1}, "end": map[string]int{"line": 2, "character": 7}}}
 	}
@@ -131,7 +131,7 @@ func TestToolsFormatReadOnlyNavigationAndKeepLocationsInWorkspace(t *testing.T) 
 				"label": "Target", "kind": 5, "detail": "fixture symbol", "insertText": "Target",
 				"documentation":       map[string]string{"kind": "markdown", "value": "**Target** completion"},
 				"command":             map[string]string{"title": "untrusted", "command": "dangerous.command"},
-				"additionalTextEdits": []any{map[string]any{"newText": "gator-secret"}},
+				"additionalTextEdits": []any{map[string]any{"newText": "hot-cross-buns-secret"}},
 			}},
 		}),
 		"textDocument/codeAction": encoded([]any{
@@ -207,7 +207,7 @@ func TestToolsFormatReadOnlyNavigationAndKeepLocationsInWorkspace(t *testing.T) 
 					t.Fatalf("%s result missing %q: %s", test.operation, expected, result.Content)
 				}
 			}
-			if strings.Contains(result.Content, "gator-secret") || strings.Contains(result.Content, "outside secret") || strings.Contains(result.Content, "dangerous.command") {
+			if strings.Contains(result.Content, "hot-cross-buns-secret") || strings.Contains(result.Content, "outside secret") || strings.Contains(result.Content, "dangerous.command") {
 				t.Fatalf("%s leaked external LSP location: %s", test.operation, result.Content)
 			}
 			if test.operation == referencesOperation {
@@ -227,7 +227,7 @@ func TestToolsFormatReadOnlyNavigationAndKeepLocationsInWorkspace(t *testing.T) 
 				if err != nil || !strings.Contains(string(encoded), `"line":2`) || !strings.Contains(string(encoded), `"character":1`) {
 					t.Fatalf("completion parameters = %s, %v", encoded, err)
 				}
-				if strings.Contains(result.Content, "dangerous.command") || strings.Contains(result.Content, "gator-secret") {
+				if strings.Contains(result.Content, "dangerous.command") || strings.Contains(result.Content, "hot-cross-buns-secret") {
 					t.Fatalf("completion leaked an edit or command: %s", result.Content)
 				}
 			}

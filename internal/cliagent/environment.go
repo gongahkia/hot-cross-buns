@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -34,7 +34,7 @@ func prepareCLI(ctx context.Context, cfg Config, directory, home string, argv []
 	policy.WritablePaths = append([]string(nil), scopes...)
 	if !edit {
 		// No worktree writes in inspection mode; private HOME/cache remains writable.
-		policy.WritablePaths = []string{".gator-inspect-no-writes"}
+		policy.WritablePaths = []string{".hot-cross-buns-inspect-no-writes"}
 	}
 	prepared, err := sandbox.Prepare(ctx, sandbox.Request{Dir: directory, Argv: append([]string{cfg.Executable}, argv...), Policy: policy})
 	if err != nil {

@@ -14,9 +14,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/localmodel"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 // LocalFirstProfile selects reference transcripts, not live model adapters.

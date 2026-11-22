@@ -1,6 +1,6 @@
 # Conversation source selection
 
-The Electron composer’s **Sources** button opens **Add sources**. It lists only the configured, supported Gator connections. Selected account labels appear beside the button in wider windows; the source count remains available in compact windows. The menu supports keyboard navigation, Escape/focus return, refresh, clearing selections and **Manage connections**.
+The Electron composer’s **Sources** button opens **Add sources**. It lists only the configured, supported Hot Cross Buns connections. Selected account labels appear beside the button in wider windows; the source count remains available in compact windows. The menu supports keyboard navigation, Escape/focus return, refresh, clearing selections and **Manage connections**.
 
 Connecting an account and selecting it for a request are separate actions. Selection does not authenticate, widen tool permissions, authorize writes or imply live access. A saved credential is shown as saved, not verified. Missing/expired credentials and action-only connections cannot be newly selected as read sources. Existing invalid selections can be cleared. Removed accounts are never substituted.
 
@@ -12,13 +12,13 @@ Opening or refreshing the menu performs local metadata reads only. It never call
 
 `internal/workapp/composer_sources.go` owns the bounded display projection and finite refresh/select actions. The catalogue has at most 128 visible entries, with at most 16 selected connections, matching the native connector-tool limit. The opaque selection identity binds the exact host conversation, source folder, selected IDs, display metadata and host-only account fingerprints. The browser never receives those fingerprints, credentials, OAuth client details, executable paths or endpoints.
 
-`cmd/gator/work_composer_sources.go` reads existing settings/auth stores and uses `worksession.Preferences` with compare-and-swap persistence. The owner refreshes the catalogue before every selection and rejects stale identities, unknown/unavailable/repeated IDs and external changes to saved selections. No new registry, permission store, daemon or authentication system was added.
+`cmd/hot-cross-buns/work_composer_sources.go` reads existing settings/auth stores and uses `worksession.Preferences` with compare-and-swap persistence. The owner refreshes the catalogue before every selection and rejects stale identities, unknown/unavailable/repeated IDs and external changes to saved selections. No new registry, permission store, daemon or authentication system was added.
 
 Selections apply to subsequent submissions, including queued messages submitted after the selection. Running requests and previously admitted queue entries keep their frozen options. The UI disables submission while a selection is awaiting acknowledgement. If acknowledgement is missing, it requires refresh before submission; it does not automatically resend a selection. Source choices are separate from model/effort defaults and do not change an executing request. App-side connector changes still use their existing reviewed/CAS path.
 
 ## Focused verification
 
-- Go unit and race tests for `internal/workapp` and `cmd/gator`, filtered to source/composer/connection cases: PASS. Coverage includes old account bindings, expiry, revocation, removal, stale checked access, wrong chat, bounded refresh, persistence failure, concurrent preference changes and frozen queue options.
+- Go unit and race tests for `internal/workapp` and `cmd/hot-cross-buns`, filtered to source/composer/connection cases: PASS. Coverage includes old account bindings, expiry, revocation, removal, stale checked access, wrong chat, bounded refresh, persistence failure, concurrent preference changes and frozen queue options.
 - `node --test app-host/tests/policy.test.mjs`: 12 passed. Renderer source actions accept only finite IDs, request identities and select/refresh operations; additional authority/configuration is rejected.
 - `npm run check --prefix desktop`, `npm run build --prefix desktop`, and final `build:ui`: PASS.
 - Real Electron journeys (`app-control.spec.ts` / `connections.spec.ts`, filtered to composer sources and native account setup): 3 passed. These cover per-chat selection/return, draft preservation, removal, clearing, original durable running/queued options, advanced token setup, explicit live-read check against a private fixture, and simulated OAuth browser return. No commercial API or real external account was used.

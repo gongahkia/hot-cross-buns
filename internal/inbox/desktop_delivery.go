@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 const maxDesktopAttempts = 5

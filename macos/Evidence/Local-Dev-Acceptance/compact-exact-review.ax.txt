@@ -1,13 +1,13 @@
-AXApplication | Gator |  | 
+AXApplication | Hot Cross Buns |  |
 AXWindow |  |  | 
 AXGroup |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Begin inert pending approval
 AXButton |  | Inspect Current Task | 
 AXButton |  | Return to Requesting Chat | 
 AXButton |  | Stop | 
 AXMenuButton |  | More | 
-AXButton |  | Open full Gator window | 
+AXButton |  | Open full Hot Cross Buns window |
 AXDisclosureTriangle |  | Work continues in another chat | 
 AXHeading |  | Review this exact action | 
 AXStaticText |  |  | Owner: Begin inert pending approval
@@ -19,7 +19,7 @@ AXStaticText |  |  | Search service: unavailable: no search provider configured
 AXStaticText |  |  | Shared limits: 8 search requests within 32 total web requests
 AXStaticText |  |  | This task only, including its connected researchers. Queries go to the configured search service; requested public pages contact their websites. Search may incur provider charges. No saved login, private-network access or external writes.
 AXDisclosureTriangle |  | Complete exact review data | 
-AXStaticText |  |  | Approving permits exactly this proposed operation. Only Gator's retained outcome can confirm execution or delivery.
+AXStaticText |  |  | Approving permits exactly this proposed operation. Only Hot Cross Buns's retained outcome can confirm execution or delivery.
 AXScrollBar |  |  | 
 AXValueIndicator |  |  | 
 AXButton |  |  | 
@@ -34,8 +34,8 @@ AXButton |  | Approve Exact Action |
 AXScrollArea |  | Conversation status and recovery | 
 AXStaticText |  |  | Connected
 AXMenuButton |  | Select Model | 
-AXWindow |  | Gator quick access | 
+AXWindow |  | Hot Cross Buns quick access |
 AXGroup |  |  | 
-AXButton |  | Gator, 1 chat to inspect | 
+AXButton |  | Hot Cross Buns, 1 chat to inspect |
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator, A chat needs inspection |  | 
+AXMenuBarItem | Hot Cross Buns, A chat needs inspection |  |

@@ -64,5 +64,5 @@ for size in [16, 32, 128, 256, 512] {
     }
 }
 let resources = root.deletingLastPathComponent()
-try png(pixels: 1024, appIcon: false).write(to: resources.appendingPathComponent("GatorHead.png"))
-try png(pixels: 36, appIcon: false).write(to: resources.appendingPathComponent("GatorMenuBar.png"))
+try png(pixels: 1024, appIcon: false).write(to: resources.appendingPathComponent("HotCrossBunsHead.png"))
+try png(pixels: 36, appIcon: false).write(to: resources.appendingPathComponent("HotCrossBunsMenuBar.png"))

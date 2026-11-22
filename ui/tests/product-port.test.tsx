@@ -4,11 +4,11 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { randomUUID } from "node:crypto"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
-import { draftLinks, markdownLink } from "../src/gator/draft-links"
+import { draftLinks, markdownLink } from "../src/hot-cross-buns/draft-links"
 
 async function until(predicate: () => boolean, label: string) {
   const end = Date.now() + 20000
@@ -16,8 +16,8 @@ async function until(predicate: () => boolean, label: string) {
 }
 
 test("chat commands retain exact plan reviews, frozen evidence and independent branches with the current Go backend", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-port-")), workspace = join(root, "workspace")
-  await mkdir(workspace); await mkdir(join(root, "config/gator"), { recursive: true })
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-port-")), workspace = join(root, "workspace")
+  await mkdir(workspace); await mkdir(join(root, "config/hot-cross-buns"), { recursive: true })
   await writeFile(join(workspace, "project.md"), "Owner: Mina\nDeadline: Friday\n")
   let calls = 0
   const proposal = { outcome: "Explain the observed project", steps: [{ id: "read", text: "Read the project" }, { id: "explain", text: "Explain the observed facts" }], sources: [], effects: ["read"] }
@@ -29,9 +29,9 @@ test("chat commands retain exact plan reviews, frozen evidence and independent b
         : { role: "assistant", tool_calls: [{ id: randomUUID(), type: "function", function: { name: "read_file", arguments: JSON.stringify({ path: "source/project.md" }) } }] }
     return Response.json({ choices: [{ message, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
   } })
-  await writeFile(join(root, "config/gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), workspace, userData: join(root, "app"), env: { ...process.env, GATOR_UI_FRONTEND: "terminal", GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  const client = new GatorClient(new Application(options))
+  await writeFile(join(root, "config/hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), workspace, userData: join(root, "app"), env: { ...process.env, HOT_CROSS_BUNS_UI_FRONTEND: "terminal", HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  const client = new HotCrossBunsClient(new Application(options))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   const choose = async (text: string) => { setup.mockInput.pressKey("u", { ctrl: true }); await setup.mockInput.typeText(text); await flush(); setup.mockInput.pressEnter(); await flush() }
@@ -81,7 +81,7 @@ test("chat commands retain exact plan reviews, frozen evidence and independent b
 }, 60000)
 
 test("source choices and individual specialist controls use live IDs without overwriting the chat draft", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-controls-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-controls-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   host.current.sources = { id: "source-generation", selected: [], choices: [{ id: "mail", label: "My Gmail", service: "Gmail", status: "Ready", access: "Read" }] }
   host.current.specialists = [{ id: "worker-one", token: "exact-live-token", name: "Deadline researcher", status: "Working", can_guide: true, can_stop: true }]
   host.dispatch = async frame => {

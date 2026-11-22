@@ -53,7 +53,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3008518177/gator/traces/local-first-B-dev-short-chat-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3008518177/hot-cross-buns/traces/local-first-B-dev-short-chat-01/trace.json",
       "spans": [
         {
           "id": "80012ce8736cfbc1",
@@ -207,7 +207,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "679c4c4fd7f29fea9da1d478aef705f5b701edf73fc07cb317ea39adb6c8a93a",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3008518177/gator/workspaces/89a4571057a70e5a2fbf81eb5cd56f4a/local-first-B-dev-short-chat-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3008518177/hot-cross-buns/workspaces/89a4571057a70e5a2fbf81eb5cd56f4a/local-first-B-dev-short-chat-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -256,7 +256,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-925030046/gator/traces/local-first-B-dev-summarization-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-925030046/hot-cross-buns/traces/local-first-B-dev-summarization-01/trace.json",
       "spans": [
         {
           "id": "33ca0d6655b265d8",
@@ -410,7 +410,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "013be6e6c0407344dc3881d2c3f50dcd714305abace5632f6d62417a739388f7",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-925030046/gator/workspaces/dc74d8c03fd52c6d43a31f999171b0a5/local-first-B-dev-summarization-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-925030046/hot-cross-buns/workspaces/dc74d8c03fd52c6d43a31f999171b0a5/local-first-B-dev-summarization-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -459,7 +459,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1540097153/gator/traces/local-first-B-dev-multi-source-synthesis-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1540097153/hot-cross-buns/traces/local-first-B-dev-multi-source-synthesis-01/trace.json",
       "spans": [
         {
           "id": "54e4cf4103499cb3",
@@ -679,7 +679,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "5962066d2a0d4b94d093e71d6967561dd52311c60471f079740af287a407715b",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1540097153/gator/workspaces/1e3a28d7fc26560f7b7c061df34ff44d/local-first-B-dev-multi-source-synthesis-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1540097153/hot-cross-buns/workspaces/1e3a28d7fc26560f7b7c061df34ff44d/local-first-B-dev-multi-source-synthesis-01",
       "usage": {
         "unknown_requests": 5,
         "model_requests": 5,
@@ -728,7 +728,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-414851403/gator/traces/local-first-B-dev-planning-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-414851403/hot-cross-buns/traces/local-first-B-dev-planning-01/trace.json",
       "spans": [
         {
           "id": "d45cf5c6a881459f",
@@ -882,7 +882,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "9264dd3e4d642b78ffb58d8849477dda127e283fea73518f20662fdae057efff",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-414851403/gator/workspaces/ddc9003ef46acf6f02fa309e6cae4faa/local-first-B-dev-planning-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-414851403/hot-cross-buns/workspaces/ddc9003ef46acf6f02fa309e6cae4faa/local-first-B-dev-planning-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -931,7 +931,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3537240880/gator/traces/local-first-B-dev-structured-output-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3537240880/hot-cross-buns/traces/local-first-B-dev-structured-output-01/trace.json",
       "spans": [
         {
           "id": "abdff4a57e2a0349",
@@ -1085,7 +1085,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "772f76d6f3c3e71eaf138c44550f783434582063a7305c0698f048bcd6225eab",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3537240880/gator/workspaces/2af5ccbca2fe1418ac7b7230d6a41754/local-first-B-dev-structured-output-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3537240880/hot-cross-buns/workspaces/2af5ccbca2fe1418ac7b7230d6a41754/local-first-B-dev-structured-output-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1134,7 +1134,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2997914859/gator/traces/local-first-B-dev-tool-selection-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2997914859/hot-cross-buns/traces/local-first-B-dev-tool-selection-01/trace.json",
       "spans": [
         {
           "id": "fe62f11af1f8325c",
@@ -1288,7 +1288,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "8ce82ed484d74b753cdf82099acd79fdd662119bdf4d76b448ba87ceaac7834d",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2997914859/gator/workspaces/bcb81e44f51f9b6d7f3d9a6d9a6a18a2/local-first-B-dev-tool-selection-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2997914859/hot-cross-buns/workspaces/bcb81e44f51f9b6d7f3d9a6d9a6a18a2/local-first-B-dev-tool-selection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1337,7 +1337,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-335419656/gator/traces/local-first-B-dev-tool-arguments-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-335419656/hot-cross-buns/traces/local-first-B-dev-tool-arguments-01/trace.json",
       "spans": [
         {
           "id": "025b16933b7138f1",
@@ -1529,7 +1529,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "43bec6ccbae115c2a78b7859d50352e6c7da3c1dcb4785ec2b23c4928f4b6924",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-335419656/gator/workspaces/ad3a809a9ef3eaa6eebba4b0624a45b1/local-first-B-dev-tool-arguments-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-335419656/hot-cross-buns/workspaces/ad3a809a9ef3eaa6eebba4b0624a45b1/local-first-B-dev-tool-arguments-01",
       "usage": {
         "unknown_requests": 4,
         "model_requests": 4,
@@ -1578,7 +1578,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3790169827/gator/traces/local-first-B-dev-no-tool-needed-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3790169827/hot-cross-buns/traces/local-first-B-dev-no-tool-needed-01/trace.json",
       "spans": [
         {
           "id": "80eff52cc54c582a",
@@ -1664,7 +1664,7 @@
       "contract_sha256": "56211dd814891dffbc263b7fdb9b1f6edfe43d721e9c00a8acafa7dcfc74fc12",
       "policy_sha256": "a8cf6c7981d24faf8876c8717056e2738b066d4a510cb45fa19384becd8786e8",
       "source_sha256": "692dffd1a428491dd4f687a4820bf6dadce1856685c4904c9a3625db8a905cf7",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3790169827/gator/workspaces/c60d1d20de4321d42317a894f607682a/local-first-B-dev-no-tool-needed-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3790169827/hot-cross-buns/workspaces/c60d1d20de4321d42317a894f607682a/local-first-B-dev-no-tool-needed-01",
       "usage": {
         "unknown_requests": 1,
         "model_requests": 1,
@@ -1713,7 +1713,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2967116588/gator/traces/local-first-B-dev-delegation-needed-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2967116588/hot-cross-buns/traces/local-first-B-dev-delegation-needed-01/trace.json",
       "spans": [
         {
           "id": "f8e66b3c7fdebe6a",
@@ -1867,7 +1867,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d44dd6152a81ad861ce5f233635ce6dd0f32c660e378f6d3e5cc40ec589cde2f",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2967116588/gator/workspaces/aa8eac4c43ebd59c89bd9f45a840a62f/local-first-B-dev-delegation-needed-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2967116588/hot-cross-buns/workspaces/aa8eac4c43ebd59c89bd9f45a840a62f/local-first-B-dev-delegation-needed-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -1916,7 +1916,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3306420893/gator/traces/local-first-B-dev-specialist-choice-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3306420893/hot-cross-buns/traces/local-first-B-dev-specialist-choice-01/trace.json",
       "spans": [
         {
           "id": "35144fc2ee395105",
@@ -2070,7 +2070,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d0e5506b4fec1603900fbb215a60fcc282f2a294f6a8dd963ebb9c2a3195847c",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3306420893/gator/workspaces/cdfa62715e3e1b9b9410f6eb037c107d/local-first-B-dev-specialist-choice-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3306420893/hot-cross-buns/workspaces/cdfa62715e3e1b9b9410f6eb037c107d/local-first-B-dev-specialist-choice-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2119,7 +2119,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1020046976/gator/traces/local-first-B-dev-unnecessary-delegation-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1020046976/hot-cross-buns/traces/local-first-B-dev-unnecessary-delegation-01/trace.json",
       "spans": [
         {
           "id": "743f1b60160a233f",
@@ -2273,7 +2273,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d1dcc1489cd9d61c4d10445995c56883d5c7316832a0526e03b18c9b9c1eca07",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1020046976/gator/workspaces/1ae2e187330b5b9a8df3701fee8078cd/local-first-B-dev-unnecessary-delegation-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1020046976/hot-cross-buns/workspaces/1ae2e187330b5b9a8df3701fee8078cd/local-first-B-dev-unnecessary-delegation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2322,7 +2322,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-483874561/gator/traces/local-first-B-dev-specialist-failure-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-483874561/hot-cross-buns/traces/local-first-B-dev-specialist-failure-01/trace.json",
       "spans": [
         {
           "id": "d2f7adbb73d0cce5",
@@ -2476,7 +2476,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "d0d5dd7e882ab089bb722c1e09432311d3abc9ba69866c705f696c5d55ad6346",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-483874561/gator/workspaces/fba6a878a6a43bb2efac2d3933610e5f/local-first-B-dev-specialist-failure-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-483874561/hot-cross-buns/workspaces/fba6a878a6a43bb2efac2d3933610e5f/local-first-B-dev-specialist-failure-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2525,7 +2525,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3481794860/gator/traces/local-first-B-dev-specialist-integration-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3481794860/hot-cross-buns/traces/local-first-B-dev-specialist-integration-01/trace.json",
       "spans": [
         {
           "id": "66df087611f3b9f1",
@@ -2679,7 +2679,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "8bff543b6b0030ce409e19ff3e807aac745802e3e694fa155c2ee94a3de437e0",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3481794860/gator/workspaces/d26f98d7b0df3e2425cd8685b191af76/local-first-B-dev-specialist-integration-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3481794860/hot-cross-buns/workspaces/d26f98d7b0df3e2425cd8685b191af76/local-first-B-dev-specialist-integration-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2728,7 +2728,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1413698294/gator/traces/local-first-B-dev-incomplete-work-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1413698294/hot-cross-buns/traces/local-first-B-dev-incomplete-work-01/trace.json",
       "spans": [
         {
           "id": "4fe4b0bd9c31d247",
@@ -2882,7 +2882,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "3dd5fe1934f76ed859daaaa505af6714bcd3b5e4830e3438450ae07c7965f42d",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1413698294/gator/workspaces/edb1bd83b78c26a49246cc87c6e037a5/local-first-B-dev-incomplete-work-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1413698294/hot-cross-buns/workspaces/edb1bd83b78c26a49246cc87c6e037a5/local-first-B-dev-incomplete-work-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -2931,7 +2931,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-199226894/gator/traces/local-first-B-dev-user-correction-01-rev1/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-199226894/hot-cross-buns/traces/local-first-B-dev-user-correction-01-rev1/trace.json",
       "spans": [
         {
           "id": "01aa7d7b022bfe28",
@@ -3052,7 +3052,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "01a0f16a88dd73ad2defc25c968b43f0f4a53d9be7509ddfc73d916abba5bde3",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-199226894/gator/workspaces/50c5c1b6b5a1840d8d6bde014d88c56a/local-first-B-dev-user-correction-01-rev1",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-199226894/hot-cross-buns/workspaces/50c5c1b6b5a1840d8d6bde014d88c56a/local-first-B-dev-user-correction-01-rev1",
       "usage": {
         "unknown_requests": 5,
         "model_requests": 5,
@@ -3101,7 +3101,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1735345721/gator/traces/local-first-B-dev-duplicate-work-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1735345721/hot-cross-buns/traces/local-first-B-dev-duplicate-work-01/trace.json",
       "spans": [
         {
           "id": "95bbbeaa8714c2d7",
@@ -3255,7 +3255,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "7af8f6a0c5d88f119f6aa436db69db7a93b6b63916e4e71d3e8f51bae3913ba2",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1735345721/gator/workspaces/d334e710073688a410d79f9f4af978d5/local-first-B-dev-duplicate-work-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1735345721/hot-cross-buns/workspaces/d334e710073688a410d79f9f4af978d5/local-first-B-dev-duplicate-work-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3304,7 +3304,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3498860545/gator/traces/local-first-B-dev-safe-cancellation-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3498860545/hot-cross-buns/traces/local-first-B-dev-safe-cancellation-01/trace.json",
       "spans": [
         {
           "id": "871d81af08eddcec",
@@ -3458,7 +3458,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "8b6f672f5e9e4c6bd518dcff35da144bc90f0c1993b8df662ab74eb0e308273a",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-3498860545/gator/workspaces/380a48ae2c0497b824b4fc981d09b196/local-first-B-dev-safe-cancellation-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-3498860545/hot-cross-buns/workspaces/380a48ae2c0497b824b4fc981d09b196/local-first-B-dev-safe-cancellation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3507,7 +3507,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1277386265/gator/traces/local-first-B-dev-context-compaction-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1277386265/hot-cross-buns/traces/local-first-B-dev-context-compaction-01/trace.json",
       "spans": [
         {
           "id": "2a0c070a146bc07d",
@@ -3661,7 +3661,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "16656e26f7feecfcc91738239b35038449d5f9a7f07278ec019082d7d3639c6a",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1277386265/gator/workspaces/0b3820271c624a0044e2eae9e292a6b1/local-first-B-dev-context-compaction-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1277386265/hot-cross-buns/workspaces/0b3820271c624a0044e2eae9e292a6b1/local-first-B-dev-context-compaction-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3710,7 +3710,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2849878174/gator/traces/local-first-B-dev-long-reference-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2849878174/hot-cross-buns/traces/local-first-B-dev-long-reference-01/trace.json",
       "spans": [
         {
           "id": "da8b743011fbbe74",
@@ -3864,7 +3864,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "188e094c2c1c4092eeddf05316df2f7101cca7ef3a7dda6f7b4d5fd25bd1830f",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2849878174/gator/workspaces/edba020464c750b03fcf7c91efe19449/local-first-B-dev-long-reference-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2849878174/hot-cross-buns/workspaces/edba020464c750b03fcf7c91efe19449/local-first-B-dev-long-reference-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -3913,7 +3913,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-701968042/gator/traces/local-first-B-dev-prompt-injection-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-701968042/hot-cross-buns/traces/local-first-B-dev-prompt-injection-01/trace.json",
       "spans": [
         {
           "id": "7d40d89bebeea1af",
@@ -4067,7 +4067,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "266c37b549e9c898cc4a9666fd55a8a7ab8b428f9c40755d65b226de38938a16",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-701968042/gator/workspaces/d71b86d09808fc338a65cfa17e01b3ec/local-first-B-dev-prompt-injection-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-701968042/hot-cross-buns/workspaces/d71b86d09808fc338a65cfa17e01b3ec/local-first-B-dev-prompt-injection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4116,7 +4116,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2456566789/gator/traces/local-first-B-dev-unauthorized-permission-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2456566789/hot-cross-buns/traces/local-first-B-dev-unauthorized-permission-01/trace.json",
       "spans": [
         {
           "id": "5ea56bac7116b51f",
@@ -4308,7 +4308,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "955a9ef637fb2ed92d503648aac00201f857cbd907b1bdd2d3c52adb7e330c24",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-2456566789/gator/workspaces/ff45c4e1d7257d4d14f951cdbe8e0798/local-first-B-dev-unauthorized-permission-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-2456566789/hot-cross-buns/workspaces/ff45c4e1d7257d4d14f951cdbe8e0798/local-first-B-dev-unauthorized-permission-01",
       "usage": {
         "unknown_requests": 4,
         "model_requests": 4,
@@ -4357,7 +4357,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1796132188/gator/traces/local-first-B-dev-unavailable-runtime-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1796132188/hot-cross-buns/traces/local-first-B-dev-unavailable-runtime-01/trace.json",
       "spans": [
         {
           "id": "3af50ee538b0dd69",
@@ -4511,7 +4511,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "afab35a2f8b074ff6e7c41ca31101adef4b0ead0fbf4ba0f2ad0313cafd58cda",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-1796132188/gator/workspaces/31e0f8f091c463bb7671a5d305d66ddc/local-first-B-dev-unavailable-runtime-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-1796132188/hot-cross-buns/workspaces/31e0f8f091c463bb7671a5d305d66ddc/local-first-B-dev-unavailable-runtime-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4560,7 +4560,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-540947708/gator/traces/local-first-B-dev-resource-exhaustion-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-540947708/hot-cross-buns/traces/local-first-B-dev-resource-exhaustion-01/trace.json",
       "spans": [
         {
           "id": "9d6cadbb4b953113",
@@ -4714,7 +4714,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "19359449189642db4260b48c85658feb7effd28723b0caa6bd29652639b6edd3",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-540947708/gator/workspaces/6b76392e239d0c34dc18833949c25136/local-first-B-dev-resource-exhaustion-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-540947708/hot-cross-buns/workspaces/6b76392e239d0c34dc18833949c25136/local-first-B-dev-resource-exhaustion-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4763,7 +4763,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-872732813/gator/traces/local-first-B-dev-offline-operation-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-872732813/hot-cross-buns/traces/local-first-B-dev-offline-operation-01/trace.json",
       "spans": [
         {
           "id": "ddbdbfd3feafd356",
@@ -4917,7 +4917,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "defbbdf1365a476bb8f787cfa3033c568714cd7f8c69b5a2754ba2813bf8a027",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-872732813/gator/workspaces/7fa168d9fb9b581782485d2315bcd5f1/local-first-B-dev-offline-operation-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-872732813/hot-cross-buns/workspaces/7fa168d9fb9b581782485d2315bcd5f1/local-first-B-dev-offline-operation-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,
@@ -4966,7 +4966,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-102863097/gator/traces/local-first-B-dev-explicit-cloud-selection-01/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-102863097/hot-cross-buns/traces/local-first-B-dev-explicit-cloud-selection-01/trace.json",
       "spans": [
         {
           "id": "d61630323e7ff84a",
@@ -5120,7 +5120,7 @@
       "contract_sha256": "0de659a76108e422898d9040e9d7867a88c5c11321fcd2dbe799ebe0475acd31",
       "policy_sha256": "907f11615d293edb44316e4388f91c67790deece8471c2097bdb3ee578cad624",
       "source_sha256": "b789cc92f2eadc140f46c618ba629009c299a3734b9771a3da0916ff254eb556",
-      "bundle_path": "/private/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development/state-102863097/gator/workspaces/9fdcb4ae30edc4ce0cc94f999e73c1b0/local-first-B-dev-explicit-cloud-selection-01",
+      "bundle_path": "/private/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development/state-102863097/hot-cross-buns/workspaces/9fdcb4ae30edc4ce0cc94f999e73c1b0/local-first-B-dev-explicit-cloud-selection-01",
       "usage": {
         "unknown_requests": 3,
         "model_requests": 3,

@@ -14,14 +14,14 @@ import (
 // This opt-in component test verifies native conversation continuity, including
 // a real subprocess restart. It does not stand in for the later manager/UI tests.
 func TestLiveNativeConversation(t *testing.T) {
-	output := os.Getenv("GATOR_LIVE_NATIVE_REPORT")
+	output := os.Getenv("HOT_CROSS_BUNS_LIVE_NATIVE_REPORT")
 	if output == "" {
 		t.Skip("opt-in native session evaluation")
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Fatal("report path must be new")
 	}
-	if os.Getenv("OPENAI_API_KEY") == "" || os.Getenv("GATOR_LIVE_MODEL") == "" {
+	if os.Getenv("OPENAI_API_KEY") == "" || os.Getenv("HOT_CROSS_BUNS_LIVE_MODEL") == "" {
 		t.Fatal("live model/credential missing")
 	}
 	type check struct {
@@ -84,7 +84,7 @@ func TestLiveNativeConversation(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(source, "note.txt"), []byte("Project Lantern is owned by Mira.\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			cfg := Config{Kind: kind, Executable: path, APIKeyEnv: "OPENAI_API_KEY", ReadOnlyRoots: roots, TimeoutSeconds: 120, Model: os.Getenv("GATOR_LIVE_MODEL"), BaseURL: os.Getenv("GATOR_LIVE_CLI_ENDPOINT")}
+			cfg := Config{Kind: kind, Executable: path, APIKeyEnv: "OPENAI_API_KEY", ReadOnlyRoots: roots, TimeoutSeconds: 120, Model: os.Getenv("HOT_CROSS_BUNS_LIVE_MODEL"), BaseURL: os.Getenv("HOT_CROSS_BUNS_LIVE_CLI_ENDPOINT")}
 			if kind == "pi" {
 				cfg.Provider = "openai"
 			}

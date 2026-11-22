@@ -2,6 +2,6 @@
 Building for debugging...
 [0/3] Write swift-version--58304C5D6DBC2206.txt
 Build complete! (0.15s)
-/tmp/gator-native-app.onOptM/Gator.app/Contents/Info.plist: OK
-Built /tmp/Gator-Native-P04E1R2-Verified.app
-Launch: open '/tmp/Gator-Native-P04E1R2-Verified.app'
+/tmp/hot-cross-buns-native-app.onOptM/HotCrossBuns.app/Contents/Info.plist: OK
+Built /tmp/HotCrossBuns-Native-P04E1R2-Verified.app
+Launch: open '/tmp/HotCrossBuns-Native-P04E1R2-Verified.app'

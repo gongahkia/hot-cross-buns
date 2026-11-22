@@ -7,7 +7,7 @@ if args.count == 2 && args[1] == "permissions" {
     print("AXTrusted=\(AXIsProcessTrusted()) screenCapture=\(CGPreflightScreenCaptureAccess()) postEvents=\(CGPreflightPostEventAccess())"); exit(0)
 }
 let pid = Int32(args[1])!, action = args[2]
-guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.gator.native.p04.disposable"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
+guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, ["dev.hot-cross-buns.native.p04.disposable"].contains(bundle) else { print("refuse_nonfixture"); exit(2) }
 let app = AXUIElementCreateApplication(pid)
 func attr(_ e: AXUIElement, _ key: String) -> CFTypeRef? { var v: CFTypeRef?; AXUIElementCopyAttributeValue(e,key as CFString,&v); return v }
 func str(_ e: AXUIElement, _ key: String) -> String {
@@ -78,11 +78,11 @@ case "select-provider":
     let selected=AXUIElementSetAttributeValue(row,"AXSelected" as CFString,kCFBooleanTrue)
     print("outline_selected=\(result.rawValue) row_selected=\(selected.rawValue)")
 case "secure-input":
-    requireFocus(args[3], "gator.providers.secret")
+    requireFocus(args[3], "hot-cross-buns.providers.secret")
     guard let field=element(app,"AXFocusedUIElement"), str(field,"AXSubrole")=="AXSecureTextField" else {print("not_secure");exit(3)}
     let chars=Array("P04_DESKTOP_INERT_NOT_REAL_9ec82".utf16)
     for down in [true,false] {let e=CGEvent(keyboardEventSource:nil,virtualKey:0,keyDown:down)!;e.flags=[];e.keyboardSetUnicodeString(stringLength:chars.count,unicodeString:chars);e.post(tap:.cghidEventTap)}
-    let ready=until { scope(args[3]).flatMap{find($0,"gator.providers.review")}.map{attr($0,"AXEnabled") as? Bool == true} == true }
+    let ready=until { scope(args[3]).flatMap{find($0,"hot-cross-buns.providers.review")}.map{attr($0,"AXEnabled") as? Bool == true} == true }
     RunLoop.current.run(until:Date().addingTimeInterval(0.15))
     print("secure_field=verified entered_fixture_key=true review_available=\(ready)")
 case "details-bottom":

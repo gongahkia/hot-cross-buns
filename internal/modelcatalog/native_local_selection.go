@@ -1,6 +1,6 @@
 package modelcatalog
 
-import "github.com/gongahkia/gator/internal/localmodel"
+import "github.com/gongahkia/hot-cross-buns/internal/localmodel"
 
 type NativeFutureSelection struct {
 	Provider string `json:"provider"`

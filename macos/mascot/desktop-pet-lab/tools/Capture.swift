@@ -18,10 +18,10 @@ final class PetRecordingDelegate:NSObject,SCRecordingOutputDelegate {
             let args=CommandLine.arguments;guard args.count>=3,CGPreflightScreenCaptureAccess() else{throw NSError(domain:"ExistingScreenPermissionRequired",code:1)}
             let destination=URL(fileURLWithPath:args[1]);let pids=args.dropFirst(2).prefix(while:{$0 != "--seconds"}).compactMap(Int32.init)
             guard !pids.isEmpty else{throw NSError(domain:"NoFixturePIDs",code:1)}
-            let allowed=["dev.gator.pet.b1.lab","dev.gator.pet.focus-fixture","dev.gator.pet.b1.gator-fixture"]
+            let allowed=["dev.hot-cross-buns.pet.b1.lab","dev.hot-cross-buns.pet.focus-fixture","dev.hot-cross-buns.pet.b1.hot-cross-buns-fixture"]
             for pid in pids{guard let app=NSRunningApplication(processIdentifier:pid),let id=app.bundleIdentifier,allowed.contains(id),app.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/").resolvingSymlinksInPath().path)==true else{throw NSError(domain:"RefuseNonfixture",code:1)}}
             let content=try await SCShareableContent.excludingDesktopWindows(true,onScreenWindowsOnly:true)
-            let windows=content.windows.filter{pids.contains($0.owningApplication?.processID ?? -1) && (["Gator Desktop Pet Lab","Gator Desktop Pet — isolated","Inert Focus Fixture","Gator"].contains($0.title ?? "") || ($0.owningApplication?.bundleIdentifier=="dev.gator.pet.b1.gator-fixture" && $0.windowLayer==25))}
+            let windows=content.windows.filter{pids.contains($0.owningApplication?.processID ?? -1) && (["Hot Cross Buns Desktop Pet Lab","Hot Cross Buns Desktop Pet — isolated","Inert Focus Fixture","Hot Cross Buns"].contains($0.title ?? "") || ($0.owningApplication?.bundleIdentifier=="dev.hot-cross-buns.pet.b1.hot-cross-buns-fixture" && $0.windowLayer==25))}
             guard let display=content.displays.first(where:{CGDisplayIsBuiltin($0.displayID) != 0}) ?? content.displays.first else{throw NSError(domain:"NoDisplay",code:1)}
             let filter=SCContentFilter(display:display,including:windows);filter.includeMenuBar=args.contains("--menu")
             if filter.includeMenuBar{guard let front=NSWorkspace.shared.frontmostApplication?.bundleIdentifier,allowed.contains(front) else{throw NSError(domain:"RefusePrivateMenuCapture",code:1)}}

@@ -12,15 +12,15 @@ func TestLoadLayersRootScopedAndMatchingRules(t *testing.T) {
 	repository := t.TempDir()
 	writeInstructionFile(t, repository, "AGENTS.md", "root guidance")
 	writeInstructionFile(t, repository, "AGENTS.override.md", "root override")
-	writeInstructionFile(t, repository, ".gator/AGENTS.md", "gator guidance")
+	writeInstructionFile(t, repository, ".hot-cross-buns/AGENTS.md", "hot-cross-buns guidance")
 	writeInstructionFile(t, repository, "cmd/AGENTS.md", "cmd guidance")
 	writeInstructionFile(t, repository, "cmd/tool/AGENTS.md", "tool guidance")
-	writeInstructionFile(t, repository, ".gator/rules/cmd.md", "rule file guidance")
-	writeInstructionFile(t, repository, ".gator/rules.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/rules/cmd.md", "rule file guidance")
+	writeInstructionFile(t, repository, ".hot-cross-buns/rules.json", `{
   "version": 1,
   "rules": [
     {"id": "command", "paths": ["cmd/**/*.go"], "instructions": "inline command guidance"},
-    {"id": "command-file", "paths": ["cmd/**"], "file": ".gator/rules/cmd.md"},
+    {"id": "command-file", "paths": ["cmd/**"], "file": ".hot-cross-buns/rules/cmd.md"},
     {"id": "internal-only", "paths": ["internal/**"], "instructions": "must not load"}
   ]
 }`)
@@ -31,11 +31,11 @@ func TestLoadLayersRootScopedAndMatchingRules(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Instructions from AGENTS.override.md:\nroot override",
-		"Instructions from .gator/AGENTS.md:\ngator guidance",
+		"Instructions from .hot-cross-buns/AGENTS.md:\nhot-cross-buns guidance",
 		"Instructions from cmd/AGENTS.md:\ncmd guidance",
 		"Instructions from cmd/tool/AGENTS.md:\ntool guidance",
 		"Instructions from project rule command:\ninline command guidance",
-		"Instructions from project rule command-file from .gator/rules/cmd.md:\nrule file guidance",
+		"Instructions from project rule command-file from .hot-cross-buns/rules/cmd.md:\nrule file guidance",
 	} {
 		if !strings.Contains(set.Content, want) {
 			t.Errorf("content does not contain %q:\n%s", want, set.Content)
@@ -45,8 +45,8 @@ func TestLoadLayersRootScopedAndMatchingRules(t *testing.T) {
 		t.Fatalf("unexpected instructions loaded:\n%s", set.Content)
 	}
 	wantFiles := []string{
-		"AGENTS.override.md", ".gator/AGENTS.md", "cmd/AGENTS.md", "cmd/tool/AGENTS.md",
-		".gator/rules.json", ".gator/rules/cmd.md",
+		"AGENTS.override.md", ".hot-cross-buns/AGENTS.md", "cmd/AGENTS.md", "cmd/tool/AGENTS.md",
+		".hot-cross-buns/rules.json", ".hot-cross-buns/rules/cmd.md",
 	}
 	if !reflect.DeepEqual(set.Files, wantFiles) {
 		t.Fatalf("loaded files = %#v, want %#v", set.Files, wantFiles)
@@ -58,11 +58,11 @@ func TestLoadRejectsEscapingScopeAndRuleFile(t *testing.T) {
 	if _, err := Load(repository, []string{"../outside.go"}); err == nil {
 		t.Fatal("Load accepted an escaping instruction scope")
 	}
-	writeInstructionFile(t, repository, ".gator/rules.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/rules.json", `{
   "version": 1,
   "rules": [{"paths": ["**"], "file": "../outside.md"}]
 }`)
-	if _, err := Load(repository, []string{"main.go"}); err == nil || !strings.Contains(err.Error(), "stay below .gator") {
+	if _, err := Load(repository, []string{"main.go"}); err == nil || !strings.Contains(err.Error(), "stay below .hot-cross-buns") {
 		t.Fatalf("Load rule file error = %v, want containment error", err)
 	}
 }
@@ -111,7 +111,7 @@ func TestLoadSkipsIgnoredExternalInstructionSymlink(t *testing.T) {
 
 func TestLoadRejectsUnknownRuleFields(t *testing.T) {
 	repository := t.TempDir()
-	writeInstructionFile(t, repository, ".gator/rules.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/rules.json", `{
   "version": 1,
   "rules": [],
   "unexpected": true
@@ -124,12 +124,12 @@ func TestLoadRejectsUnknownRuleFields(t *testing.T) {
 func TestLoadWithProfileAppendsOnlySelectedProfile(t *testing.T) {
 	repository := t.TempDir()
 	writeInstructionFile(t, repository, "AGENTS.md", "base guidance")
-	writeInstructionFile(t, repository, ".gator/profiles/review.md", "review the diff and report findings")
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/profiles/review.md", "review the diff and report findings")
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "profiles": [
     {"name": "implementer", "instructions": "make the smallest coherent change"},
-    {"name": "reviewer", "file": ".gator/profiles/review.md"}
+    {"name": "reviewer", "file": ".hot-cross-buns/profiles/review.md"}
   ]
 }`)
 	set, err := LoadWithProfile(repository, nil, "reviewer")
@@ -146,7 +146,7 @@ func TestLoadWithProfileAppendsOnlySelectedProfile(t *testing.T) {
 
 func TestListProfilesReturnsPolicyWithoutActivatingInstructions(t *testing.T) {
 	repository := t.TempDir()
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "profiles": [
     {"name": "reviewer", "description": "read-only review", "instructions": "report findings", "policy": {"mode": "plan", "omit": ["lsp", "run_command"]}}
@@ -163,12 +163,12 @@ func TestListProfilesReturnsPolicyWithoutActivatingInstructions(t *testing.T) {
 
 func TestLoadRolesRestrictsDefinitionsToPromptSpecialization(t *testing.T) {
 	repository := t.TempDir()
-	writeInstructionFile(t, repository, ".gator/roles/reviewer.md", "identify regressions and evidence gaps")
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/roles/reviewer.md", "identify regressions and evidence gaps")
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "profiles": [{"name": "implementer", "instructions": "make focused changes"}],
   "roles": [
-    {"name": "reviewer", "description": "independent code review", "kind": "readonly", "file": ".gator/roles/reviewer.md"},
+    {"name": "reviewer", "description": "independent code review", "kind": "readonly", "file": ".hot-cross-buns/roles/reviewer.md"},
     {"name": "test-fixer", "description": "implement a focused failing-test fix", "kind": "writer", "instructions": "modify only the delegated test area", "policy":{"network":"deny","max_steps":4,"omit":["mcp","terminal"]}}
   ]
 }`)
@@ -183,7 +183,7 @@ func TestLoadRolesRestrictsDefinitionsToPromptSpecialization(t *testing.T) {
 
 func TestLoadRolesRejectsCapabilityEscalationAndMalformedRoles(t *testing.T) {
 	repository := t.TempDir()
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "roles": [
     {"name": "shell", "description": "run unrestricted commands", "kind": "command", "instructions": "do anything"}
@@ -192,7 +192,7 @@ func TestLoadRolesRejectsCapabilityEscalationAndMalformedRoles(t *testing.T) {
 	if _, err := LoadRoles(repository); err == nil || !strings.Contains(err.Error(), "unsupported kind") {
 		t.Fatalf("capability-escalating role error = %v", err)
 	}
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "roles": [
     {"name": "writer", "description": "unsafe widening", "kind": "writer", "instructions": "write", "policy":{"network":"allow"}}
@@ -201,7 +201,7 @@ func TestLoadRolesRejectsCapabilityEscalationAndMalformedRoles(t *testing.T) {
 	if _, err := LoadRoles(repository); err == nil || !strings.Contains(err.Error(), "network can only force deny") {
 		t.Fatalf("capability-widening role policy error = %v", err)
 	}
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "roles": [
     {"name": "reviewer", "description": "one\ntwo", "kind": "readonly", "instructions": "review"}
@@ -210,11 +210,11 @@ func TestLoadRolesRejectsCapabilityEscalationAndMalformedRoles(t *testing.T) {
 	if _, err := LoadRoles(repository); err == nil || !strings.Contains(err.Error(), "one-line description") {
 		t.Fatalf("multiline role description error = %v", err)
 	}
-	writeInstructionFile(t, repository, ".gator/roles/empty.md", "   ")
-	writeInstructionFile(t, repository, ".gator/agents.json", `{
+	writeInstructionFile(t, repository, ".hot-cross-buns/roles/empty.md", "   ")
+	writeInstructionFile(t, repository, ".hot-cross-buns/agents.json", `{
   "version": 1,
   "roles": [
-    {"name": "reviewer", "description": "review changes", "kind": "readonly", "file": ".gator/roles/empty.md"}
+    {"name": "reviewer", "description": "review changes", "kind": "readonly", "file": ".hot-cross-buns/roles/empty.md"}
   ]
 }`)
 	if _, err := LoadRoles(repository); err == nil || !strings.Contains(err.Error(), "empty instructions") {

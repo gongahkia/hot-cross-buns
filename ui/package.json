@@ -1,5 +1,5 @@
 {
-  "name": "@gator/terminal",
+  "name": "@hot-cross-buns/terminal",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "bun test --preload ./scripts/preload.ts tests"
   },
   "dependencies": {
-    "@gator/application-host": "file:../app-host",
+    "@hot-cross-buns/application-host": "file:../app-host",
     "@opentui/core": "0.6.8",
     "@opentui/solid": "0.6.8",
     "@opentui/keymap": "0.6.8",

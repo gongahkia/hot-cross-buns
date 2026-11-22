@@ -2,7 +2,7 @@
 
 **Verdict: CONDITIONAL. Native acceptance remains open.** The historical approval negative test is **INVALID**: Go accepted an approval whose initiating input cannot be attributed. A fresh headless Go regression preserves the exact pending record through presentation navigation and shutdown. One partial native settings sequence remained responsive and quit normally, but the monitored batch aborted on unowned input. The user then explicitly directed: **“Continue headless; leave desktop acceptance unverified.”** No production fix is justified by the available reproduction evidence.
 
-The requested development candidate exists at `/tmp/Gator-Native-P04E1R-Verified.app`. “Verified” is the requested filename, **not a claim of complete desktop acceptance**. It contains the unchanged emoji/GIF implementation. No later feature increment was started.
+The requested development candidate exists at `/tmp/HotCrossBuns-Native-P04E1R-Verified.app`. “Verified” is the requested filename, **not a claim of complete desktop acceptance**. It contains the unchanged emoji/GIF implementation. No later feature increment was started.
 
 ## Baseline and scope
 
@@ -14,14 +14,14 @@ Candidate hashes:
 
 | Component | SHA-256 |
 |---|---|
-| `Contents/MacOS/GatorMac` | `4f1740a4ebb360fe5e15332906ddada4a752237861e1464f686a617ae33ea917` |
-| `Contents/Resources/gator-runtime` | `5eb910001bb27b6b7d9216fae7fddd9151fd1cfd998c01391fa60716ab3c5713` |
+| `Contents/MacOS/HotCrossBunsMac` | `4f1740a4ebb360fe5e15332906ddada4a752237861e1464f686a617ae33ea917` |
+| `Contents/Resources/hot-cross-buns-runtime` | `5eb910001bb27b6b7d9216fae7fddd9151fd1cfd998c01391fa60716ab3c5713` |
 
-No production Swift, GatorCore, Go, resource, build-script, approval, provider, credential, archive or shutdown source changed from the captured baseline. The original sources/assets/evidence and earlier bundles remain. The only new Swift test is `PresenceApprovalClosureTests.swift`. Runtime resources still contain `Presence/attention.gif` and `Presence/completed.gif`; obsolete mascot artwork is absent. The prior source artwork remains in the repository.
+No production Swift, HotCrossBunsCore, Go, resource, build-script, approval, provider, credential, archive or shutdown source changed from the captured baseline. The original sources/assets/evidence and earlier bundles remain. The only new Swift test is `PresenceApprovalClosureTests.swift`. Runtime resources still contain `Presence/attention.gif` and `Presence/completed.gif`; obsolete mascot artwork is absent. The prior source artwork remains in the repository.
 
 ## Historical stall: established facts and uncertainty
 
-The original sample identifies PID **12492**, bundle **dev.gator.presence.finalcheck**, launch 11:33:44 +0800, sample **11:41:56 +0800**. It records **1.4G physical footprint** and a main thread repeatedly inside SwiftUI/AttributeGraph update/layout, including `SelectionOverlay.updateNSView`. Guarded Quit returned `quit_requested=true terminated=false`. That fixture failed; force-stopping it in P04E-1 was not a passing Quit.
+The original sample identifies PID **12492**, bundle **dev.hot-cross-buns.presence.finalcheck**, launch 11:33:44 +0800, sample **11:41:56 +0800**. It records **1.4G physical footprint** and a main thread repeatedly inside SwiftUI/AttributeGraph update/layout, including `SelectionOverlay.updateNSView`. Guarded Quit returned `quit_requested=true terminated=false`. That fixture failed; force-stopping it in P04E-1 was not a passing Quit.
 
 The stack establishes the busy subsystem, not the view or mutation that caused the loop. SwiftUI text-selection overlays and an ordinary nonselectable `NativeMascotCanvas` label are different objects. There is no reproduced evidence supporting a change to unchanged emoji text/font assignments; the earlier standalone invalidation probe did not support that hypothesis. Selection, review controls and the canvas were therefore preserved.
 
@@ -31,7 +31,7 @@ A material timeline correction: Go's retained trace places the historical `web_a
 
 ## Native reproduction and controller
 
-The fresh package was copied into private temporary `gator-native-test-presence-r1-*` directories. Copies changed only Info.plist bundle/name metadata (`dev.gator.presence.r1`) to isolate preferences and accessibility targeting. All binary/resource bytes match the deliverable; the manifest verifies this for the settings-tested copy.
+The fresh package was copied into private temporary `hot-cross-buns-native-test-presence-r1-*` directories. Copies changed only Info.plist bundle/name metadata (`dev.hot-cross-buns.presence.r1`) to isolate preferences and accessibility targeting. All binary/resource bytes match the deliverable; the manifest verifies this for the settings-tested copy.
 
 Fixtures used temporary native archives, Go state/configuration and workspaces; inert credentials; a loopback-only deterministic provider; inspect mode; no configured real services, paid inference, fetch implementation or external-write operation. The provider can request an inert scope for `https://mascot.example.invalid` and return fixture text. It contains no outbound client. Canonical Go interaction records, command observations and captured run outcomes are inspected independently of provider counters.
 
@@ -64,7 +64,7 @@ The ordinary sequence used 350 ms transaction-settling intervals plus observable
 
 Historical identity:
 
-- Native PID 12492; bundle `dev.gator.presence.finalcheck`.
+- Native PID 12492; bundle `dev.hot-cross-buns.presence.finalcheck`.
 - Wrapper PID 12626; conversation `work-20261120T033452-ec96d92e176b4efc`.
 - Run `work-20261120T033715-9b901523bfc5`; interaction **1**.
 - Exact token SHA-256 `d48c90d90c8abf913427ac564bacc4833dd31aca73c7e05f1023a3535add8a94`.
@@ -124,12 +124,12 @@ Still unverified natively in P04E-1R: matched B2 comparison; ten exclusive-input
 
 ## Headless verification
 
-All final commands use `GATOR_TEST_BINARY=/tmp/Gator-Native-P04E1R-Verified.app/Contents/Resources/gator-runtime` for real-Go fixtures.
+All final commands use `HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-P04E1R-Verified.app/Contents/Resources/hot-cross-buns-runtime` for real-Go fixtures.
 
 ```sh
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'mascot|presence|desktopPet|desktopPresence|realGoPresentationNavigationAndShutdownDoNotDecidePendingApproval|approvalGuardsExactIdentity'
 ```
@@ -149,7 +149,7 @@ Development verification failures are retained honestly: an initial full-suite a
 
 ## Changed files and reproduction
 
-- `macos/Tests/GatorCoreTests/PresenceApprovalClosureTests.swift`: new actual-Go negative navigation/shutdown regression.
+- `macos/Tests/HotCrossBunsCoreTests/PresenceApprovalClosureTests.swift`: new actual-Go negative navigation/shutdown regression.
 - `macos/presence/acceptance/Controller.swift`: nondecision AX allowlist, fixture/window/focus checks, passive input provenance.
 - `fixture.py`, `Driver.py`, `Batch.py`: isolated profiles, timestamped transparent bridge observation, canonical pending-record checks, abort-on-interference and bounded reproduction sequence.
 - `RecordFixture.swift`: fixture-application-only recording helper; compiled, but no completed new recording.
@@ -164,11 +164,11 @@ Reproduce headlessly:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 macos/presence/acceptance/audit-history.py
 PYTHONDONTWRITEBYTECODE=1 python3 macos/presence/acceptance/verify.py
-clang -Wall -Wextra -Werror macos/presence/acceptance/CheckCPUUnits.c -o /tmp/gator-presence-r1-cpu-units
-/tmp/gator-presence-r1-cpu-units
+clang -Wall -Wextra -Werror macos/presence/acceptance/CheckCPUUnits.c -o /tmp/hot-cross-buns-presence-r1-cpu-units
+/tmp/hot-cross-buns-presence-r1-cpu-units
 ```
 
-The historical audit requires the retained disposable profile; the report stores its relevant findings/hashes. Future native runs require a new uninterrupted desktop session and fresh evidence directory. Compile the controller/recorder with Swift 6, strict concurrency, warnings as errors and target `arm64-apple-macos15.0`; compile `acceptance/sample.c` as `/tmp/gator-presence-r1-sample`, then run `Batch.py`. The batch is prepared for ten ordinary cycles, aborts on interference and creates a fresh timestamped evidence subdirectory. Its final rerun/abort-cleanup refinements were syntax-checked only, **not exercised after the user switched to headless-only**. A failed fixture must receive explicitly logged guarded cleanup; a killed fixture cannot count as Quit.
+The historical audit requires the retained disposable profile; the report stores its relevant findings/hashes. Future native runs require a new uninterrupted desktop session and fresh evidence directory. Compile the controller/recorder with Swift 6, strict concurrency, warnings as errors and target `arm64-apple-macos15.0`; compile `acceptance/sample.c` as `/tmp/hot-cross-buns-presence-r1-sample`, then run `Batch.py`. The batch is prepared for ten ordinary cycles, aborts on interference and creates a fresh timestamped evidence subdirectory. Its final rerun/abort-cleanup refinements were syntax-checked only, **not exercised after the user switched to headless-only**. A failed fixture must receive explicitly logged guarded cleanup; a killed fixture cannot count as Quit.
 
 ## Operator closure checklist
 

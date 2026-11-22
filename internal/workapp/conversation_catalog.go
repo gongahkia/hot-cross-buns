@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type conversationCatalog struct {

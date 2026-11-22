@@ -1,12 +1,12 @@
-AXApplication | Gator |  | 
-AXWindow | Gator – Show a short controlled conversation |  | 
+AXApplication | Hot Cross Buns |  |
+AXWindow | Hot Cross Buns – Show a short controlled conversation |  |
 AXGroup |  |  | 
 AXDisclosureTriangle |  | Open chats and retained tasks | 
 AXScrollArea |  |  | 
 AXOpaqueProviderGroup |  |  | 
 AXStaticText |  |  | You
 AXStaticText |  |  | Show a short controlled conversation
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXHeading |  | Your day, with room to breathe | 
 AXStaticText |  |  | I found three useful things to keep in view. The draft remains yours to review.
 AXStaticText |  |  | • Finish the project update.
@@ -16,7 +16,7 @@ AXHeading |  | A small example |
 AXGroup |  | swift code | 
 AXStaticText |  |  | swift
 AXScrollArea |  |  | 
-AXStaticText |  |  | let message = "Hello, Gator"
+AXStaticText |  |  | let message = "Hello, Hot Cross Buns"
 print(message)
 AXStaticText |  |  | A longer reference: https://example.invalid/planning/your-personal-assistant/retained-evidence-and-reviewed-changes
 AXLink | https://example.invalid/planning/your-personal-assistant/retained-evidence-and-reviewed-changes |  | 
@@ -33,8 +33,8 @@ AXScrollArea |  | Conversation status and recovery |
 AXStaticText |  |  | Connected
 AXMenuButton |  | Select Model | 
 AXScrollArea |  |  | 
-AXTextArea |  | Message Gator | 
-AXStaticText |  |  | Message Gator…
+AXTextArea |  | Message Hot Cross Buns |
+AXStaticText |  |  | Message Hot Cross Buns…
 AXButton |  | Attach Files | 
 AXMenuButton | Photo | Image attachment options | 
 AXCheckBox |  | Plan first | 
@@ -50,7 +50,7 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Show a short controlled conversation
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

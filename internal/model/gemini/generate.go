@@ -1,4 +1,4 @@
-// Package gemini implements Gator's stateless adapter for Gemini's
+// Package gemini implements Hot Cross Buns's stateless adapter for Gemini's
 // GenerateContent API.
 package gemini
 
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/model/providerhttp"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/model/providerhttp"
 )
 
 const (

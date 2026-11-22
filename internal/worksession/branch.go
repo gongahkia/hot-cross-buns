@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // BranchInfo records provenance, never an execution/authorization inheritance.

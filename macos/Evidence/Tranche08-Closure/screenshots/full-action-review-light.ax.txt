@@ -1,5 +1,5 @@
-AXApplication | Gator |  | 
-AXWindow | Gator – Prepare controlled fixture scope |  | 
+AXApplication | Hot Cross Buns |  |
+AXWindow | Hot Cross Buns – Prepare controlled fixture scope |  |
 AXGroup |  |  | 
 AXHeading |  | Review this exact action | 
 AXStaticText |  |  | Owner: Prepare controlled fixture scope
@@ -31,7 +31,7 @@ The full exact content remains selectable and needs explicit approval.
 
 FINAL REVIEW LINE
 AXDisclosureTriangle |  | Complete exact review data | 
-AXStaticText |  |  | Approving permits exactly this proposed operation. Only Gator's retained outcome can confirm execution or delivery.
+AXStaticText |  |  | Approving permits exactly this proposed operation. Only Hot Cross Buns's retained outcome can confirm execution or delivery.
 AXScrollBar |  |  | 
 AXValueIndicator |  |  | 
 AXButton |  |  | 
@@ -61,7 +61,7 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Prepare controlled fixture scope
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

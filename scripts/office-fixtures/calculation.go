@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gongahkia/gator/internal/workbook"
+	"github.com/gongahkia/hot-cross-buns/internal/workbook"
 	"github.com/xuri/excelize/v2"
 )
 

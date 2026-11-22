@@ -77,21 +77,21 @@ func TestStreamableHTTPInitializesListsAndCallsTools(t *testing.T) {
 
 func TestBundleHashPinsStdioExecutable(t *testing.T) {
 	repository := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repository, ".gator", "mcp"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repository, ".hot-cross-buns", "mcp"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "mcp", "server"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "mcp", "server"), []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"version":1,"servers":[{"name":"demo","transport":"stdio","command":[".gator/mcp/server"]}]}`
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "mcp.json"), []byte(manifest), 0o644); err != nil {
+	manifest := `{"version":1,"servers":[{"name":"demo","transport":"stdio","command":[".hot-cross-buns/mcp/server"]}]}`
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "mcp.json"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	first, err := BundleHash(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "mcp", "server"), []byte("#!/bin/sh\nprintf changed\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "mcp", "server"), []byte("#!/bin/sh\nprintf changed\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	second, err := BundleHash(repository)

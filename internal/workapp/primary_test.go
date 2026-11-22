@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestMainConversationResumesWithItsOwnScopeAndOptions(t *testing.T) {
@@ -31,7 +31,7 @@ func TestMainConversationResumesWithItsOwnScopeAndOptions(t *testing.T) {
 	if model.primary || model.conversation != "" {
 		t.Fatal("new topic reused main conversation")
 	}
-	next, _ = model.NavigateBridge("/gator")
+	next, _ = model.NavigateBridge("/hot-cross-buns")
 	model = next.(Model)
 	if !model.primary || model.conversation != mainID || model.source != "/main-scope" || len(model.messages) != 1 {
 		t.Fatal("returning to main lost its independent state")
@@ -69,7 +69,7 @@ func TestMainConversationDoesNotBypassActiveWorkOrAdoptExistingTopics(t *testing
 		t.Fatal("adopted an unrelated topic")
 	}
 	model.running = true
-	next, _ := model.NavigateBridge("/gator")
+	next, _ := model.NavigateBridge("/hot-cross-buns")
 	if !next.(Model).running || next.(Model).bridgeNotice == "" {
 		t.Fatal("main navigation bypassed current work")
 	}
@@ -78,7 +78,7 @@ func TestMainConversationDoesNotBypassActiveWorkOrAdoptExistingTopics(t *testing
 func TestMainConversationUsesResetPrivateFolderAfterDataRemoval(t *testing.T) {
 	m := New(Config{CurrentFolder: "/old-private", PrimaryConversation: func() (string, error) { return "", nil }, ResetPrivateState: func() (GoalState, error) { return GoalState{SourcePath: "/fresh-private", Title: "Fresh"}, nil }})
 	m.clearRemovedData(ControlScreen{ResetConversation: true, ClearGoal: true})
-	next, _ := m.NavigateBridge("/gator")
+	next, _ := m.NavigateBridge("/hot-cross-buns")
 	m = next.(Model)
 	if !m.primary || m.source != "/fresh-private" || m.conversation != "" {
 		t.Fatal("main conversation returned to a removed source")

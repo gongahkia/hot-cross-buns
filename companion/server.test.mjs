@@ -10,7 +10,7 @@ import { createCompanion, readToken } from './server.mjs';
 import { addDevice } from './auth.mjs';
 
 test('real Go work through an enrolled device survives disconnect, deduplicates admission and revokes old access', { timeout: 120000 }, async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-companion-'));
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-companion-'));
   const workspace = join(root, 'workspace'), config = join(root, 'config'), state = join(root, 'state'), binary = join(root, process.platform === 'win32' ? 'runtime.exe' : 'runtime');
   const tokenFile = join(root, 'token'), ownerToken = 'a'.repeat(64);
   let token;
@@ -28,18 +28,18 @@ test('real Go work through an enrolled device survives disconnect, deduplicates 
   });
   let companion;
   try {
-    await mkdir(workspace); await mkdir(join(config, 'gator'), { recursive: true });
+    await mkdir(workspace); await mkdir(join(config, 'hot-cross-buns'), { recursive: true });
     await writeFile(tokenFile, ownerToken + '\n', { mode: 0o600 });
     const exportFile = join(root, 'phone.token');
     await addDevice(tokenFile, 'Real Go fixture phone', exportFile);
     token = (await readFile(exportFile, 'utf8')).trim();
     await new Promise(r => provider.listen(0, '127.0.0.1', r));
-    await writeFile(join(config, 'gator/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${provider.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }));
-    const env = { ...process.env, GATOR_CONFIG_DIR: config, GATOR_STATE_DIR: state, GATOR_INTERNAL_COMMANDS: '1' };
-    execFileSync('go', ['build', '-o', binary, './cmd/gator'], { cwd: resolve('.'), timeout: 90000 });
+    await writeFile(join(config, 'hot-cross-buns/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: `http://127.0.0.1:${provider.address().port}/chat`, models: ['fixture'], default_model: 'fixture' }] }));
+    const env = { ...process.env, HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: state, HOT_CROSS_BUNS_INTERNAL_COMMANDS: '1' };
+    execFileSync('go', ['build', '-o', binary, './cmd/hot-cross-buns'], { cwd: resolve('.'), timeout: 90000 });
     // Create a real retained conversation through the supported internal service.
     await promisify(execFile)(binary, ['work', '--source', workspace, '--mode', 'inspect', 'Create a test conversation'], { env, timeout: 30000 });
-    const id = (await readdir(join(state, 'gator/conversations'))).find(name => name.startsWith('work-'));
+    const id = (await readdir(join(state, 'hot-cross-buns/conversations'))).find(name => name.startsWith('work-'));
     assert.ok(id);
     companion = createCompanion({ binary, workspace, env, tokenFile, origin: 'https://companion.example' });
     const address = await companion.listen();
@@ -63,7 +63,7 @@ test('real Go work through an enrolled device survives disconnect, deduplicates 
     const page = await listed.json();
     assert.deepEqual(page.items.map(item => item.id), [id]);
     assert.equal(requests, beforeCatalog, 'browsing must not invoke a model');
-    assert.equal((await readdir(join(state, 'gator/conversations'))).filter(name => name.startsWith('work-')).length, 1);
+    assert.equal((await readdir(join(state, 'hot-cross-buns/conversations'))).filter(name => name.startsWith('work-')).length, 1);
     assert.equal(page.new_chat_source, workspace);
     const creation = { request_id: 'stable-new-chat-request' };
     const create = (base = catalog, key = token) => fetch(base, { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify(creation) });
@@ -77,13 +77,13 @@ test('real Go work through an enrolled device survives disconnect, deduplicates 
     assert.equal(emptyChat.state.conversation_id, newChat.conversation_id);
     assert.equal(emptyChat.state.running, false);
     assert.equal(requests, beforeCatalog, 'creating and opening an empty chat must not invoke a model');
-    assert.equal((await readdir(join(state, 'gator/conversations'))).filter(name => name.startsWith('work-')).length, 2);
+    assert.equal((await readdir(join(state, 'hot-cross-buns/conversations'))).filter(name => name.startsWith('work-')).length, 2);
     assert.equal((await get('bad')).status, 401);
     assert.equal((await get(token, { origin: 'https://attacker.example' })).status, 403);
-    await mkdir(join(state, 'gator/inbox'), { recursive: true });
+    await mkdir(join(state, 'hot-cross-buns/inbox'), { recursive: true });
     for (let index = 0; index < 55; index++) {
       const entry = { version: 1, id: `inbox-remote-${String(index).padStart(3, '0')}`, kind: 'job', title: `Retained follow-up ${index}`, summary: 'Retained host update.', status: index === 54 ? 'failed' : 'completed', origin_conversation_id: id, created_at: new Date(Date.UTC(2026, 9, 29, 0, index)).toISOString() };
-      await writeFile(join(state, 'gator/inbox', entry.id + '.json'), JSON.stringify(entry), { mode: 0o600 });
+      await writeFile(join(state, 'hot-cross-buns/inbox', entry.id + '.json'), JSON.stringify(entry), { mode: 0o600 });
     }
     const first = await (await get()).json(); assert.equal(first.state.conversation_id, id);
     assert.equal(first.state.chat_updates.length, 50);
@@ -130,7 +130,7 @@ test('real Go work through an enrolled device survives disconnect, deduplicates 
     const before = requests;
     assert.equal((await send(frame)).status, 200);
     await new Promise(r => setTimeout(r, 100)); assert.equal(requests, before);
-    const journal = JSON.parse(await readFile(join(state, 'gator/conversations', id, 'requests.json'), 'utf8'));
+    const journal = JSON.parse(await readFile(join(state, 'hot-cross-buns/conversations', id, 'requests.json'), 'utf8'));
     assert.equal(journal.requests.filter(r => r.client_id === 'stable-remote-request').length, 1);
     await writeFile(tokenFile, 'b'.repeat(64) + '\n');
     assert.equal((await get()).status, 401);
@@ -159,7 +159,7 @@ test('real Go work through an enrolled device survives disconnect, deduplicates 
 });
 
 test('new chats reject unreviewed source or message fields and require stable identities', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-create-chat-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64), creations = [];
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-create-chat-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64), creations = [];
   let companion;
   try {
     await writeFile(tokenFile, token + '\n', { mode: 0o600 });
@@ -178,7 +178,7 @@ test('new chats reject unreviewed source or message fields and require stable id
 });
 
 test('catalog authorizes reads, bounds parameters and rechecks revocation after a queued read', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-catalog-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-catalog-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64);
   let companion, release, begin;
   const started = new Promise(resolve => begin = resolve), gate = new Promise(resolve => release = resolve), queries = [];
   try {
@@ -207,7 +207,7 @@ test('catalog authorizes reads, bounds parameters and rechecks revocation after 
 });
 
 test('browsing more chats retires only idle workers and never pending work', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-catalog-workers-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64), workers = new Map();
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-catalog-workers-')), tokenFile = join(root, 'token'), token = 'a'.repeat(64), workers = new Map();
   let companion;
   try {
     await writeFile(tokenFile, token + '\n', { mode: 0o600 });
@@ -229,7 +229,7 @@ test('browsing more chats retires only idle workers and never pending work', asy
 });
 
 test('token files reject public permissions, symlinks and malformed values', { skip: process.platform === 'win32' }, async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-companion-token-'));
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-companion-token-'));
   const path = join(root, 'token');
   try {
     await writeFile(path, 'a'.repeat(64) + '\n', { mode: 0o600 });
@@ -242,7 +242,7 @@ test('token files reject public permissions, symlinks and malformed values', { s
 });
 
 test('public browser shell has no host data and rejects foreign hosts and origins', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-companion-shell-'));
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-companion-shell-'));
   const tokenFile = join(root, 'token'); let companion;
   try {
     await writeFile(tokenFile, 'a'.repeat(64) + '\n', { mode: 0o600 });
@@ -252,7 +252,7 @@ test('public browser shell has no host data and rejects foreign hosts and origin
     assert.equal(page.status, 200);
     assert.ok(page.headers.get('content-security-policy').includes("frame-ancestors 'none'"));
     assert.equal(page.headers.get('cache-control'), 'no-store');
-    assert.match(await page.text(), /Gator companion/);
+    assert.match(await page.text(), /Hot Cross Buns companion/);
     assert.equal((await fetch(base + '/client.mjs')).status, 200);
     assert.equal((await fetch(base + '/v1/chats/work-private')).status, 401);
     const foreignHost = await new Promise((resolve, reject) => {

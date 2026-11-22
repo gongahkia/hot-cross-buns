@@ -1,13 +1,13 @@
 # User Work benchmark, first iteration
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-15. The corpus is
 [`internal/eval/testdata/user-work-v1/dataset.json`](../internal/eval/testdata/user-work-v1/dataset.json).
 It tests ordinary non-coding requests through the same `work.v1` service as
-Gator's terminal UI, CLI, and jobs. Its eight source folders are synthetic and
+Hot Cross Buns's terminal UI, CLI, and jobs. Its eight source folders are synthetic and
 small enough for repeatable local runs. They are task probes, not a claim that
-Gator is useful at production scale.
+Hot Cross Buns is useful at production scale.
 All eight cases are now marked `development`: each was inspected during the
 first live pass, so none is an unseen holdout for future comparisons.
 
@@ -56,7 +56,7 @@ five requests. Its 136-second latency shows request count improved; one trial
 each cannot establish a stable speed gain.
 
 `plan-revision` failed before a usable first plan was produced. Repeats exposed
-Gemini's `MALFORMED_FUNCTION_CALL` finish reason. Gator now records finish
+Gemini's `MALFORMED_FUNCTION_CALL` finish reason. Hot Cross Buns now records finish
 reasons and retries empty safe-to-retry turns within its existing three-attempt
 limit. The plan still failed after those identical retries. The
 evaluator now stops follow-ups after a failed parent instead of attempting a
@@ -71,7 +71,7 @@ delegation disabled passed both the initial plan and follow-up revision.
 Google [documents `VALIDATED` mode](https://ai.google.dev/gemini-api/docs/generate-content/function-calling#function-calling-modes)
 as reducing malformed calls; it was insufficient for this case.
 
-Gator now classifies malformed provider function calls separately from rate
+Hot Cross Buns now classifies malformed provider function calls separately from rate
 limits and other transient errors. For ordinary Work, the runner removes
 optional specialist controls after the first malformed call and retries the
 same turn with local file and artifact tools still available. The reduced tool
@@ -84,14 +84,14 @@ call, both used the new fallback, and both passed the initial plan and revision
 with valid `plan.json` artifacts. These are small, repeated trials on the same
 fixture and model; they demonstrate recovery for this failure path, not a
 general provider reliability rate. The report is under
-`/tmp/gator-plan-validated-0GybIt/fallback` and is ephemeral.
+`/tmp/hot-cross-buns-plan-validated-0GybIt/fallback` and is ephemeral.
 
 One live regression trial each for `expense-audit` and `ticket-cleanup` also
 passed with `VALIDATED` mode and the new fallback available. Neither needed a
-fallback. Their report is under `/tmp/gator-tool-regression-kBZJyq/report`.
+fallback. Their report is under `/tmp/hot-cross-buns-tool-regression-kBZJyq/report`.
 
-Local live reports from this session are under `/tmp/gator-user-work-live-0083zx12`,
-`/tmp/gator-user-work-remaining-nvrbi99m`, and `/tmp/gator-ticket-ablation-ejfi4flm`.
+Local live reports from this session are under `/tmp/hot-cross-buns-user-work-live-0083zx12`,
+`/tmp/hot-cross-buns-user-work-remaining-nvrbi99m`, and `/tmp/hot-cross-buns-ticket-ablation-ejfi4flm`.
 These paths are ephemeral. The benchmark used the configured Gemini credential
 and did not run a competitor baseline. It used one attempt per case, so none of
 these counts is a reliability estimate.
@@ -114,12 +114,12 @@ these counts is a reliability estimate.
    correctly but invented reasons for it. Add more cases where unsupported
    rationales can be detected independently, including real multi-page files.
 5. **End-to-end usefulness — unproven.** These small fixtures do not show that
-   Gator saves users time. Run the same ten or more previously unseen tasks
-   through Gator and a terminal baseline using the same model and inputs;
+   Hot Cross Buns saves users time. Run the same ten or more previously unseen tasks
+   through Hot Cross Buns and a terminal baseline using the same model and inputs;
    blind-score correctness, unsupported claims, manual cleanup, elapsed time,
    and cost.
 
-For now, the concrete product hypothesis is: Gator should help terminal users
+For now, the concrete product hypothesis is: Hot Cross Buns should help terminal users
 finish messy local file work without losing track of sources or changing the
 originals. The corpus makes that claim testable; it does not establish a
 market advantage.
@@ -127,13 +127,13 @@ market advantage.
 ## Running the corpus
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval validate internal/eval/testdata/user-work-v1/dataset.json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/user-work-v1/dataset.json \
-  --id scripted-user-work --split all --report-dir /tmp/gator-scripted-user-work
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator work eval run internal/eval/testdata/user-work-v1/dataset.json \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval validate internal/eval/testdata/user-work-v1/dataset.json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/user-work-v1/dataset.json \
+  --id scripted-user-work --split all --report-dir /tmp/hot-cross-buns-scripted-user-work
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns work eval run internal/eval/testdata/user-work-v1/dataset.json \
   --id live-user-work --split all --live --provider PROVIDER --model MODEL \
   --max-model-requests 100 --timeout-seconds 1200 \
-  --report-dir /tmp/gator-live-user-work
+  --report-dir /tmp/hot-cross-buns-live-user-work
 ```
 
 Use a new report directory for every run. Live budgets are examples, not a

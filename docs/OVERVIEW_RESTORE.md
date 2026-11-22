@@ -1,6 +1,6 @@
 # Everyday overview, restore, and migration
 
-**Interface status:** Gator is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 ## Product decision
 
@@ -30,7 +30,7 @@ section levels to the original home.
 Results open their exact inbox entry. Plans open the selected goal. Work opens
 its retained history and output. Recovery targets the selected check. Missing
 sources open the relink form. Limits and model setup open existing controls.
-A live decision hands the terminal to `gator work answer RUN ID`; that command
+A live decision hands the terminal to `hot-cross-buns work answer RUN ID`; that command
 inspects the exact action and requires a response. A pending record without
 confirmed liveness never becomes an answerable approval.
 
@@ -44,9 +44,9 @@ healthy empty states. Deleting history through the current session invalidates
 cached overview content so a delayed async response cannot bring it back.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator overview
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator overview --json
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator overview seen
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns overview
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns overview --json
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns overview seen
 ```
 
 ## Restore into a fresh profile
@@ -57,9 +57,9 @@ archive and produces a second, exact restore agreement. Only confirmation of
 that agreement creates the profile.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data restore /private/backup.tar.gz --to /private/gator-restored
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data restore /private/backup.tar.gz --to /private/gator-restored --map-source /old/project=/new/project
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data restore-apply REVIEW_ID --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data restore /private/backup.tar.gz --to /private/hot-cross-buns-restored
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data restore /private/backup.tar.gz --to /private/hot-cross-buns-restored --map-source /old/project=/new/project
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data restore-apply REVIEW_ID --yes
 ```
 
 Source mappings are repeatable and their destinations must exist. The review
@@ -76,7 +76,7 @@ navigation metadata, validates records and sealed artifact/snapshot bytes, and
 syncs before publication. The final rename refuses existing destinations on
 macOS and Linux. Cancellation or error before publication leaves no partial
 destination. A process killed during staging can leave a private
-`.gator-restore-*` directory in the destination parent. It is not an active
+`.hot-cross-buns-restore-*` directory in the destination parent. It is not an active
 profile and can be removed after confirming the process stopped.
 
 One archive parser handles verification and extraction. It rejects traversal,
@@ -93,7 +93,7 @@ and 500,000 files. Extraction follows the Go project's
   and historical workspace metadata.
 - Sealed manifests, drafts, transcript text, replay messages, content hashes,
   and frozen project configuration remain historical. Original host metadata
-  is retained privately under `gator/migrations`.
+  is retained privately under `hot-cross-buns/migrations`.
 - Replay execution settings are cleared. Imported configuration cannot
   reactivate old grants, browser sessions, or connector permissions.
 - All checks start paused, OAuth pins are cleared, and interrupted Work becomes
@@ -109,11 +109,11 @@ The current profile stays active after restore. Success prints a shell-quoted
 command selecting both the new state and configuration roots:
 
 ```sh
-GATOR_STATE_DIR='/private/gator-restored' GATOR_CONFIG_DIR='/private/gator-restored/config' gator
+HOT_CROSS_BUNS_STATE_DIR='/private/hot-cross-buns-restored' HOT_CROSS_BUNS_CONFIG_DIR='/private/hot-cross-buns-restored/config' hot-cross-buns
 ```
 
 Without an explicit configuration override, a restored profile uses its own
-`config` directory. Explicit `GATOR_CONFIG_DIR` remains user control. `/data`
+`config` directory. Explicit `HOT_CROSS_BUNS_CONFIG_DIR` remains user control. `/data`
 shows the receipt, current source availability, and setup guidance. Set up
 `/model` and selected connectors, review `/usage`, and review paused `/followup`
 agreements before resuming. Finishing setup review dismisses its reminder; it
@@ -130,8 +130,8 @@ available folders. Original project directories are outside the backup.
 folder, review affected metadata, then confirm.
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data relink /old/project /new/project
-GATOR_INTERNAL_COMMANDS=1 go run ./cmd/gator data relink-apply REVIEW_ID --yes
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data relink /old/project /new/project
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns data relink-apply REVIEW_ID --yes
 ```
 
 Relinking updates matching source references, pauses affected checks, and

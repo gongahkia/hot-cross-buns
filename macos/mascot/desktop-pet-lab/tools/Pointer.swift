@@ -5,8 +5,8 @@ import AppKit
         let a=CommandLine.arguments
         print("own=\(getpid()) front=\(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1) post=\(CGPreflightPostEventAccess()) targetBundles=\(NSRunningApplication(processIdentifier:Int32(a[1])!)?.bundleIdentifier ?? "nil"),\(NSRunningApplication(processIdentifier:Int32(a[2])!)?.bundleIdentifier ?? "nil")")
         guard a.count>=5,let petPID=Int32(a[1]),let peerPID=Int32(a[2]),
-              NSRunningApplication(processIdentifier:petPID)?.bundleIdentifier=="dev.gator.pet.b1.lab",
-              NSRunningApplication(processIdentifier:peerPID)?.bundleIdentifier=="dev.gator.pet.focus-fixture",
+              NSRunningApplication(processIdentifier:petPID)?.bundleIdentifier=="dev.hot-cross-buns.pet.b1.lab",
+              NSRunningApplication(processIdentifier:peerPID)?.bundleIdentifier=="dev.hot-cross-buns.pet.focus-fixture",
               NSWorkspace.shared.frontmostApplication?.processIdentifier==peerPID,CGPreflightPostEventAccess() else{throw NSError(domain:"RefuseWrongFocusOrFixture",code:1)}
         let windows=CGWindowListCopyWindowInfo(.optionOnScreenOnly,kCGNullWindowID) as? [[String:Any]] ?? []
         func frame(_ pid:Int32,pet:Bool)->CGRect?{windows.first{($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value==pid && (pet ? (($0[kCGWindowBounds as String] as? [String:Double])?["Width"]==72) : (($0[kCGWindowBounds as String] as? [String:Double])?["Width"] ?? 0)>=400)}.flatMap{($0[kCGWindowBounds as String] as? NSDictionary).flatMap{CGRect(dictionaryRepresentation:$0)}}}

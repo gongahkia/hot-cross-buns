@@ -10,7 +10,7 @@ import { createCompanion } from './server.mjs';
 
 const execute = promisify(execFile);
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'gator-devices-')), ownerFile = join(root, 'owner.token'), owner = 'a'.repeat(64);
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-devices-')), ownerFile = join(root, 'owner.token'), owner = 'a'.repeat(64);
   await writeFile(ownerFile, owner + '\n', { mode: 0o600 });
   return { root, ownerFile, owner, close: () => rm(root, { recursive: true, force: true }) };
 }
@@ -30,7 +30,7 @@ test('device enrollment, individual revocation and owner rotation retain distinc
     assert.match(await authorized(phoneToken), new RegExp(`^device:${phone.id}:`));
     assert.match(await authorized(tabletToken), new RegExp(`^device:${tablet.id}:`));
     assert.equal(await authorized(phoneToken.slice(0, -1) + (phoneToken.endsWith('0') ? '1' : '0')), null);
-    assert.equal(await authorized('gator_device_../escape_' + 'a'.repeat(64)), null);
+    assert.equal(await authorized('hot_cross_buns_device_../escape_' + 'a'.repeat(64)), null);
     assert.equal((await listDevices(f.ownerFile)).length, 2);
     await revokeDevice(f.ownerFile, phone.id);
     assert.equal(await authorized(phoneToken), null);

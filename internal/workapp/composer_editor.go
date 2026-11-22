@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/gongahkia/gator/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
 )
 
 // composerEditor returns the conventional editor selection for terminal
@@ -27,7 +27,7 @@ func composerEditorCommand(editor, path string) *exec.Cmd {
 	// EDITOR and VISUAL conventionally permit flags (for example, "code
 	// --wait"). The inherited value is user-controlled; the temporary path is
 	// passed separately as $1 so it remains one safely quoted argument.
-	return hostproc.Command("sh", "-c", "exec "+editor+" \"$1\"", "gator-composer", path)
+	return hostproc.Command("sh", "-c", "exec "+editor+" \"$1\"", "hot-cross-buns-composer", path)
 }
 
 func (m Model) openComposerEditor() (tea.Model, tea.Cmd) {
@@ -35,7 +35,7 @@ func (m Model) openComposerEditor() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	file, err := os.CreateTemp("", "gator-composer-*.md")
+	file, err := os.CreateTemp("", "hot-cross-buns-composer-*.md")
 	if err != nil {
 		m.status = "Open composer editor: " + err.Error()
 		return m, nil

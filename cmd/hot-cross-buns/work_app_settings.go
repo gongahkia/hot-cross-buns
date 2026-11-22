@@ -1,0 +1,141 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+)
+
+const modelDefaultsEffect = "Applies to future request defaults. Running, queued and reviewed requests retain their captured provider/model. Background commitments keep explicitly configured fields; missing provider/model fields can inherit the new defaults on their next run."
+
+func (c hotCrossBunsAppController) prepareSettings(ctx context.Context, change workrun.AppChange) (workrun.AppMutation, error) {
+	if err := ctx.Err(); err != nil {
+		return workrun.AppMutation{}, err
+	}
+	prior, err := c.settings.Load()
+	if err != nil {
+		return workrun.AppMutation{}, err
+	}
+	switch change.Setting {
+	case "work_effort":
+		return c.prepareWorkEffort(change)
+	case "connections", "data_action", "recovery", "output_action":
+		return c.prepareManagement(ctx, change)
+	case "shortcuts", "voice":
+		return c.prepareDesktopPreferences(change)
+	case "terminal":
+		return c.prepareTerminalPreferences(change)
+	case "usage_limits", "usage_pause":
+		return c.prepareUsage(change)
+	case "retention":
+		return c.prepareRetention(change)
+	case "retrieval":
+		var next struct {
+			Provider string `json:"provider"`
+		}
+		if err := workrun.DecodeAppArguments(change.Value, &next); err != nil {
+			return workrun.AppMutation{}, err
+		}
+		if !slices.Contains([]string{"ollama", "openai", "gemini"}, next.Provider) {
+			return workrun.AppMutation{}, errors.New("retrieval provider must be ollama, openai or gemini")
+		}
+		embeddings := config.EmbeddingSettings{Provider: next.Provider, CloudUploadApproved: next.Provider != "ollama"}
+		effect := "Uses local Ollama embeddings when installed, with basic matching as fallback. No model is downloaded and the chat model stays the same."
+		if embeddings.CloudUploadApproved {
+			effect = "Uploads eligible saved memory, note text, and search queries to " + next.Provider + " for embedding on subsequent runs. Requires its configured API key. Local storage and the chat model stay the same."
+		}
+		return workrun.AppMutation{Review: true, AfterRun: true, Summary: "Retrieval preference saved: " + next.Provider + ".", Preview: map[string]any{"before": prior.Embeddings, "after": embeddings, "effect": effect}, Apply: func(context.Context) (any, error) {
+			err := c.settings.Update(func(current *config.Settings) error {
+				if current.Embeddings != prior.Embeddings {
+					return errors.New("retrieval settings changed; inspect settings and try again")
+				}
+				current.Embeddings = embeddings
+				return nil
+			})
+			return embeddings, err
+		}}, nil
+	case "model":
+		var next config.Defaults
+		if err := workrun.DecodeAppArguments(change.Value, &next); err != nil {
+			return workrun.AppMutation{}, err
+		}
+		if !knownAppModel(prior, next) {
+			return workrun.AppMutation{}, errors.New("choose an existing provider/model from hot_cross_buns_app_inspect models; configure new providers and downloads in Models")
+		}
+		return workrun.AppMutation{Summary: "Default model saved for future requests: " + next.Provider + "/" + next.Model + ". Running, queued and reviewed requests retain their captured model.", Preview: map[string]any{"setting": "model", "before": prior.Defaults, "after": next, "effect": modelDefaultsEffect}, Apply: func(ctx context.Context) (any, error) {
+			err := c.settings.Update(func(current *config.Settings) error {
+				if current.Defaults != prior.Defaults || !knownAppModel(*current, next) {
+					return errors.New("model settings changed; inspect models and try again")
+				}
+				current.Defaults = next
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return c.Inspect(ctx, workrun.AppQuery{Topic: "settings"})
+		}}, nil
+	case "chat_learning":
+		var next struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := workrun.DecodeAppArguments(change.Value, &next); err != nil {
+			return workrun.AppMutation{}, err
+		}
+		if next.Enabled == nil {
+			return workrun.AppMutation{}, errors.New("enabled must be true or false")
+		}
+		enabled := *next.Enabled
+		return workrun.AppMutation{AfterReply: true, Summary: "Chat learning preference saved.", Preview: map[string]any{"before": prior.Desktop.LearnsFromChats(), "after": enabled}, Apply: func(context.Context) (any, error) {
+			err := c.settings.Update(func(current *config.Settings) error {
+				if current.Desktop.LearnsFromChats() != prior.Desktop.LearnsFromChats() {
+					return errors.New("chat learning changed; inspect settings and try again")
+				}
+				current.Desktop.LearnFromChats = &enabled
+				return nil
+			})
+			return map[string]any{"learn_from_chats": enabled}, err
+		}}, nil
+	case "chat_history":
+		var next struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := workrun.DecodeAppArguments(change.Value, &next); err != nil {
+			return workrun.AppMutation{}, err
+		}
+		if next.Enabled == nil {
+			return workrun.AppMutation{}, errors.New("enabled must be true or false")
+		}
+		enabled := *next.Enabled
+		return workrun.AppMutation{AfterReply: true, Summary: "Earlier-chat retrieval preference saved for new requests.", Preview: map[string]any{"before": prior.Desktop.RefersToChats(), "after": enabled, "effect": "Controls retrieval from other chats on new requests. Current conversation, saved memories and retained history are kept. Running requests keep their supplied context."}, Apply: func(context.Context) (any, error) {
+			err := c.settings.Update(func(current *config.Settings) error {
+				if current.Desktop.RefersToChats() != prior.Desktop.RefersToChats() {
+					return errors.New("earlier-chat retrieval changed; inspect settings and try again")
+				}
+				current.Desktop.ReferToChats = &enabled
+				return nil
+			})
+			return map[string]any{"refer_to_chats": enabled}, err
+		}}, nil
+	case "theme":
+		return c.prepareTerminalPreferences(change)
+	default:
+		return workrun.AppMutation{}, fmt.Errorf("app setting %q is not available through chat", change.Setting)
+	}
+}
+
+func knownAppModel(settings config.Settings, selected config.Defaults) bool {
+	if selected.Provider == "" || selected.Model == "" {
+		return false
+	}
+	if custom, found := configuredCustomProvider(settings, selected.Provider); found {
+		return slices.Contains(custom.Models, selected.Model)
+	}
+	provider, err := model.ParseProvider(selected.Provider)
+	return err == nil && (slices.Contains(model.CuratedModels(provider), selected.Model) || selected == settings.Defaults)
+}

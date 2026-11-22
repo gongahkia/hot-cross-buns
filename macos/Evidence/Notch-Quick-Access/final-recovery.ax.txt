@@ -1,8 +1,8 @@
-AXApplication | Gator |  | 
-AXWindow |  | Gator quick access | 
+AXApplication | Hot Cross Buns |  |
+AXWindow |  | Hot Cross Buns quick access |
 AXGroup |  |  | 
-AXButton |  | Gator, Ready when you are | 
-AXWindow | Gator – Prepare controlled fixture scope |  | 
+AXButton |  | Hot Cross Buns, Ready when you are |
+AXWindow | Hot Cross Buns – Prepare controlled fixture scope |  |
 AXGroup |  |  | 
 AXDisclosureTriangle |  | Open chats and retained tasks | 
 AXHeading |  | Task details | 
@@ -52,7 +52,7 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | Prepare controlled fixture scope
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator, Ready |  | 
+AXMenuBarItem | Hot Cross Buns, Ready |  |

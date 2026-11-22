@@ -4,10 +4,10 @@ import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createCompanion} from './server.mjs';
-const {chromium}=await import(process.env.GATOR_PLAYWRIGHT_MODULE||'./node_modules/playwright/index.mjs');
+const {chromium}=await import(process.env.HOT_CROSS_BUNS_PLAYWRIGHT_MODULE||'./node_modules/playwright/index.mjs');
 const item=(d,snapshot=false)=>({target:{binding:{id:'target-'+d.repeat(32),backend:'external_tmux',owner:'tmux-instance-'+d.repeat(32),generation:d.repeat(32),incarnation:d.repeat(64)},label:'Pane '+d,capabilities:['inspect'],available:true},text:snapshot?`<script>window.injected=true</script> pane-${d} 猫`:'',truncated:snapshot,stale:false,...(snapshot?{captured_at:'2026-10-31T03:00:00Z'}:{})});
 test('external mobile snapshots stay text, obey A/B selection, clear revoked content and pause polling',{timeout:60000},async()=>{
- const root=await mkdtemp(join(tmpdir(),'gator-external-browser-')),tokenFile=join(root,'token'),token='a'.repeat(64);let c,browser,release,held=false,hold=false,reads=0,shared=true;
+ const root=await mkdtemp(join(tmpdir(),'hot-cross-buns-external-browser-')),tokenFile=join(root,'token'),token='a'.repeat(64);let c,browser,release,held=false,hold=false,reads=0,shared=true;
  try{
   await writeFile(tokenFile,token+'\n',{mode:0o600});c=createCompanion({binary:'',workspace:root,tokenFile,queryCatalog:async()=>({items:[],next:'',incomplete:false}),spawnBackend(){throw new Error('External read spawned Work');},queryExternal:async({mode,target})=>{reads++;if(mode==='list')return {targets:shared?[item('a'),item('b')]:[]};if(target===item('a').target.binding.id&&hold){held=true;await new Promise(r=>release=r);}return {targets:shared?[item(target===item('a').target.binding.id?'a':'b',mode==='snapshot')]:[],unavailable:!shared};}});
   const address=await c.listen();browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage();await page.goto(`http://127.0.0.1:${address.port}`);await page.locator('#token').fill(token);await page.getByRole('button',{name:'Connect',exact:true}).click();await page.locator('#external-open summary').click();await page.waitForFunction(()=>document.querySelector('#external-select').options.length===3);

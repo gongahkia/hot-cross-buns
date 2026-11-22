@@ -20,19 +20,19 @@ Implementation, verification, precise provider matrix and remaining limits will 
 
 ## 1. Existing authority and actual supported authentication
 
-The current provider set is 38 built-in direct adapters (`internal/model/provider_sets.go`, `provider.go`). Each supports the existing Gator API-key setup. The terminal `/model` configuration form (`internal/modelcatalog/cloud_model_setup.go`) and `cmd/gator/cloud_model_config.go` already implement provider validation, API-key storage and future default selection. `cmd/gator/command_login.go` also exposes API-key enrollment; native never invokes its secret-bearing CLI argument mode.
+The current provider set is 38 built-in direct adapters (`internal/model/provider_sets.go`, `provider.go`). Each supports the existing Hot Cross Buns API-key setup. The terminal `/model` configuration form (`internal/modelcatalog/cloud_model_setup.go`) and `cmd/hot-cross-buns/cloud_model_config.go` already implement provider validation, API-key storage and future default selection. `cmd/hot-cross-buns/command_login.go` also exposes API-key enrollment; native never invokes its secret-bearing CLI argument mode.
 
 | Provider IDs | Native authentication | Additional supported setup fields |
 |---|---|---|
-| `azure-openai`, `azure-openai-responses` | Gator API key | Deployment/model, resource/full endpoint, Azure API version; canonical Go URL expansion |
-| `cloudflare-workers-ai` | Gator API key | Model, endpoint mode, account ID |
-| `cloudflare-ai-gateway` | Gator API key | Model, endpoint mode, account ID, gateway ID, existing protocol enum (`openai-responses`, `anthropic-messages`, `workers-ai-chat-completions`) |
-| `radius` | Gator API key | Model, endpoint mode, existing gateway URL |
-| `openai`, `anthropic`, `gemini`, `mistral`, `xai`, `groq`, `openrouter`, `together`, `fireworks`, `deepseek`, `cerebras`, `nvidia`, `huggingface`, `moonshotai`, `zai`, `zai-coding-cn`, `minimax`, `minimax-cn`, `baseten`, `vercel-ai-gateway`, `ant-ling`, `xiaomi`, `moonshotai-cn`, `qwen-token-plan`, `qwen-token-plan-cn`, `qwen-token-plan-individual`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-sgp`, `openai-compatible`, `kimi-coding`, `opencode`, `opencode-go` | Gator API key | Model and explicit endpoint mode |
+| `azure-openai`, `azure-openai-responses` | Hot Cross Buns API key | Deployment/model, resource/full endpoint, Azure API version; canonical Go URL expansion |
+| `cloudflare-workers-ai` | Hot Cross Buns API key | Model, endpoint mode, account ID |
+| `cloudflare-ai-gateway` | Hot Cross Buns API key | Model, endpoint mode, account ID, gateway ID, existing protocol enum (`openai-responses`, `anthropic-messages`, `workers-ai-chat-completions`) |
+| `radius` | Hot Cross Buns API key | Model, endpoint mode, existing gateway URL |
+| `openai`, `anthropic`, `gemini`, `mistral`, `xai`, `groq`, `openrouter`, `together`, `fireworks`, `deepseek`, `cerebras`, `nvidia`, `huggingface`, `moonshotai`, `zai`, `zai-coding-cn`, `minimax`, `minimax-cn`, `baseten`, `vercel-ai-gateway`, `ant-ling`, `xiaomi`, `moonshotai-cn`, `qwen-token-plan`, `qwen-token-plan-cn`, `qwen-token-plan-individual`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-sgp`, `openai-compatible`, `kimi-coding`, `opencode`, `opencode-go` | Hot Cross Buns API key | Model and explicit endpoint mode |
 
 “Built-in OpenAI-compatible” uses the existing adapter; adding a custom provider definition is excluded. Historical inventory text mentions external sign-in jobs. The **current model provider allowlist** has direct API-key adapters; this increment does not invent vendor CLI/OAuth enrollment. Existing bearer/OAuth credential metadata can be shown and an API-key replacement/removal can be explicitly reviewed, but those authentication methods cannot be enrolled/refreshed here. Installed Pi/OpenCode/vendor tools do not grant credential-sharing authority. Connector/account OAuth, MD04 custom definitions and MD05 local runtimes remain excluded.
 
-Credential precedence remains `model`'s explicit request configuration → Gator credential store → environment. Native neither changes the environment nor reads another application's store. Ambient-source status reflects the Go owner's captured process environment; changing an environment outside that process does not rewrite it.
+Credential precedence remains `model`'s explicit request configuration → Hot Cross Buns credential store → environment. Native neither changes the environment nor reads another application's store. Ambient-source status reflects the Go owner's captured process environment; changing an environment outside that process does not rewrite it.
 
 ## 2. Native architecture and lifecycle
 
@@ -63,9 +63,9 @@ New host-only `native_provider` command, with UUID request identity and one of:
 
 ## 4. Credential security and redaction
 
-The only durable secret is in the existing private `state/gator/auth.json` store. No Keychain record, new database, credential preference or draft field is added. The only new-key transfer is the necessary trusted local NDJSON Save. Keys never become process arguments/environment variables, chat messages, history, model context, runtime prompts, public status/review DTOs or logger calls. `NSSecureTextField` supplies native masking/secure accessibility and is cleared/detached on dismantle. There is no reveal/copy-key affordance. The app's existing Cut/Copy actions remain the native responder-chain operations; secure entry uses the system secure editor.
+The only durable secret is in the existing private `state/hot-cross-buns/auth.json` store. No Keychain record, new database, credential preference or draft field is added. The only new-key transfer is the necessary trusted local NDJSON Save. Keys never become process arguments/environment variables, chat messages, history, model context, runtime prompts, public status/review DTOs or logger calls. `NSSecureTextField` supplies native masking/secure accessibility and is cleared/detached on dismantle. There is no reveal/copy-key affordance. The app's existing Cut/Copy actions remain the native responder-chain operations; secure entry uses the system secure editor.
 
-Go returns only credential presence/kind/expiry, an ambient-source boolean, safe local readiness and processing hostname. It does not return a key fragment, fingerprint, authorization header or raw credential. Known credentials across the Gator store and ambient provider keys are redacted if malformed configuration contains them in public fields. Review validation rejects known credential material in configuration. The native editor also rejects putting the same newly entered key into non-secret form fields before requesting review. As with any configuration editor, an arbitrary unknown string pasted exclusively into a model/URL field cannot universally be identified as a secret; those fields are explicitly labelled non-secret configuration.
+Go returns only credential presence/kind/expiry, an ambient-source boolean, safe local readiness and processing hostname. It does not return a key fragment, fingerprint, authorization header or raw credential. Known credentials across the Hot Cross Buns store and ambient provider keys are redacted if malformed configuration contains them in public fields. Review validation rejects known credential material in configuration. The native editor also rejects putting the same newly entered key into non-secret form fields before requesting review. As with any configuration editor, an arbitrary unknown string pasted exclusively into a model/URL field cannot universally be identified as a secret; those fields are explicitly labelled non-secret configuration.
 
 Native errors are safe fixed messages. Raw callback/filesystem/configuration errors are not projected. The original credential comparison and settings compensation remain Go-only. Clearing Swift String or Go references does not guarantee physical memory erasure, and review expectations of an already stored credential remain host-local memory until invalidated/released.
 
@@ -81,7 +81,7 @@ No cross-file crash transaction was invented. Existing credential/settings compe
 
 ## 6. Configuration/readiness semantics
 
-Provider rows distinguish **not configured**, **configured / needs attention**, and **locally ready**. Gator credential presence, ambient availability, expiry, model and safe processing destination are separate facts. The current future-default provider is marked. For other providers, Go's built-in suggested model is labelled a suggestion, because the existing configuration stores a single default provider/model rather than a per-provider selected-model database.
+Provider rows distinguish **not configured**, **configured / needs attention**, and **locally ready**. Hot Cross Buns credential presence, ambient availability, expiry, model and safe processing destination are separate facts. The current future-default provider is marked. For other providers, Go's built-in suggested model is labelled a suggestion, because the existing configuration stores a single default provider/model rather than a per-provider selected-model database.
 
 “Live verified” is never inferred from storing a key or constructing a local adapter. There is no automatic probe, model listing, inference, key test or paid request on open, edit, review, save, cancel, restart or removal. Endpoint overrides are explicitly selected/reviewed; no 401/geography diagnostic changes routing.
 
@@ -102,7 +102,7 @@ Final headless and desktop results are appended below after testing. All fixture
 | Swift build, Swift 6 language mode, macOS 15 minimum | PASS; existing development packaging script invokes the same SwiftPM build. [Build/package log](evidence/p04/build-package.log). No new dependency or language-mode relaxation. |
 | Complete sequential Swift suite against the **delivery bundle's Go runtime** | **227 PASS**, 140.623 seconds. [Full log](evidence/p04/swift-full.log). P03 baseline 215 + 12 new P04 tests; no previous tests removed. The existing managed real-Go integration test was also expanded. |
 | Strict complete concurrency + warnings-as-errors | **14 selected PASS**, 9.430 seconds, with all production/test sources compiled. [Strict log](evidence/p04/swift-strict.log). Selection is all 12 new tests plus existing managed real-Go and workspace Unicode integration tests; the earlier reported 17-test P03 selection used a different filter. |
-| Go regression suites | **7 packages PASS**: `cmd/gator`, `internal/workapp`, `internal/worksession`, `internal/workspace`, `internal/modelcatalog`, `internal/auth`, `internal/config`. [Log](evidence/p04/go-full.log). |
+| Go regression suites | **7 packages PASS**: `cmd/hot-cross-buns`, `internal/workapp`, `internal/worksession`, `internal/workspace`, `internal/modelcatalog`, `internal/auth`, `internal/config`. [Log](evidence/p04/go-full.log). |
 | Go race detector | **3 focused packages PASS**: native bridge/backend, canonical cloud setup, provider normalization. [Log](evidence/p04/go-race.log). |
 | Host regression suites | **41 PASS**, zero failures/skips/cancellations. [Log](evidence/p04/host.log). No host production change. |
 | Formatting/integrity | `gofmt` applied to changed Go files; `git diff --check` PASS. Protected safety/source files and every accepted P03 bundle file retain their initial hashes. [Integrity and log scan](evidence/p04/verification.json). |
@@ -111,27 +111,27 @@ Final headless and desktop results are appended below after testing. All fixture
 Reproducible commands (existing locally installed tools only):
 
 ```sh
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P04.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-GATOR_TEST_BINARY=/tmp/Gator-Native-Parity-P04.app/Contents/Resources/gator-runtime \
-  swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel \
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P04.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-Parity-P04.app/Contents/Resources/hot-cross-buns-runtime \
+  swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
   --filter 'provider|Provider|actualGoManagedDialogue|workspaceActualGoUnicode'
-go test ./cmd/gator ./internal/workapp ./internal/worksession ./internal/workspace \
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/worksession ./internal/workspace \
   ./internal/modelcatalog ./internal/auth ./internal/config
-go test -race ./cmd/gator ./internal/workapp ./internal/modelcatalog \
+go test -race ./cmd/hot-cross-buns ./internal/workapp ./internal/modelcatalog \
   -run 'TestNative|TestUIBridgeNativeProvider|TestCloudSetup|TestSaveTUICloud'
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test \
   app-host/tests/native.test.mjs app-host/tests/sessions.test.mjs \
   app-host/tests/drafts.test.mjs app-host/tests/reading-state.test.mjs \
   app-host/tests/backend.test.mjs
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Parity-P04.app \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Parity-P04.app \
   bash macos/scripts/build-dev-app.sh
 git diff --check
 ```
 
-The package script refuses an existing destination. During acceptance, only this increment's intermediate P04 candidates were preserved under additional `/tmp/Gator-Native-Parity-P04-Pre*.app` names before rebuilding the delivery path. Earlier P01–P03 bundles were not replaced.
+The package script refuses an existing destination. During acceptance, only this increment's intermediate P04 candidates were preserved under additional `/tmp/HotCrossBuns-Native-Parity-P04-Pre*.app` names before rebuilding the delivery path. Earlier P01–P03 bundles were not replaced.
 
 Coverage added:
 
@@ -146,9 +146,9 @@ Development failures were not ignored: initial new test-code compilation errors 
 
 ## 10. Native acceptance and evidence provenance
 
-All GUI tests used a disposable profile under `/tmp`, seeded conversations, a loopback-only endpoint and an inert API key. No production workspace/credential/account, paid provider request or external action was used. The fixture copy has bundle ID `dev.gator.native.p04.disposable`; executable and Go runtime hashes match the corresponding packaged candidate. Only the fixture Info.plist identity and its own menu-bar/notch preferences differ. No system accessibility/privacy/focus preference was changed.
+All GUI tests used a disposable profile under `/tmp`, seeded conversations, a loopback-only endpoint and an inert API key. No production workspace/credential/account, paid provider request or external action was used. The fixture copy has bundle ID `dev.hot-cross-buns.native.p04.disposable`; executable and Go runtime hashes match the corresponding packaged candidate. Only the fixture Info.plist identity and its own menu-bar/notch preferences differ. No system accessibility/privacy/focus preference was changed.
 
-Final application: `/tmp/Gator-Native-Parity-P04.app`. [Candidate/fixture build hashes](evidence/p04/desktop-builds.json), [storage confirmation](evidence/p04/desktop-storage.json), [final artifact/draft checks](evidence/p04/desktop-final.json).
+Final application: `/tmp/HotCrossBuns-Native-Parity-P04.app`. [Candidate/fixture build hashes](evidence/p04/desktop-builds.json), [storage confirmation](evidence/p04/desktop-storage.json), [final artifact/draft checks](evidence/p04/desktop-final.json).
 
 | Interaction | Observed result |
 |---|---|
@@ -161,7 +161,7 @@ Final application: `/tmp/Gator-Native-Parity-P04.app`. [Candidate/fixture build 
 | Cancel / Escape | PASS on the affected P04 UI revisions after focused corrections: review Escape returns to editing; active secure-editor Escape clears entry, closes setup and restores composer focus. Explicit Cancel/Return to Chat also pass. Actual stored credential remains unchanged. Both paths have final headless regressions. |
 | Compact entry | PASS; menu-bar chat More → Models and Providers opens the same full setup window. Compact composer retains its original unsent draft. No notch dashboard added. |
 | Minimum window | PASS at 560×500; provider list/details scroll independently; scrolling details reaches Cancel, Remove, Review and the complete explanatory footer. Return to Chat remains available. |
-| Light/dark | PASS visual inspection; native surfaces, typography, secure field, semantic status and existing Gator accent. |
+| Light/dark | PASS visual inspection; native surfaces, typography, secure field, semantic status and existing Hot Cross Buns accent. |
 | Return/relaunch | PASS; original conversation selection and exact unsent draft preserved; stored provider status/model/destination restored; no inherited task/approval or inference. |
 | Delivery bundle smoke | PASS launch, ready provider projection, review/cancel controls and guarded Quit. A final repeated CG keyboard sequence was refused after external focus changed; it is **not** counted as another PASS. The same cancellation code had passed the earlier controlled packaged UI checks, and both exact final headless regressions pass. Final refinements concerned whitespace retention and the nonvisual reconciliation Quit guard. |
 
@@ -172,7 +172,7 @@ Screenshots were inspected before inclusion. [Final delivery light](evidence/p04
 1. After review removed the secure editor, the window could become first responder and root `onExitCommand` did not handle Escape. Added native Cancel keyboard equivalents to Review Cancel and Return to Chat. The hidden-window regression **fails on an isolated pre-fix copy** and passes after correction: [before](evidence/p04/escape-before.log), [after](evidence/p04/escape-after.log). Production worktree was not reverted to obtain the before result. Packaged-app Escape also passed.
 2. Active secure text editing could consume Escape before window cancellation. The `NSTextFieldDelegate` now handles `cancelOperation`, clears both field/binding, then calls the view's cancellation action. [Delegate regression](evidence/p04/secure-cancel.log); actual app subsequently dismissed setup and focused the original composer with credentials/draft unchanged.
 
-Desktop focus changed to Ghostty and Java/ForkedBooter during some attempts. The controller verified target bundle/window/focused element and refused keyboard delivery on mismatch. This is evidence of shared-desktop interference, not evidence of an application focus defect. The controlled window-first-responder Escape reproduction above occurred while Gator remained frontmost and was also reproduced headlessly. No blind repeated input, system preference change or production focus workaround was used.
+Desktop focus changed to Ghostty and Java/ForkedBooter during some attempts. The controller verified target bundle/window/focused element and refused keyboard delivery on mismatch. This is evidence of shared-desktop interference, not evidence of an application focus defect. The controlled window-first-responder Escape reproduction above occurred while Hot Cross Buns remained frontmost and was also reproduced headlessly. No blind repeated input, system preference change or production focus workaround was used.
 
 Physical VoiceOver, IME, password-manager preference variants and exhaustive Full Keyboard Access settings are **NOT TESTED**. Secure accessibility metadata and ordinary keyboard observations are not physical VoiceOver acceptance. No real-provider live verification was requested or performed.
 
@@ -181,15 +181,15 @@ Physical VoiceOver, IME, password-manager preference variants and exhaustive Ful
 | Files | Purpose |
 |---|---|
 | `internal/modelcatalog/native_provider.go` (new), `native_provider_test.go` (new) | Finite non-secret DTOs/transient input, provider field allowlist and canonical terminal form normalization tests. |
-| `cmd/gator/native_provider_management.go` (new), `native_provider_management_test.go` (new) | Host-local reviewed setup/removal, status/redaction, configuration/credential CAS, actual-store/cross-process tests. |
-| `cmd/gator/cloud_model_config.go`, `model_management.go`, `work_model_status.go` | Optional reviewed credential expectation in the existing callback; reviewed auth-store removal; reuse existing local status for sampled settings. Legacy callers remain compatible. |
-| `cmd/gator/work_interactive.go`, `ui_bridge.go`, `ui_bridge_test.go` | Wire existing owner to the typed backend; finite NDJSON dispatch; ack-vs-result/redaction regression. |
+| `cmd/hot-cross-buns/native_provider_management.go` (new), `native_provider_management_test.go` (new) | Host-local reviewed setup/removal, status/redaction, configuration/credential CAS, actual-store/cross-process tests. |
+| `cmd/hot-cross-buns/cloud_model_config.go`, `model_management.go`, `work_model_status.go` | Optional reviewed credential expectation in the existing callback; reviewed auth-store removal; reuse existing local status for sampled settings. Legacy callers remain compatible. |
+| `cmd/hot-cross-buns/work_interactive.go`, `ui_bridge.go`, `ui_bridge_test.go` | Wire existing owner to the typed backend; finite NDJSON dispatch; ack-vs-result/redaction regression. |
 | `internal/workapp/bridge_native_provider.go` (new), `app.go`, `bridge.go`, `update.go`, `restart.go` | One pending provider command, exact non-secret completion, future-only preference refresh and restart guard. |
-| `macos/Sources/GatorCore/NativeProviderProtocol.swift` (new), `NativeProviderSetup.swift` (new) | Typed requests/results, redacted request description, non-secret state and owned operation lifecycle. |
-| `macos/Sources/GatorCore/ManagedSessionProtocol.swift`, `ManagedSessionCoordinator.swift` | Finite host command, captured/pinned owner, future-only cached preference refresh, pending/unreconciled Quit warnings and operation wait behind the existing closing barrier. |
-| `macos/Sources/GatorMac/ProviderSetupView.swift` (new), `NativeProviderSecretEntry.swift` (new), `GatorApp.swift`, `ConversationView.swift` | Native window, provider-specific secure form/review, scoped cancellation, scene/menu/toolbar/compact entry. |
-| `macos/Tests/GatorCoreTests/NativeProviderTests.swift` (new), `NativeProviderIntegrationTests.swift` (new), `ManagedSessionTests.swift`, `ManagedGoIntegrationTests.swift` | Protocol/state/lifecycle and real Go/store/owner regressions; fixture extensions. |
-| `macos/Tests/GatorMacTests/NativeProviderSecretEntryTests.swift` (new) | Headless native masking, keyboard-equivalent and secure-delegate cancellation regressions. |
+| `macos/Sources/HotCrossBunsCore/NativeProviderProtocol.swift` (new), `NativeProviderSetup.swift` (new) | Typed requests/results, redacted request description, non-secret state and owned operation lifecycle. |
+| `macos/Sources/HotCrossBunsCore/ManagedSessionProtocol.swift`, `ManagedSessionCoordinator.swift` | Finite host command, captured/pinned owner, future-only cached preference refresh, pending/unreconciled Quit warnings and operation wait behind the existing closing barrier. |
+| `macos/Sources/HotCrossBunsMac/ProviderSetupView.swift` (new), `NativeProviderSecretEntry.swift` (new), `HotCrossBunsApp.swift`, `ConversationView.swift` | Native window, provider-specific secure form/review, scoped cancellation, scene/menu/toolbar/compact entry. |
+| `macos/Tests/HotCrossBunsCoreTests/NativeProviderTests.swift` (new), `NativeProviderIntegrationTests.swift` (new), `ManagedSessionTests.swift`, `ManagedGoIntegrationTests.swift` | Protocol/state/lifecycle and real Go/store/owner regressions; fixture extensions. |
+| `macos/Tests/HotCrossBunsMacTests/NativeProviderSecretEntryTests.swift` (new) | Headless native masking, keyboard-equivalent and secure-delegate cancellation regressions. |
 | This report and `macos/parity/evidence/p04/` | Security design recorded before controls, reproducible fixture/controller, logs, screenshots and integrity evidence. |
 
 No `internal/auth`/`internal/config` storage implementation, JavaScript production code, attachment storage, native archive locking, process transport/shutdown, AppDelegate, P01 reading/search implementation or P03 Unicode resolver code was changed. Those safeguards remain covered by the full suite. No README was edited, dependency installed or git commit invoked. HEAD advanced externally from the initial `d0de3963…` to `12ee4a43…` during work; external captures were preserved rather than reset. Initial/final identities and protected hashes are in [verification.json](evidence/p04/verification.json).
@@ -209,6 +209,6 @@ No `internal/auth`/`internal/config` storage implementation, JavaScript producti
 
 **MD03 is complete and accepted for the current built-in API-key configuration/enrollment/repair/removal scope.** The explicit unsupported authentication paths and physical operator-only checks above are not claimed as complete. Native Save is Go-confirmed, reviewed changes are conflict-checked, key retention/removal is explicit, and prior chat/task/approval/workspace safety remains covered.
 
-Delivery candidate: `/tmp/Gator-Native-Parity-P04.app`. The accepted `/tmp/Gator-Native-Parity-P03-Accepted.app` is byte-for-byte preserved. Disposable native/Go processes were closed after testing; the fixture state contains only inert credentials. The final repeated keyboard attempt blocked by external focus is recorded as refused, while already passed affected interactions and final headless regressions retain their stated provenance.
+Delivery candidate: `/tmp/HotCrossBuns-Native-Parity-P04.app`. The accepted `/tmp/HotCrossBuns-Native-Parity-P03-Accepted.app` is byte-for-byte preserved. Disposable native/Go processes were closed after testing; the fixture state contains only inert credentials. The final repeated keyboard attempt blocked by external focus is recorded as refused, while already passed affected interactions and final headless regressions retain their stated provenance.
 
 The codebase is ready for a separately selected P05 within the documented inherited P2 limits. No P05, other parity capability, signing, notarization or distribution work was started.

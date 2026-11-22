@@ -112,7 +112,7 @@ func TestInboxLoadRejectsSymlink(t *testing.T) {
 	if err := os.WriteFile(outside, []byte(`{"version":1}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(outside, filepath.Join(state, "gator", "inbox", "inbox-link.json")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(state, "hot-cross-buns", "inbox", "inbox-link.json")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Load("inbox-link"); err == nil {

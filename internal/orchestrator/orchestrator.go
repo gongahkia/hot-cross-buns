@@ -1,6 +1,6 @@
 // Package orchestrator exposes fresh-context specialist agents as bounded
 // tools to a user-facing manager agent. It implements the manager-as-tools
-// orchestration pattern without coupling Gator's provider-neutral runtime to a
+// orchestration pattern without coupling Hot Cross Buns's provider-neutral runtime to a
 // second model SDK.
 //
 // The manager-visible type is Specialist. Execution uses one of two backends:
@@ -26,8 +26,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 )
 
 const (

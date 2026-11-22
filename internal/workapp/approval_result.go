@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func approvalMessage(interaction workrun.Interaction) message {

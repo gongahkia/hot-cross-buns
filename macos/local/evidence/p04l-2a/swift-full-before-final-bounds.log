@@ -1,10 +1,10 @@
 [0/1] Planning build
 Building for debugging...
 [0/4] Write swift-version--58304C5D6DBC2206.txt
-[2/12] Emitting module GatorMacTests
-[3/12] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[4/12] Compiling GatorMacTests LocalModelInspectionTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/LocalModelInspectionTests.swift:44:18: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
+[2/12] Emitting module HotCrossBunsMacTests
+[3/12] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[4/12] Compiling HotCrossBunsMacTests LocalModelInspectionTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/LocalModelInspectionTests.swift:44:18: warning: weak variable 'probe' was never mutated; consider changing to 'let' constant [#WeakMutability]
 42 |         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: index % 2 == 0 ? 820 : 560, height: 640), styleMask: [.titled], backing: .buffered, defer: false)
 43 |         window.isReleasedWhenClosed = false
 44 |         weak var probe = window
@@ -13,11 +13,11 @@ Building for debugging...
 46 |         host.appearance = NSAppearance(named: index % 2 == 0 ? .aqua : .darkAqua)
 
 [#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
-[5/12] Compiling GatorCoreTests NativeProviderTests.swift
-[6/12] Compiling GatorCoreTests NativeProviderIntegrationTests.swift
-[7/12] Compiling GatorCoreTests NativeLocalIntegrationTests.swift
-[8/12] Compiling GatorCoreTests NativeLocalStatusTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorCoreTests/NativeLocalStatusTests.swift:49:11: warning: 'wrong' mutated after capture by sendable closure
+[5/12] Compiling HotCrossBunsCoreTests NativeProviderTests.swift
+[6/12] Compiling HotCrossBunsCoreTests NativeProviderIntegrationTests.swift
+[7/12] Compiling HotCrossBunsCoreTests NativeLocalIntegrationTests.swift
+[8/12] Compiling HotCrossBunsCoreTests NativeLocalStatusTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsCoreTests/NativeLocalStatusTests.swift:49:11: warning: 'wrong' mutated after capture by sendable closure
 34 | @Test @MainActor func localRefreshPreservesProviderFormsAndRejectsStaleIdentities() async throws {
 35 |     let setup = NativeProviderSetup()
 36 |     var wrong = false
@@ -36,10 +36,10 @@ Building for debugging...
    |           `- warning: 'wrong' mutated after capture by sendable closure
 50 |     await setup.refreshLocal()
 51 |     #expect(!setup.localIssue.isEmpty && setup.localStatus?.resultID == "observation")
-[9/12] Emitting module GatorCoreTests
-[10/12] Compiling GatorCoreTests ManagedSessionTests.swift
+[9/12] Emitting module HotCrossBunsCoreTests
+[10/12] Compiling HotCrossBunsCoreTests ManagedSessionTests.swift
 [10/12] Write Objects.LinkFileList
-[11/12] Linking GatorNativePackageTests
+[11/12] Linking HotCrossBunsNativePackageTests
 Build complete! (3.88s)
 Test Suite 'All tests' started at 2026-11-21 09:50:24.914.
 Test Suite 'All tests' passed at 2026-11-21 09:50:24.915.
@@ -81,11 +81,11 @@ Test Suite 'All tests' passed at 2026-11-21 09:50:24.915.
 ✔ Test safetyCleanExitReapsDirectOwnerAndFinishesAllIO() passed after 1.267 seconds.
 ◇ Test safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
 ◇ Test case passing 1 argument mode → "stdout" to safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
-GATOR_SAFETY_SHUTDOWN mode=stdout elapsed=0.30342225 seconds
+HOT_CROSS_BUNS_SAFETY_SHUTDOWN mode=stdout elapsed=0.30342225 seconds
 ◇ Test case passing 1 argument mode → "stderr" to safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
-GATOR_SAFETY_SHUTDOWN mode=stderr elapsed=0.30447825 seconds
+HOT_CROSS_BUNS_SAFETY_SHUTDOWN mode=stderr elapsed=0.30447825 seconds
 ◇ Test case passing 1 argument mode → "both" to safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) started.
-GATOR_SAFETY_SHUTDOWN mode=both elapsed=0.303116167 seconds
+HOT_CROSS_BUNS_SAFETY_SHUTDOWN mode=both elapsed=0.303116167 seconds
 ✔ Test safetyInheritedDescriptorsCannotHoldShutdownOrKillDescendants(_:) with 3 test cases passed after 2.364 seconds.
 ◇ Test safetyUnexpectedDirectExitIsDetectedDespiteInheritedStdoutAndStderr() started.
 ✔ Test safetyUnexpectedDirectExitIsDetectedDespiteInheritedStdoutAndStderr() passed after 0.856 seconds.
@@ -187,12 +187,12 @@ GATOR_SAFETY_SHUTDOWN mode=both elapsed=0.303116167 seconds
 ◇ Test realGoFreshNativeOwnerHasDurableIdentityBeforeFirstDraftWithoutStartingWork() started.
 ✔ Test realGoFreshNativeOwnerHasDurableIdentityBeforeFirstDraftWithoutStartingWork() passed after 0.388 seconds.
 ◇ Test catalogActualGoPagesScopesOlderSelectionRenameConflictAndOwnerDrafts() started.
-GATOR_P02_RENAME requestToConfirmedCachedOwnerTitle=0.046396042 seconds
+HOT_CROSS_BUNS_P02_RENAME requestToConfirmedCachedOwnerTitle=0.046396042 seconds
 ✔ Test catalogActualGoPagesScopesOlderSelectionRenameConflictAndOwnerDrafts() passed after 12.023 seconds.
 ◇ Test catalogActualGoSmallHundredsAndLargeBoundedMeasurementsAndFallback() started.
-GATOR_P02_GO_BENCH records=12 titleRequestToResult=0.037575791 seconds workContentRequestToResult=0.014268667 seconds pageItems=12 titleFallback=false contentFallback=false incomplete=false
-GATOR_P02_GO_BENCH records=310 titleRequestToResult=1.115741084 seconds workContentRequestToResult=0.025762458 seconds pageItems=50 titleFallback=false contentFallback=false incomplete=false
-GATOR_P02_GO_BENCH records=1500 titleRequestToResult=5.177269417 seconds workContentRequestToResult=5.215952625 seconds pageItems=50 titleFallback=true contentFallback=true incomplete=false
+HOT_CROSS_BUNS_P02_GO_BENCH records=12 titleRequestToResult=0.037575791 seconds workContentRequestToResult=0.014268667 seconds pageItems=12 titleFallback=false contentFallback=false incomplete=false
+HOT_CROSS_BUNS_P02_GO_BENCH records=310 titleRequestToResult=1.115741084 seconds workContentRequestToResult=0.025762458 seconds pageItems=50 titleFallback=false contentFallback=false incomplete=false
+HOT_CROSS_BUNS_P02_GO_BENCH records=1500 titleRequestToResult=5.177269417 seconds workContentRequestToResult=5.215952625 seconds pageItems=50 titleFallback=true contentFallback=true incomplete=false
 ✔ Test catalogActualGoSmallHundredsAndLargeBoundedMeasurementsAndFallback() passed after 61.674 seconds.
 ◇ Test catalogManagedNonRecentOpenReusesOwnersPreservesDraftsAndNeverReconnectsDisconnectedOwner() started.
 ✔ Test catalogManagedNonRecentOpenReusesOwnersPreservesDraftsAndNeverReconnectsDisconnectedOwner() passed after 0.372 seconds.
@@ -211,7 +211,7 @@ GATOR_P02_GO_BENCH records=1500 titleRequestToResult=5.177269417 seconds workCon
 ◇ Test catalogDecodingPreservesEmptyPagesCoverageAndRejectsDuplicateRows() started.
 ✔ Test catalogDecodingPreservesEmptyPagesCoverageAndRejectsDuplicateRows() passed after 0.001 seconds.
 ◇ Test catalogBoundedSwiftProjectionAndSelectionMeasurements() started.
-GATOR_P02_SWIFT_BENCH pageSize=50 projection100=0.048787208 seconds selection1000=0.005950583 seconds
+HOT_CROSS_BUNS_P02_SWIFT_BENCH pageSize=50 projection100=0.048787208 seconds selection1000=0.005950583 seconds
 ✔ Test catalogBoundedSwiftProjectionAndSelectionMeasurements() passed after 0.055 seconds.
 ◇ Test catalogTitleValidationUsesByteLimitAndRejectsControlCharacters() started.
 ✔ Test catalogTitleValidationUsesByteLimitAndRejectsControlCharacters() passed after 0.001 seconds.
@@ -242,7 +242,7 @@ GATOR_P02_SWIFT_BENCH pageSize=50 projection100=0.048787208 seconds selection100
 ◇ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() started.
 ✔ Test duplicateDocumentBasenamesPreserveDistinctBytesAndFailGoAdmissionWithoutExecution() passed after 0.242 seconds.
 ◇ Test nativeStreamingSnapshotHandlingBenchmark() started.
-GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=205.7720422744751 medianPerSnapshotMS=6.859068075815837
+HOT_CROSS_BUNS_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=2176935 medianBatchMS=205.7720422744751 medianPerSnapshotMS=6.859068075815837
 ✔ Test nativeStreamingSnapshotHandlingBenchmark() passed after 1.068 seconds.
 ◇ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() started.
 ✔ Test nativeDraftPersistenceKeepsPendingIdentityAndNeverTouchesTerminalDrafts() passed after 0.001 seconds.
@@ -273,13 +273,13 @@ GATOR_STREAM_BENCHMARK samples=5 snapshots=30 retainedMessages=500 wireBytes=217
 ◇ Test markdownOrdinalsAndNonListPunctuationStayLiteral() started.
 ✔ Test markdownOrdinalsAndNonListPunctuationStayLiteral() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":0.69010257720947266,"messages":50,"transcriptMedianMS":0.043988227844238281},{"bytes":240934,"decodeMedianMS":5.5259466171264648,"messages":500,"transcriptMedianMS":0.33795833587646484},{"bytes":964934,"decodeMedianMS":21.30591869354248,"messages":2000,"transcriptMedianMS":1.3220310211181641}],"kind":"native-presentation","peakRSSBytes":51232768,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":0.69010257720947266,"messages":50,"transcriptMedianMS":0.043988227844238281},{"bytes":240934,"decodeMedianMS":5.5259466171264648,"messages":500,"transcriptMedianMS":0.33795833587646484},{"bytes":964934,"decodeMedianMS":21.30591869354248,"messages":2000,"transcriptMedianMS":1.3220310211181641}],"kind":"native-presentation","peakRSSBytes":51232768,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 0.218 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"19681  36560   0.0\n19682  36704   0.0\n19683  36448   0.0\n19684  37232   0.0\n","timeToConnectedMS":[78.575015068054199,61.815977096557617,64.363956451416016,66.977024078369141]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":"19681  36560   0.0\n19682  36704   0.0\n19683  36448   0.0\n19684  37232   0.0\n","timeToConnectedMS":[78.575015068054199,61.815977096557617,64.363956451416016,66.977024078369141]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 3.899 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=71.00701332092285 peakRSSBytes=55672832
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=71.00701332092285 peakRSSBytes=55672832
 ✔ Test nativeThumbnailBenchmark() passed after 0.296 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.040 seconds.
@@ -432,9 +432,9 @@ P04E1R2_HEADLESS_PENDING owner=work-20261121T015239-a8b207091983be40 generation=
 ◇ Test transcriptSearchRejectsStaleGenerationConversationDeletionAndChangedContent() started.
 ✔ Test transcriptSearchRejectsStaleGenerationConversationDeletionAndChangedContent() passed after 0.001 seconds.
 ◇ Test transcriptSearchBenchmarks() started.
-GATOR_P01_BENCH messages=50 build=0.000166792 seconds query20=0.005623916 seconds absent20=0.003686583 seconds resolve1000=0.000519 seconds liveResolve100=0.000734916 seconds
-GATOR_P01_BENCH messages=500 build=0.001611167 seconds query20=0.055724333 seconds absent20=0.0369715 seconds resolve1000=0.000522333 seconds liveResolve100=0.005041375 seconds
-GATOR_P01_BENCH messages=2000 build=0.00619425 seconds query20=0.219215375 seconds absent20=0.146238083 seconds resolve1000=0.000525167 seconds liveResolve100=0.018975333 seconds
+HOT_CROSS_BUNS_P01_BENCH messages=50 build=0.000166792 seconds query20=0.005623916 seconds absent20=0.003686583 seconds resolve1000=0.000519 seconds liveResolve100=0.000734916 seconds
+HOT_CROSS_BUNS_P01_BENCH messages=500 build=0.001611167 seconds query20=0.055724333 seconds absent20=0.0369715 seconds resolve1000=0.000522333 seconds liveResolve100=0.005041375 seconds
+HOT_CROSS_BUNS_P01_BENCH messages=2000 build=0.00619425 seconds query20=0.219215375 seconds absent20=0.146238083 seconds resolve1000=0.000525167 seconds liveResolve100=0.018975333 seconds
 ✔ Test transcriptSearchBenchmarks() passed after 0.506 seconds.
 ◇ Test nativeCopiesArePrivateImmutableUniqueAndAtomic() started.
 ✔ Test nativeCopiesArePrivateImmutableUniqueAndAtomic() passed after 0.003 seconds.
@@ -456,7 +456,7 @@ GATOR_P01_BENCH messages=2000 build=0.00619425 seconds query20=0.219215375 secon
 ◇ Test repeatedImagePastesHaveDistinctBackendInputNamesAndImmutableIDs() started.
 ✔ Test repeatedImagePastesHaveDistinctBackendInputNamesAndImmutableIDs() passed after 0.002 seconds.
 ◇ Test workspaceActualGoCanonicalFoldersDraftsCatalogAndRestartIdentity() started.
-GATOR_P03_HANDOFF requestToConfirmedOwner=0.088180375 seconds
+HOT_CROSS_BUNS_P03_HANDOFF requestToConfirmedOwner=0.088180375 seconds
 ✔ Test workspaceActualGoCanonicalFoldersDraftsCatalogAndRestartIdentity() passed after 2.692 seconds.
 ◇ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() started.
 ✔ Test workspaceActualGoRejectsFilesMissingControlCharactersAndRevokedAccessWithoutArchiveChanges() passed after 1.702 seconds.
@@ -567,8 +567,8 @@ GATOR_P03_HANDOFF requestToConfirmedOwner=0.088180375 seconds
 ✔ Test ownerSwitchReplacesNativeCompositionContextAndKeepsCallbacksWithOriginalOwner() passed after 0.140 seconds.
 ◇ Test windowPresentationKeepsSwiftUISceneIdentityAndMapsBothSurfaces() started.
 ✔ Test windowPresentationKeepsSwiftUISceneIdentityAndMapsBothSurfaces() passed after 0.003 seconds.
-◇ Test reopeningGatorWithoutVisibleWindowsUsesTheExistingConversationScene() started.
-✔ Test reopeningGatorWithoutVisibleWindowsUsesTheExistingConversationScene() passed after 0.001 seconds.
+◇ Test reopeningHotCrossBunsWithoutVisibleWindowsUsesTheExistingConversationScene() started.
+✔ Test reopeningHotCrossBunsWithoutVisibleWindowsUsesTheExistingConversationScene() passed after 0.001 seconds.
 ◇ Test mascotStatePrecedenceAndOwnerReplacement() started.
 ✔ Test mascotStatePrecedenceAndOwnerReplacement() passed after 0.001 seconds.
 ◇ Test mascotDoesNotCelebrateUnconfirmedOrFailedWork() started.
@@ -700,18 +700,18 @@ GATOR_P03_HANDOFF requestToConfirmedOwner=0.088180375 seconds
 ◇ Test transcriptFindConversationSwitchAndReconnectRejectStaleSelections() started.
 ✔ Test transcriptFindConversationSwitchAndReconnectRejectStaleSelections() passed after 0.001 seconds.
 ◇ Test uiuxStatusTextMeetsAAOnResolvedNativeSurfaces() started.
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAqua surface=window foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAqua surface=text foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAqua surface=control foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameDarkAqua surface=window foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameDarkAqua surface=text foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameDarkAqua surface=control foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityAqua surface=window foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityAqua surface=text foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityAqua surface=control foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityDarkAqua surface=window foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityDarkAqua surface=text foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
-GATOR_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityDarkAqua surface=control foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAqua surface=window foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAqua surface=text foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAqua surface=control foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameDarkAqua surface=window foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameDarkAqua surface=text foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameDarkAqua surface=control foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityAqua surface=window foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityAqua surface=text foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityAqua surface=control foreground=[0.15294117647058825, 0.15294117647058825, 0.15294117647058825] background=[1.0, 1.0, 1.0] ratio=14.938418916797357
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityDarkAqua surface=window foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityDarkAqua surface=text foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
+HOT_CROSS_BUNS_UIUX_CONTRAST appearance=NSAppearanceNameAccessibilityDarkAqua surface=control foreground=[0.8650519031141869, 0.8650519031141869, 0.8650519031141869] background=[0.11764705882352941, 0.11764705882352941, 0.11764705882352941] ratio=12.225809383321625
 ✔ Test uiuxStatusTextMeetsAAOnResolvedNativeSurfaces() passed after 0.001 seconds.
 ◇ Test uiuxSlashFeedbackOnlyAppearsForLeadingSlashAndDoesNotRewriteText() started.
 ✔ Test uiuxSlashFeedbackOnlyAppearsForLeadingSlashAndDoesNotRewriteText() passed after 0.001 seconds.

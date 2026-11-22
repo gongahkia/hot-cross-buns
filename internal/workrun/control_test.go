@@ -17,12 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestWorkTaskAnswerBindsQuestionAndRejectsReplay(t *testing.T) {
@@ -98,7 +98,7 @@ func TestWorkDecisionAcrossProcesses(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkDecisionHelperProcess$")
-			child.Env = append(os.Environ(), "GATOR_DECISION_HELPER=1", "GATOR_CONTROL_STATE="+state, "GATOR_CONTROL_SOURCE="+source)
+			child.Env = append(os.Environ(), "HOT_CROSS_BUNS_DECISION_HELPER=1", "HOT_CROSS_BUNS_CONTROL_STATE="+state, "HOT_CROSS_BUNS_CONTROL_SOURCE="+source)
 			stdout, err := child.StdoutPipe()
 			if err != nil {
 				t.Fatal(err)
@@ -125,7 +125,7 @@ func TestWorkDecisionAcrossProcesses(t *testing.T) {
 				if err := SendWorkDecision(ctx, state, "cross-process-decision", id, strings.Repeat("0", 64), true); err == nil || !strings.Contains(err.Error(), "HTTP 409") {
 					t.Fatalf("wrong preview digest was accepted: %v", err)
 				}
-				root, err := workspace.Open(filepath.Join(state, "gator", "interactions", "cross-process-decision"))
+				root, err := workspace.Open(filepath.Join(state, "hot-cross-buns", "interactions", "cross-process-decision"))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -178,10 +178,10 @@ func TestWorkDecisionAcrossProcesses(t *testing.T) {
 }
 
 func TestWorkDecisionHelperProcess(t *testing.T) {
-	if os.Getenv("GATOR_DECISION_HELPER") != "1" {
+	if os.Getenv("HOT_CROSS_BUNS_DECISION_HELPER") != "1" {
 		return
 	}
-	state, source := os.Getenv("GATOR_CONTROL_STATE"), os.Getenv("GATOR_CONTROL_SOURCE")
+	state, source := os.Getenv("HOT_CROSS_BUNS_CONTROL_STATE"), os.Getenv("HOT_CROSS_BUNS_CONTROL_SOURCE")
 	model := &scriptedModel{turns: []agent.Turn{
 		{ToolCalls: []agent.ToolCall{{ID: "child", Name: "delegate_agents", Arguments: json.RawMessage(`{"tasks":[{"agent":"code","task":"approval"}]}`)}}},
 		{ToolCalls: []agent.ToolCall{{ID: "write", Name: "write_artifact", Arguments: json.RawMessage(`{"path":"report.md","content":"decision recorded"}`)}}},
@@ -220,7 +220,7 @@ func TestWorkControlRejectsUnauthorizedAndRedirectedCommands(t *testing.T) {
 	})
 	defer operation.Cancel()
 	<-model.entered
-	root, err := workspace.Open(filepath.Join(state, "gator", "work-control"))
+	root, err := workspace.Open(filepath.Join(state, "hot-cross-buns", "work-control"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestWorkControlAcrossProcesses(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkControlHelperProcess$")
-			child.Env = append(os.Environ(), "GATOR_CONTROL_HELPER=1", "GATOR_CONTROL_STATE="+state, "GATOR_CONTROL_SOURCE="+source)
+			child.Env = append(os.Environ(), "HOT_CROSS_BUNS_CONTROL_HELPER=1", "HOT_CROSS_BUNS_CONTROL_STATE="+state, "HOT_CROSS_BUNS_CONTROL_SOURCE="+source)
 			stdout, err := child.StdoutPipe()
 			if err != nil {
 				t.Fatal(err)
@@ -286,7 +286,7 @@ func TestWorkControlAcrossProcesses(t *testing.T) {
 			if !scanner.Scan() || scanner.Text() != "READY" {
 				t.Fatalf("child did not start: %q, %v, %s", scanner.Text(), scanner.Err(), stderr.String())
 			}
-			root, err := workspace.Open(filepath.Join(state, "gator", "work-control"))
+			root, err := workspace.Open(filepath.Join(state, "hot-cross-buns", "work-control"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -330,10 +330,10 @@ func TestWorkControlAcrossProcesses(t *testing.T) {
 }
 
 func TestWorkControlHelperProcess(t *testing.T) {
-	if os.Getenv("GATOR_CONTROL_HELPER") != "1" {
+	if os.Getenv("HOT_CROSS_BUNS_CONTROL_HELPER") != "1" {
 		return
 	}
-	state, source := os.Getenv("GATOR_CONTROL_STATE"), os.Getenv("GATOR_CONTROL_SOURCE")
+	state, source := os.Getenv("HOT_CROSS_BUNS_CONTROL_STATE"), os.Getenv("HOT_CROSS_BUNS_CONTROL_SOURCE")
 	model := &controlledModel{entered: make(chan struct{}), release: make(chan struct{})}
 	operation := (Service{Executor: Executor{Model: model, StateDir: state}}).Start(context.Background(), Request{
 		RunID: "cross-process-control", SourcePath: source, Objective: "Inspect", Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 2,
@@ -386,7 +386,7 @@ func TestWorkSpecialistCancelAcrossProcesses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkSpecialistCancelHelperProcess$")
-	child.Env = append(os.Environ(), "GATOR_TASK_CANCEL_HELPER=1", "GATOR_CONTROL_STATE="+state, "GATOR_CONTROL_SOURCE="+source)
+	child.Env = append(os.Environ(), "HOT_CROSS_BUNS_TASK_CANCEL_HELPER=1", "HOT_CROSS_BUNS_CONTROL_STATE="+state, "HOT_CROSS_BUNS_CONTROL_SOURCE="+source)
 	stdout, err := child.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -450,10 +450,10 @@ func TestWorkSpecialistCancelAcrossProcesses(t *testing.T) {
 }
 
 func TestWorkSpecialistCancelHelperProcess(t *testing.T) {
-	if os.Getenv("GATOR_TASK_CANCEL_HELPER") != "1" {
+	if os.Getenv("HOT_CROSS_BUNS_TASK_CANCEL_HELPER") != "1" {
 		return
 	}
-	state, source := os.Getenv("GATOR_CONTROL_STATE"), os.Getenv("GATOR_CONTROL_SOURCE")
+	state, source := os.Getenv("HOT_CROSS_BUNS_CONTROL_STATE"), os.Getenv("HOT_CROSS_BUNS_CONTROL_SOURCE")
 	model := &specialistControlModel{release: make(chan struct{})}
 	started := make(chan struct{})
 	service := Service{Executor: Executor{Model: model, StateDir: state, Code: func(ctx context.Context, _ CodeRequest) (CodeResult, error) {
@@ -521,7 +521,7 @@ func TestWorkSpecialistSteerAcrossProcesses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkSpecialistSteerHelperProcess$")
-	child.Env = append(os.Environ(), "GATOR_TASK_STEER_HELPER=1", "GATOR_CONTROL_STATE="+state, "GATOR_CONTROL_SOURCE="+source)
+	child.Env = append(os.Environ(), "HOT_CROSS_BUNS_TASK_STEER_HELPER=1", "HOT_CROSS_BUNS_CONTROL_STATE="+state, "HOT_CROSS_BUNS_CONTROL_SOURCE="+source)
 	stdout, err := child.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -576,10 +576,10 @@ func TestWorkSpecialistSteerAcrossProcesses(t *testing.T) {
 }
 
 func TestWorkSpecialistSteerHelperProcess(t *testing.T) {
-	if os.Getenv("GATOR_TASK_STEER_HELPER") != "1" {
+	if os.Getenv("HOT_CROSS_BUNS_TASK_STEER_HELPER") != "1" {
 		return
 	}
-	state, source := os.Getenv("GATOR_CONTROL_STATE"), os.Getenv("GATOR_CONTROL_SOURCE")
+	state, source := os.Getenv("HOT_CROSS_BUNS_CONTROL_STATE"), os.Getenv("HOT_CROSS_BUNS_CONTROL_SOURCE")
 	manager := &specialistControlModel{role: "source_researcher", release: make(chan struct{})}
 	role := &steerableRoleModel{entered: make(chan struct{}), release: make(chan struct{})}
 	service := Service{Executor: Executor{Model: manager, StateDir: state, RoleModels: map[string]agent.Model{"source_researcher": role}}}

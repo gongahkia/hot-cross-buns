@@ -11,10 +11,10 @@ This is a validation lab, not another application coordinator, a new Go owner or
 | Property | Verified evidence |
 | --- | --- |
 | Approved identity | Unmodified Concept B: round green head, broad blunt snout, two eyes, nostrils, small teeth, pale movable lower jaw. No redesign. |
-| Deployment model | `validation/Assets/Gator-B.usdz`, 58,290 bytes; one uncompressed, 64-byte-aligned `Gator-B.usdc` member. No external asset references or textures. |
+| Deployment model | `validation/Assets/HotCrossBuns-B.usdz`, 58,290 bytes; one uncompressed, 64-byte-aligned `HotCrossBuns-B.usdc` member. No external asset references or textures. |
 | Geometry | 26 meshes; 14,164 triangles; 8,609 exported vertices. Real depth, normals and USD Preview Surface materials; not image planes. |
 | Coordinates | Y up; one authored unit = one meter. Front is +Z. The pilot uses a perspective camera at approximately `(0, .08, 4.7)`, 34° field of view. |
-| Root/head | `Gator_B/Head_Pivot`; head tilt independent of jaw rotation. |
+| Root/head | `HotCrossBuns_B/Head_Pivot`; head tilt independent of jaw rotation. |
 | Jaw | `Head_Pivot/Jaw_Pivot/Lower_Jaw`; hinge translation `(0, -.30, .24)`. Local X rotation 0–0.5 radians opens the lower jaw. |
 | Eyes | `Head_Pivot/Eye_Left` and `Eye_Right`, each retaining independent `Pupil`, `Upper_Lid`, `Lower_Lid` and `Closed_Eye_Line`. Pupil catchlights remain children. |
 | Mouth | `Mouth_Interior` changes scale/position; `Tongue` visibility and position change separately. Neutral invisible parts must be explicitly enabled when posed. |
@@ -57,7 +57,7 @@ The deterministic checks include **21 rig assertions**, **1,000 repeated pose cy
 
 ![Actual isolated RealityKit window](evidence/p04m-a2/native-renderer.png)
 
-[Actual final native window recording](evidence/p04m-a2/live-renderer-window.mp4): ScreenCaptureKit captured only the isolated lab window, with no microphone, system audio or desktop. The successful final recording is 19.205 seconds, H.264, 1326×1004, 562 frames. Its readiness marker starts the scripted geometry transitions only after capture starts. It uses the final `Renderer-Lab.app`, including the corrected drawable usage flag. [Successful recording log](evidence/p04m-a2/recording-current.log), [final demo result](evidence/p04m-a2/demo-current/measurements.json). It is **not a recording of an integrated Gator chat**. An earlier successful 18.79-second recording is retained separately.
+[Actual final native window recording](evidence/p04m-a2/live-renderer-window.mp4): ScreenCaptureKit captured only the isolated lab window, with no microphone, system audio or desktop. The successful final recording is 19.205 seconds, H.264, 1326×1004, 562 frames. Its readiness marker starts the scripted geometry transitions only after capture starts. It uses the final `Renderer-Lab.app`, including the corrected drawable usage flag. [Successful recording log](evidence/p04m-a2/recording-current.log), [final demo result](evidence/p04m-a2/demo-current/measurements.json). It is **not a recording of an integrated Hot Cross Buns chat**. An earlier successful 18.79-second recording is retained separately.
 
 Compare [neutral](evidence/p04m-a2/live-neutral.png), [articulated lids](evidence/p04m-a2/live-eyelids.png) and [open jaw](evidence/p04m-a2/live-jaw.png), extracted from that recording. Additional transparent geometry renders show [blink](evidence/p04m-a2/demo/blink.png), [responding](evidence/p04m-a2/demo/responding.png) and [three-quarter depth](evidence/p04m-a2/demo/quarter.png). The video and transforms establish real motion; the stills alone do not.
 
@@ -65,7 +65,7 @@ An initial recorder attempt failed to initialize the window server. A second att
 
 ## Resource method — Gate 2
 
-Environment: Apple M3, eight CPU cores, ten GPU cores, 16 GiB RAM; macOS 26.5.2; Swift 6.3.3 / SDK 26.5. Optimized standalone macOS-15-target binary. No Go process, provider fixture, network request or Gator profile is needed by this renderer-only lab. Baseline and live measurements use the same native window, static artwork, editable/scrollable fixture text and binary.
+Environment: Apple M3, eight CPU cores, ten GPU cores, 16 GiB RAM; macOS 26.5.2; Swift 6.3.3 / SDK 26.5. Optimized standalone macOS-15-target binary. No Go process, provider fixture, network request or Hot Cross Buns profile is needed by this renderer-only lab. Baseline and live measurements use the same native window, static artwork, editable/scrollable fixture text and binary.
 
 Process CPU is delta user+system CPU time from `getrusage`, divided by elapsed wall time: **100% means one fully used CPU core**. RSS comes from `mach_task_basic_info.resident_size`, sampled once per second. Tables distinguish interval medians from final samples; startup/focus/framework paging cause observable variation. These are resident memory measurements, not energy or total system graphics memory.
 
@@ -111,7 +111,7 @@ First asset/scene load was **216.33 ms**, plus **17.09 ms** to first offscreen f
 
 An earlier **642.48-second mixed lifecycle trial** completed ten visible/responding/hidden cycles, alternating 112- and 40-point presentations: ten model loads, 690 requested frames. Visible RSS increased from 139.72 MiB on the first cycle to 142.58 MiB on the last; later cycles stayed around 142–143 MiB rather than growing on each cycle. Hidden CPU was 0.273–0.299%; every hidden interval had zero draws and zero surviving retired renderer owners. [Full earlier lifecycle data](evidence/p04m-a2/lifecycle-before-presenter-flag-fix/measurements.json). A brief independent Metal-check process ran during that earlier trial; it is not an exclusively idle-machine benchmark.
 
-**That ten-minute trial predates the final drawable usage-flag correction.** It is useful resource/ownership evidence, not ten-minute acceptance of the final renderer. The final configuration was not given another ten-minute qualification run because its short comparison already left the resource gate unaccepted. No integrated Gator ten-minute trial occurred.
+**That ten-minute trial predates the final drawable usage-flag correction.** It is useful resource/ownership evidence, not ten-minute acceptance of the final renderer. The final configuration was not given another ten-minute qualification run because its short comparison already left the resource gate unaccepted. No integrated Hot Cross Buns ten-minute trial occurred.
 
 There is no demonstrated retained **renderer owner** after teardown. Persistent RSS alone is not proof of an actual leak. **[Inference]** engine/framework/driver caches or allocator residency may explain part of the remaining footprint; allocation attribution was not measured. CPU behavior and explicit idle/hidden draw counts are encouraging, but they do not waive the memory target.
 
@@ -122,9 +122,9 @@ There is no demonstrated retained **renderer owner** after teardown. Persistent 
 | 2 — resources/lifecycle | **PARTIAL / NOT ACCEPTED**: low idle/hidden CPU and owner release verified; RAM remains borderline/over target across repeats. Final ten-minute qualification, representative typing/scrolling impact and production startup impact remain unverified. |
 | Production integration | **STOPPED before any production edit**, as required. |
 
-Recommended correction path: attribute the retained allocations and evaluate a representative **isolated SwiftUI host** against its own static baseline, then test bounded asset reuse and teardown without keeping an active hidden renderer. This AppKit lab is not the same baseline as Gator's existing SwiftUI/Metal stack; no claim is made that the same increment would carry directly into Gator. A budget exception should be an explicit review of these figures, not an implicit acceptance. If a different native 3D renderer is evaluated, measure it independently; SceneKit's deprecation and raw Metal's maintenance burden make neither an automatic better choice. Preserve Concept B and the current accepted app meanwhile.
+Recommended correction path: attribute the retained allocations and evaluate a representative **isolated SwiftUI host** against its own static baseline, then test bounded asset reuse and teardown without keeping an active hidden renderer. This AppKit lab is not the same baseline as Hot Cross Buns's existing SwiftUI/Metal stack; no claim is made that the same increment would carry directly into Hot Cross Buns. A budget exception should be an explicit review of these figures, not an implicit acceptance. If a different native 3D renderer is evaluated, measure it independently; SceneKit's deprecation and raw Metal's maintenance burden make neither an automatic better choice. Preserve Concept B and the current accepted app meanwhile.
 
-Only the isolated artifact is delivered: **`/tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app`**. Its model/poster are bundled and loaded through `Bundle.main`, not the source checkout. No `/tmp/Gator-Native-P04M-A2.app` was created.
+Only the isolated artifact is delivered: **`/tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app`**. Its model/poster are bundled and loaded through `Bundle.main`, not the source checkout. No `/tmp/HotCrossBuns-Native-P04M-A2.app` was created.
 
 ## Compatibility and official references
 
@@ -137,34 +137,34 @@ Reviewed [Apple RealityView](https://developer.apple.com/documentation/realityki
 Run from the repository root; choose fresh destination/output paths:
 
 ```sh
-P04M_VALIDATION_APP=/tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app \
+P04M_VALIDATION_APP=/tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app \
   bash macos/mascot/validation/build.sh
-open -n /tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app \
-  --args --mode checks --output /tmp/gator-mascot-a2-checks-final
-open -n /tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app \
-  --args --mode quick --output /tmp/gator-mascot-a2-quick-current
-open -n /tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app \
-  --args --mode lifecycle --output /tmp/gator-mascot-a2-lifecycle-current
+open -n /tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app \
+  --args --mode checks --output /tmp/hot-cross-buns-mascot-a2-checks-final
+open -n /tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app \
+  --args --mode quick --output /tmp/hot-cross-buns-mascot-a2-quick-current
+open -n /tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app \
+  --args --mode lifecycle --output /tmp/hot-cross-buns-mascot-a2-lifecycle-current
 
 swiftc -parse-as-library -swift-version 6 -O -D MASCOT_PREVIEW \
   -target arm64-apple-macosx15.0 \
   macos/mascot/concepts/source/MascotLab.swift \
-  macos/mascot/validation/ReproduceAsset.swift -o /tmp/gator-a2-reproduce
-/tmp/gator-a2-reproduce /tmp/Gator-B-reproduced.usda \
-  macos/mascot/concepts/models/Gator-B.scn
-cmp /tmp/Gator-B-reproduced.usda macos/mascot/concepts/models/Gator-B.usda
-/usr/bin/usdchecker macos/mascot/validation/Assets/Gator-B.usdz
+  macos/mascot/validation/ReproduceAsset.swift -o /tmp/hot-cross-buns-a2-reproduce
+/tmp/hot-cross-buns-a2-reproduce /tmp/HotCrossBuns-B-reproduced.usda \
+  macos/mascot/concepts/models/HotCrossBuns-B.scn
+cmp /tmp/HotCrossBuns-B-reproduced.usda macos/mascot/concepts/models/HotCrossBuns-B.usda
+/usr/bin/usdchecker macos/mascot/validation/Assets/HotCrossBuns-B.usdz
 
 swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete \
   -warnings-as-errors -O -target arm64-apple-macosx15.0 \
   macos/mascot/validation/MascotRig.swift \
-  macos/mascot/validation/CheckRig.swift -o /tmp/gator-a2-check-rig
-/tmp/gator-a2-check-rig macos/mascot/validation/Assets/Gator-B.usdz
+  macos/mascot/validation/CheckRig.swift -o /tmp/hot-cross-buns-a2-check-rig
+/tmp/hot-cross-buns-a2-check-rig macos/mascot/validation/Assets/HotCrossBuns-B.usdz
 
 open -n --env MTL_DEBUG_LAYER=1 \
-  --stderr /tmp/gator-mascot-a2-metal-validation.log \
-  /tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app \
-  --args --mode checks --output /tmp/gator-mascot-a2-checks-final
+  --stderr /tmp/hot-cross-buns-mascot-a2-metal-validation.log \
+  /tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app \
+  --args --mode checks --output /tmp/hot-cross-buns-mascot-a2-checks-final
 ```
 
 The `interactive` mode is a manual, isolated expression lab. `demo` accepts `--record-ready PATH`, which waits for the native recorder's readiness file. [Recorder source](validation/RecordWindow.swift) captures only this bundle's exact lab window. No system-wide preference or privacy setting is changed.
@@ -173,4 +173,4 @@ The `interactive` mode is a manual, isolated expression lab. `demo` accepts `--r
 
 The historical results above remain tied to the original Renderer-Lab revision. The subsequent [Gate 2 remediation report](P04M-A2-GATE2-REMEDIATION.md) documents an isolated native mesh-loading path, direct drawable experiments and a hybrid finite-gesture presentation. The exact final renderer completed **690.835 seconds** with one asset decode, 82 renderer lifetimes, zero surviving renderer/scene/surface/layer owners after teardown and zero frames in its all-hidden sampling periods. Strict Swift 6 and focused lifecycle/rig tests pass. Actual final-build recording shows live jaw/eyelid articulation.
 
-**Gate 2 remains PARTIAL.** Final settled incremental RSS/physical footprint was 22.55/38.17 MiB, but some quiet phases and active physical-footprint intervals exceeded the 40 MiB goal. Strict PNG equality also failed; GPU energy and physical macOS 15 runtime remain NOT TESTED. Detailed attribution, revision-separated measurements, failed probes and limits are in the remediation report. The optimized isolated artifact is `/tmp/Gator-Mascot-P04M-A2-Gate2.app`; the original Renderer-Lab bundle and A1 assets are preserved. No production integration follows from these results.
+**Gate 2 remains PARTIAL.** Final settled incremental RSS/physical footprint was 22.55/38.17 MiB, but some quiet phases and active physical-footprint intervals exceeded the 40 MiB goal. Strict PNG equality also failed; GPU energy and physical macOS 15 runtime remain NOT TESTED. Detailed attribution, revision-separated measurements, failed probes and limits are in the remediation report. The optimized isolated artifact is `/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app`; the original Renderer-Lab bundle and A1 assets are preserved. No production integration follows from these results.

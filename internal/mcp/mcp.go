@@ -1,5 +1,5 @@
 // Package mcp exposes explicitly trusted Model Context Protocol servers as
-// bounded Gator tools. It supports the protocol's stdio and Streamable HTTP
+// bounded Hot Cross Buns tools. It supports the protocol's stdio and Streamable HTTP
 // transports; OAuth is intentionally not synthesized from project config.
 package mcp
 
@@ -20,14 +20,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
-	manifestPath    = ".gator/mcp.json"
+	manifestPath    = ".hot-cross-buns/mcp.json"
 	manifestVersion = 1
 	protocolVersion = "2025-11-25"
 	modernVersion   = "2026-07-28"
@@ -131,7 +131,7 @@ func Load(ctx context.Context, worktreePath, trustedHash string) (Set, error) {
 	return load(ctx, worktreePath, trustedHash, auth.Store{})
 }
 
-// LoadWithCredentials is Load with Gator's private credential store available
+// LoadWithCredentials is Load with Hot Cross Buns's private credential store available
 // to explicitly trusted Streamable HTTP servers. Credentials are selected only
 // by an exact canonical MCP resource identifier.
 func LoadWithCredentials(ctx context.Context, worktreePath, trustedHash string, credentials auth.Store) (Set, error) {

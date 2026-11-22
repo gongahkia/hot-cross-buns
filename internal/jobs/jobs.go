@@ -1,4 +1,4 @@
-// Package jobs stores and schedules durable unattended Gator Work definitions.
+// Package jobs stores and schedules durable unattended Hot Cross Buns Work definitions.
 package jobs
 
 import (
@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,12 +17,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/projectcapture"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 	"github.com/robfig/cron/v3"
 )
 
@@ -188,7 +188,7 @@ func Open(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(absolute, "gator", "jobs")
+	root := filepath.Join(absolute, "hot-cross-buns", "jobs")
 	for _, directory := range []string{root, filepath.Join(root, "definitions"), filepath.Join(root, "history")} {
 		if err := os.MkdirAll(directory, 0o700); err != nil {
 			return Store{}, err

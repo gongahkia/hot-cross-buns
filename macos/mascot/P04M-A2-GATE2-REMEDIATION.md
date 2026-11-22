@@ -18,7 +18,7 @@ Host: Apple M3, eight CPU / ten GPU cores, 16 GiB RAM, macOS 26.5.2 (25F84), App
 | Profile v4 | One identical executable compared USDZ loading, native mesh-cache loading, 96/256, hybrid policy, two live scenes and staged native attribution. Preliminary comparisons, not final acceptance. |
 | Final candidate v10 | Matched final-build fresh-process measurements and endurance. Full source copies, flags, original USDZ/cache hashes and executable hash are in the bundle's `Contents/Resources/revision.json` and `SourceRevision/`. Each final run copies that revision record. No renderer edit is carried into an already-running acceptance trial. |
 
-Native measurement runs are sequential. Disposable launch environments contain only the fixture home, PATH, TMPDIR and locale; no provider credentials or Go backend are needed. The final baseline warms both full and compact **native fixture windows** before initializing a RealityKit scene. These fixtures are not production Gator windows or a MenuBarExtra integration.
+Native measurement runs are sequential. Disposable launch environments contain only the fixture home, PATH, TMPDIR and locale; no provider credentials or Go backend are needed. The final baseline warms both full and compact **native fixture windows** before initializing a RealityKit scene. These fixtures are not production Hot Cross Buns windows or a MenuBarExtra integration.
 
 ## Measurement method and limits
 
@@ -90,7 +90,7 @@ RealityKit owns any internal depth/MSAA allocations. The application creates no 
 
 ### Event-driven presentation and one active renderer
 
-[Presentation.swift](gate2/Presentation.swift) is cosmetic resource ownership only. It imports no GatorCore and has no execution, approval, provider or request-admission path.
+[Presentation.swift](gate2/Presentation.swift) is cosmetic resource ownership only. It imports no HotCrossBunsCore and has no execution, approval, provider or request-admission path.
 
 - One immutable unattached template is decoded once. Each live scene receives a clone; a mutable entity is never attached to two renderers.
 - Idle/reduced-motion/hidden presentations use a cached transparent image. No autonomous high-frequency draw loop or SceneEvents subscription exists.
@@ -112,7 +112,7 @@ Routine checks are headless. Native windows/profiling are used for actual drawab
 
 ## Exact final-build comparison
 
-Final executable SHA-256: `9887643419b6d54196512d9f140cc54f703d20d90a7e177ad5996c9448159015`. The delivered `/tmp/Gator-Mascot-P04M-A2-Gate2.app` is byte-identical to the qualified `/tmp/Gator-Gate2-FinalCandidate-v10.app`, including its sources and resources. The baked mesh-cache SHA-256 is `ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f`.
+Final executable SHA-256: `9887643419b6d54196512d9f140cc54f703d20d90a7e177ad5996c9448159015`. The delivered `/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app` is byte-identical to the qualified `/tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app`, including its sources and resources. The baked mesh-cache SHA-256 is `ca627304250fa060974d1d18e293c9baa85d9755d7086d261cd498eaf0ecc13f`.
 
 The same final executable performed fresh-process USD/direct-96 and native-mesh/direct-96 measurements. These two cases retain an engine between gestures to isolate the loading path. They are distinct from the final hybrid endurance policy, which destroys the engine between gestures.
 
@@ -196,7 +196,7 @@ Apple documents [RealityRenderer as macOS 15+](https://developer.apple.com/docum
 
 ## Visual and native evidence
 
-The inspected full/compact fixture captures retain the blunt snout, round green head, nostrils, distinct eyes and separate jaw. They use reserved space without covering the editable fixture text. These are renderer fixtures, not a redesigned or production-integrated Gator interface.
+The inspected full/compact fixture captures retain the blunt snout, round green head, nostrils, distinct eyes and separate jaw. They use reserved space without covering the editable fixture text. These are renderer fixtures, not a redesigned or production-integrated Hot Cross Buns interface.
 
 - [Full fixture](evidence/p04m-a2-gate2/full-fixture.png), [compact fixture](evidence/p04m-a2-gate2/compact-fixture.png).
 - [28.335-second window-only recording](evidence/p04m-a2-gate2/live-3d-bursts.mp4), no microphone, audio or desktop capture. It has 40 captured frames. The capture shows pose/layout changes but does not conclusively resolve every brief blink/jaw gesture; do not substitute it for deterministic articulation tests.
@@ -219,13 +219,13 @@ Run from the repository root. Build logs and JSON results are in the evidence di
 
 ```sh
 # final isolated build (completed before the final endurance trial)
-GATOR_GATE2_APP=/tmp/Gator-Gate2-FinalCandidate-v10.app \
+HOT_CROSS_BUNS_GATE2_APP=/tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app \
   bash macos/mascot/gate2/build.sh
 
 # final matched comparisons and final-config endurance, sequentially
 python3 macos/mascot/gate2/run-experiments.py \
-  --app /tmp/Gator-Gate2-FinalCandidate-v10.app \
-  --root /tmp/gator-gate2-v10-final native96 direct96 endurance
+  --app /tmp/HotCrossBuns-Gate2-FinalCandidate-v10.app \
+  --root /tmp/hot-cross-buns-gate2-v10-final native96 direct96 endurance
 
 # strict headless lifecycle compilation and Metal API validation
 swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete \
@@ -233,8 +233,8 @@ swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete \
   macos/mascot/validation/MascotRig.swift \
   macos/mascot/validation/RealtimeRenderer.swift \
   macos/mascot/gate2/{Metrics,Engine,NativeMesh,Presentation,CheckLifecycle}.swift \
-  -o /tmp/gator-gate2-check-lifecycle-final-verified
-MTL_DEBUG_LAYER=1 /tmp/gator-gate2-check-lifecycle-final-verified \
+  -o /tmp/hot-cross-buns-gate2-check-lifecycle-final-verified
+MTL_DEBUG_LAYER=1 /tmp/hot-cross-buns-gate2-check-lifecycle-final-verified \
   macos/mascot/gate2/Assets/B-native-meshes.json
 
 # exact authored graph/pose/bounds comparison
@@ -242,9 +242,9 @@ swiftc -parse-as-library -swift-version 6 -strict-concurrency=complete \
   -warnings-as-errors -O -target arm64-apple-macosx15.0 \
   macos/mascot/validation/MascotRig.swift \
   macos/mascot/gate2/{NativeMesh,CheckNative}.swift \
-  -o /tmp/gator-gate2-check-native-final-verified
-/tmp/gator-gate2-check-native-final-verified \
-  macos/mascot/validation/Assets/Gator-B.usdz \
+  -o /tmp/hot-cross-buns-gate2-check-native-final-verified
+/tmp/hot-cross-buns-gate2-check-native-final-verified \
+  macos/mascot/validation/Assets/HotCrossBuns-B.usdz \
   macos/mascot/gate2/Assets/B-native-meshes.json
 
 python3 macos/mascot/gate2/summarize-results.py
@@ -259,8 +259,8 @@ vmmap -summary FIXTURE_PID
 footprint --noCategories -p FIXTURE_PID
 xcrun xctrace record --template 'Metal System Trace' \
   --attach FIXTURE_PID --time-limit 75s \
-  --output /tmp/gator-gate2-final-metal.trace
-xcrun xctrace export --input /tmp/gator-gate2-final-metal.trace --toc
+  --output /tmp/hot-cross-buns-gate2-final-metal.trace
+xcrun xctrace export --input /tmp/hot-cross-buns-gate2-final-metal.trace --toc
 ```
 
 Selected schema exports and ID matching produce the GPU results above; raw TOC environment metadata is excluded from repository evidence. No Instruments privacy/developer setting was changed.
@@ -295,13 +295,13 @@ All implementation additions are isolated:
 
 Recommendation: retain this isolated hybrid prototype and perform further **targeted attribution of private RealityKit/Metal residency and importer/raster differences** before integration. The evidence does not justify calling all remaining overhead unavoidable framework residency. No arbitrary budget increase is made. If accepting a different budget is preferable, an explicit reviewer decision would need to cover at least the observed approximately 44 MiB quiet footprint and approximately 145 MiB active increment, plus measurement margin and active-CPU tradeoff; these are observed values, not guaranteed caps. Another native renderer requires an evidence-based comparison before adoption. No SceneKit/raw-Metal/2D substitution is performed.
 
-Optimized isolated artifact: **`/tmp/Gator-Mascot-P04M-A2-Gate2.app`**. This report closes the requested optimization/measurement pass as PARTIAL; it does not authorize or start production integration, a desktop pet or another parity increment.
+Optimized isolated artifact: **`/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app`**. This report closes the requested optimization/measurement pass as PARTIAL; it does not authorize or start production integration, a desktop pet or another parity increment.
 
 For review, launch the selected hybrid policy explicitly with a fresh output directory:
 
 ```sh
-open -n /tmp/Gator-Mascot-P04M-A2-Gate2.app --args \
-  --experiment hybrid --output /tmp/gator-gate2-hybrid-review
+open -n /tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app --args \
+  --experiment hybrid --output /tmp/hot-cross-buns-gate2-hybrid-review
 ```
 
 The lab is a finite diagnostic harness and quits after the chosen run. A plain launch defaults to the retained original-USD `direct96` comparison; it is not the optimized hybrid resource-policy run. This distinction is preserved in the frozen qualified executable rather than silently changing it after the final endurance trial.

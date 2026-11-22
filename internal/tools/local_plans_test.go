@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
 )
 
 func TestMainChatPlanChangesRequireInspectionAndRespectGoalIsolation(t *testing.T) {

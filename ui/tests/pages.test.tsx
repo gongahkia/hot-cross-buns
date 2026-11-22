@@ -4,19 +4,19 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath } from "node
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 async function until(predicate: () => boolean | Promise<boolean>, label: string) { const deadline = Date.now() + 15000; while (!await predicate()) { if (Date.now() > deadline) throw new Error(`Timed out: ${label}`); await Bun.sleep(15) } }
 test("keyboard pages preserve the draft and recurring checks review exact typed sources, budgets and timing before save", async () => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "gator-terminal-pages-"))), picked = join(root, "chosen source")
+  const root = await realpath(await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-pages-"))), picked = join(root, "chosen source")
   await mkdir(picked); await writeFile(join(picked, "project.md"), "A saved source, never an implicit workspace switch.")
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-  const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
   cli(["provider", "add", "pages-fixture", "--base-url", "http://127.0.0.1:9/v1/chat/completions", "--model", "fixture"]); cli(["config", "set", "default-provider", "pages-fixture"])
-  const client = new GatorClient(new Application({ binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }))
+  const client = new HotCrossBunsClient(new Application({ binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const select = async (label: string) => {
@@ -26,7 +26,7 @@ test("keyboard pages preserve the draft and recurring checks review exact typed 
     expect(client.state?.panel?.selected ?? 0).toBe(target); setup.mockInput.pressEnter(); await flush()
   }
   const prompt = async (text: string) => { setup.mockInput.pressKey("u", { ctrl: true }); await setup.mockInput.typeText(text); setup.mockInput.pressEnter(); await flush() }
-  const definitions = async () => Promise.all((await readdir(join(env.GATOR_STATE_DIR, "gator/jobs/definitions")).catch(() => [])).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(join(env.GATOR_STATE_DIR, "gator/jobs/definitions", name), "utf8"))))
+  const definitions = async () => Promise.all((await readdir(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs/definitions")).catch(() => [])).filter(name => name.endsWith(".json")).map(async name => JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/jobs/definitions", name), "utf8"))))
   try {
     await client.start(); const original = client.state!.source, originalID = client.state!.conversation_id!, originalContext = client.context; await client.edit("Keep my unsent page draft")
     for (const route of ["/following", "/saved", "/settings"]) { await client.navigate(route); await flush(); expect(setup.captureCharFrame()).toContain(route.slice(1)[0].toUpperCase() + route.slice(2)); expect(client.draft.text).toBe("Keep my unsent page draft") }
@@ -41,7 +41,7 @@ test("keyboard pages preserve the draft and recurring checks review exact typed 
     await setup.mockInput.typeText("Choose this folder"); await flush(); setup.mockInput.pressEnter(); await flush()
     expect(client.state?.source).toBe(original)
     await select("Check frequency"); await setup.mockInput.typeText("Every 30 minutes"); await flush(); setup.mockInput.pressEnter(); await flush()
-    await select("What Gator may do"); await setup.mockInput.typeText("Read and recommend"); await flush(); setup.mockInput.pressEnter(); await flush()
+    await select("What Hot Cross Buns may do"); await setup.mockInput.typeText("Read and recommend"); await flush(); setup.mockInput.pressEnter(); await flush()
     await select("Limits for each attempt"); await setup.mockInput.typeText("Provider requests"); await flush(); setup.mockInput.pressEnter(); await flush(); await prompt("16")
     await select("Checks per UTC day"); await prompt("6")
     await select("End date (optional)"); await prompt("2030-10-25T18:30:00Z")

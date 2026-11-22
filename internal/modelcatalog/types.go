@@ -1,4 +1,4 @@
-// Package modelcatalog defines the application boundary for Gator's cloud and
+// Package modelcatalog defines the application boundary for Hot Cross Buns's cloud and
 // reviewed local-model catalog. Its contracts contain display-safe metadata;
 // credential and runtime ownership remain in the command layer.
 package modelcatalog
@@ -6,7 +6,7 @@ package modelcatalog
 import (
 	"context"
 
-	"github.com/gongahkia/gator/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
 )
 
 // LocalManager owns local runtime and persistent selection operations.

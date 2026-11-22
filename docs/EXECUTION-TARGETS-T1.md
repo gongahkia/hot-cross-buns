@@ -1,6 +1,6 @@
 # T1: remote inspection of live owned Work
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -22,7 +22,7 @@ T1 adds read-only Work inspection to the existing companion. It builds on
 When an existing foreground Work control channel starts, its owner issues one
 opaque Work target binding. The binding's owner and native incarnation identify
 that control-channel instance using its random nonce; its generation is separately
-random. The private `gator/work-control/RUN.json` record includes the binding
+random. The private `hot-cross-buns/work-control/RUN.json` record includes the binding
 alongside the existing loopback endpoint, control token, and nonce. Old controls
 without an inspection binding remain unsupported. Existing execution leases,
 lifetimes, cancellation, verification, and control operations are unchanged.
@@ -58,12 +58,12 @@ token. The host operator explicitly grants Inspect on one currently live owner
 to one enrolled device (or the current owner-token principal):
 
 ```sh
-# Use the same GATOR_STATE_DIR as the execution host.
+# Use the same HOT_CROSS_BUNS_STATE_DIR as the execution host.
 node companion/devices.mjs /private/path/owner.token list
-node companion/inspection-access.mjs /path/to/gator-runtime \
+node companion/inspection-access.mjs /path/to/hot-cross-buns-runtime \
   /private/path/owner.token RUN_ID DEVICE_ID 300
 # Explicit local revocation; 0 revokes, 1–900 grants for that many seconds.
-node companion/inspection-access.mjs /path/to/gator-runtime \
+node companion/inspection-access.mjs /path/to/hot-cross-buns-runtime \
   /private/path/owner.token RUN_ID DEVICE_ID 0
 ```
 

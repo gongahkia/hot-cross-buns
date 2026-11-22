@@ -3,14 +3,14 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("large table keyboard pages remain bounded and selecting a distant saved cell stages its actual value", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-grid-")), path = join(root, "large.csv")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-grid-")), path = join(root, "large.csv")
   await writeFile(path, Array.from({ length: 125 }, (_, row) => Array.from({ length: 45 }, (_, col) => `r${row}c${col}`).join(",")).join("\n"))
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 36 })
   const flush = async () => { await setup.flush(); await Bun.sleep(40); await setup.flush() }
   const until = async (predicate: () => boolean, label: string) => { const end = Date.now() + 10000; while (!predicate()) { if (Date.now() > end) throw new Error("Timed out: " + label); await flush() } }
@@ -25,7 +25,7 @@ test("large table keyboard pages remain bounded and selecting a distant saved ce
     await until(() => !!setup.renderer.root.findDescendantById(`file-editor-${view.revision}`), "selected cell editor")
     setup.mockInput.pressKey("o", { ctrl: true }); await until(() => setup.captureCharFrame().includes("Saved file versions"), "versions menu")
     setup.mockInput.pressEnter(); await until(() => setup.captureCharFrame().includes("Selected immutable version"), "version actions")
-    await setup.mockInput.typeText("Ask Gator"); await flush(); setup.mockInput.pressEnter(); await flush()
+    await setup.mockInput.typeText("Ask Hot Cross Buns"); await flush(); setup.mockInput.pressEnter(); await flush()
     await until(() => client.draft.uploads?.length === 2, "selected cell attachment")
     expect(client.draft.text).toContain("AS125: r124c44"); expect(client.draft.uploads).toHaveLength(2); expect(client.state?.messages).toHaveLength(0)
   } finally { await client.close(); await setup.dispose(); await rm(root, { recursive: true, force: true }) }

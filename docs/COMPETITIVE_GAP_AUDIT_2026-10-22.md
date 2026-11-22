@@ -1,4 +1,4 @@
-# Gator competitive gap audit — 22 October 2026
+# Hot Cross Buns competitive gap audit — 22 October 2026
 
 Repository baseline: `c7eaea64e`. Scope: product and engineering audit of the
 current desktop application, its Go runtime, tests, release configuration and
@@ -7,7 +7,7 @@ This change records findings and proposed work; it implements no product feature
 
 ## Product intent
 
-Gator is intended to compete for the same everyday responsibilities as
+Hot Cross Buns is intended to compete for the same everyday responsibilities as
 **ChatGPT Work, Claude Cowork, Hermes Agent, Claude Duet, ChatGPT dots, Grok Bot
 and Meta Muse**. The desired experience is a capable personal agent a person
 messages: it knows relevant preferences, handles useful work, follows through
@@ -15,7 +15,7 @@ over time, and returns with results or a decision the person needs to make.
 
 Retain the decisions already made for this product:
 
-- One Gator identity, multiple independent chats, and shared personal memory
+- One Hot Cross Buns identity, multiple independent chats, and shared personal memory
   within the local profile. A new chat refreshes working context without erasing
   the person’s saved preferences. Task access remains scoped.
 - The desktop application is the primary interface. Keep its current visual
@@ -28,7 +28,7 @@ Retain the decisions already made for this product:
   Reuse good execution, provenance and review primitives; replace orchestration
   or screens when they prevent the intended experience.
 
-**Assessment:** Gator has substantial local execution infrastructure and a much
+**Assessment:** Hot Cross Buns has substantial local execution infrastructure and a much
 improved chat surface. Its largest competitive gaps concern coordination,
 activation, continuity of delivery and demonstrated usefulness. Visual imitation
 alone will not close them. Provider choice and local ownership are useful assets,
@@ -37,7 +37,7 @@ but need to support a product people can use without operating its machinery.
 ## How to read this audit
 
 This is a source inspection and documentation comparison, not a new hands-on
-benchmark of the competing applications or a full manual tour of Gator. Relevant
+benchmark of the competing applications or a full manual tour of Hot Cross Buns. Relevant
 implementation and test paths were inspected; existing test results are identified
 as recorded evidence, not presented as newly executed tests. No private profiles,
 credentials, connected accounts or paid model calls were used.
@@ -63,31 +63,31 @@ Hermes Agent, dots means OpenAI’s ChatGPT dots, and Muse means Meta’s person
 agent. First-party documentation was opened on 22 October 2026. Documented
 features establish expectations, not measured superiority or universal access.
 
-| Reference | Verified product expectation | Implication for Gator |
+| Reference | Verified product expectation | Implication for Hot Cross Buns |
 | --- | --- | --- |
 | [ChatGPT Work](https://learn.chatgpt.com/docs/get-started-with-work) | Delegated work produces reviewable files and workflows, uses connected tools, and can be steered. Eligible synced tasks continue across devices; local steps still require the connected computer. | Judge a task by its useful result and review loop. Keep environment details secondary. |
 | [Claude Cowork](https://claude.com/product/cowork) | Selected files/tools, an integrated browser, parallel task components, scheduling and review. The page now says Cowork is becoming “Claude,” with rollout qualifications. | Borrow the short path from intent to finished work, and integrated recovery when access is missing. This is a moving product, not a fixed desktop screenshot. |
-| [Hermes Desktop](https://hermes-agent.nousresearch.com/docs/user-guide/desktop), [memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory) | Desktop uses the shared agent runtime; simultaneous conversations, persistent queues and remote gateway options are documented. Memory and searchable past sessions are separate systems. | This is a relevant engineering reference for an open, configurable runtime. Preserve Gator’s simpler surface rather than adopting every management pane. |
+| [Hermes Desktop](https://hermes-agent.nousresearch.com/docs/user-guide/desktop), [memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory) | Desktop uses the shared agent runtime; simultaneous conversations, persistent queues and remote gateway options are documented. Memory and searchable past sessions are separate systems. | This is a relevant engineering reference for an open, configurable runtime. Preserve Hot Cross Buns’s simpler surface rather than adopting every management pane. |
 | [Claude Duet](https://support.claude.com/en/articles/17631495-get-started-with-claude-duet) | A main messaging thread and separate channels share memory. Cloud work, morning briefs, quiet task tracking, connected tools and reviewable files are documented. | Useful proactive follow-up belongs in the conversation. Duet is a US Pro/Max waitlisted research preview; its docs explicitly limit browser takeover, local-file access, connectors and some actions. |
 | [ChatGPT dots](https://learn.chatgpt.com/docs/dots), [tasks and memory](https://learn.chatgpt.com/docs/dots/tasks-and-memory) | Ongoing responsibilities, background delegation while conversation continues, relevant cross-chat context, and cloud execution. Timing and notification conditions can be specified. | Separate the continuing relationship from individual tasks and schedules. Device-off execution is a real infrastructure difference. Availability is a gradual rollout. |
-| [Grok Bot](https://docs.x.ai/grok-bot/overview), [skills and routines](https://docs.x.ai/grok-bot/skills-routines-and-automations) | Persistent bots work on a cloud computer, coordinate across tasks, and can turn a successful workflow into a reusable skill/routine. Demonstration-based teaching is availability-dependent. | Borrow reusable workflows and task coordination. A visible collection of different bots is optional for Gator, whose chosen identity remains singular. |
+| [Grok Bot](https://docs.x.ai/grok-bot/overview), [skills and routines](https://docs.x.ai/grok-bot/skills-routines-and-automations) | Persistent bots work on a cloud computer, coordinate across tasks, and can turn a successful workflow into a reusable skill/routine. Demonstration-based teaching is availability-dependent. | Borrow reusable workflows and task coordination. A visible collection of different bots is optional for Hot Cross Buns, whose chosen identity remains singular. |
 | [Muse announcement](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/), [design account](https://introducing.muse.ai/) | A messaging relationship, side chats, ongoing goals, selective proactive messages, inspectable activity and editable memory. Cloud work and rich outputs are central. | Borrow the low-friction conversation and high bar for interruption. Personal warmth can come from helpful continuity and thoughtful language, without copying avatars or adding dashboards. |
 
 Do not flatten these into one imaginary competitor with every feature. In
 particular, Duet documents interval-based checking and no browser takeover,
 whereas other references describe different browser and event workflows.
-Gator need not adopt push subscriptions or unrestricted actions to deliver
+Hot Cross Buns need not adopt push subscriptions or unrestricted actions to deliver
 useful follow-up.
 
-## What Gator already has
+## What Hot Cross Buns already has
 
 These should not reappear as “build from scratch” items in the backlog.
 
 | Existing capability | Implementation evidence | Boundary |
 | --- | --- | --- |
 | Independent chats with shared identity | [active chat persistence](../internal/worksession/active.go), [chat transitions](../internal/workapp/conversation.go), [desktop chat tests](../desktop/tests/e2e/shared-chats.spec.ts) | New chat, last selected chat and separate drafts exist. One foreground desktop run still blocks switching. |
-| Shared personal memory and earlier-chat retrieval | [chat memory tools](../internal/tools/chat_memory.go), [memory store](../internal/memory/chat.go), [chat history tools](../internal/tools/chat_history.go), [context selection](../cmd/gator/work_service.go) | Quoted user evidence, scoped recall, corrections, forgetting and learning controls exist. Recall is selected and bounded. |
-| Goals and recurring work | [follow-up setup](../internal/followup/setup.go), [saving checks](../cmd/gator/work_followup.go), [job runtime](../cmd/gator/command_job.go), [connected watch](../cmd/gator/connected_goal_watch.go) | Durable local scheduling, watched inputs, attempts, recovery, quiet decisions and an inbox. Host availability remains necessary. |
+| Shared personal memory and earlier-chat retrieval | [chat memory tools](../internal/tools/chat_memory.go), [memory store](../internal/memory/chat.go), [chat history tools](../internal/tools/chat_history.go), [context selection](../cmd/hot-cross-buns/work_service.go) | Quoted user evidence, scoped recall, corrections, forgetting and learning controls exist. Recall is selected and bounded. |
+| Goals and recurring work | [follow-up setup](../internal/followup/setup.go), [saving checks](../cmd/hot-cross-buns/work_followup.go), [job runtime](../cmd/hot-cross-buns/command_job.go), [connected watch](../cmd/hot-cross-buns/connected_goal_watch.go) | Durable local scheduling, watched inputs, attempts, recovery, quiet decisions and an inbox. Host availability remains necessary. |
 | Real files in chat | [file surface](../desktop/src/FileSurface.tsx), [file versions](../desktop/electron/files.mjs), [Office editor](../desktop/electron/office.mjs), [native file tests](../desktop/tests/e2e/inline-files.spec.ts) | Text/Markdown/CSV and bounded Office editing, PDF/image previews, versions and export exist. Original uploads and sealed output remain intact. |
 | Attachment and voice input | [uploads](../desktop/electron/uploads.mjs), [image paste](../desktop/electron/pasted-images.mjs), [voice controls](../desktop/src/VoiceControls.tsx) | File picking/drop/paste and dictation exist. Dictation plus spoken replies is not a live voice conversation. |
 | Connected tools and exact action review | [connector definitions](../internal/connector/connector.go), [action broker](../internal/action/action.go), [Google operations](GOOGLE_WORK.md) | Bounded first-party operations and remote MCP, provenance and payload-bound reviews. Catalog, setup and action breadth remain limited. |
@@ -206,7 +206,7 @@ other memory uses bounded retrieval. Earlier-chat search scans bounded pages
 using words of at least three characters. These limits protect context size,
 but do not establish recall quality. See [memory tools](../internal/tools/chat_memory.go),
 [history retrieval](../internal/tools/chat_history.go) and
-[context selection](../cmd/gator/work_service.go).
+[context selection](../cmd/hot-cross-buns/work_service.go).
 
 **Remaining gap:** useful memory selection, temporal corrections, paraphrase
 recall and user comprehension across many chats. Learning off stops automatic
@@ -224,10 +224,10 @@ Do not remove scope limits just to make recall appear broader.
 
 ### G07 — Earn proactive interruptions: P1, partial + unproven
 
-Gator already has unchanged-input skipping, duplicate suppression, model-chosen
+Hot Cross Buns already has unchanged-input skipping, duplicate suppression, model-chosen
 quiet results, quiet hours, urgency options and feedback. See
-[watch changes](../cmd/gator/goal_watch_changes.go),
-[notifications](../cmd/gator/goal_notifications.go),
+[watch changes](../cmd/hot-cross-buns/goal_watch_changes.go),
+[notifications](../cmd/hot-cross-buns/goal_notifications.go),
 [quiet review](../internal/jobs/quiet_review.go) and [jobs](JOBS.md).
 Gmail/Calendar watches poll selected bounded sources; the Gmail cursor is an
 optimization, not a push subscription. Reference integrity is not proof that a
@@ -317,7 +317,7 @@ as a cosmetic simplification.
 [Recent chats](../internal/workapp/bridge_conversations.go) exposes up to 24
 entries. [All conversations](../desktop/src/ConversationsPanel.tsx) searches
 titles/folders in up to 50 recent entries, as supplied by
-[work_interactive.go](../cmd/gator/work_interactive.go). The model’s earlier-chat
+[work_interactive.go](../cmd/hot-cross-buns/work_interactive.go). The model’s earlier-chat
 search is a separate capability. [Saved](../desktop/src/LibraryDrawer.tsx)
 collects the current conversation’s outputs, not a global file library.
 No ordinary rename/archive/pin workflow was found in these chat surfaces.
@@ -350,10 +350,10 @@ dependency, not an unfinished CSS task.
 
 ### G14 — Work while the user’s computer is off: strategic choice, absent
 
-Gator’s services can keep configured checks running on an available host. They
+Hot Cross Buns’s services can keep configured checks running on an available host. They
 cannot operate with that host powered off. The desktop bridge launches a local
 process and has no supported authenticated remote backend or hosted executor.
-The [Windows login supervisor](../cmd/gator/command_job_windows.go) and macOS/Linux
+The [Windows login supervisor](../cmd/hot-cross-buns/command_job_windows.go) and macOS/Linux
 services do not change this physical dependency.
 
 **Competitive impact:** device-off work is a central documented expectation in
@@ -370,11 +370,11 @@ prove eligible work completes elsewhere; local-only files must be reported
 unavailable. A self-hosted server is an incremental option, not equivalent to a
 consumer cloud service.
 
-### G15 — Reach the same Gator away from the desktop: P3, absent
+### G15 — Reach the same Hot Cross Buns away from the desktop: P3, absent
 
 There is no supported mobile/web conversation client or inbound messaging
 gateway. A Slack connector gives tool access; it is not a channel for messaging
-Gator. The private [backend bridge](../desktop/electron/backend.mjs) is not a
+Hot Cross Buns. The private [backend bridge](../desktop/electron/backend.mjs) is not a
 remote user API. This is separate from whether jobs can run in the background.
 
 **Next work / acceptance:** after G02/G03 and an execution-location decision,
@@ -399,11 +399,11 @@ use is frequent, add actual streaming voice with interruption, transcript repair
 and task steering. Stopping a call must have clear semantics for ongoing work.
 Optional name/style preferences should be inspectable and should never invent
 feelings, progress or recall. Avatar customization is lower priority than useful
-continuity; retain the approved Gator visual direction.
+continuity; retain the approved Hot Cross Buns visual direction.
 
 ### G17 — Turn successful work into repeatable skills: P2/P3, partial
 
-Gator already stores notes/skills, can load them and can propose a skill for
+Hot Cross Buns already stores notes/skills, can load them and can propose a skill for
 review through [suggest_change](../internal/tools/suggestion.go). It also has
 [extension infrastructure](EXTENSIONS.md). What is missing from the everyday
 surface is a clear “do it this way next time” loop with discoverable reusable
@@ -411,7 +411,7 @@ workflows, versions, evidence of successful use and a safe way to test a routine
 
 The relevant references are [Hermes skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)
 and [Grok Bot routines](https://docs.x.ai/grok-bot/skills-routines-and-automations).
-Start with a reviewed procedure from a successful Gator task, not a plugin
+Start with a reviewed procedure from a successful Hot Cross Buns task, not a plugin
 marketplace. Acceptance: save it, correct it, run it against new inputs, inspect
 the result and revert the procedure. A skill is context, not a grant of tool
 authority. Workflow recording/demonstration and public distribution can follow
@@ -438,7 +438,7 @@ usage summaries only if people need them.
 
 ## Trust and collaboration: preserve boundaries, expand deliberately
 
-Gator has real safeguards: private local state, source snapshots, isolated
+Hot Cross Buns has real safeguards: private local state, source snapshots, isolated
 output, exact-action review, bounded memory provenance and uncertain-action
 states. These are valuable foundations, not evidence of complete security.
 Before expanding autonomy, include adversarial source instructions, secret
@@ -449,7 +449,7 @@ quoted sentence is an appropriate durable belief.
 There is no comparable shared-account team workspace, collaborative live editor,
 organization policy service or remote audit administration in the inspected
 product. [Cowork](https://claude.com/product/cowork) documents organizational
-controls, but enterprise parity is not required for Gator’s first individual-user
+controls, but enterprise parity is not required for Hot Cross Buns’s first individual-user
 release. Likewise, payment wallets, purchases, autonomous financial actions,
 bot group chats and unrestricted desktop control are optional future scopes,
 not gaps we should fill reflexively. Standing permissions require explicit
@@ -462,7 +462,7 @@ host-enforced policies; model prose is not authorization.
 | Chat/composer | The place to request, clarify, steer and receive useful results. Keep independent conversation available during work. | G02, G03, G16 |
 | Recent chats / Conversations | Independent contexts, recoverable drafts and reliable retrieval over time. Keep New chat and shared memory. | G02, G06, G12 |
 | Following | A compact view of actual commitments: current status, next check, what is waiting, pause/edit. The same records should be controllable from chat. | G03, G04, G07 |
-| Saved | Distinguish what Gator remembers from files and historical messages, with understandable scope and search. | G06, G10, G12 |
+| Saved | Distinguish what Hot Cross Buns remembers from files and historical messages, with understandable scope and search. | G06, G10, G12 |
 | File cards / inline editor | Keep the approved inline experience; improve fidelity and iteration based on actual files. | G10 |
 | Information / activity | Explain what happened, what was read and where a task runs when requested. Avoid mandatory per-reply metadata blocks. | G02, G09, G14 |
 | Connections / onboarding | Request the needed account in context; show identity, scope, health and recovery. | G05, G08, G11 |

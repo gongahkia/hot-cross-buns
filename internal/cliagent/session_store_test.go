@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 func sessionFixture(t *testing.T) (string, SessionBinding) {

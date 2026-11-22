@@ -1,4 +1,4 @@
-// Package auth persists Gator-owned provider credentials. It deliberately
+// Package auth persists Hot Cross Buns-owned provider credentials. It deliberately
 // stores no conversation content, journal data, or credentials owned by other
 // applications.
 package auth
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const (
@@ -67,7 +67,7 @@ func (c Credential) IsAPIKey() bool {
 }
 
 // IsBearerToken reports whether this credential is a user-supplied bearer
-// token. Gator never refreshes bearer tokens because it does not own their
+// token. Hot Cross Buns never refreshes bearer tokens because it does not own their
 // issuing OAuth client or grant.
 func (c Credential) IsBearerToken() bool {
 	return c.Type == bearerTokenType
@@ -79,8 +79,8 @@ func (c Credential) Expired(now time.Time) bool {
 	return (c.IsOAuth() || c.IsBearerToken()) && c.Expires > 0 && now.UnixMilli() >= c.Expires
 }
 
-// Store owns Gator's auth.json. StateDir is the same base selected for the
-// journal, so the default path is ~/.local/state/gator/auth.json on Linux.
+// Store owns Hot Cross Buns's auth.json. StateDir is the same base selected for the
+// journal, so the default path is ~/.local/state/hot-cross-buns/auth.json on Linux.
 // The file is private (0600) and its containing directory is private (0700).
 type Store struct {
 	path string
@@ -96,7 +96,7 @@ func New(stateDir string) (Store, error) {
 	if err != nil {
 		return Store{}, fmt.Errorf("resolve credential state directory: %w", err)
 	}
-	return Store{path: filepath.Join(absolute, "gator", "auth.json")}, nil
+	return Store{path: filepath.Join(absolute, "hot-cross-buns", "auth.json")}, nil
 }
 
 // Path returns the credential file location without exposing its contents.
@@ -133,7 +133,7 @@ func (s Store) Providers() ([]string, error) {
 }
 
 // Put atomically stores a credential for one provider. It is serialized with
-// concurrent Gator credential updates and preserves all other provider entries.
+// concurrent Hot Cross Buns credential updates and preserves all other provider entries.
 func (s Store) Put(provider string, credential Credential) error {
 	provider, err := validProvider(provider)
 	if err != nil {

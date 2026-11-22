@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 // Windows uses an ephemeral IPv4 loopback endpoint. Its address lives in a

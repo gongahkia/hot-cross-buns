@@ -10,4 +10,4 @@
 === RUN   TestLocalFirstAuditExistingRuntimeIsNotAdoptedOrStopped
 --- PASS: TestLocalFirstAuditExistingRuntimeIsNotAdoptedOrStopped (0.00s)
 PASS
-ok  	github.com/gongahkia/gator/cmd/gator	0.716s
+ok  	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	0.716s

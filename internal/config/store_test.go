@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
 )
 
 func TestStoreReturnsDefaultsUntilConfigured(t *testing.T) {
@@ -42,7 +42,7 @@ func TestStoreSavesPrivateAtomicSettings(t *testing.T) {
 	if !reflect.DeepEqual(loaded, settings) {
 		t.Fatalf("loaded = %#v, want %#v", loaded, settings)
 	}
-	info, err := os.Stat(filepath.Join(root, "gator", "config.json"))
+	info, err := os.Stat(filepath.Join(root, "hot-cross-buns", "config.json"))
 	if err != nil {
 		t.Fatalf("stat configuration: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestStorePersistsExplicitEmptyStatusLine(t *testing.T) {
 	if !loaded.TUI.StatusLineEnabled || loaded.TUI.StatusLine == nil || len(*loaded.TUI.StatusLine) != 0 {
 		t.Fatalf("loaded status line = %#v, want explicit empty list", loaded.TUI.StatusLine)
 	}
-	contents, err := os.ReadFile(filepath.Join(root, "gator", "config.json"))
+	contents, err := os.ReadFile(filepath.Join(root, "hot-cross-buns", "config.json"))
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}

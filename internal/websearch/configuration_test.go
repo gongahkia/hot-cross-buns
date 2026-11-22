@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
 )
 
 func TestAppSelectionSeparatesKeysAndOverridesEnvironment(t *testing.T) {
@@ -23,7 +23,7 @@ func TestAppSelectionSeparatesKeysAndOverridesEnvironment(t *testing.T) {
 	if err := store.Put(CredentialRef("tinyfish"), auth.Credential{Type: "api_key", Key: "saved-tinyfish-private"}); err != nil {
 		t.Fatal(err)
 	}
-	env := map[string]string{"GATOR_WEB_SEARCH_PROVIDER": "brave", "BRAVE_SEARCH_API_KEY": "environment-brave-private", "TINYFISH_API_KEY": "environment-tinyfish-private"}
+	env := map[string]string{"HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER": "brave", "BRAVE_SEARCH_API_KEY": "environment-brave-private", "TINYFISH_API_KEY": "environment-tinyfish-private"}
 	getenv := func(k string) string { return env[k] }
 	selected := Resolve(config.SearchSettings{Provider: "tinyfish"}, store, getenv)
 	if !selected.Ready || selected.Provider != "tinyfish" || selected.Options.TinyfishSearchAPIKey != "saved-tinyfish-private" || selected.Options.BraveSearchAPIKey != "" {
@@ -58,7 +58,7 @@ func TestAppSelectionSeparatesKeysAndOverridesEnvironment(t *testing.T) {
 	if len(tools.HTTPTools(tools.CommandPolicy{Sandbox: sandbox.Policy{Network: sandbox.AllowNetwork}}, disabled.Options)) != 1 {
 		t.Fatal("disabled search tool remained available")
 	}
-	delete(env, "GATOR_WEB_SEARCH_PROVIDER")
+	delete(env, "HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER")
 	if r := Resolve(config.SearchSettings{}, store, getenv); r.Ready || r.Issue == "" {
 		t.Fatal("ambiguous environment silently selected a provider")
 	}

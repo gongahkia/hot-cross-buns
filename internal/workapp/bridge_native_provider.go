@@ -4,7 +4,7 @@ import (
 	"regexp"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/modelcatalog"
+	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
 )
 
 type nativeProviderFinished struct {

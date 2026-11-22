@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
 )
 
 func TestChatUpdateReceiptsConfirmTheirOwnOutcomeAndRejectChangedTargets(t *testing.T) {

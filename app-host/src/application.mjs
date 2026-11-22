@@ -33,23 +33,23 @@ export class Application extends EventEmitter {
     this.userData = resolve(userData);
     this.stateRoot = stateDirectory(env);
     this.backendStateRoot = backendStateDirectory(env, this.workspace);
-    this.uploads = new UploadStore(join(this.stateRoot, "gator", "uploads"));
-    this.files = new FileStore(join(this.stateRoot, "gator", "files"));
-    this.exports = new ExportStore([join(this.stateRoot, "gator"), this.userData]);
+    this.uploads = new UploadStore(join(this.stateRoot, "hot-cross-buns", "uploads"));
+    this.files = new FileStore(join(this.stateRoot, "hot-cross-buns", "files"));
+    this.exports = new ExportStore([join(this.stateRoot, "hot-cross-buns"), this.userData]);
     this.preferences = new TerminalPreferences(this);
     const draftRoot = join(this.userData, "drafts");
     this.drafts = new DraftStore(join(draftRoot, `${createHash("sha256").update(this.stateRoot).digest("hex")}.json`));
     this.reading = new ReadingStore(join(this.userData, "reading", createHash("sha256").update(this.stateRoot).digest("hex")));
-    this.env = { ...env, GATOR_DESKTOP_DRAFT_DIR: draftRoot, GATOR_DESKTOP_UPLOAD_DIR: this.uploads.root };
+    this.env = { ...env, HOT_CROSS_BUNS_DESKTOP_DRAFT_DIR: draftRoot, HOT_CROSS_BUNS_DESKTOP_UPLOAD_DIR: this.uploads.root };
     if (process.platform === "win32") {
-      this.env.GATOR_STATE_DIR = this.stateRoot;
-      for (const key of ["GATOR_CONFIG_DIR", "XDG_CONFIG_HOME"]) if (env[key]?.trim()) this.env[key] = resolve(env[key]);
+      this.env.HOT_CROSS_BUNS_STATE_DIR = this.stateRoot;
+      for (const key of ["HOT_CROSS_BUNS_CONFIG_DIR", "XDG_CONFIG_HOME"]) if (env[key]?.trim()) this.env[key] = resolve(env[key]);
     }
     this.sessions = new Sessions(request => new Backend(this.binary, this.workspace, {
-      ...this.env, GATOR_UI_SESSION_HOST: "1",
-      GATOR_UI_VIEW_ORIGIN: request.view ? request.origin_conversation_id || "" : "",
-      GATOR_UI_BOOT_MODE: request.new ? "new" : request.view ? "view" : "",
-      GATOR_UI_START_SOURCE: request.source || (request.new || request.view ? this.sessions.current?.state?.source || "" : ""),
+      ...this.env, HOT_CROSS_BUNS_UI_SESSION_HOST: "1",
+      HOT_CROSS_BUNS_UI_VIEW_ORIGIN: request.view ? request.origin_conversation_id || "" : "",
+      HOT_CROSS_BUNS_UI_BOOT_MODE: request.new ? "new" : request.view ? "view" : "",
+      HOT_CROSS_BUNS_UI_START_SOURCE: request.source || (request.new || request.view ? this.sessions.current?.state?.source || "" : ""),
     }, ["ui-backend", request.goal ? "" : request.conversation_id || "", request.goal ? request.conversation_id : ""]));
     this.sessions.on("change", () => this.emit("change", this.snapshot()));
   }
@@ -66,8 +66,8 @@ export class Application extends EventEmitter {
     await mkdir(this.workspace, { recursive: true, mode: 0o700 });
     // Malformed journals defer cleanup rather than deleting potentially admitted inputs.
     try {
-		await withProfileMaintenance(this.binary, { ...this.env, GATOR_STATE_DIR: this.backendStateRoot }, async assertOwned => {
-      const retained = await retainedRequestUploads(join(this.backendStateRoot, "gator", "conversations"));
+		await withProfileMaintenance(this.binary, { ...this.env, HOT_CROSS_BUNS_STATE_DIR: this.backendStateRoot }, async assertOwned => {
+      const retained = await retainedRequestUploads(join(this.backendStateRoot, "hot-cross-buns", "conversations"));
       const saved = await this.drafts.request({ action: "list" });
       for (const draft of saved.drafts) for (const file of draft.uploads ?? []) retained.add(file.id);
       assertOwned(); await this.uploads.prune(Date.now(), retained, assertOwned);
@@ -99,6 +99,16 @@ export class Application extends EventEmitter {
     this.mutable();
     if (context !== this.context) throw new Error("Return to the intended conversation before attaching files.");
     const owner = this.backend, imported = await this.uploads.import(paths);
+    return this.#retainImports(owner, context, imported);
+  }
+  async importFileBytes(name, bytes, context) {
+    this.mutable();
+    if (context !== this.context) throw new Error("Return to the intended conversation before attaching files.");
+    const owner = this.backend, file = await this.uploads.importContent(name, bytes);
+    await this.#retainImports(owner, context, [file]);
+    return file;
+  }
+  async #retainImports(owner, context, imported) {
     if (owner !== this.backend || context !== this.context) throw new Error("The conversation changed before attaching files.");
     for (const file of imported) {
       this.imported.set(file.id, context);
@@ -174,13 +184,13 @@ export class Application extends EventEmitter {
     if (!this.sessions.canOpen(id)) throw new Error("This chat is no longer in the open-chat list.");
     await this.sessions.open({ conversation_id: id });
   }
-  async version() { return (await helper(this.binary, ["--version"], { maxBytes: 4096 })).toString("utf8").trim().replace("gator ", "Gator terminal "); }
+  async version() { return (await helper(this.binary, ["--version"], { maxBytes: 4096 })).toString("utf8").trim().replace("hot-cross-buns ", "Hot Cross Buns terminal "); }
   async prepareComposerEditor(context, text) {
     this.mutable();
     if (context !== this.context || this.backend.state?.panel || this.backend.state?.running || this.backend.state?.pending_approval) throw new Error("Return to the idle conversation before editing its draft externally.");
     const owner = this.backend;
     await owner.prepareComposerEditor(text);
-    if (owner !== this.backend || owner.state?.external?.kind !== "editor") throw new Error(owner.state?.notice || "Gator could not prepare the composer editor. Your draft is kept.");
+    if (owner !== this.backend || owner.state?.external?.kind !== "editor") throw new Error(owner.state?.notice || "Hot Cross Buns could not prepare the composer editor. Your draft is kept.");
   }
   async runExternal() {
     const owner = this.backend, context = this.context, job = owner?.state?.external;
@@ -188,8 +198,8 @@ export class Application extends EventEmitter {
     this.terminalBusy = true; this.emit("change", this.snapshot());
     let failure = "";
     try {
-      const environment = { ...this.env, GATOR_INTERNAL_COMMANDS: "1" };
-      for (const entry of job.env ?? []) if (/^(GATOR_STATE_DIR|GATOR_CONFIG_DIR)=/.test(entry)) { const split = entry.indexOf("="); environment[entry.slice(0, split)] = entry.slice(split + 1); }
+      const environment = { ...this.env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" };
+      for (const entry of job.env ?? []) if (/^(HOT_CROSS_BUNS_STATE_DIR|HOT_CROSS_BUNS_CONFIG_DIR)=/.test(entry)) { const split = entry.indexOf("="); environment[entry.slice(0, split)] = entry.slice(split + 1); }
       await new Promise((resolve, reject) => {
         const child = spawn(job.program, job.args ?? [], { cwd: job.dir || this.workspace, env: environment, stdio: "inherit", windowsHide: false });
         child.once("error", reject);
@@ -203,7 +213,7 @@ export class Application extends EventEmitter {
     return { context, kind: job.kind, input: job.kind === "editor" ? owner.state?.input || "" : undefined, error: failure };
   }
   async close() {
-    if (this.terminalBusy) throw new Error("Finish or cancel the external step before closing Gator.");
+    if (this.terminalBusy) throw new Error("Finish or cancel the external step before closing Hot Cross Buns.");
     for (const owner of this.sessions.workers) if (!owner.closed && owner.state?.external?.kind === "editor") await owner.completeExternal("The editor was canceled before launch.");
     await this.drafts.flush(); await this.files.flush(); await this.preferences.flush(); await this.reading.flush(); await this.sessions.stop();
   }

@@ -21,9 +21,9 @@ import (
 
 func integrationRecoveryStore(t *testing.T) *Store {
 	t.Helper()
-	stateDir := os.Getenv("GATOR_BROWSER_INTEGRATION_STATE_DIR")
+	stateDir := os.Getenv("HOT_CROSS_BUNS_BROWSER_INTEGRATION_STATE_DIR")
 	if stateDir == "" {
-		t.Skip("set GATOR_BROWSER_INTEGRATION_STATE_DIR to a preinstalled test runtime")
+		t.Skip("set HOT_CROSS_BUNS_BROWSER_INTEGRATION_STATE_DIR to a preinstalled test runtime")
 	}
 	installed, err := Open(stateDir)
 	if err != nil {
@@ -100,7 +100,7 @@ type daemonCrashRecord struct {
 }
 
 func TestBrowserDaemonCrashHelper(t *testing.T) {
-	stateDir := os.Getenv("GATOR_BROWSER_DAEMON_CRASH_ROOT")
+	stateDir := os.Getenv("HOT_CROSS_BUNS_BROWSER_DAEMON_CRASH_ROOT")
 	if stateDir == "" {
 		return
 	}
@@ -148,7 +148,7 @@ func TestSidecarDaemonCrashRecoveryIntegration(t *testing.T) {
 	store := integrationRecoveryStore(t)
 	stateDir := filepath.Dir(filepath.Dir(store.Directory()))
 	command := exec.Command(os.Args[0], "-test.run=^TestBrowserDaemonCrashHelper$")
-	command.Env = append(os.Environ(), "GATOR_BROWSER_DAEMON_CRASH_ROOT="+stateDir)
+	command.Env = append(os.Environ(), "HOT_CROSS_BUNS_BROWSER_DAEMON_CRASH_ROOT="+stateDir)
 	command.Stderr = os.Stderr
 	if err := command.Start(); err != nil {
 		t.Fatal(err)

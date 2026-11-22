@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DraftStore } from "../src/drafts.mjs";
 
 test("plan-first intent survives an empty draft restart and follows retention controls", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-plan-drafts-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-plan-drafts-"));
   try {
     const file = join(root, "drafts.json"), store = new DraftStore(file);
     const draft = { context: "conversation:one", text: "", title: "One", source: "/project", plan_first: true };
@@ -27,7 +27,7 @@ test("plan-first intent survives an empty draft restart and follows retention co
 });
 
 test("old drafts remain readable and malformed review intent never silently becomes direct work", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-plan-draft-format-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-plan-draft-format-"));
   try {
     const file = join(root, "drafts.json"), store = new DraftStore(file);
     const draft = { context: "conversation:one", text: "Keep my original text", title: "One", source: "/project", updated: Date.now() };
@@ -41,7 +41,7 @@ test("old drafts remain readable and malformed review intent never silently beco
 });
 
 test("update reply drafts retain their referent independently of text across restart", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-reply-drafts-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-reply-drafts-"));
   try {
     const file = join(root, "drafts.json"), store = new DraftStore(file);
     const draft = { context: "conversation:one", text: "", title: "One", source: "/project", reply_to_update_id: "inbox-one" };
@@ -55,7 +55,7 @@ test("update reply drafts retain their referent independently of text across res
 });
 
 test("pending draft failures remain visible to update and shutdown preparation", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-draft-flush-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-draft-flush-"));
   try {
     const file = join(root, "drafts.json");
     await writeFile(file, "{broken");
@@ -68,7 +68,7 @@ test("pending draft failures remain visible to update and shutdown preparation",
 });
 
 test("drafts survive restart, stay scoped, and save serially with private permissions", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-drafts-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-drafts-"));
   try {
     const file = join(root, "profile-a.json");
     const store = new DraftStore(file);
@@ -95,7 +95,7 @@ test("drafts survive restart, stay scoped, and save serially with private permis
 });
 
 test("expired drafts are removed and disabling clears retained text", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-drafts-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-drafts-"));
   try {
     let now = 10;
     const file = join(root, "drafts.json");
@@ -112,7 +112,7 @@ test("expired drafts are removed and disabling clears retained text", async () =
 });
 
 test("draft requests reject arbitrary fields, large text, and malformed stores recover explicitly", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-drafts-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-drafts-"));
   try {
     const file = join(root, "drafts.json"); const store = new DraftStore(file);
     for (const request of [{ action: "list", file: "/tmp/other" }, { action: "configure", enabled: "yes" }, { action: "remove", context: "" }, { action: "save", draft: { context: "conversation:one", title: "One", source: "/project", text: "🐊".repeat(32769) } }]) await assert.rejects(store.request(request));

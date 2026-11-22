@@ -9,7 +9,7 @@ import { DraftStore } from "../src/drafts.mjs";
 import { retainedRequestUploads } from "../src/request-retention.mjs";
 
 test("selected files become private independent copies and attachment-only drafts survive restart", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-uploads-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-uploads-"));
   try {
     const source = join(root, "plan.txt"), store = new UploadStore(join(root, "private"));
     await writeFile(source, "Selected original");
@@ -30,7 +30,7 @@ test("selected files become private independent copies and attachment-only draft
 });
 
 test("imports reject unsupported, oversized and excessive inputs without leaving partial selections", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-upload-limits-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-upload-limits-"));
   try {
     const store = new UploadStore(join(root, "private")); await store.prune();
     const valid = join(root, "brief.md"), bad = join(root, "binary.exe"), big = join(root, "big.txt");
@@ -60,7 +60,7 @@ test("upload submission carries bounded opaque identities and a conversation bin
 });
 
 test("cleanup keeps files belonging to admitted messages and defers unreadable journals", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-retained-uploads-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-retained-uploads-"));
   try {
     const uploads = new UploadStore(join(root, "uploads")), chats = join(root, "conversations");
     const pending = await uploads.importContent("pending.txt", Buffer.from("Keep while queued"));
@@ -81,7 +81,7 @@ test("cleanup keeps files belonging to admitted messages and defers unreadable j
 });
 
 test("dialogue-only and completed turns retain captured inputs across pruning without a Work journal", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-dialogue-uploads-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-dialogue-uploads-"));
   try {
     const uploads = new UploadStore(join(root, "uploads")), chats = join(root, "conversations"), directory = join(chats, "work-parent", "dialogue");
     await mkdir(directory, {recursive: true});
@@ -99,7 +99,7 @@ test("dialogue-only and completed turns retain captured inputs across pruning wi
 });
 
 test("invalid or linked dialogue storage defers cleanup instead of losing uncertain inputs", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-dialogue-retention-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-dialogue-retention-"));
   try {
     const chats = join(root, "conversations"), directory = join(chats, "work-parent", "dialogue"), filename = "00000000000000000001-" + "a".repeat(64) + ".json";
     await mkdir(directory, {recursive: true});
@@ -121,7 +121,7 @@ test("larger document intake and all attachment guards share the Go runtime limi
     const expression = go.match(new RegExp(`${name}\\s*=\\s*(\\d+)( \\* 1024 \\* 1024)?`));
     assert.ok(expression); assert.equal(Number(expression[1]) * (expression[2] ? 1048576 : 1), limit);
   }
-  const root = await mkdtemp(join(tmpdir(), "gator-larger-intake-"));
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-larger-intake-"));
   try {
     const store = new UploadStore(join(root, "uploads")), large = join(root, "large.txt");
     await writeFile(large, Buffer.alloc(5 * 1024 * 1024, 65));
@@ -140,7 +140,7 @@ test("larger document intake and all attachment guards share the Go runtime limi
 });
 
 test("pending input scope history protects withdrawn originals during cleanup",async()=>{
- const root=await mkdtemp(join(tmpdir(),"gator-original-input-retention-"));
+ const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-original-input-retention-"));
  try{
   const uploads=new UploadStore(join(root,"uploads")),chats=join(root,"conversations"),original=await uploads.importContent("original.txt",Buffer.from("Preserve pending scope original"));
   await utimes(join(uploads.root,original.id.split("/")[0]),0,0);await mkdir(join(chats,"one"),{recursive:true});
@@ -153,7 +153,7 @@ test("pending input scope history protects withdrawn originals during cleanup",a
 });
 
 test("failed tasks awaiting explicit setup repair retain original attachments until discarded",async()=>{
- const root=await mkdtemp(join(tmpdir(),"gator-failed-input-retention-"));
+ const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-failed-input-retention-"));
  try{
   const uploads=new UploadStore(join(root,"uploads")),chats=join(root,"conversations"),original=await uploads.importContent("original.txt",Buffer.from("Preserve failed original"));
   await utimes(join(uploads.root,original.id.split("/")[0]),0,0);await mkdir(join(chats,"one"),{recursive:true});const path=join(chats,"one","requests.json");

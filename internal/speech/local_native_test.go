@@ -11,14 +11,14 @@ import (
 // Opt-in: downloads 77.7 MB of pinned public weights into a disposable profile
 // and transcribes a caller-selected public WAV. Never accesses a microphone.
 func TestNativeLocalWhisper(t *testing.T) {
-	if os.Getenv("GATOR_NATIVE_WHISPER_TEST") != "1" {
+	if os.Getenv("HOT_CROSS_BUNS_NATIVE_WHISPER_TEST") != "1" {
 		t.Skip("opt-in real whisper.cpp/public-model acceptance")
 	}
 	executable, err := ResolveLocalRuntime()
 	if err != nil {
 		t.Fatal(err)
 	}
-	wav, err := os.ReadFile(os.Getenv("GATOR_NATIVE_WHISPER_WAV"))
+	wav, err := os.ReadFile(os.Getenv("HOT_CROSS_BUNS_NATIVE_WHISPER_WAV"))
 	if err != nil {
 		t.Fatal(err)
 	}

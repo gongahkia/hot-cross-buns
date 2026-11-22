@@ -49,7 +49,7 @@ Settings and the existing Conversation/compact menus now say **Agent Presence**.
 
 Separate **Show In-Chat Presence** and **Show Desktop Presence** controls remain independent. Desktop defaults to OFF. Global Off suppresses both presentations without rewriting either visibility choice. Returning from Off restores only those existing choices; it does not enable a previously tucked desktop presence.
 
-Existing keys `gator.mascot.shown`, `gator.mascot.animated`, `gator.desktopPet.shown` and `gator.desktopPet.display` are reused. Thus explicit old Show OFF, Animate OFF, Tuck Away and display selection survive without bulk deletion or a migration write. The new mode key is `gator.presence.mode`. Old `gator.mascot.style` values may remain stored but are not read by production presentation. Unknown/obsolete mode strings fall back to emoji, never legacy character art.
+Existing keys `hot-cross-buns.mascot.shown`, `hot-cross-buns.mascot.animated`, `hot-cross-buns.desktopPet.shown` and `hot-cross-buns.desktopPet.display` are reused. Thus explicit old Show OFF, Animate OFF, Tuck Away and display selection survive without bulk deletion or a migration write. The new mode key is `hot-cross-buns.presence.mode`. Old `hot-cross-buns.mascot.style` values may remain stored but are not read by production presentation. Unknown/obsolete mode strings fall back to emoji, never legacy character art.
 
 **Animate Reactions** retains the previous explicit animation setting. Choosing the reaction mode does not silently override a prior Animate OFF. macOS Reduce Motion overrides animation and keeps the corresponding static emoji. No preference enters Go agent state or conversation/draft archives, and no system-wide setting is changed.
 
@@ -67,19 +67,19 @@ The emoji/canvas is decorative, not focusable and accessibility-hidden; its text
 
 The new app packages `Contents/Resources/Presence/{attention,completed}.gif`, not `Contents/Resources/Mascot`. A runtime-source scan found no remaining old style selection or mascot-frame root. The old frame resources are still used by historical authoring/lab material and remain in the repository, not in the newly packaged runtime. Additional pre-change copies of the four implementation files and original mascot tests are under `macos/mascot/2d/legacy-p04e/` for reference. Older standalone labs should use those archived implementations if reproducing the old API; they are not current production targets.
 
-Application/menu-bar icons remain unchanged and actively used; the accompanying generated `GatorHead.png` branding file is also retained unchanged; this task does not replace those icons. There is no runtime checkout path or network dependency for emoji/reaction presentation. Missing reaction assets leave the native emoji and chat usable.
+Application/menu-bar icons remain unchanged and actively used; the accompanying generated `HotCrossBunsHead.png` branding file is also retained unchanged; this task does not replace those icons. There is no runtime checkout path or network dependency for emoji/reaction presentation. Missing reaction assets leave the native emoji and chat usable.
 
-The final development app is `/tmp/Gator-Native-P04E-Emoji.app`. The verified candidate is promoted without changing its executable/resources. The earlier candidate is preserved separately, along with accepted P04, A2 and B2 bundles. Minimum binary deployment target remains **macOS 15.0**, built on macOS 26.5.2; physical macOS 15 runtime acceptance is NOT TESTED.
+The final development app is `/tmp/HotCrossBuns-Native-P04E-Emoji.app`. The verified candidate is promoted without changing its executable/resources. The earlier candidate is preserved separately, along with accepted P04, A2 and B2 bundles. Minimum binary deployment target remains **macOS 15.0**, built on macOS 26.5.2; physical macOS 15 runtime acceptance is NOT TESTED.
 
 ## Headless verification
 
-Final commands (the historical `…-Verified.app` staging path was subsequently promoted byte-for-byte to `/tmp/Gator-Native-P04E-Emoji.app`; use that final path when repeating tests):
+Final commands (the historical `…-Verified.app` staging path was subsequently promoted byte-for-byte to `/tmp/HotCrossBuns-Native-P04E-Emoji.app`; use that final path when repeating tests):
 
 ```sh
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-GATOR_TEST_BINARY=/tmp/Gator-Native-P04E-Emoji-Verified.app/Contents/Resources/gator-runtime swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter 'mascot|presence|desktopPet|desktopPresence'
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-P04E-Emoji-Verified.app bash macos/scripts/build-dev-app.sh
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-P04E-Emoji-Verified.app/Contents/Resources/hot-cross-buns-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter 'mascot|presence|desktopPet|desktopPresence'
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-P04E-Emoji-Verified.app bash macos/scripts/build-dev-app.sh
 ```
 
 Final full suite: **260 tests PASS**, 139.021 seconds test time, 148.315 seconds command wall time. Strict focused run: **33 tests PASS**; all package/test sources compile with strict concurrency and warnings as errors. The candidate package build passed. [Exact commands/exits](evidence/p04e-1/final-verification.json), [full log](evidence/p04e-1/full-final.log), [strict log](evidence/p04e-1/strict-final.log), [package log](evidence/p04e-1/package-final.log).
@@ -88,7 +88,7 @@ The earlier 255-test baseline expanded to 260. Obsolete product tests for offeri
 
 Early new tests incorrectly required an unattached headless CALayer to retain a running animation after an actor hop. A standalone reproduction observed submission followed by `animationDidStop(finished:false)` on the unattached layer. Deterministic tests now capture the submitted finite animation through a narrow installer seam, rather than depending on render-server scheduling. They still assert exact keyframes, bounded retained bytes, cancellation and cache release. Actual visible playback requires native evidence, separately reported below. A floating-point duration equality was corrected to a 1 ms tolerance. Earlier failed logs are retained; those attempts are not reported as passes.
 
-Go and host suites were not repeated for this presentation increment: their source/contracts and GatorCore remained unchanged. The complete Swift suite exercised the bundled real-Go fixtures using the candidate runtime. The prior L1 Go results are historical evidence, not relabeled as new P04E results. No paid key/provider was used; native acceptance used a disposable state/config, inert key and loopback-only fixture service.
+Go and host suites were not repeated for this presentation increment: their source/contracts and HotCrossBunsCore remained unchanged. The complete Swift suite exercised the bundled real-Go fixtures using the candidate runtime. The prior L1 Go results are historical evidence, not relabeled as new P04E results. No paid key/provider was used; native acceptance used a disposable state/config, inert key and loopback-only fixture service.
 
 ## Actual native evidence and acceptance
 
@@ -110,7 +110,7 @@ The exact packaged executable/resources were tested in disposable bundle copies 
 | Tuck Away / Quit / relaunch | PASS in the first final-candidate profile: native Tuck Away followed by successful termination and dark relaunch left the desktop flag false and no desktop window. A later pending-review preference sequence stalled; guarded Quit in that instance was **not confirmed**. |
 | Keyboard/focus | PASS for the uniquely named fixture's focused select-all/type/send sequence and ordinary composer focus while observing Work; decorative presence has no key responder. Earlier Find/focus probes were interfered with and are PARTIAL, not proof of a new focus defect. |
 | Reading/review collapse | Headless exact-anchor/stable-slot and full prior reading regressions PASS; final native review visibly shrinks the glyph. A controlled older-history anchor/Jump-to-Latest round trip was not completed in this desktop session. |
-| Global Off | Headless suppression/preservation tests PASS. Isolated real native preferences/lifecycle probes committed Off and closed normally. Full Gator global-Off acceptance is PARTIAL due the stalled preference sequence. |
+| Global Off | Headless suppression/preservation tests PASS. Isolated real native preferences/lifecycle probes committed Off and closed normally. Full Hot Cross Buns global-Off acceptance is PARTIAL due the stalled preference sequence. |
 
 The accepted recording has approximately 23 seconds of window-only, audio-free output. At 30 Hz analysis, completion first appears at 7.6 seconds; the accent's outer ring changes in 16 sampled frames between 7.8 and 8.3 seconds. The final two seconds have zero changed outer-ring pixels against their settled reference. This is evidence of a bounded actual application reaction, not an exported GIF preview, frame-time benchmark or GPU/energy measurement. The earlier recordings/probes remain as historical attempts; use `keyboard-live-reaction.mp4` and `keyboard-native-results.json` for the successful coupled sequence.
 
@@ -120,7 +120,7 @@ One final-candidate fixture became unresponsive after rapid settings changes/clo
 
 The tentative theory that repeated unchanged emoji text/font assignments invalidate intrinsic sizing was **not supported**: a standalone native probe observed zero such invalidations for 100 unchanged assignments. The proposed canvas change was discarded, restoring the already tested production source exactly. A preferences-only probe and a second probe reusing the real canvas/player/desktop controller both committed Off and closed/quit normally. This narrows the investigation but does **not** establish the full-app cause or prove the issue resolved.
 
-The stalled disposable instance was force-stopped only after preserving the sample; its recorded fixture Go children were terminated. No successful guarded Quit is claimed for it. No user-owned Gator instance, credentials or data was involved. The retained fixture manifests show zero web requests, zero searches and no external-action entries, including after the unattributed approval ([effects audit](evidence/p04e-1/fixture-effects-audit.json)). The local fixture returned text rather than requesting a fetch after that grant. Treat this as an **open P1 native-availability investigation item**, with new-versus-preexisting/automation-induced origin unconfirmed. Do not treat desktop interference alone as the explanation for a sampled busy main thread. Complete native acceptance requires reproducing that sequence under controlled input and either correcting the cause or conclusively separating an accessibility/platform issue from application behavior.
+The stalled disposable instance was force-stopped only after preserving the sample; its recorded fixture Go children were terminated. No successful guarded Quit is claimed for it. No user-owned Hot Cross Buns instance, credentials or data was involved. The retained fixture manifests show zero web requests, zero searches and no external-action entries, including after the unattributed approval ([effects audit](evidence/p04e-1/fixture-effects-audit.json)). The local fixture returned text rather than requesting a fetch after that grant. Treat this as an **open P1 native-availability investigation item**, with new-versus-preexisting/automation-induced origin unconfirmed. Do not treat desktop interference alone as the explanation for a sampled busy main thread. Complete native acceptance requires reproducing that sequence under controlled input and either correcting the cause or conclusively separating an accessibility/platform issue from application behavior.
 
 The script’s historical `decisionSubmitted: false` field described its intent rather than auditing subsequent input; it is superseded by the final bridge audit. No approval action exists in the presence subsystem or in this harness, but I cannot identify the source of that input and cannot claim a clean no-decision session. No production approval policy was changed.
 
@@ -137,17 +137,17 @@ No further product feature was started. The requested app is a **development can
 
 ## Exact changed-file inventory
 
-- `macos/Sources/GatorMac/NativeMascotModel.swift`: finite emoji/mode mapping, public failure/text-active facts and smaller stable layout values.
-- `macos/Sources/GatorMac/NativeMascotPlayback.swift`: native text canvas, bounded GIF input and finite existing-player playback/cancellation; old PNG loading removed.
-- `macos/Sources/GatorMac/NativeMascotView.swift`: strict public outcome/text-active projection, mode preference and small in-chat presentation.
-- `macos/Sources/GatorMac/NativeMascotPreferences.swift`: Agent Presence controls and independent desktop visibility/display/Tuck wording, preserving old keys.
-- `macos/Sources/GatorMac/NativeDesktopPet.swift`: shared presence mode, global Off suppression, emoji resource root/title; established panel/ownership behavior retained.
-- `macos/Sources/GatorMac/{ConversationView,GatorApp}.swift`: Agent Presence settings labels only.
+- `macos/Sources/HotCrossBunsMac/NativeMascotModel.swift`: finite emoji/mode mapping, public failure/text-active facts and smaller stable layout values.
+- `macos/Sources/HotCrossBunsMac/NativeMascotPlayback.swift`: native text canvas, bounded GIF input and finite existing-player playback/cancellation; old PNG loading removed.
+- `macos/Sources/HotCrossBunsMac/NativeMascotView.swift`: strict public outcome/text-active projection, mode preference and small in-chat presentation.
+- `macos/Sources/HotCrossBunsMac/NativeMascotPreferences.swift`: Agent Presence controls and independent desktop visibility/display/Tuck wording, preserving old keys.
+- `macos/Sources/HotCrossBunsMac/NativeDesktopPet.swift`: shared presence mode, global Off suppression, emoji resource root/title; established panel/ownership behavior retained.
+- `macos/Sources/HotCrossBunsMac/{ConversationView,HotCrossBunsApp}.swift`: Agent Presence settings labels only.
 - `macos/scripts/build-dev-app.sh`: package Presence GIFs instead of old mascot frames.
-- `macos/Tests/GatorMacTests/{NativeMascotTests,NativeDesktopPetTests}.swift`: current presence/migration/finite-GIF/safety/lifecycle contracts.
+- `macos/Tests/HotCrossBunsMacTests/{NativeMascotTests,NativeDesktopPetTests}.swift`: current presence/migration/finite-GIF/safety/lifecycle contracts.
 - `macos/Resources/Presence/{attention,completed}.gif`: two original offline-generated reaction accents.
 - `macos/mascot/2d/legacy-p04e/`: pre-change implementation/test reference copies; original prior assets/evidence are untouched.
 - `macos/presence/source/`: editable exporter and isolated, allowlisted acceptance/diagnostic tools. These are not production package targets or a second playback engine.
 - This report and `macos/presence/evidence/p04e-1/`: source/bundle manifests, tests, GIF validation, actual captures/recordings and diagnostic findings.
 
-No README, Go, host, GatorCore, provider, credential, archive, request-admission, approval or task-ownership implementation changed in P04E-1. No commits, paid calls, external effects, distribution signing or notarization were performed. External commits were preserved. Stop after P04E-1.
+No README, Go, host, HotCrossBunsCore, provider, credential, archive, request-admission, approval or task-ownership implementation changed in P04E-1. No commits, paid calls, external effects, distribution signing or notarization were performed. External commits were preserved. Stop after P04E-1.

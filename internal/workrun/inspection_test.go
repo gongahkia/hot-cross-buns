@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 )
 
 func TestOwnedInspectionAuthorizationBoundsAndLifecycle(t *testing.T) {
@@ -106,7 +106,7 @@ func TestOwnedInspectionAuthorizationBoundsAndLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A forged/stale nonce must not route to even a valid listening owner.
-	path := filepath.Join(state, "gator", "work-control", "inspection-run.json")
+	path := filepath.Join(state, "hot-cross-buns", "work-control", "inspection-run.json")
 	original, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

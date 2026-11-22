@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/retrieval"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 	"io"
 	"os"
 	"path/filepath"
@@ -70,8 +70,8 @@ func Open(stateDir string) (Store, error) {
 	if err := os.MkdirAll(abs, 0700); err != nil {
 		return Store{}, err
 	}
-	root := filepath.Join(abs, "gator", "memory")
-	for _, path := range []string{filepath.Join(abs, "gator"), root} {
+	root := filepath.Join(abs, "hot-cross-buns", "memory")
+	for _, path := range []string{filepath.Join(abs, "hot-cross-buns"), root} {
 		if err := privateDirectory(path); err != nil {
 			return Store{}, err
 		}
@@ -181,15 +181,20 @@ func (s Store) loadUnlocked(id string) (Record, error) {
 }
 
 func (s Store) List(goalID string, includeExpired bool) ([]Record, error) {
-	return s.list(goalID, includeExpired, s.Load)
+	return s.list(goalID, includeExpired, s.Load, false)
+}
+
+// ListAll supports the trusted profile inspector. Recall callers use goal-scoped List.
+func (s Store) ListAll(includeExpired bool) ([]Record, error) {
+	return s.list("", includeExpired, s.Load, true)
 }
 
 // Mutation callers already hold the exclusive lease and must not reacquire it.
 func (s Store) listUnlocked(goalID string, includeExpired bool) ([]Record, error) {
-	return s.list(goalID, includeExpired, s.loadUnlocked)
+	return s.list(goalID, includeExpired, s.loadUnlocked, false)
 }
 
-func (s Store) list(goalID string, includeExpired bool, load func(string) (Record, error)) ([]Record, error) {
+func (s Store) list(goalID string, includeExpired bool, load func(string) (Record, error), allScopes bool) ([]Record, error) {
 	entries, err := os.ReadDir(s.root)
 	if err != nil {
 		return nil, err
@@ -205,10 +210,10 @@ func (s Store) list(goalID string, includeExpired bool, load func(string) (Recor
 			issues.add(entry.Name(), err)
 			continue
 		}
-		if goalID != "" && record.GoalID != "" && record.GoalID != goalID {
+		if !allScopes && goalID != "" && record.GoalID != "" && record.GoalID != goalID {
 			continue
 		}
-		if goalID == "" && record.GoalID != "" {
+		if !allScopes && goalID == "" && record.GoalID != "" {
 			continue
 		}
 		if !includeExpired && !record.ExpiresAt.IsZero() && !record.ExpiresAt.After(s.clock()) {

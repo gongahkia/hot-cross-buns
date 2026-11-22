@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
 )
 
 func TestExecutorDispatchCrashHelper(t *testing.T) {
-	stateDir, endpoint := os.Getenv("GATOR_TEST_DISPATCH_STATE"), os.Getenv("GATOR_TEST_DISPATCH_ENDPOINT")
+	stateDir, endpoint := os.Getenv("HOT_CROSS_BUNS_TEST_DISPATCH_STATE"), os.Getenv("HOT_CROSS_BUNS_TEST_DISPATCH_ENDPOINT")
 	if stateDir == "" {
 		return
 	}
@@ -27,7 +27,7 @@ func TestExecutorDispatchCrashHelper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := os.Getenv("GATOR_TEST_DISPATCH_SOURCE")
+	source := os.Getenv("HOT_CROSS_BUNS_TEST_DISPATCH_SOURCE")
 	if err := os.MkdirAll(source, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestExecutorCrashDuringExternalDispatchRetainsOutcomeAndNeverReplaysOnRead(
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestExecutorDispatchCrashHelper$")
-	child.Env = append(os.Environ(), "GATOR_TEST_DISPATCH_STATE="+stateDir, "GATOR_TEST_DISPATCH_ENDPOINT="+server.URL, "GATOR_TEST_DISPATCH_SOURCE="+source)
+	child.Env = append(os.Environ(), "HOT_CROSS_BUNS_TEST_DISPATCH_STATE="+stateDir, "HOT_CROSS_BUNS_TEST_DISPATCH_ENDPOINT="+server.URL, "HOT_CROSS_BUNS_TEST_DISPATCH_SOURCE="+source)
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}

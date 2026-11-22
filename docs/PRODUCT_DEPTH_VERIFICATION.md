@@ -34,14 +34,14 @@ repository's pinned managed Chromium sidecar were available.
 
 | Stage | Implemented behavior | Discriminating verification |
 | --- | --- | --- |
-| 1: state and Code foundations | Separate capture/tree IDs; parent-first replay/source/artifacts; private versioned replay and compaction; adapter-state handling; frozen approved project configuration; streaming/visual interfaces | `internal/snapshot/product_depth_test.go`, `internal/workrun/product_depth_test.go`, `cmd/gator/product_depth_test.go`, `cmd/gator/work_configuration_test.go` |
+| 1: state and Code foundations | Separate capture/tree IDs; parent-first replay/source/artifacts; private versioned replay and compaction; adapter-state handling; frozen approved project configuration; streaming/visual interfaces | `internal/snapshot/product_depth_test.go`, `internal/workrun/product_depth_test.go`, `cmd/hot-cross-buns/product_depth_test.go`, `cmd/hot-cross-buns/work_configuration_test.go` |
 | 2: service and control | CLI/TUI/jobs/Work RPC share typed service; streaming controls and exact-payload approvals; full job contracts and frozen sources; durable intent/retry references | Running service, TUI, and headless tests; direct/headless/scheduled policy-digest comparison; job intent/watermark crash test and explicit frozen-source edit test |
 | 3: specialist lifecycle | Existing orchestrator owns durable child state, bounded concurrency/invocations, dependencies, cancellation, selected continuation, roles/routes, aggregate usage/budgets | Supervisor peer completion/failure/recovery/cancellation tests; shared-budget contention/refund/parent tests; Work lifecycle race checks |
 | 4: Code composition | Private accepted baselines, real scope envelope, independent/overlapping patch integration, combined verification, frozen candidate review, explicit application | `internal/patch/candidate_test.go`, actual native Code follow-up test, strict process scope test, corpus code cases, CLI application walkthrough below |
 | 5: research/data | Frozen selected local/attachment/web/connector evidence; source-only reader; claim quote checks; bounded CSV/XLSX extraction and exact reconciliation | Research brief plus evidence-preserving follow-up through Service; deterministic workbook cells/independent totals, discrepancies and memo checks; mixed Code/document and table follow-up corpus cases |
 | 6: evaluation/telemetry | Work datasets/trials/graders/comparison, per-role ablation, independent rubric judge/calibration format, local bounded traces, optional OTLP and LangSmith experiment export | 24-case full-service corpus; fabricated-citation/wrong-output/fixture-integrity grader tests; separate tool-free rubric execution/budget/tamper test; local HTTP hierarchy/association/redaction/export-error tests |
 
-The assembled configuration test changes live `.gator` configuration after capture,
+The assembled configuration test changes live `.hot-cross-buns` configuration after capture,
 then exercises captured profiles/scoped rules, an approved hook, MCP initialization
 and tool resolution, LSP tool availability, and extension prompt resolution using
 original trust identity. Actual LSP protocol behavior remains covered by the
@@ -66,10 +66,10 @@ Completed checks:
 GOTOOLCHAIN=go1.25.13 make check
 GOTOOLCHAIN=go1.25.13 go test -race ./internal/agent ./internal/orchestrator \
   ./internal/workrun ./internal/worksession ./internal/jobs ./internal/worktui \
-  ./internal/telemetry ./cmd/gator
+  ./internal/telemetry ./cmd/hot-cross-buns
 GOTOOLCHAIN=go1.25.13 go test -race ./internal/codeexec ./internal/patch \
   ./internal/sandbox ./internal/mcp ./internal/acp ./internal/delivery
-GOTOOLCHAIN=go1.25.13 GATOR_BROWSER_INTEGRATION=1 \
+GOTOOLCHAIN=go1.25.13 HOT_CROSS_BUNS_BROWSER_INTEGRATION=1 \
   go test -count=1 -run TestSidecarManagedBrowserIntegration ./internal/browser
 ```
 
@@ -77,12 +77,12 @@ GOTOOLCHAIN=go1.25.13 GATOR_BROWSER_INTEGRATION=1 \
 The two race groups above passed. The opt-in pinned Chromium integration passed
 in 116.253 seconds. A host-toolchain full suite also passed earlier in the session.
 The final focused rerun also passed:
-`GOTOOLCHAIN=go1.25.13 go test -race ./internal/eval ./internal/workrun ./internal/jobs ./cmd/gator`.
+`GOTOOLCHAIN=go1.25.13 go test -race ./internal/eval ./internal/workrun ./internal/jobs ./cmd/hot-cross-buns`.
 The separate rubric execution regression passed after it was added. Documentation
 links and workflow YAML were checked locally. `gofmt -l cmd internal` and
 `git diff --check` produced no findings.
 
-Go 1.25.13 with `CGO_ENABLED=0` also built `./cmd/gator` for `darwin/arm64`,
+Go 1.25.13 with `CGO_ENABLED=0` also built `./cmd/hot-cross-buns` for `darwin/arm64`,
 `darwin/amd64`, and `linux/arm64`; native Linux amd64 is covered by `make check`.
 These are compilation checks, not runtime validation on those machines. CI and
 release YAML parse locally; Linux CI/release installs Bubblewrap for Code corpus
@@ -132,8 +132,8 @@ The disabled experiment's eight failing cases are `combined-verifier-failure`,
 `unauthorized-specialist`. The role ablation fails `invalid-dependency` and
 `reader-boundary`. Both commands correctly exit nonzero for failing trials.
 
-Reports were retained under `/tmp/gator-depth-enabled`,
-`/tmp/gator-depth-disabled`, and `/tmp/gator-depth-source-researcher-disabled`.
+Reports were retained under `/tmp/hot-cross-buns-depth-enabled`,
+`/tmp/hot-cross-buns-depth-disabled`, and `/tmp/hot-cross-buns-depth-source-researcher-disabled`.
 These local paths are not durable release artifacts. Each directory contains
 `experiment.json`, `report.txt`, trial records and private execution evidence.
 Both `eval work compare` operations and `eval work validate` passed. Reproduce

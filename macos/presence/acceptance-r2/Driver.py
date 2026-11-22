@@ -2,7 +2,7 @@
 from fixture import setup,EVIDENCE
 import json,pathlib,subprocess,time,sys,hashlib,os
 audit=EVIDENCE/f'input-events-{os.getpid()}.jsonl'
-controller=subprocess.Popen(['/tmp/gator-presence-r2-controller'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1,env=os.environ|{'GATOR_PRESENCE_INPUT_AUDIT':str(audit)})
+controller=subprocess.Popen(['/tmp/hot-cross-buns-presence-r2-controller'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1,env=os.environ|{'HOT_CROSS_BUNS_PRESENCE_INPUT_AUDIT':str(audit)})
 log=(EVIDENCE/'controlled-input.jsonl').open('a',buffering=1)
 metadata=proc=provider=sampler=None; pending=None; finishing=False; nativeReview=None; inputSince=0.0
 
@@ -39,7 +39,7 @@ def arm_input():
     (EVIDENCE/f"cycle-{metadata['number']:02d}-input-gate.json").write_text(json.dumps({'epoch':inputSince,'controllerPID':controller.pid,'appPID':metadata['pid'],'quietSeconds':2,'noRunningWork':True},indent=2))
 
 def durable():
-    files=list((pathlib.Path(metadata['root'])/'state/gator/interactions').glob('*/*.json'))
+    files=list((pathlib.Path(metadata['root'])/'state/hot-cross-buns/interactions').glob('*/*.json'))
     if len(files)!=1:raise RuntimeError('unexpected durable interaction count')
     data=files[0].read_bytes();value=json.loads(data)
     return {'path':str(files[0]),'SHA256':hashlib.sha256(data).hexdigest(),'status':value['status'],'approved':value.get('approved',False)}
@@ -61,7 +61,7 @@ def act(action,window='conversation',target=None,expected=None):
     before=state();req={'action':action,'window':window,'expectedWindow':expected or window,'expectedFocus':before['focusedElement'],'preflightID':before['preflightID']}
     if target:
         req['target']=target
-        req['role']='AXMenuItem' if target in ['Agent Presence…','Gator','Emoji only','Emoji + GIF reactions','Off'] else ('AXMenuBarItem' if target in ['Conversation','Window'] else ('AXPopUpButton' if target=='gator.presence.mode' else ('AXCheckBox' if target in ['gator.mascot.shown','gator.mascot.animated','gator.desktopPet.shown'] else 'AXButton')))
+        req['role']='AXMenuItem' if target in ['Agent Presence…','Hot Cross Buns','Emoji only','Emoji + GIF reactions','Off'] else ('AXMenuBarItem' if target in ['Conversation','Window'] else ('AXPopUpButton' if target=='hot-cross-buns.presence.mode' else ('AXCheckBox' if target in ['hot-cross-buns.mascot.shown','hot-cross-buns.mascot.animated','hot-cross-buns.desktopPet.shown'] else 'AXButton')))
         if target=='Send message':req['positiveCase']='create-inert-review' 
     value=ask(req)
     # settle native transactions, then verify the same canonical review again.
@@ -95,7 +95,7 @@ def new(number,candidate,mode):
     if provider:provider.terminate();provider.wait(timeout=3)
     pending=None;finishing=False;nativeReview=None
     metadata,proc,provider=setup(pathlib.Path(candidate),number,mode)
-    sampler=subprocess.Popen(['/tmp/gator-presence-r2-sample',str(proc.pid),'300'],stdout=open(EVIDENCE/f'cycle-{number:02d}-resources.jsonl','w'))
+    sampler=subprocess.Popen(['/tmp/hot-cross-buns-presence-r2-sample',str(proc.pid),'300'],stdout=open(EVIDENCE/f'cycle-{number:02d}-resources.jsonl','w'))
     wait(lambda:bool(states()),10);ask({'action':'activate'});wait(lambda:any(w['id']=='conversation' for w in state()['windows']))
     print(json.dumps({'ready':metadata,'controllerPID':controller.pid}),flush=True)
 
@@ -103,7 +103,7 @@ def prepare():
     global pending,nativeReview
     act('focus');act('press',target='Send message');wait(lambda:any(s.get('pending_approval') for s in states()),15);pending=identity()
     # durable Go interaction must still be pending, with no decision.
-    durable=list((pathlib.Path(metadata['root'])/'state/gator/interactions').glob('*/*.json'))
+    durable=list((pathlib.Path(metadata['root'])/'state/hot-cross-buns/interactions').glob('*/*.json'))
     assert len(durable)==1
     record=json.loads(durable[0].read_text());assert record['status']=='pending' and not record.get('approved')
     (EVIDENCE/f"cycle-{metadata['number']:02d}-pending.json").write_text(json.dumps({'identity':pending,'durable':record,'fileSHA256':hashlib.sha256(durable[0].read_bytes()).hexdigest()},indent=2))

@@ -1,4 +1,4 @@
-ok  	github.com/gongahkia/gator/cmd/gator	4.327s
-ok  	github.com/gongahkia/gator/internal/config	1.692s
-ok  	github.com/gongahkia/gator/internal/localmodel	3.928s
-ok  	github.com/gongahkia/gator/internal/workapp	2.098s
+ok  	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	4.327s
+ok  	github.com/gongahkia/hot-cross-buns/internal/config	1.692s
+ok  	github.com/gongahkia/hot-cross-buns/internal/localmodel	3.928s
+ok  	github.com/gongahkia/hot-cross-buns/internal/workapp	2.098s

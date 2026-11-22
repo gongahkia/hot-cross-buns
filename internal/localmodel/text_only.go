@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 // TextOnlyModel rejects visual input before it reaches a catalog model that is
@@ -21,7 +21,7 @@ func (TextOnlyModel) SupportsVisualInput() bool { return false }
 func (m TextOnlyModel) Complete(ctx context.Context, request agent.TurnRequest) (agent.Turn, error) {
 	for _, message := range request.Messages {
 		if len(message.Images) != 0 {
-			return agent.Turn{}, errors.New("the selected Gator local coding model accepts text only; remove --image or select a vision-capable custom provider")
+			return agent.Turn{}, errors.New("the selected Hot Cross Buns local coding model accepts text only; remove --image or select a vision-capable custom provider")
 		}
 	}
 	if m.Backend == nil {

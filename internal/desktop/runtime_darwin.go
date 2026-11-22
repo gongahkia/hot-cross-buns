@@ -6,16 +6,16 @@ package desktop
 #cgo LDFLAGS: -framework AppKit -framework ApplicationServices
 #include <stdlib.h>
 #include <stdint.h>
-int gator_desktop_accessibility_trusted(void);
-int gator_desktop_front_window(uint32_t *window_id, int *pid, double *x, double *y, double *width, double *height, char *bundle_id, int bundle_size, char *title, int title_size);
-int gator_desktop_click(double x, double y);
-int gator_desktop_double_click(double x, double y);
-int gator_desktop_drag(const double *xs, const double *ys, int count);
-int gator_desktop_move(double x, double y);
-int gator_desktop_scroll(double x, double y, int delta_x, int delta_y);
-int gator_desktop_type(const char *value);
-int gator_desktop_press(int keycode);
-int gator_desktop_focused_field_sensitive(int pid);
+int hot_cross_buns_desktop_accessibility_trusted(void);
+int hot_cross_buns_desktop_front_window(uint32_t *window_id, int *pid, double *x, double *y, double *width, double *height, char *bundle_id, int bundle_size, char *title, int title_size);
+int hot_cross_buns_desktop_click(double x, double y);
+int hot_cross_buns_desktop_double_click(double x, double y);
+int hot_cross_buns_desktop_drag(const double *xs, const double *ys, int count);
+int hot_cross_buns_desktop_move(double x, double y);
+int hot_cross_buns_desktop_scroll(double x, double y, int delta_x, int delta_y);
+int hot_cross_buns_desktop_type(const char *value);
+int hot_cross_buns_desktop_press(int keycode);
+int hot_cross_buns_desktop_focused_field_sensitive(int pid);
 */
 import "C"
 
@@ -35,7 +35,7 @@ type darwinRuntime struct{}
 func DefaultRuntime() Runtime { return darwinRuntime{} }
 
 func (darwinRuntime) AccessibilityTrusted() (bool, error) {
-	return C.gator_desktop_accessibility_trusted() == 1, nil
+	return C.hot_cross_buns_desktop_accessibility_trusted() == 1, nil
 }
 
 func (darwinRuntime) FrontWindow(ctx context.Context) (Window, error) {
@@ -47,7 +47,7 @@ func (darwinRuntime) FrontWindow(ctx context.Context) (Window, error) {
 	var x, y, width, height C.double
 	bundle := make([]byte, 512)
 	title := make([]byte, 2048)
-	if C.gator_desktop_front_window(&windowID, &pid, &x, &y, &width, &height, (*C.char)(unsafe.Pointer(&bundle[0])), C.int(len(bundle)), (*C.char)(unsafe.Pointer(&title[0])), C.int(len(title))) != 1 {
+	if C.hot_cross_buns_desktop_front_window(&windowID, &pid, &x, &y, &width, &height, (*C.char)(unsafe.Pointer(&bundle[0])), C.int(len(bundle)), (*C.char)(unsafe.Pointer(&title[0])), C.int(len(title))) != 1 {
 		return Window{}, errors.New("could not identify the current macOS application window")
 	}
 	bundleID := cBuffer(bundle)
@@ -61,7 +61,7 @@ func (darwinRuntime) Screenshot(ctx context.Context, window Window) ([]byte, err
 	if window.ID == 0 {
 		return nil, errors.New("current application has no capturable window")
 	}
-	temporary, err := os.CreateTemp("", "gator-desktop-*.png")
+	temporary, err := os.CreateTemp("", "hot-cross-buns-desktop-*.png")
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +100,8 @@ func (darwinRuntime) Click(ctx context.Context, x, y float64) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if C.gator_desktop_click(C.double(x), C.double(y)) != 1 {
-		return errors.New("macOS rejected the desktop click; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_click(C.double(x), C.double(y)) != 1 {
+		return errors.New("macOS rejected the desktop click; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -110,8 +110,8 @@ func (darwinRuntime) DoubleClick(ctx context.Context, x, y float64) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if C.gator_desktop_double_click(C.double(x), C.double(y)) != 1 {
-		return errors.New("macOS rejected the desktop double click; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_double_click(C.double(x), C.double(y)) != 1 {
+		return errors.New("macOS rejected the desktop double click; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -127,8 +127,8 @@ func (darwinRuntime) Drag(ctx context.Context, points []Point) error {
 	for index, point := range points {
 		xs[index], ys[index] = C.double(point.X), C.double(point.Y)
 	}
-	if C.gator_desktop_drag(&xs[0], &ys[0], C.int(len(points))) != 1 {
-		return errors.New("macOS rejected the desktop drag; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_drag(&xs[0], &ys[0], C.int(len(points))) != 1 {
+		return errors.New("macOS rejected the desktop drag; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -137,8 +137,8 @@ func (darwinRuntime) Move(ctx context.Context, x, y float64) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if C.gator_desktop_move(C.double(x), C.double(y)) != 1 {
-		return errors.New("macOS rejected the desktop pointer move; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_move(C.double(x), C.double(y)) != 1 {
+		return errors.New("macOS rejected the desktop pointer move; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -147,8 +147,8 @@ func (darwinRuntime) Scroll(ctx context.Context, x, y float64, deltaX, deltaY in
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if C.gator_desktop_scroll(C.double(x), C.double(y), C.int(deltaX), C.int(deltaY)) != 1 {
-		return errors.New("macOS rejected the desktop scroll; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_scroll(C.double(x), C.double(y), C.int(deltaX), C.int(deltaY)) != 1 {
+		return errors.New("macOS rejected the desktop scroll; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -159,8 +159,8 @@ func (darwinRuntime) Type(ctx context.Context, value string) error {
 	}
 	text := C.CString(value)
 	defer C.free(unsafe.Pointer(text))
-	if C.gator_desktop_type(text) != 1 {
-		return errors.New("macOS rejected desktop typing; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_type(text) != 1 {
+		return errors.New("macOS rejected desktop typing; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -173,8 +173,8 @@ func (darwinRuntime) Press(ctx context.Context, key string) error {
 	if !ok {
 		return errors.New("desktop key is unavailable")
 	}
-	if C.gator_desktop_press(C.int(code)) != 1 {
-		return errors.New("macOS rejected the desktop key press; grant Accessibility permission to Gator")
+	if C.hot_cross_buns_desktop_press(C.int(code)) != 1 {
+		return errors.New("macOS rejected the desktop key press; grant Accessibility permission to Hot Cross Buns")
 	}
 	return nil
 }
@@ -183,9 +183,9 @@ func (darwinRuntime) FocusedFieldSensitive(ctx context.Context, pid int) (bool, 
 	if err := ctx.Err(); err != nil {
 		return true, err
 	}
-	value := C.gator_desktop_focused_field_sensitive(C.int(pid))
+	value := C.hot_cross_buns_desktop_focused_field_sensitive(C.int(pid))
 	if value < 0 {
-		return true, errors.New("could not inspect the focused desktop field; Gator blocks typing when field safety is unknown")
+		return true, errors.New("could not inspect the focused desktop field; Hot Cross Buns blocks typing when field safety is unknown")
 	}
 	return value == 1, nil
 }

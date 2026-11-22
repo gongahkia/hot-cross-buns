@@ -24,7 +24,7 @@ export class VoiceSession extends EventEmitter {
       const count = this.#seen.get(context), messages = state.messages ?? [];
       this.#seen.set(context, messages.length);
       if (count === undefined || count >= messages.length || !state.desktop?.voice?.spoken_replies) return;
-      const replies = messages.slice(count).filter(message => message.role === "Gator" && message.text && message.result?.kind !== "approval");
+      const replies = messages.slice(count).filter(message => message.role === "Hot Cross Buns" && message.text && message.result?.kind !== "approval");
       if (!replies.length) return;
       this.stopPlayback(); const controller = new AbortController(); this.#playback = controller; this.playing = true; this.emit("change");
       void playback(replies.map(message => message.text).join("\n"), state.desktop.voice, controller.signal).catch(error => { if (!controller.signal.aborted) { this.issue = error.message; this.emit("change"); } }).finally(() => { if (this.#playback === controller) { this.#playback = undefined; this.playing = false; this.emit("change"); } });

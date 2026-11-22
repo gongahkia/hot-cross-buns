@@ -7,8 +7,8 @@ struct NativeDesktopPetScreen {
     static func current() -> [Self] { [] }
 }
 enum NativeDesktopPetPreference {
-    static let shown = "gator.desktopPet.shown"
-    static let display = "gator.desktopPet.display"
+    static let shown = "hot-cross-buns.desktopPet.shown"
+    static let display = "hot-cross-buns.desktopPet.display"
 }
 @main struct PreferencesProbe: App {
     var body: some Scene {

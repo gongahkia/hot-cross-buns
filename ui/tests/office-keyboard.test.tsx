@@ -3,15 +3,15 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, writeFile, readFile, rm, stat } from "node:fs/promises"
 import { join, resolve, extname } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
-import { inspectOffice } from "@gator/application-host/office"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { inspectOffice } from "@hot-cross-buns/application-host/office"
 import { wordFixture, workbookFixture, slidesFixture } from "../../app-host/tests/office-fixtures.mjs"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 const until = async (predicate: () => Promise<boolean>, label: string) => { const end = Date.now() + 10000; while (!await predicate()) { if (Date.now() > end) throw new Error(`Timed out: ${label}`); await Bun.sleep(20) } }
 test("keyboard Office and CSV edits save and export real native content while originals stay intact", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-keyboard-office-"))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-keyboard-office-"))
   const specimens = [
     { name: "word.docx", bytes: wordFixture(), key: "p:0", match: "Hello", value: "Revised Word paragraph" },
     { name: "slides.pptx", bytes: slidesFixture(), key: "s:0:p:0", match: "Quarterly", value: "Revised slide text" },
@@ -19,7 +19,7 @@ test("keyboard Office and CSV edits save and export real native content while or
     { name: "table.csv", bytes: Buffer.from('Name,Amount\r\n"Venue, hall",4\r\n'), key: "1:1", match: "", value: "12" },
   ]
   for (const item of specimens) await writeFile(join(root, item.name), item.bytes)
-  const client = new GatorClient(new Application({ binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }))
+  const client = new HotCrossBunsClient(new Application({ binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 36 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const replacePrompt = async (value: string) => { setup.mockInput.pressKey("u", { ctrl: true }); await setup.mockInput.typeText(value); setup.mockInput.pressEnter(); await flush() }
@@ -56,7 +56,7 @@ test("keyboard Office and CSV edits save and export real native content while or
       if (item.name.endsWith("xlsx")) {
         await client.navigate("/files"); await flush(); await setup.mockInput.typeText(item.name); await flush(); setup.mockInput.pressEnter(); await flush()
         setup.mockInput.pressKey("o", { ctrl: true }); await flush(); await setup.mockInput.typeText("Version 2"); await flush(); setup.mockInput.pressEnter(); await flush()
-        await setup.mockInput.typeText("Ask Gator"); await flush(); setup.mockInput.pressEnter()
+        await setup.mockInput.typeText("Ask Hot Cross Buns"); await flush(); setup.mockInput.pressEnter()
         await until(async () => (client.draft.uploads?.length ?? 0) === 5, "selected saved formula handoff")
         expect(client.draft.text).toContain("Budget · C1: =B1*5"); expect(client.draft.text).not.toContain("=B1*2")
       }

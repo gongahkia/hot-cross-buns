@@ -3,9 +3,9 @@ import ApplicationServices
 import Foundation
 let pid = Int32(CommandLine.arguments[1])!, action = CommandLine.arguments[2]
 // audit-only: refuse to operate a production or unrelated process.
-let allowed = ["dev.gator.native.p02-disposable"]
+let allowed = ["dev.hot-cross-buns.native.p02-disposable"]
 guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, allowed.contains(bundle) else {
-    print("Use only an isolated Gator UI/UX fixture process."); exit(1)
+    print("Use only an isolated Hot Cross Buns UI/UX fixture process."); exit(1)
 }
 let app = AXUIElementCreateApplication(pid)
 func attribute(_ e: AXUIElement, _ name: String) -> CFTypeRef? { var value: CFTypeRef?; AXUIElementCopyAttributeValue(e, name as CFString, &value); return value }

@@ -9,7 +9,7 @@ test("dictation requests accept audio bytes and reject file paths and extra auth
 });
 
 test("microphone permission belongs only to the current app window and explicit audio grant", () => {
-  const owner = { getURL: () => "gator://app/index.html" }, grant = { expires: 200 };
+  const owner = { getURL: () => "hot-cross-buns://app/index.html" }, grant = { expires: 200 };
   assert.equal(microphoneAllowed(owner, owner, "media", { mediaTypes: ["audio"] }, grant, 100), true);
   assert.equal(microphoneAllowed(owner, owner, "media", { mediaType: "audio" }, grant, 100), true);
   for (const [contents, permission, details, token, now] of [[owner, "media", { mediaTypes: ["video"] }, grant, 100], [owner, "media", { mediaTypes: ["audio"], isMainFrame: false }, grant, 100], [owner, "media", { mediaTypes: ["audio"] }, undefined, 100], [owner, "media", { mediaTypes: ["audio"] }, grant, 201], [{ getURL: owner.getURL }, "media", { mediaTypes: ["audio"] }, grant, 100], [owner, "clipboard-read", {}, grant, 100]]) assert.equal(microphoneAllowed(owner, contents, permission, details, token, now), false);

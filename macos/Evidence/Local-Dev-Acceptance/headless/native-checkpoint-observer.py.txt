@@ -1,5 +1,5 @@
 import json,pathlib,hashlib,sys,subprocess
-m=json.load(open('/tmp/gator-dev-native-session.json'));root=pathlib.Path(m['root']);out=pathlib.Path('macos/Evidence/Local-Dev-Acceptance/headless/native-checkpoints.jsonl')
+m=json.load(open('/tmp/hot-cross-buns-dev-native-session.json'));root=pathlib.Path(m['root']);out=pathlib.Path('macos/Evidence/Local-Dev-Acceptance/headless/native-checkpoints.jsonl')
 rows=[]
 for p in sorted(root.glob('latest-*.json')):
  s=json.loads(p.read_text());a=s.get('pending_approval') or {};review={}

@@ -47,7 +47,7 @@ async function readDevice(tokenFile, id) {
 export async function authenticate(tokenFile, authorization) {
   const owner = await readToken(tokenFile), generation = digest(owner);
   if (same(authorization, `Bearer ${owner}`)) return `owner:${generation}`;
-  const match = /^Bearer gator_device_([a-f0-9]{32})_([a-f0-9]{64})$/.exec(authorization);
+  const match = /^Bearer hot_cross_buns_device_([a-f0-9]{32})_([a-f0-9]{64})$/.exec(authorization);
   if (!match) return null;
   let device;
   try { device = await readDevice(tokenFile, match[1]); }
@@ -80,7 +80,7 @@ export async function addDevice(tokenFile, name, output) {
   const device = { version: 1, id, name: name.trim(), created_at: new Date().toISOString(), owner_hash: digest(owner), secret_hash: digest(secret) };
   // Publish the private export first. A crash before registry publication leaves
   // an unusable token, never a valid device whose secret was lost on stdout.
-  await writeFile(output, `gator_device_${id}_${secret}\n`, { flag: 'wx', mode: 0o600 });
+  await writeFile(output, `hot_cross_buns_device_${id}_${secret}\n`, { flag: 'wx', mode: 0o600 });
   const temporary = join(root, `.enroll-${id}`);
   try {
     await writeFile(temporary, JSON.stringify(device) + '\n', { flag: 'wx', mode: 0o600 });

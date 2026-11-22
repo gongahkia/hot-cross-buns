@@ -1,6 +1,6 @@
 # Agent continuity implementation
 
-Implemented 30 October 2026. Gator remains a general-purpose CLI agent with
+Implemented 30 October 2026. Hot Cross Buns remains a general-purpose CLI agent with
 native local tracking; none of these features requires a connector.
 
 ## Durable next actions
@@ -17,7 +17,7 @@ Three successive ready decisions for the same step with unchanged inputs hold
 continuation for review. A changed policy or intervening failure cannot reuse
 an obsolete wake. Draft creation never implies delivery or user task completion.
 
-Use `gator goal activity GOAL_ID` to inspect retained decisions and checks.
+Use `hot-cross-buns goal activity GOAL_ID` to inspect retained decisions and checks.
 The existing goal watch/supervisor commands remain the activation path. This is
 bounded coordination through the existing Work runner, not an unrestricted
 background agent or a guarantee that a long-running goal will succeed.
@@ -28,7 +28,7 @@ background agent or a guarantee that a long-running goal will succeed.
 quotes, source identities and revisions, plus the discrepancy explanation.
 The host checks scope, excluded notes, revisions and quote presence. Pending
 identical findings reuse their review identity. Changed sources invalidate
-acceptance. `gator suggestion show ID` includes the current source check.
+acceptance. `hot-cross-buns suggestion show ID` includes the current source check.
 
 Accepting a finding acknowledges review **without editing either source**.
 Corrections use separate guarded note/plan proposals. Quote integrity is not
@@ -56,14 +56,14 @@ separate deadline; use a separate milestone step for that deadline.
 Examples (replace IDs with your retained records):
 
 ```sh
-gator goal plan GOAL_ID add --title 'Weekly preparation' \
+hot-cross-buns goal plan GOAL_ID add --title 'Weekly preparation' \
   --start 2026-11-02T09:00:00+08:00 --end 2026-11-02T10:00:00+08:00 \
   --repeat weekly --interval 1 --timezone Asia/Singapore
-gator goal plan GOAL_ID occurrence STEP_ID 2026-11-02 done
-gator goal plan GOAL_ID occurrence STEP_ID 2026-11-09 skipped
-gator goal plan GOAL_ID occurrence STEP_ID 2026-11-16 pending \
+hot-cross-buns goal plan GOAL_ID occurrence STEP_ID 2026-11-02 done
+hot-cross-buns goal plan GOAL_ID occurrence STEP_ID 2026-11-09 skipped
+hot-cross-buns goal plan GOAL_ID occurrence STEP_ID 2026-11-16 pending \
   --start 2026-11-17T09:00:00+08:00 --end 2026-11-17T10:00:00+08:00
-gator goal plan GOAL_ID step STEP_ID pending --depends-on OTHER_GOAL_ID/OTHER_STEP_ID
+hot-cross-buns goal plan GOAL_ID step STEP_ID pending --depends-on OTHER_GOAL_ID/OTHER_STEP_ID
 ```
 
 Occurrence edits affect one nominal local date. Completing the base step ends

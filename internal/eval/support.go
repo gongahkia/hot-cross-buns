@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 var identifierPattern = regexp.MustCompile(`\A[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}\z`)
@@ -39,7 +39,7 @@ func writeJSON(path string, value any, label string) error {
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return fmt.Errorf("create %s directory: %w", label, err)
 	}
-	temporary, err := os.CreateTemp(directory, ".gator-eval-report-")
+	temporary, err := os.CreateTemp(directory, ".hot-cross-buns-eval-report-")
 	if err != nil {
 		return fmt.Errorf("create temporary %s: %w", label, err)
 	}

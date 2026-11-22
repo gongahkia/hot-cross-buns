@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/followup"
-	"github.com/gongahkia/gator/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/followup"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
 )
 
 type BridgeCheckAction struct {

@@ -3,8 +3,8 @@ package model
 import (
 	"net/http"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
 )
 
 // Provider identifies a direct model API backend.
@@ -71,7 +71,7 @@ type Config struct {
 }
 
 // Backend contains a direct model adapter. The agent and tool loop remain in
-// Gator for every supported provider.
+// Hot Cross Buns for every supported provider.
 type Backend struct {
 	Provider Provider
 	Model    agent.Model

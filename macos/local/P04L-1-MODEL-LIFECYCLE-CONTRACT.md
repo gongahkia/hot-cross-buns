@@ -12,7 +12,7 @@ Maintain orthogonal facts instead of a single “Ready” flag:
 |---|---|---|
 | Runtime installed | Verified executable/application identity and version, with observation time | Running, owned or safe to update |
 | Runtime reachable | Exact validated endpoint/version and current process/ownership evidence when available | User grants teardown authority |
-| Runtime ownership | User-managed / Gator-launched with verified child identity / unknown | A reachable server belongs to Gator |
+| Runtime ownership | User-managed / HotCrossBuns-launched with verified child identity / unknown | A reachable server belongs to Hot Cross Buns |
 | Model downloaded | Installed exact tag, digest, size and runtime identity | Loaded in RAM or selected |
 | Model loaded | Running inventory, context, residency/expiry, timestamp | Same tag still points to same digest later |
 | Future model selected | Confirmed settings revision and exact intended identity | Existing tasks changed their captured model |
@@ -48,14 +48,14 @@ Cancellation stops admission/further work where possible. It does not undo an al
 3. Do not hold the settings lock during an unbounded network operation. A durable operation receipt bridges mutation and settings publication; it does not pretend these are one filesystem transaction.
 4. Preserve active Work RunOptions. Publish only the future selection after authoritative completion. On a settings failure after a model mutation, record exactly what is confirmed and what still needs repair. Do not invent a successful rollback or restore stale settings over a concurrent update.
 5. Maintain cooperating **cross-process** model/runtime use leases, including pending review, recovery and live requests whose next turn still depends on the model. Manager-local mutexes are insufficient. Expired/crashed owners require evidence-based reconciliation, not immediate destructive cleanup based only on a timer or a reused PID.
-6. A lease coordinates Gator clients, not arbitrary Ollama users. There is no verified conditional pull/delete API here that atomically compares a digest against all external clients. Recheck inventory, detect changes, and refuse operations requiring stronger isolation unless an explicit safe exclusive-use arrangement is established. Do not promise universal same-tag CAS.
+6. A lease coordinates Hot Cross Buns clients, not arbitrary Ollama users. There is no verified conditional pull/delete API here that atomically compares a digest against all external clients. Recheck inventory, detect changes, and refuse operations requiring stronger isolation unless an explicit safe exclusive-use arrangement is established. Do not promise universal same-tag CAS.
 7. Preserve private permissions and atomic replacement. Add crash-consistency tests and a reviewed durability policy for settings/operation receipts. Existing native archive locking, late-Quit protection and bounded Go subprocess shutdown are unchanged.
 
 ## Install and discover
 
 Probe configured literal loopback endpoint, PATH and conventional application locations without executing an unknown installer. Report “not detected in checked locations” rather than proving absence of every custom installation. Resolve the runtime's model directory from authoritative configuration; respect `OLLAMA_MODELS`, permissions and volume availability.
 
-macOS installation should open the [official Ollama macOS instructions](https://docs.ollama.com/macos) and download page after explicit consent. The supported manual flow is download DMG, inspect/mount it, and drag Ollama to Applications; its own first launch may request CLI-link permission. Explain network access and separately reviewed model storage. Never run arbitrary installer shell scripts, overwrite another application, or change launch services/system environment implicitly. Already installed applications remain user-owned unless Gator launched and can identify a separate owned child.
+macOS installation should open the [official Ollama macOS instructions](https://docs.ollama.com/macos) and download page after explicit consent. The supported manual flow is download DMG, inspect/mount it, and drag Ollama to Applications; its own first launch may request CLI-link permission. Explain network access and separately reviewed model storage. Never run arbitrary installer shell scripts, overwrite another application, or change launch services/system environment implicitly. Already installed applications remain user-owned unless Hot Cross Buns launched and can identify a separate owned child.
 
 Installation complete means the verified executable/application is present. Running/reachable and model setup are separate follow-up states. Failed verification does not launch another installer automatically.
 
@@ -64,10 +64,10 @@ Installation complete means the verified executable/application is present. Runn
 - Probe the selected endpoint first. A reachable user-managed Ollama is reused, **not adopted** for Close/Stop/update. Existing code already has a fixture test for non-adoption; cross-manager shared use still needs work.
 - Launch only the verified binary with an explicit reviewed loopback bind and minimal child environment. Do not forward unrelated API keys, proxy variables or credential-bearing URLs. Do not mutate the parent or user server environment.
 - Establish child identity and endpoint readiness together; another process answering on the same port is not proof this child started successfully. Fail on a mismatched destination rather than silently choosing a different server.
-- Bound readiness requests and total wait, retain safe diagnostics, support cancellation and reap the exact owned child asynchronously. Do not kill unrelated processes or stop a user-owned runtime. Shared Gator leases must be considered before owned-runtime shutdown; app Quit must not terminate a server another admitted owner depends on without a safe explicit ownership policy.
+- Bound readiness requests and total wait, retain safe diagnostics, support cancellation and reap the exact owned child asynchronously. Do not kill unrelated processes or stop a user-owned runtime. Shared Hot Cross Buns leases must be considered before owned-runtime shutdown; app Quit must not terminate a server another admitted owner depends on without a safe explicit ownership policy.
 - Health checks are read-only and timestamped. Unavailability invalidates readiness, not retained conversation history. Never retry an uncertain inference/task automatically.
 
-A Stop Runtime action is distinct from Unload Model and from disabling Gator integration. A user-owned runtime should get precise manual instructions, not an active Stop button with implied authority.
+A Stop Runtime action is distinct from Unload Model and from disabling Hot Cross Buns integration. A user-owned runtime should get precise manual instructions, not an active Stop button with implied authority.
 
 ## Download and interrupted pull
 
@@ -75,7 +75,7 @@ Review model name, exact tag, reviewed publisher/source, published package estim
 
 Use canonical Ollama pull, not a shell concatenation. Validate progress frame size, types, nonnegative bytes, completed ≤ total when total is known, sane identity changes and bounded progress retention. Zero/unknown total is an indeterminate state, not a fabricated percentage. Cancellation must terminate owned request/progress work; it need not erase server-managed partial blobs. After success or interruption, re-read installed identity and exact final digest before claiming installation. An HTTP acknowledgement/success string alone is insufficient.
 
-Retry only explicitly after reconciliation. Let Ollama reconcile its partial downloads under its own authority; Gator must not scan guessed blob names and delete them. If server work continues after the client disconnects, display that uncertainty and do not start a competing pull. Persist a bounded receipt for restart recovery.
+Retry only explicitly after reconciliation. Let Ollama reconcile its partial downloads under its own authority; Hot Cross Buns must not scan guessed blob names and delete them. If server work continues after the client disconnects, display that uncertainty and do not start a competing pull. Persist a bounded receipt for restart recovery.
 
 ## Select and inference admission
 
@@ -87,7 +87,7 @@ Start with one admitted local inference at a time across cooperating owners, pla
 
 ## Unload model weights
 
-Unload is not delete, runtime stop or future-model deselection. Require an exact loaded identity and no relevant Gator use lease. Use the supported empty request with `keep_alive: 0`, then verify that exact model is absent from running inventory. See the official [API lifecycle documentation](https://github.com/ollama/ollama/blob/main/docs/api.md). Verify installed tags remain intact and the runtime still responds. Do not unload whenever any unrelated task completes; another owner or external application may still use the server. Expose external-use uncertainty rather than claiming system-wide exclusivity.
+Unload is not delete, runtime stop or future-model deselection. Require an exact loaded identity and no relevant Hot Cross Buns use lease. Use the supported empty request with `keep_alive: 0`, then verify that exact model is absent from running inventory. See the official [API lifecycle documentation](https://github.com/ollama/ollama/blob/main/docs/api.md). Verify installed tags remain intact and the runtime still responds. Do not unload whenever any unrelated task completes; another owner or external application may still use the server. Expose external-use uncertainty rather than claiming system-wide exclusivity.
 
 If a request disconnects, re-read running state. Do not infer unload success from the absence of new tokens. A user-owned server can independently reload/expire models; report observed state and time rather than permanent guarantees.
 
@@ -101,7 +101,7 @@ Re-pull only after consent and active-use exclusion. Re-read final tag/digest an
 
 ## Update runtime
 
-Keep application/runtime updates separate from model downloads. Upstream's [FAQ](https://docs.ollama.com/faq) describes macOS application auto-download and a user-chosen “Restart to update,” or installing the official current DMG. Gator must not replace arbitrary PATH binaries, run Linux installation scripts on macOS, or restart a user-owned runtime. Explain that runtime restart interrupts loaded models and potentially other applications. Obtain explicit quiescence/consent and verify version/readiness afterward. No runtime updater is implemented in L1.
+Keep application/runtime updates separate from model downloads. Upstream's [FAQ](https://docs.ollama.com/faq) describes macOS application auto-download and a user-chosen “Restart to update,” or installing the official current DMG. Hot Cross Buns must not replace arbitrary PATH binaries, run Linux installation scripts on macOS, or restart a user-owned runtime. Explain that runtime restart interrupts loaded models and potentially other applications. Obtain explicit quiescence/consent and verify version/readiness afterward. No runtime updater is implemented in L1.
 
 ## Remove one model
 
@@ -113,20 +113,20 @@ If delete succeeds and settings publication fails, retain the partial result, sh
 
 ## Inspect and cleanup
 
-Inspect before mutation. Distinguish Gator-owned staging/temporary files from Ollama's shared manifests/blobs, user-specified `OLLAMA_MODELS`, external volumes and third-party data. A cleanup preview must list exact owned candidates and actual reclaim estimates only when reference accounting supports them. Include dry-run and explicit confirmation. Do not recursively delete a shared model directory, remove blobs referenced by other tags, follow untrusted symlinks, or assume package-size sums equal reclaimable physical bytes.
+Inspect before mutation. Distinguish Hot Cross Buns-owned staging/temporary files from Ollama's shared manifests/blobs, user-specified `OLLAMA_MODELS`, external volumes and third-party data. A cleanup preview must list exact owned candidates and actual reclaim estimates only when reference accounting supports them. Include dry-run and explicit confirmation. Do not recursively delete a shared model directory, remove blobs referenced by other tags, follow untrusted symlinks, or assume package-size sums equal reclaimable physical bytes.
 
-Partial download files are server-managed unless an official supported cleanup operation with established ownership is available. If no safe reference-aware cleanup exists, provide an honest limitation/manual official guidance. Never equate a model's absence from Gator's reviewed catalog with permission to delete it.
+Partial download files are server-managed unless an official supported cleanup operation with established ownership is available. If no safe reference-aware cleanup exists, provide an honest limitation/manual official guidance. Never equate a model's absence from Hot Cross Buns's reviewed catalog with permission to delete it.
 
 ## Four separate removal/uninstall workflows
 
 | Workflow | Scope and preservation requirements |
 |---|---|
 | Remove one model | Exact reviewed tag only; no shared-directory deletion |
-| Disable Gator local integration | Stop future local admission, explicitly choose/clear future primary, preserve installed runtime/library and retained conversations |
-| Uninstall Ollama runtime/application | Separate user-owned software operation; preserve model library and Gator state by default |
+| Disable Hot Cross Buns local integration | Stop future local admission, explicitly choose/clear future primary, preserve installed runtime/library and retained conversations |
+| Uninstall Ollama runtime/application | Separate user-owned software operation; preserve model library and Hot Cross Buns state by default |
 | Erase user-owned Ollama data | Separate destructive consent and ownership/reference inventory; never implied by runtime uninstall |
 
-No automated macOS uninstall is authorized. For runtime-only manual removal: first finish or explicitly cancel dependent work and quit the correct Ollama application; inspect its actual installation path, move that verified application to Trash using Finder, and inspect any CLI symlink before removing **only the link belonging to that application**. Leave `~/.ollama`, a custom `OLLAMA_MODELS` directory and Gator state/config/history untouched. **[Inference]** this is a deliberately data-preserving subset of manual removal, not a claim that upstream offers a separate runtime-only uninstall command.
+No automated macOS uninstall is authorized. For runtime-only manual removal: first finish or explicitly cancel dependent work and quit the correct Ollama application; inspect its actual installation path, move that verified application to Trash using Finder, and inspect any CLI symlink before removing **only the link belonging to that application**. Leave `~/.ollama`, a custom `OLLAMA_MODELS` directory and Hot Cross Buns state/config/history untouched. **[Inference]** this is a deliberately data-preserving subset of manual removal, not a claim that upstream offers a separate runtime-only uninstall command.
 
 The official [macOS uninstall page](https://docs.ollama.com/macos) describes **full removal including model/configuration data**. Link it with that warning, not as a one-click default or copied recursive deletion recipe. Its conventional paths are not evidence of the user's actual library location. Optional removal of Ollama's own caches/preferences is a separately inspected choice; never remove other applications' settings.
 
@@ -147,7 +147,7 @@ The official [macOS uninstall page](https://docs.ollama.com/macos) describes **f
 
 ## Memory, offline and acceptance requirements
 
-On macOS use real pressure signals, VM/compression/swap trends and measured working-set envelopes rather than total minus process RSS. Keep package-size guards as a first filter. Sampling must be bounded, available-memory uncertainty explicit, and pressure thresholds calibrated in L4; do not invent currently unimplemented thresholds. Track Gator/native, Ollama, model/context/KV and ordinary desktop headroom separately, avoiding double-counted unified-memory residency. GPU/energy and 8 GB hardware acceptance need actual evidence.
+On macOS use real pressure signals, VM/compression/swap trends and measured working-set envelopes rather than total minus process RSS. Keep package-size guards as a first filter. Sampling must be bounded, available-memory uncertainty explicit, and pressure thresholds calibrated in L4; do not invent currently unimplemented thresholds. Track Hot Cross Buns/native, Ollama, model/context/KV and ordinary desktop headroom separately, avoiding double-counted unified-memory residency. GPU/energy and 8 GB hardware acceptance need actual evidence.
 
 Offline means no external inference, no external specialist calls, and independently disclosed/disabled connected-tool/embedding traffic. Enforce policy in Go at adapters, worker admission and tools, including role overrides and retries. A loopback server can itself forward to cloud; permit only verified local installed identities and a reviewed runtime cloud-disable policy where supported. Do not alter a user-owned server's settings automatically. An HTTP URL initially validated as loopback must not escape through redirects/proxy/DNS.
 

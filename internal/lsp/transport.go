@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// readFrame enforces LSP's Content-Length framing and Gator's message bound.
+// readFrame enforces LSP's Content-Length framing and Hot Cross Buns's message bound.
 func readFrame(reader *bufio.Reader) ([]byte, error) {
 	length := -1
 	for {

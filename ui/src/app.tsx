@@ -1,5 +1,5 @@
 // Composition adapted from pinned OpenCode app.tsx: renderer-scoped providers,
-// keymap, dialogs, toast, responsive session frame and bottom prompt. The Gator
+// keymap, dialogs, toast, responsive session frame and bottom prompt. The Hot Cross Buns
 // client and data contexts replace OpenCode's server/client/plugin composition.
 import { Show, For, onCleanup } from "solid-js"
 import { useRenderer } from "@opentui/solid"
@@ -16,24 +16,24 @@ import { DialogSelect } from "./ui/dialog-select"
 import { CommandPaletteDialog } from "./component/command-palette"
 import { SessionFrame } from "./component/session-frame"
 import { Prompt } from "./component/prompt"
-import { Progress } from "./gator/progress"
-import { ConnectionStatus } from "./gator/connection-status"
-import { Transcript } from "./gator/transcript"
-import { Panel } from "./gator/panel"
-import { literal } from "./gator/text"
-import { Hub } from "./gator/hub"
-import { Following } from "./gator/following"
-import { useActions } from "./gator/actions"
-import { useProductActions } from "./gator/product-actions"
-import { useResultActions } from "./gator/result-actions"
-import { useNative } from "./gator/native"
-import { commandGroup, commandAliases, commandDescription } from "./gator/command-groups"
-import { ApprovalReview } from "./gator/approval-review"
-import { runBackendCommand } from "./gator/command-actions"
-import { RecoveryNotice } from "./gator/recovery-notice"
-import { VoiceNotice } from "./gator/voice-notice"
-import type { VoiceSession } from "@gator/application-host/voice-session"
-import type { GatorClient } from "./gator/client"
+import { Progress } from "./hot-cross-buns/progress"
+import { ConnectionStatus } from "./hot-cross-buns/connection-status"
+import { Transcript } from "./hot-cross-buns/transcript"
+import { Panel } from "./hot-cross-buns/panel"
+import { literal } from "./hot-cross-buns/text"
+import { Hub } from "./hot-cross-buns/hub"
+import { Following } from "./hot-cross-buns/following"
+import { useActions } from "./hot-cross-buns/actions"
+import { useProductActions } from "./hot-cross-buns/product-actions"
+import { useResultActions } from "./hot-cross-buns/result-actions"
+import { useNative } from "./hot-cross-buns/native"
+import { commandGroup, commandAliases, commandDescription } from "./hot-cross-buns/command-groups"
+import { ApprovalReview } from "./hot-cross-buns/approval-review"
+import { runBackendCommand } from "./hot-cross-buns/command-actions"
+import { RecoveryNotice } from "./hot-cross-buns/recovery-notice"
+import { VoiceNotice } from "./hot-cross-buns/voice-notice"
+import type { VoiceSession } from "@hot-cross-buns/application-host/voice-session"
+import type { HotCrossBunsClient } from "./hot-cross-buns/client"
 import type { ClipboardService } from "./context/clipboard"
 
 function Shell(props: { quit(): Promise<void>; voice?: VoiceSession }) {
@@ -47,11 +47,11 @@ function Shell(props: { quit(): Promise<void>; voice?: VoiceSession }) {
   const navigate = (command: string) => attempt(client.navigate(command))
   const close = async () => {
     if (/^\/(exit|quit)$/.test(client.draft.text.trim())) await client.edit("")
-    await client.track("Closing Gator…", props.quit())
+    await client.track("Closing Hot Cross Buns…", props.quit())
   }
   const quit = async () => {
     if (!await client.mayLeave()) return
-    if (data.snapshot.allChatsBusy || data.snapshot.allChatsQueued) dialog.replace(() => <DialogConfirm title="Stop work and close Gator?" message="Tasks in all open chats will stop. Queues remain paused for review after restart." onConfirm={() => attempt(close())} />)
+    if (data.snapshot.allChatsBusy || data.snapshot.allChatsQueued) dialog.replace(() => <DialogConfirm title="Stop work and close Hot Cross Buns?" message="Tasks in all open chats will stop. Queues remain paused for review after restart." onConfirm={() => attempt(close())} />)
     else await close()
   }
   client.requestQuit = quit
@@ -66,32 +66,36 @@ function Shell(props: { quit(): Promise<void>; voice?: VoiceSession }) {
   }
   Keymap.createLayer(() => ({ mode: "global", commands: [
     { id: "command.palette.show", title: "Search commands", bind: "ctrl+p", run: palette },
-    { id: "gator.sidebar", title: "Toggle navigation", bind: "ctrl+b", palette: true, run: () => attempt(client.configurePreferences({ sidebarCollapsed: !client.preferences.sidebarCollapsed })) },
-    { id: "gator.quit", title: "Quit Gator", bind: "ctrl+q", palette: true, run: quit },
-    { id: "gator.cancel", title: "Cancel dialog or stop active work", bind: "ctrl+c", palette: true, run: () => {
+    { id: "hot-cross-buns.sidebar", title: "Toggle navigation", bind: "ctrl+b", palette: true, run: () => attempt(client.configurePreferences({ sidebarCollapsed: !client.preferences.sidebarCollapsed })) },
+    { id: "hot-cross-buns.quit", title: "Quit Hot Cross Buns", bind: "ctrl+q", palette: true, run: quit },
+    { id: "hot-cross-buns.cancel", title: "Cancel dialog or stop active work", bind: "ctrl+c", palette: true, run: () => {
       if (dialog.stack.length) dialog.clear()
       else if (data.voicePhase !== "idle") voice.cancel()
       else if (data.state?.running) attempt(client.send({ type: "key", key: "esc" }))
     } },
-    { id: "gator.new", title: "New independent chat", bind: "ctrl+n", palette: true, run: () => navigate("/new") },
-    { id: "gator.search", title: "Search current transcript", bind: "ctrl+f", palette: true, enabled: !data.state?.panel, run: () => controls.trigger("search") },
-    { id: "gator.latest", title: "Jump to latest content", bind: "ctrl+l", palette: true, enabled: data.route === "chat" && !data.state?.panel && dialog.stack.length === 0, run: () => client.emit("transcript-latest") },
-    { id: "gator.context-actions", title: "Actions for visible result", bind: "ctrl+e", palette: true, enabled: data.route === "chat" && !data.state?.panel && dialog.stack.length === 0, run: () => client.emit("request-item-actions") },
-    { id: "gator.help", title: "Gator help", bind: "ctrl+o", palette: true, enabled: !data.state?.panel, run: () => navigate("/help") },
-    { id: "gator.voice", title: "Start or finish dictation", bind: "ctrl+v", palette: true, run: () => controls.trigger("toggle-dictation") },
-    { id: "gator.approve", title: "Review current approval", bind: "ctrl+y", palette: true, enabled: dialog.stack.length === 0, run: () => approve(true) },
-    { id: "gator.decline", title: "Decline current approval", bind: "ctrl+d", palette: true, enabled: dialog.stack.length === 0, run: () => approve(false) },
-    { id: "gator.reconnect", title: "Reconnect selected chat", palette: true, run: () => attempt(client.reconnect()) },
-    ...Object.keys(controls.actions).map(name => ({ id: `gator.local.${name}`, title: name, description: commandDescription(name), group: commandGroup(name), palette: true as const, run: () => controls.trigger(name) })),
-    ...["following", "saved", "settings"].map(name => ({ id: `gator.${name}`, title: name[0].toUpperCase() + name.slice(1), palette: true as const, run: () => navigate(`/${name}`) })),
+    { id: "hot-cross-buns.new", title: "New independent chat", bind: "ctrl+n", palette: true, run: () => navigate("/new") },
+    { id: "hot-cross-buns.search", title: "Search current transcript", bind: "ctrl+f", palette: true, enabled: !data.state?.panel, run: () => controls.trigger("search") },
+    { id: "hot-cross-buns.latest", title: "Jump to latest content", bind: "ctrl+l", palette: true, enabled: data.route === "chat" && !data.state?.panel && dialog.stack.length === 0, run: () => client.emit("transcript-latest") },
+    { id: "hot-cross-buns.context-actions", title: "Actions for visible result", bind: "ctrl+e", palette: true, enabled: data.route === "chat" && !data.state?.panel && dialog.stack.length === 0, run: () => client.emit("request-item-actions") },
+    { id: "hot-cross-buns.help", title: "Hot Cross Buns help", bind: "ctrl+o", palette: true, enabled: !data.state?.panel, run: () => navigate("/help") },
+    { id: "hot-cross-buns.voice", title: "Start or finish dictation", bind: "ctrl+v", palette: true, run: () => controls.trigger("toggle-dictation") },
+    { id: "hot-cross-buns.approve", title: "Review current approval", bind: "ctrl+y", palette: true, enabled: dialog.stack.length === 0, run: () => approve(true) },
+    { id: "hot-cross-buns.decline", title: "Decline current approval", bind: "ctrl+d", palette: true, enabled: dialog.stack.length === 0, run: () => approve(false) },
+    { id: "hot-cross-buns.reconnect", title: "Reconnect selected chat", palette: true, run: () => attempt(client.reconnect()) },
+    ...Object.keys(controls.actions).map(name => ({ id: `hot-cross-buns.local.${name}`, title: name, description: commandDescription(name), group: commandGroup(name), palette: true as const, run: () => controls.trigger(name) })),
+    ...["following", "saved", "settings"].map(name => ({ id: `hot-cross-buns.${name}`, title: name[0].toUpperCase() + name.slice(1), palette: true as const, run: () => navigate(`/${name}`) })),
     // Only collapse known equivalent actions. Go's goal activity and the local
     // public-work trace share a name but are distinct capabilities.
-    ...(data.state?.commands ?? []).filter(command => !["help", "queue", "following", "saved", "settings", "new", "exit", "cancel", "approve", "deny"].includes(command.name)).map(command => ({ id: `gator.command.${encodeURIComponent(command.name)}`, title: literal(command.description), group: command.name === "activity" ? "Following" : commandGroup(command.name), palette: true as const,
+    ...(data.state?.commands ?? []).filter(command => !["help", "queue", "following", "saved", "settings", "new", "exit", "cancel", "approve", "deny"].includes(command.name)).map(command => ({ id: `hot-cross-buns.command.${encodeURIComponent(command.name)}`, title: literal(command.description), group: command.name === "activity" ? "Following" : commandGroup(command.name), palette: true as const,
       slash: { name: command.name, aliases: commandAliases(command.name), ...(command.needs_input ? { arguments: true as const } : {}) },
       run: () => { const operation = runBackendCommand(client, controls, command); if (operation instanceof Promise) attempt(operation) } })),
   ] }))
   return <box width="100%" height="100%" backgroundColor={theme.background.base}>
-    <box height={1} marginY={1} paddingX={2} gap={2} flexDirection="row" justifyContent="space-between"><text flexGrow={1} flexShrink={1} minWidth={0} height={1} wrapMode="none" truncate fg={theme.text.muted}><b style={{ fg: theme.text.base }}>🐊 Gator</b>  {literal(data.state?.title) || "Opening chat…"}</text><ConnectionStatus connection={data.snapshot.connection} error={!!data.snapshot.error} /></box>
+    <box width="100%" height={1} marginY={1} paddingX={2} gap={1} flexDirection="row">
+      <text flexShrink={0} fg={theme.text.base}><b>🐊 Hot Cross Buns</b></text>
+      <text flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} height={1} wrapMode="none" truncate fg={theme.text.muted}>{literal(data.state?.title) || "Opening chat…"}</text>
+      <ConnectionStatus connection={data.snapshot.connection} error={!!data.snapshot.error} />
+    </box>
     <SessionFrame sidebar={!data.preferences.sidebarCollapsed} search={palette}>
       <Show when={data.route === "chat"} fallback={<Show when={data.route === "following"} fallback={<Hub />}><Following controls={controls} inspect={product.commitment} goal={product.goalCommitment} refresh={product.refreshChecks} /></Show>}><Show when={data.state?.panel} fallback={<><Transcript /><Prompt /></>}>{panel => <Panel panel={panel()} />}</Show></Show>
     </SessionFrame>
@@ -102,12 +106,12 @@ function Shell(props: { quit(): Promise<void>; voice?: VoiceSession }) {
     <Show when={data.state?.status_line_enabled}><text fg={theme.text.muted}>{data.state?.status_line.map(literal).join(" · ")}</text></Show>
   </box>
 }
-function Themed(props: { client: GatorClient; quit(): Promise<void>; clipboard: ClipboardService; voice?: VoiceSession }) {
+function Themed(props: { client: HotCrossBunsClient; quit(): Promise<void>; clipboard: ClipboardService; voice?: VoiceSession }) {
   const data = useData()
   return <ThemeProvider theme={data.preferences.theme}><ConfigProvider bindings={terminalShortcuts(data.state?.desktop?.shortcuts)}>
     <ClipboardProvider value={props.clipboard}><Keymap.Provider><ToastProvider><DialogProvider><Shell quit={props.quit} voice={props.voice} /></DialogProvider></ToastProvider></Keymap.Provider></ClipboardProvider>
   </ConfigProvider></ThemeProvider>
 }
-export function App(props: { client: GatorClient; quit(): Promise<void>; clipboard: ClipboardService; voice?: VoiceSession }) {
+export function App(props: { client: HotCrossBunsClient; quit(): Promise<void>; clipboard: ClipboardService; voice?: VoiceSession }) {
   return <ClientProvider client={props.client}><DataProvider><Themed {...props} /></DataProvider></ClientProvider>
 }

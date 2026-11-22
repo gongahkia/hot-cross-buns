@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
 )
 
 func TestBridgeUsesLiveCommandAndMessageState(t *testing.T) {
@@ -28,7 +28,7 @@ func TestBridgeUsesLiveCommandAndMessageState(t *testing.T) {
 	}
 	next, _ := model.SubmitText("/help")
 	state := next.(Model).BridgeState()
-	if state.Home || len(state.Messages) != 1 || state.Messages[0].Role != "Gator" || !strings.Contains(state.Messages[0].Text, "/model") {
+	if state.Home || len(state.Messages) != 1 || state.Messages[0].Role != "Hot Cross Buns" || !strings.Contains(state.Messages[0].Text, "/model") {
 		t.Fatalf("submitted command bridge state = %#v", state)
 	}
 	model.openCommandPalette()

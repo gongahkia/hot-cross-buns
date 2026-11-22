@@ -35,7 +35,7 @@ and background recovery remain coupled to the unfinished items 3 and 4.
 
 - Retain native conversation identity and isolated working files across turns.
 - Send follow-up messages, steer active work where supported, interrupt a turn,
-  and surface/answer clarification requests through Gator.
+  and surface/answer clarification requests through Hot Cross Buns.
 - Bind session access to the originating profile, source and permission policy.
   Resumption must not silently broaden access or import unrelated CLI sessions.
 - Recover retained sessions across host restarts without blindly replaying an

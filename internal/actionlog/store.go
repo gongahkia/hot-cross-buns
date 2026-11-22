@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const MaxRunEntries = 128
@@ -75,14 +75,14 @@ func Open(stateDir string) (Store, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("external request state directory is required")
 	}
-	base, err := filepath.Abs(filepath.Join(stateDir, "gator", "external-actions"))
+	base, err := filepath.Abs(filepath.Join(stateDir, "hot-cross-buns", "external-actions"))
 	if err != nil {
 		return Store{}, err
 	}
 	// This is private application state, never a selected source directory.
 	parentPath := filepath.Dir(base)
 	if info, err := os.Lstat(parentPath); err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
-		return Store{}, errors.New("private Gator state must be an ordinary directory")
+		return Store{}, errors.New("private Hot Cross Buns state must be an ordinary directory")
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Store{}, err
 	}
@@ -369,7 +369,7 @@ func (s Store) List(run string) ([]Entry, error) {
 			return nil, errors.New("external request run scan limit reached")
 		}
 		for _, file := range files {
-			if strings.HasSuffix(file.Name(), ".lock") || strings.HasPrefix(file.Name(), ".gator-write-") {
+			if strings.HasSuffix(file.Name(), ".lock") || strings.HasPrefix(file.Name(), ".hot-cross-buns-write-") {
 				continue
 			}
 			id := strings.TrimSuffix(file.Name(), ".json")

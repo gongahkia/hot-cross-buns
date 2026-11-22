@@ -9,12 +9,12 @@ import { addDevice } from '../../companion/auth.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.equal(process.getuid(), 1000);
-assert.equal(await readFile('/gator-boot-fixture', 'utf8'), 'gator disposable boot fixture\n');
-const root = '/home/node/fixture', runtime = '/validation/gator-runtime';
+assert.equal(await readFile('/hot-cross-buns-boot-fixture', 'utf8'), 'hot-cross-buns disposable boot fixture\n');
+const root = '/home/node/fixture', runtime = '/validation/hot-cross-buns-runtime';
 const stateDir = join(root, 'state'), configDir = join(root, 'config'), workspace = join(root, 'workspace');
 const tokenFile = join(root, 'private/owner.token'), deviceFile = join(root, 'private/device.token');
-const units = '/home/node/.config/systemd/user', listener = 'gator-companion.service', supervisor = 'gator-work-supervisor.service';
-const env = { ...process.env, GATOR_STATE_DIR: stateDir, GATOR_CONFIG_DIR: configDir, GATOR_INTERNAL_COMMANDS: '1', XDG_CONFIG_HOME: '/home/node/.config' };
+const units = '/home/node/.config/systemd/user', listener = 'hot-cross-buns-companion.service', supervisor = 'hot-cross-buns-work-supervisor.service';
+const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: stateDir, HOT_CROSS_BUNS_CONFIG_DIR: configDir, HOT_CROSS_BUNS_INTERNAL_COMMANDS: '1', XDG_CONFIG_HOME: '/home/node/.config' };
 const command = (...args) => execFileSync(runtime, args, { env, cwd: workspace, encoding: 'utf8', stdio: 'pipe', timeout: 20000 });
 const systemctl = (...args) => execFileSync('systemctl', ['--user', ...args], { encoding: 'utf8', stdio: 'pipe', timeout: 20000 });
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -37,7 +37,7 @@ async function ready() {
   }, 'Authenticated companion did not start automatically.');
 }
 async function attempts(id) {
-  const directory = join(stateDir, 'gator/jobs/history', id);
+  const directory = join(stateDir, 'hot-cross-buns/jobs/history', id);
   const names = await readdir(directory).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
   const results = [];
   for (const name of names) {
@@ -52,17 +52,17 @@ const save = async (name, value) => writeFile(join(root, name), JSON.stringify(v
 
 switch (process.argv[2]) {
   case 'setup': {
-    for (const path of [root, workspace, stateDir, join(configDir, 'gator'), join(root, 'private'), units]) await mkdir(path, { recursive: true, mode: 0o700 });
+    for (const path of [root, workspace, stateDir, join(configDir, 'hot-cross-buns'), join(root, 'private'), units]) await mkdir(path, { recursive: true, mode: 0o700 });
     await writeFile(tokenFile, randomBytes(32).toString('hex') + '\n', { flag: 'wx', mode: 0o600 });
     await addDevice(tokenFile, 'Boot fixture device', deviceFile);
     await writeFile(join(root, 'requests.jsonl'), '', { flag: 'wx', mode: 0o600 });
-    await writeFile(join(configDir, 'gator/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: 'http://127.0.0.1:7342/chat', models: ['fixture'], default_model: 'fixture' }] }), { mode: 0o600 });
+    await writeFile(join(configDir, 'hot-cross-buns/config.json'), JSON.stringify({ version: 4, defaults: { provider: 'fixture', model: 'fixture' }, custom_providers: [{ id: 'fixture', base_url: 'http://127.0.0.1:7342/chat', models: ['fixture'], default_model: 'fixture' }] }), { mode: 0o600 });
     await prepare({ node: process.execPath, entry: '/validation/companion/main.mjs', runtime, workspace, tokenFile, stateDir, configDir, port: 7341 }, join(units, listener));
     // The local provider is ready before the supervisor, avoiding a fixture-only
     // startup race. It has no external network or paid credentials.
-    await writeFile(join(units, 'gator-fixture-provider.service'), `[Unit]\nBefore=${supervisor}\n[Service]\nType=notify\nNotifyAccess=all\nExecStart=${process.execPath} /validation/scripts/companion-boot/provider.mjs\nUMask=0077\n[Install]\nWantedBy=default.target\n`, { mode: 0o600, flag: 'wx' });
+    await writeFile(join(units, 'hot-cross-buns-fixture-provider.service'), `[Unit]\nBefore=${supervisor}\n[Service]\nType=notify\nNotifyAccess=all\nExecStart=${process.execPath} /validation/scripts/companion-boot/provider.mjs\nUMask=0077\n[Install]\nWantedBy=default.target\n`, { mode: 0o600, flag: 'wx' });
     systemctl('daemon-reload');
-    systemctl('enable', '--now', listener, 'gator-fixture-provider.service');
+    systemctl('enable', '--now', listener, 'hot-cross-buns-fixture-provider.service');
     await ready();
     // Exercise the actual supported installer, then stop before adding work.
     // Both enabled units must start themselves on the next container boot.

@@ -1,6 +1,6 @@
 # Work evaluation
 
-Gator evaluates the product through `work.v1`, the same Work service used by
+Hot Cross Buns evaluates the product through `work.v1`, the same Work service used by
 the desktop application, jobs, history, Code specialist, artifact verification, and local
 delivery. There is no separate legacy Code evaluation runner.
 

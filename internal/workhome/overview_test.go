@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/inbox"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/suggestion"
-	"github.com/gongahkia/gator/internal/usage"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/inbox"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func findSection(t *testing.T, view Overview, id string) OverviewSection {
@@ -136,10 +136,10 @@ func TestOverviewShowsStoppedWorkAndCorruptStoresAsBlockers(t *testing.T) {
 	if _, err := history.Start(workhistory.Start{ID: "interrupted", Objective: "Interrupted project review", Mode: action.Inspect, ExternalActions: action.Forbid, StartedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "gator", "suggestions"), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "hot-cross-buns", "suggestions"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "gator", "suggestions", "suggestion-broken.json"), []byte("{broken"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "hot-cross-buns", "suggestions", "suggestion-broken.json"), []byte("{broken"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	view, err := ReadOverview(context.Background(), root, false, now)
@@ -196,7 +196,7 @@ func TestOverviewSeparatesLiveReviewsFromStaleDecisionRecords(t *testing.T) {
 	if _, err = history.Start(workhistory.Start{ID: "awaiting-review", Objective: "Review this exact action", Mode: action.Inspect, ExternalActions: action.Forbid, StartedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(root, "gator", "interactions", "awaiting-review")
+	dir := filepath.Join(root, "hot-cross-buns", "interactions", "awaiting-review")
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}

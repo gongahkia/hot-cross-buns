@@ -19,7 +19,7 @@ only way to inspect consequential actions. A Telegram Mini App could reuse the
 same web interface later. This ordering is a product/engineering recommendation
 based on the sources and repository inspection below, not a platform requirement.
 
-| Surface | Fit for Gator | Tradeoff / recommended role |
+| Surface | Fit for Hot Cross Buns | Tradeoff / recommended role |
 | --- | --- | --- |
 | Mobile web / PWA | Full conversation, editable drafts, Following, inspectable memory, exact reviews, files/results and scoped settings in one interface | Best primary mobile surface. Requires touch/keyboard/accessibility work, secure remote connectivity and host availability. |
 | Telegram bot | Quick requests, voice messages, updates and brief replies with buttons | Useful optional messaging channel. Telegram carries the messages; complex reviews and document editing need richer surfaces. |
@@ -29,8 +29,8 @@ based on the sources and repository inspection below, not a platform requirement
 
 OpenCode's own documentation also describes a browser UI sharing its server and
 session state with terminal clients. That supports the architectural direction;
-its coding UI/API is not a drop-in replacement for Gator's Go services. Reuse the
-shared-client pattern and Gator's existing companion, rather than introducing an
+its coding UI/API is not a drop-in replacement for Hot Cross Buns's Go services. Reuse the
+shared-client pattern and Hot Cross Buns's existing companion, rather than introducing an
 OpenCode execution engine alongside Work. Command names differ across OpenCode
 documentation versions, so revalidate any setup instructions during implementation.
 [OpenCode web/client-server documentation](https://opencode.ai/docs/cli/web/)
@@ -75,13 +75,13 @@ working server-side push implementation. [Apple Web Push](https://developer.appl
 
 **Offline does not mean unattended execution on a phone.** Service workers have
 limited, browser-managed lifetimes. Use them for an optional cached shell,
-explicit draft retention and notifications, not as Gator's scheduler or a
+explicit draft retention and notifications, not as Hot Cross Buns's scheduler or a
 permanently running agent. Work stays with its real execution host.
 [MDN offline/background operation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Offline_and_background_operation)
 
 **Telegram can work without a public inbound listener.** The Bot API supports
 either long polling or webhooks. Long polling is attractive for a self-hosted
-Gator because the host initiates the connection; that is an engineering inference
+Hot Cross Buns because the host initiates the connection; that is an engineering inference
 from the API. Persist incoming update/admission identities before acknowledging
 them. Telegram retains unreceived bot updates for at most 24 hours. Ordinary
 message text is limited to 4,096 characters; the standard hosted API's file
@@ -92,9 +92,9 @@ an exact approval and treat it as reviewed. [Bot API](https://core.telegram.org/
 **Telegram privacy and richer UI.** Bots support text, files and voice messages,
 but Telegram is another party in that message path. Its privacy policy describes
 server storage for cloud chats. This differs from connecting a phone directly to
-a privately hosted Gator endpoint. Mini Apps provide a richer web interface;
+a privately hosted Hot Cross Buns endpoint. Mini Apps provide a richer web interface;
 their `initData` must be validated on the backend, rather than trusting
-`initDataUnsafe`. Telegram identity does not itself grant Gator account/file or
+`initDataUnsafe`. Telegram identity does not itself grant Hot Cross Buns account/file or
 action permissions. [Bot features](https://core.telegram.org/bots/features),
 [Telegram privacy](https://telegram.org/privacy),
 [Mini Apps](https://core.telegram.org/bots/webapps)
@@ -102,14 +102,14 @@ action permissions. [Bot features](https://core.telegram.org/bots/features),
 **Private connectivity.** Tailscale Serve can proxy a local HTTP port over HTTPS
 to devices within a tailnet. Funnel instead exposes a service to the public
 internet. Start with a private connection for self-hosted users and retain
-Gator's own pairing, revocation and action checks. A general-public distribution
+Hot Cross Buns's own pairing, revocation and action checks. A general-public distribution
 will need a separately reviewed connectivity/onboarding strategy; Tailscale is
 an option, not a required dependency for ordinary local use.
 [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve),
 [Funnel distinction](https://tailscale.com/docs/reference/funnel-vs-sharing)
 
 Mosh supports roaming/intermittent terminal connections, making it a plausible
-advanced-client option. Actual Gator key/rendering compatibility on a physical
+advanced-client option. Actual Hot Cross Buns key/rendering compatibility on a physical
 phone remains to verify. [Mosh](https://mosh.org/)
 
 ## Implementation sequence and acceptance

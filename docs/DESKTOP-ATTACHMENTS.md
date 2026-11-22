@@ -1,6 +1,6 @@
 # Desktop message attachments
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -22,7 +22,7 @@ Keep the existing React/CSS presentation, command palette and agent services.
   injected through the text-only Guide now path.
 - Sent messages retain filename labels, including after reopening. Actual
   outputs keep their separate Files surface. Uploading an input does not
-  imply that Gator has produced, verified or delivered an output.
+  imply that Hot Cross Buns has produced, verified or delivered an output.
 - Picker cancellation leaves the draft unchanged. Invalid selections and
   loader errors preserve the unsent message and file chips for correction.
 
@@ -38,7 +38,7 @@ path and is not included here.
 ## Delivery boundary
 
 The Electron host copies selected files under the active state directory's
-`gator/uploads/<random identity>/<filename>`, with private directory/file
+`hot-cross-buns/uploads/<random identity>/<filename>`, with private directory/file
 permissions. Project folders and originals are untouched. Temporary copies
 older than seven days are pruned on startup. Disabling draft retention removes
 saved draft records; staged copies retain their temporary expiry. Sent input
@@ -102,11 +102,11 @@ Considered and rejected:
   check skipped. Covers private immutable copies, duplicate filenames with
   independent identities, rollback of partial imports, byte/count/type/path
   limits, attachment-only draft recovery and conversation-bound request shapes.
-- `go test ./internal/attachment ./internal/workapp ./internal/worksession ./cmd/gator -run 'Test(DesktopUploads|BridgeUploads|Uploads|ActivitySidecar)' -count=1`
+- `go test ./internal/attachment ./internal/workapp ./internal/worksession ./cmd/hot-cross-buns -run 'Test(DesktopUploads|BridgeUploads|Uploads|ActivitySidecar)' -count=1`
   passed, as did the earlier attachment/composer/UI-bridge checks. These cover
   rooted loading, invalid image bytes, combined workspace/upload limits,
   queue capture, stale conversation rejection and optional filename sidecars.
-- `go test ./internal/workrun ./cmd/gator -run 'Test(ExecutorPassesPromptAttachments|ExecutorExtractsPDFAttachment|WorkCommandSendsExplicitAttachments|DesktopUploads)' -count=1`
+- `go test ./internal/workrun ./cmd/hot-cross-buns -run 'Test(ExecutorPassesPromptAttachments|ExecutorExtractsPDFAttachment|WorkCommandSendsExplicitAttachments|DesktopUploads)' -count=1`
   passed, exercising the existing manager-input and PDF handling paths.
 - From `desktop`, `./node_modules/.bin/electron-builder --dir --publish never`
   rebuilt the macOS application.
@@ -115,7 +115,7 @@ Considered and rejected:
   recovery, recent-conversation isolation, queued edits/reordering and the
   full Go-state/restart smoke check. These used
   `npm run test:e2e --prefix desktop -- attachments.spec.ts desktop.spec.ts --grep 'attachments stay|attachment cancellation|unsent drafts survive|recent topics default|queued messages can|desktop uses real Go state' --reporter=line --output=node_modules/.cache/attachment-results`
-  with `GATOR_DESKTOP_TEST_EXECUTABLE` set to the rebuilt app.
+  with `HOT_CROSS_BUNS_DESKTOP_TEST_EXECUTABLE` set to the rebuilt app.
 
 The expanded packaged checks added actual dropped disk-backed files, files-only
 messages, separate conversation drafts, filename restoration and pending-file

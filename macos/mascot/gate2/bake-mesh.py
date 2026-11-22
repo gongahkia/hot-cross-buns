@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 
 root = Path(__file__).resolve().parent
-source = root.parent / "validation/Assets/Gator-B.usda"
+source = root.parent / "validation/Assets/HotCrossBuns-B.usda"
 stack, nodes, mesh = [], [], None
 def numbers(text):
     return [float(x) for x in re.findall(r"[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?", text)]
@@ -49,7 +49,7 @@ def validate(node):
         assert all(len(p)==3 and all(math.isfinite(v) for v in p) for p in mesh["positions"]+mesh["normals"])
         counts["meshes"]+=1;counts["vertices"]+=len(mesh["positions"]);counts["triangles"]+=len(mesh["indices"])//3
     for child in node["children"]:validate(child)
-assert len(nodes)==1 and nodes[0]["name"]=="Gator_B"
+assert len(nodes)==1 and nodes[0]["name"]=="HotCrossBuns_B"
 validate(nodes[0]);assert counts==dict(meshes=26,vertices=8609,triangles=14164),counts
 document=dict(version=1,sourceSHA256=hashlib.sha256(source.read_bytes()).hexdigest(),counts=counts,root=nodes[0])
 destination=root/"Assets/B-native-meshes.json"

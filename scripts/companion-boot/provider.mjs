@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { appendFile, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 
-assert.equal(await readFile('/gator-boot-fixture', 'utf8'), 'gator disposable boot fixture\n');
+assert.equal(await readFile('/hot-cross-buns-boot-fixture', 'utf8'), 'hot-cross-buns disposable boot fixture\n');
 createServer(async (req, res) => {
   try {
     let body = ''; for await (const chunk of req) body += chunk;

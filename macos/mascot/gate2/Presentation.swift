@@ -4,7 +4,7 @@ import Metal
 
 enum PresentationEvent { case idle, blink, working, responding, attention, disconnected, hidden, reducedMotion }
 
-// cosmetic resource ownership only; there is no GatorCore or execution path
+// cosmetic resource ownership only; there is no HotCrossBunsCore or execution path
 @MainActor final class Gate2Presentation {
     private(set) var engine: Gate2Engine?
     private(set) var poster: NSImage

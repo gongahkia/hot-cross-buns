@@ -62,19 +62,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_DELETE(self):
         events.append({"method": "DELETE", "path": self.path}); self.send_error(405)
 
-with tempfile.TemporaryDirectory(prefix="gator-l2a-readonly-") as temporary:
+with tempfile.TemporaryDirectory(prefix="hot-cross-buns-l2a-readonly-") as temporary:
     root = Path(temporary)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     worker = threading.Thread(target=server.serve_forever, daemon=True); worker.start()
-    config = root / "config/gator/config.json"; config.parent.mkdir(parents=True)
+    config = root / "config/hot-cross-buns/config.json"; config.parent.mkdir(parents=True)
     config.write_text(json.dumps({"version": 4, "defaults": {"provider": "openai", "model": "fixture"},
-        "custom_providers": [{"id":"gator-local", "base_url":f"http://127.0.0.1:{server.server_port}/v1/chat/completions", "models":["qwen3:4b"], "default_model":"qwen3:4b"}]}))
+        "custom_providers": [{"id":"hot-cross-buns-local", "base_url":f"http://127.0.0.1:{server.server_port}/v1/chat/completions", "models":["qwen3:4b"], "default_model":"qwen3:4b"}]}))
     config.chmod(0o600)
     before = hashlib.sha256(config.read_bytes()).hexdigest()
     workspace = root / "workspace"; workspace.mkdir()
     environment = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(root),
-        "GATOR_CONFIG_DIR": str(root/"config"), "GATOR_STATE_DIR": str(root/"state"),
-        "GATOR_UI_BACKEND":"1", "GATOR_UI_SESSION_HOST":"1", "GIT_CONFIG_NOSYSTEM":"1", "GIT_CONFIG_GLOBAL":"/dev/null"}
+        "HOT_CROSS_BUNS_CONFIG_DIR": str(root/"config"), "HOT_CROSS_BUNS_STATE_DIR": str(root/"state"),
+        "HOT_CROSS_BUNS_UI_BACKEND":"1", "HOT_CROSS_BUNS_UI_SESSION_HOST":"1", "GIT_CONFIG_NOSYSTEM":"1", "GIT_CONFIG_GLOBAL":"/dev/null"}
     stderr = tempfile.TemporaryFile()
     process = subprocess.Popen([str(runtime), "ui-backend", "", ""], cwd=workspace, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, bufsize=0)
     selector = selectors.DefaultSelector(); selector.register(process.stdout, selectors.EVENT_READ)

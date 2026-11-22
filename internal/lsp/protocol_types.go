@@ -16,7 +16,7 @@ type client interface {
 	Close() error
 }
 
-// Diagnostic is the LSP diagnostic subset Gator accepts from a local server.
+// Diagnostic is the LSP diagnostic subset Hot Cross Buns accepts from a local server.
 // LSP ranges are zero-based UTF-16 positions; Tool output deliberately
 // converts lines to one-based values for a terminal user.
 type Diagnostic struct {

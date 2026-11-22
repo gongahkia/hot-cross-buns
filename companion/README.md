@@ -1,6 +1,6 @@
 # Self-hosted companion transport
 
-The companion is optional. Gator remains a terminal-agnostic, local-first personal
+The companion is optional. Hot Cross Buns remains a terminal-agnostic, local-first personal
 agent; neither a phone, private-network service nor tmux is required for ordinary
 agent or Electron desktop operation. Remote Work supervision uses the actual Work
 owner and semantic coding-agent controls. Optional external tmux is independently
@@ -24,7 +24,7 @@ not grant inspection: use the host-local, short-lived grant procedure in
 [T1 owned Work inspection](../docs/EXECUTION-TARGETS-T1.md). This view does not
 start a chat worker, keep the execution owner alive, or expose terminal input.
 
-Experimental single-owner transport for Gator conversations on an always-on
+Experimental single-owner transport for Hot Cross Buns conversations on an always-on
 host. The host owns its files, configured accounts, models and execution. A
 client disconnect does not stop admitted work. This does not migrate laptop
 work or make an offline laptop's files accessible.
@@ -32,36 +32,36 @@ work or make an offline laptop's files accessible.
 This checkpoint supplies an authenticated API and a small phone/browser client
 using the existing Go bridge. Interactive device pairing, file transfer,
 automated deployment and remote account onboarding remain unfinished. Use Electron
-for host setup and recovery. The Gator terminal product is retired; explicit
+for host setup and recovery. The Hot Cross Buns terminal product is retired; explicit
 host-local administrative commands below use the private Go runtime rather than
 a public CLI installation. Do not expose this listener directly to the internet.
 
 ## Start on a configured host
 
-Use Node 22.12+ and a built Gator runtime. Configure the host's own profile and
-create the conversations to expose using Gator on that host. Use a dedicated
-profile and retain its `GATOR_CONFIG_DIR` and `GATOR_STATE_DIR` for the companion.
+Use Node 22.12+ and a built Hot Cross Buns runtime. Configure the host's own profile and
+create the conversations to expose using Hot Cross Buns on that host. Use a dedicated
+profile and retain its `HOT_CROSS_BUNS_CONFIG_DIR` and `HOT_CROSS_BUNS_STATE_DIR` for the companion.
 The process serves one owner; possession of its token gives access to that
 profile's supported conversation operations.
 
 ```sh
-mkdir -m 700 /private/path/gator-companion
-node companion/token.mjs /private/path/gator-companion/access.token
-node companion/main.mjs /path/to/gator-runtime /path/to/host/workspace \
-  /private/path/gator-companion/access.token 7341
+mkdir -m 700 /private/path/hot-cross-buns-companion
+node companion/token.mjs /private/path/hot-cross-buns-companion/access.token
+node companion/main.mjs /path/to/hot-cross-buns-runtime /path/to/host/workspace \
+  /private/path/hot-cross-buns-companion/access.token 7341
 ```
 
 The listener binds only `127.0.0.1`. Use an SSH tunnel, or an HTTPS reverse proxy
 on the execution host that preserves the Authorization header. Never send the
 bearer token over an unencrypted remote connection or put it in a URL. For a
-same-origin browser client, set `GATOR_COMPANION_ORIGIN` to its exact HTTPS
+same-origin browser client, set `HOT_CROSS_BUNS_COMPANION_ORIGIN` to its exact HTTPS
 origin (no trailing slash). Preserve that Host header or the listener's exact
 `127.0.0.1:PORT` header through the proxy. Other hosts and browser origins are
 rejected. No permissive CORS is enabled.
 Token creation refuses overwrite; rotation atomically replaces an existing token:
 
 ```sh
-node companion/token.mjs /private/path/gator-companion/access.token --rotate
+node companion/token.mjs /private/path/hot-cross-buns-companion/access.token --rotate
 ```
 
 Rotation revokes future requests from all previous clients, including requests
@@ -77,10 +77,10 @@ token on the host for recovery and global rotation. Create a new private export
 file for each enrollment; existing files are never replaced:
 
 ```sh
-node companion/devices.mjs /private/path/gator-companion/access.token \
-  add 'My phone' /private/path/gator-companion/phone.token
-node companion/devices.mjs /private/path/gator-companion/access.token list
-node companion/devices.mjs /private/path/gator-companion/access.token revoke DEVICE_ID
+node companion/devices.mjs /private/path/hot-cross-buns-companion/access.token \
+  add 'My phone' /private/path/hot-cross-buns-companion/phone.token
+node companion/devices.mjs /private/path/hot-cross-buns-companion/access.token list
+node companion/devices.mjs /private/path/hot-cross-buns-companion/access.token revoke DEVICE_ID
 ```
 
 Transfer the exported token privately to that device and paste it into **Host
@@ -138,7 +138,7 @@ or refreshing. Token revocation clears the displayed conversation.
 **Conversations** returns to the list without stopping admitted work. Switching
 chats retains each chat's draft and any unconfirmed message identity separately.
 Opening a chat does not send its draft or resume interrupted work. Catalog reads
-use Gator's existing bounded local catalog; they do not call a model or create
+use Hot Cross Buns's existing bounded local catalog; they do not call a model or create
 a conversation. Search covers titles and folders, not message contents. Partial
 or skipped catalog records are disclosed. Refresh retries the same search after
 a failure. The list is refreshed explicitly and when the page becomes visible;
@@ -207,7 +207,7 @@ response is lost, refresh and inspect the saved status before trying again; the
 client never automatically replays the change. Decisions are retained on the
 host across companion restarts. Polling preserves expanded details and keyboard
 focus. Replying with an update reference and rating its usefulness still require
-Gator on the host.
+Hot Cross Buns on the host.
 
 The host allows four open conversation processes and at most three executing
 chats. The dispatch queue is bounded. Opening another chat can retire an idle
@@ -220,7 +220,7 @@ lifecycle. On restart, admitted interrupted work requires explicit recovery.
 
 ## Monitoring and availability
 
-Configured recurring checks still run through Gator's existing job supervisor
+Configured recurring checks still run through Hot Cross Buns's existing job supervisor
 on this execution host. Start or install it through the host's reviewed Recovery
 controls, using the same profile and a stable runtime location. The companion
 API does not install or start a supervisor implicitly. Its availability is
@@ -238,7 +238,7 @@ an offline host will run it. “Ready for messages” describes the conversation
 not the health of its recurring checks.
 
 Health inspection is read-only. It does not run/retry a check, acknowledge an
-update or change its resolution. Open Gator on the host to change or restart
+update or change its resolution. Open Hot Cross Buns on the host to change or restart
 checks. Failed health reads disclose that displayed states may be out of date.
 After a connection loss or hidden tab, retained health stays labeled as last
 received until a successful refresh. A pending reconnect does not establish fresh
@@ -246,7 +246,7 @@ health. Polling preserves expanded timing details and keyboard focus; switching
 chats clears unrelated checks, and revoked access clears displayed health.
 
 For a CLI-created check to appear in a chat's follow-up cards, pass
-`gator job add NAME --conversation CHAT_ID --schedule CRON ... -- TASK` on the
+`hot-cross-buns job add NAME --conversation CHAT_ID --schedule CRON ... -- TASK` on the
 execution host. Use an existing chat in that host's profile. Its folder is the
 default source, and an explicit source must match. The command confirms the
 update's owning chat. See [scheduled-job CLI details](../docs/JOBS.md#cli).
@@ -265,26 +265,26 @@ and create the referenced directories first. The installation must retain
 test builds or move the installation after activation. Use a stable Node path.
 
 ```sh
-node companion/macos-service.mjs /private/path/companion.json /private/path/com.gator.companion.plist
-plutil -lint /private/path/com.gator.companion.plist
+node companion/macos-service.mjs /private/path/companion.json /private/path/com.hot-cross-buns.companion.plist
+plutil -lint /private/path/com.hot-cross-buns.companion.plist
 ```
 
 Review the generated arguments/profile paths. When ready to enable it, place
-the plist at `~/Library/LaunchAgents/com.gator.companion.plist`, retaining mode
+the plist at `~/Library/LaunchAgents/com.hot-cross-buns.companion.plist`, retaining mode
 0600 and without overwriting another service. Activation and removal are
 explicit operations:
 
 ```sh
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.gator.companion.plist"
-launchctl print "gui/$(id -u)/com.gator.companion"
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.hot-cross-buns.companion.plist"
+launchctl print "gui/$(id -u)/com.hot-cross-buns.companion"
 # Stop the service before removing its owned plist:
-launchctl bootout "gui/$(id -u)/com.gator.companion"
+launchctl bootout "gui/$(id -u)/com.hot-cross-buns.companion"
 ```
 
 Launchd restarts the listener after exit, with a ten-second throttle. It does
 not replay interrupted Go work. This is a login service: the Mac must be awake,
 online and logged in. It does not keep a sleeping Mac awake, configure HTTPS,
-enroll a phone, or start Gator's separate job supervisor. A permanent companion
+enroll a phone, or start Hot Cross Buns's separate job supervisor. A permanent companion
 should use the same dedicated profile as the reviewed supervisor configuration.
 Logs stay in the private directory; log rotation is not automated yet.
 
@@ -298,8 +298,8 @@ and its sibling `app-host/src/` together in a stable installation. Node 22.12+
 and systemd with `Type=exec` support are required.
 
 ```sh
-node companion/linux-service.mjs /home/gator/companion.json /home/gator/gator-companion.service
-systemd-analyze --user verify /home/gator/gator-companion.service
+node companion/linux-service.mjs /home/hot-cross-buns/companion.json /home/hot-cross-buns/hot-cross-buns-companion.service
+systemd-analyze --user verify /home/hot-cross-buns/hot-cross-buns-companion.service
 ```
 
 Preparation validates the executable, workspace/profile directories and private
@@ -313,23 +313,23 @@ As the dedicated user, install the reviewed file only if that unit name is free:
 ```sh
 mkdir -p "$HOME/.config/systemd/user"
 # Refuse an existing unit or symlink. Link the reviewed file without replacing it.
-ln /home/gator/gator-companion.service "$HOME/.config/systemd/user/gator-companion.service"
+ln /home/hot-cross-buns/hot-cross-buns-companion.service "$HOME/.config/systemd/user/hot-cross-buns-companion.service"
 systemctl --user daemon-reload
-systemctl --user enable --now gator-companion.service
-systemctl --user status --no-pager gator-companion.service
-journalctl --user -u gator-companion.service -n 50 --no-pager
+systemctl --user enable --now hot-cross-buns-companion.service
+systemctl --user status --no-pager hot-cross-buns-companion.service
+journalctl --user -u hot-cross-buns-companion.service -n 50 --no-pager
 ```
 
 For operation after logout and at boot, the host administrator must enable
-lingering for this dedicated user, for example `sudo loginctl enable-linger gator`.
-Check it with `loginctl show-user gator --property=Linger`. This is a separate
+lingering for this dedicated user, for example `sudo loginctl enable-linger hot-cross-buns`.
+Check it with `loginctl show-user hot-cross-buns --property=Linger`. This is a separate
 host policy change; the generator never performs it. Lingering keeps the user
 manager available after logout, as described in the
 [systemd login manager documentation](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html).
 It cannot keep a powered-off host running. Disable lingering only if no other
 services for this user need it.
 
-Install Gator's separate job supervisor through Recovery on this Linux host with
+Install Hot Cross Buns's separate job supervisor through Recovery on this Linux host with
 these same state/configuration paths. The listener alone does not execute
 recurring checks. Both services must be enabled and the execution host online;
 the phone and original laptop can then disconnect. Host files and credentials
@@ -346,8 +346,8 @@ application health check. Exact argument handling and restart/stop behavior use
 To remove this reviewed service, stop it before removing its unit:
 
 ```sh
-systemctl --user disable --now gator-companion.service
-rm "$HOME/.config/systemd/user/gator-companion.service"
+systemctl --user disable --now hot-cross-buns-companion.service
+rm "$HOME/.config/systemd/user/hot-cross-buns-companion.service"
 systemctl --user daemon-reload
 ```
 
@@ -364,15 +364,15 @@ From the repository root:
 node --test companion/auth.test.mjs companion/server.test.mjs companion/health.test.mjs
 node --test companion/linux-service.test.mjs companion/macos-service.test.mjs
 # After installing the desktop dependencies and Playwright browsers:
-GATOR_COMPANION_BROWSERS=chromium,webkit node --test companion/client.test.mjs
+HOT_CROSS_BUNS_COMPANION_BROWSERS=chromium,webkit node --test companion/client.test.mjs
 # On a logged-in Mac: temporary service, isolated profile, automatic removal.
-GATOR_COMPANION_LAUNCHD_TEST=1 node --test companion/macos-service.test.mjs
+HOT_CROSS_BUNS_COMPANION_LAUNCHD_TEST=1 node --test companion/macos-service.test.mjs
 # On Linux with an active user manager and a built Linux runtime:
-GATOR_COMPANION_SYSTEMD_TEST=1 GATOR_TEST_BINARY=/path/to/gator-runtime \
+HOT_CROSS_BUNS_COMPANION_SYSTEMD_TEST=1 HOT_CROSS_BUNS_TEST_BINARY=/path/to/hot-cross-buns-runtime \
   node --test companion/linux-service.test.mjs companion/linux-monitoring.test.mjs
 # With Docker: isolated Linux user-manager boots, including lingering.
 # Supply a Linux runtime matching the Docker engine architecture and a NEW output directory.
-python3 scripts/companion-boot/run.py /path/to/linux/gator-runtime .gator/companion-boot
+python3 scripts/companion-boot/run.py /path/to/linux/hot-cross-buns-runtime .hot-cross-buns/companion-boot
 ```
 
 Tests build the real Go runtime, use a disposable profile and local model fixture,
@@ -475,7 +475,7 @@ After preparing/installing a service, check its authenticated listener without
 opening a chat or calling a provider:
 
 ```sh
-node companion/doctor.mjs http://127.0.0.1:7341 /private/path/gator-companion/access.token
+node companion/doctor.mjs http://127.0.0.1:7341 /private/path/hot-cross-buns-companion/access.token
 ```
 
 Use the owner token file on the host. The probe follows no redirects, times out
@@ -499,13 +499,13 @@ supervisor on an always-on host.
 
 External terminals are separate from Active Work. They require an existing tmux
 pane, explicit host-local enrollment, and a separate per-device Inspect grant.
-Use the companion's same `GATOR_STATE_DIR`; no remote enrollment is available:
+Use the companion's same `HOT_CROSS_BUNS_STATE_DIR`; no remote enrollment is available:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux candidates --reviewed-read-config /absolute/path/to/tmux /private/path/socket
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux list
-node companion/external-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux candidates --reviewed-read-config /absolute/path/to/tmux /private/path/socket
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux enroll --reviewed-read-config /absolute/path/to/tmux /private/path/socket '%3' 'Build monitor'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux list
+node companion/external-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID 300
 ```
 
 The socket parent must be private and owned by the companion OS user; the server
@@ -518,8 +518,8 @@ secrets; grant only the exact pane/device intended. Revocation cannot recall dat
 already received. To revoke or remove enrollment:
 
 ```sh
-node companion/external-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID 0
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux revoke TARGET_ID
+node companion/external-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID 0
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux revoke TARGET_ID
 ```
 
 Grants expire within 900 seconds and also depend on current device enrollment and
@@ -532,7 +532,7 @@ API bounds, license provenance, supported platforms and verification commands.
 Before using it, review the existing server's command aliases: canonical
 `if-shell`, `list-panes`, `display-message` and `capture-pane` can be shadowed.
 Explicitly accept the selected server's behavior and keep it trusted throughout
-enrollment; withdraw review before known changes. Gator cannot safely inspect an overridden
+enrollment; withdraw review before known changes. Hot Cross Buns cannot safely inspect an overridden
 bootstrap command through the same parser and does not change aliases for you.
 Unreviewable configurations are unsupported. This is a manual local trust
 decision, not automatic attestation of arbitrary tmux configuration.
@@ -545,7 +545,7 @@ attest aliases or detect later runtime configuration changes. Before known chang
 withdraw trust for every enrollment on that server instance:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux unreview TARGET_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux unreview TARGET_ID
 ```
 
 Renewal requires new enrollment and separate device grants. See
@@ -558,10 +558,10 @@ External input is host-user execution authority. Read review and Inspect alone
 never authorize it. After the existing exact-pane enrollment, use the same profile:
 
 ```sh
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux review-control TARGET_ID
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 300
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID key_input 300
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID interrupt 300
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux review-control TARGET_ID
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 300
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID key_input 300
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID interrupt 300
 ```
 
 `text_input` allows reviewed literal text with OR without Enter. `key_input`
@@ -573,8 +573,8 @@ The backend remains explicitly user-trusted: aliases/hooks can alter command
 behavior, and arbitrary runtime configuration changes are not attested.
 
 ```sh
-node companion/external-control-access.mjs /path/to/gator-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 0
-GATOR_INTERNAL_COMMANDS=1 /path/to/gator-runtime external-tmux unreview-control TARGET_ID
+node companion/external-control-access.mjs /path/to/hot-cross-buns-runtime /private/path/access.token TARGET_ID DEVICE_ID text_input 0
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 /path/to/hot-cross-buns-runtime external-tmux unreview-control TARGET_ID
 ```
 
 `unreview-control` removes server-instance control review/grants and preserves

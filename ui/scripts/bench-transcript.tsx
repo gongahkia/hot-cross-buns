@@ -6,17 +6,17 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "../tests/fixture"
 
 const counts = process.argv.slice(2).length ? process.argv.slice(2).map(Number) : [100, 1000, 5000]
 if (counts.some(count => !Number.isInteger(count) || count < 1 || count > 10000)) throw new Error("Counts must be whole numbers from 1 to 10000.")
 const measurements: Record<string, number>[] = []
 for (const count of counts) {
-  const root = await mkdtemp(join(tmpdir(), "gator-transcript-benchmark-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } })
-  host.current.messages = Array.from({ length: count }, (_, index) => ({ role: index % 2 ? "Gator" : "You", text: `Message ${index}. ${index % 2 ? "A retained answer with **a clear conclusion**, a [source](https://example.test), and a short explanation." : "Please check the current plan and explain the next useful step."}`, created_at: new Date(1700000000000 + index * 60000).toISOString() }))
-  const client = new GatorClient(host), started = performance.now()
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-transcript-benchmark-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } })
+  host.current.messages = Array.from({ length: count }, (_, index) => ({ role: index % 2 ? "Hot Cross Buns" : "You", text: `Message ${index}. ${index % 2 ? "A retained answer with **a clear conclusion**, a [source](https://example.test), and a short explanation." : "Please check the current plan and explain the next useful step."}`, created_at: new Date(1700000000000 + index * 60000).toISOString() }))
+  const client = new HotCrossBunsClient(host), started = performance.now()
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   const frame = async () => { await setup.flush(); await Bun.sleep(10); await setup.flush() }
   try {

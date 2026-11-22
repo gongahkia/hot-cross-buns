@@ -17,7 +17,7 @@ func TestDeviceFlowStartsAndPollsForAnApprovedToken(t *testing.T) {
 		}
 		switch request.URL.Path {
 		case "/device":
-			if request.PostForm.Get("client_id") != "gator-client" || request.PostForm.Get("scope") != "read:user" {
+			if request.PostForm.Get("client_id") != "hot-cross-buns-client" || request.PostForm.Get("scope") != "read:user" {
 				t.Fatalf("device form = %#v", request.PostForm)
 			}
 			_, _ = fmt.Fprint(writer, `{"device_code":"device","user_code":"ABCD-EFGH","verification_uri":"https://example.test/device","interval":1,"expires_in":60}`)
@@ -37,7 +37,7 @@ func TestDeviceFlowStartsAndPollsForAnApprovedToken(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	flow := DeviceFlow{ClientID: "gator-client", DeviceCodeURL: server.URL + "/device", TokenURL: server.URL + "/token", Scope: "read:user", WaitBeforePoll: false}
+	flow := DeviceFlow{ClientID: "hot-cross-buns-client", DeviceCodeURL: server.URL + "/device", TokenURL: server.URL + "/token", Scope: "read:user", WaitBeforePoll: false}
 	authorization, err := flow.Start(context.Background())
 	if err != nil {
 		t.Fatalf("start device flow: %v", err)

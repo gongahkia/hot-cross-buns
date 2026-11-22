@@ -1,16 +1,16 @@
 // Package model resolves supported direct cloud APIs into provider-independent
-// execution backends. Gator always retains the model and tool loop.
+// execution backends. Hot Cross Buns always retains the model and tool loop.
 package model
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model/anthropic"
-	"github.com/gongahkia/gator/internal/model/chatcompletions"
-	"github.com/gongahkia/gator/internal/model/gemini"
-	"github.com/gongahkia/gator/internal/model/openai"
-	"github.com/gongahkia/gator/internal/model/radius"
+	"github.com/gongahkia/hot-cross-buns/internal/model/anthropic"
+	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
+	"github.com/gongahkia/hot-cross-buns/internal/model/gemini"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/model/radius"
 )
 
 // newBackend contains provider-specific adapter construction after the public
@@ -87,7 +87,7 @@ func newBackend(provider Provider, config Config) (Backend, error) {
 			APIKey:           apiKey,
 			Model:            config.Model,
 			BaseURL:          config.BaseURL,
-			Gateway:          providerOption(config, "gateway", "GATOR_RADIUS_GATEWAY"),
+			Gateway:          providerOption(config, "gateway", "HOT_CROSS_BUNS_RADIUS_GATEWAY"),
 			Client:           config.Client,
 		}}, nil
 	case Gemini:

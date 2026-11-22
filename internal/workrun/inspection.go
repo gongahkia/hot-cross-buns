@@ -16,9 +16,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const inspectionLimit = 64 * 1024
@@ -273,7 +273,7 @@ func InspectOwnedWork(ctx context.Context, stateDir, actor, target, generation s
 	if target == "" && generation != "" {
 		return result, errors.New("unexpected generation")
 	}
-	directory := filepath.Join(stateDir, "gator", "work-control")
+	directory := filepath.Join(stateDir, "hot-cross-buns", "work-control")
 	file, err := os.Open(directory)
 	if errors.Is(err, os.ErrNotExist) {
 		if target != "" {

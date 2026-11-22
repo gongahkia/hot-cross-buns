@@ -3,7 +3,7 @@ package actionlog
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gongahkia/gator/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,12 +12,12 @@ import (
 )
 
 func TestTerminalClaimHelper(t *testing.T) {
-	state := os.Getenv("GATOR_T4_CLAIM_STATE")
+	state := os.Getenv("HOT_CROSS_BUNS_T4_CLAIM_STATE")
 	if state == "" {
 		return
 	}
 	var r TerminalReceipt
-	if json.Unmarshal([]byte(os.Getenv("GATOR_T4_CLAIM_RECEIPT")), &r) != nil {
+	if json.Unmarshal([]byte(os.Getenv("HOT_CROSS_BUNS_T4_CLAIM_RECEIPT")), &r) != nil {
 		t.Fatal("fixture")
 	}
 	s, err := Open(state)
@@ -29,7 +29,7 @@ func TestTerminalClaimHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Printf("winner=%v delivery=%s\n", winner, got.Delivery)
-	if winner && os.Getenv("GATOR_T4_CRASH") == "1" {
+	if winner && os.Getenv("HOT_CROSS_BUNS_T4_CRASH") == "1" {
 		os.WriteFile(state+"/possible-dispatch", []byte("sentinel"), 0600)
 		os.Exit(23)
 	}
@@ -44,9 +44,9 @@ func TestTerminalCrossProcessClaimsAndCrashRecovery(t *testing.T) {
 	data, _ := json.Marshal(r)
 	child := func(crash bool) *exec.Cmd {
 		c := exec.Command(os.Args[0], "-test.run=^TestTerminalClaimHelper$")
-		c.Env = append(os.Environ(), "GATOR_T4_CLAIM_STATE="+dir, "GATOR_T4_CLAIM_RECEIPT="+string(data))
+		c.Env = append(os.Environ(), "HOT_CROSS_BUNS_T4_CLAIM_STATE="+dir, "HOT_CROSS_BUNS_T4_CLAIM_RECEIPT="+string(data))
 		if crash {
-			c.Env = append(c.Env, "GATOR_T4_CRASH=1")
+			c.Env = append(c.Env, "HOT_CROSS_BUNS_T4_CRASH=1")
 		}
 		return c
 	}

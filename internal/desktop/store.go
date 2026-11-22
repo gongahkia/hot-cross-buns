@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 const sessionsFile = "sessions.json"
@@ -35,7 +35,7 @@ func Open(stateDir string) (*Store, error) {
 	if !filepath.IsAbs(stateDir) {
 		return nil, errors.New("desktop state directory must be absolute")
 	}
-	directory := filepath.Join(stateDir, "gator", "desktop")
+	directory := filepath.Join(stateDir, "hot-cross-buns", "desktop")
 	if err := privatefs.MkdirAll(directory); err != nil {
 		return nil, fmt.Errorf("create desktop state directory: %w", err)
 	}

@@ -2,15 +2,15 @@ import { test, expect } from "bun:test"
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { Application } from "@gator/application-host/application"
-import { GatorClient } from "../src/gator/client"
-import type { BackendState } from "@gator/application-host/contracts/protocol"
-import type { FrontendFrame } from "@gator/application-host/contracts/frontend"
+import { Application } from "@hot-cross-buns/application-host/application"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
+import type { BackendState } from "@hot-cross-buns/application-host/contracts/protocol"
+import type { FrontendFrame } from "@hot-cross-buns/application-host/contracts/frontend"
 
 async function until(predicate: () => boolean, label: string) { const end = Date.now() + 15000; while (!predicate()) { if (Date.now() > end) throw new Error(`Timed out: ${label}`); await Bun.sleep(20) } }
 
 for (const delegated of [false, true]) test(`${delegated ? "delegated" : "local"} pending-action correction preserves its owner and requires a fresh exact review`, async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-action-correction-"))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-action-correction-"))
   let effects = 0, modelCalls = 0, holding = false
   let release!: () => void
   const hold = new Promise<void>(resolve => { release = resolve })
@@ -20,7 +20,7 @@ for (const delegated of [false, true]) test(`${delegated ? "delegated" : "local"
     if (new URL(request.url).pathname.includes("/gmail/")) { effects++; sent.push(JSON.stringify(body)); return Response.json({ id: "corrected-send" }) }
     const system = body.messages.filter((message:any) => message.role === "system").map((message:any) => message.content).join("\n")
     let message: any
-    if (system.includes("You handle the conversation with Gator")) {
+    if (system.includes("You handle the conversation with Hot Cross Buns")) {
       const context = JSON.parse(body.messages.at(-1).content); routes.push(context)
       message = { role: "assistant", content: JSON.stringify(context.message === "Send the venue update" ? { kind: "task" } : context.message === "Hello during review" ? { kind: "reply", text: "You can keep talking while the action waits." } : { kind: "revise_action", target: context.tasks.find((task:any) => task.can_correct_action).id, instruction: context.message }) }
     } else if (body.messages.some((message:any) => message.role === "user" && message.content === "Hold another task")) {
@@ -33,10 +33,10 @@ for (const delegated of [false, true]) test(`${delegated ? "delegated" : "local"
     return Response.json({ choices: [{ message, finish_reason: message.tool_calls ? "tool_calls" : "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
   } })
   const base = `http://127.0.0.1:${server.port}`
-  await mkdir(join(root, "config/gator"), { recursive: true })
-  await writeFile(join(root, "config/gator/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Local fixture", kind: "google_workspace", resource: base, authentication: "none" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/gator-runtime"), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  await mkdir(join(root, "config/hot-cross-buns"), { recursive: true })
+  await writeFile(join(root, "config/hot-cross-buns/config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: base + "/chat", models: ["fixture"], default_model: "fixture" }], connectors: [{ version: 1, id: "google", name: "Local fixture", kind: "google_workspace", resource: base, authentication: "none" }] }))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/hot-cross-buns-runtime"), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   try {
     await client.start()
     await client.send({ type: "submit", text: "/mode act" }); await client.send({ type: "submit", text: "/connector add google" })
@@ -73,7 +73,7 @@ for (const delegated of [false, true]) test(`${delegated ? "delegated" : "local"
     expect(actions.some(action => action.Status === "executed")).toBe(true)
     release(); await until(() => !client.snapshot.allChatsBusy, "all original owners settled")
     await client.close()
-    client = new GatorClient(new Application(options)); await client.start(owner)
+    client = new HotCrossBunsClient(new Application(options)); await client.start(owner)
     expect(client.draft.text).toBe("An unrelated draft to retain")
     expect(client.state?.running).toBe(false); expect(client.state?.pending_approval).toBeFalsy()
     expect(effects).toBe(1); expect(modelCalls).toBe(3)

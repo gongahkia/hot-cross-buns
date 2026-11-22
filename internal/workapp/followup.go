@@ -8,12 +8,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/followup"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/jobs"
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/workhome"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/followup"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workhome"
 )
 
 type followupForm struct {
@@ -274,7 +274,7 @@ func (m Model) updateFollowupForm(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			choices = m.config.ConnectorChoices()
 		}
 		if len(choices) == 0 {
-			m.sectionNotice = "No connected sources. Local files remain selected; Gator can track your own updates without connecting an account."
+			m.sectionNotice = "No connected sources. Local files remain selected; Hot Cross Buns can track your own updates without connecting an account."
 			return m, nil
 		}
 		if key.String() == "left" {
@@ -387,7 +387,7 @@ func (m Model) followupPanel() uisnapshot.Panel {
 				selectedSource = choices[m.selected%len(choices)] + " · selected: " + valueOrNone(strings.Join(d.ConnectorIDs, ", "))
 			}
 		}
-		p.Rows = []uisnapshot.Row{{Label: "Title", Detail: d.Title}, {Label: "Desired outcome", Detail: d.Outcome}, {Label: "Local workspace", Detail: d.SourcePath}, {Label: "Connected sources · ←/→ choose, Space toggle", Detail: selectedSource}, {Label: "Mail selection · exact Gmail query", Detail: valueOrNone(d.GmailQuery)}, {Label: "Local tracking", Detail: "Goal plan, progress, and deadlines"}, {Label: "When Gator works · ←/→ change", Detail: fmt.Sprintf("Every %d minutes", d.IntervalMinutes)}, {Label: "Notify me when", Detail: d.AlertWhen}, {Label: "What Gator may do · ←/→ change", Detail: string(d.Mode) + "; sending requires foreground approval"}, {Label: "Per-try budget · ←/→ change", Detail: fmt.Sprintf("%d requests · %d tokens · %ds", d.MaxRequests, d.MaxTokens, d.MaxSeconds)}, {Label: "Daily Work checks · ←/→ change", Detail: fmt.Sprintf("Up to %d per UTC day; then review with Enter", d.MaxChecksPerDay)}}
+		p.Rows = []uisnapshot.Row{{Label: "Title", Detail: d.Title}, {Label: "Desired outcome", Detail: d.Outcome}, {Label: "Local workspace", Detail: d.SourcePath}, {Label: "Connected sources · ←/→ choose, Space toggle", Detail: selectedSource}, {Label: "Mail selection · exact Gmail query", Detail: valueOrNone(d.GmailQuery)}, {Label: "Local tracking", Detail: "Goal plan, progress, and deadlines"}, {Label: "When Hot Cross Buns works · ←/→ change", Detail: fmt.Sprintf("Every %d minutes", d.IntervalMinutes)}, {Label: "Notify me when", Detail: d.AlertWhen}, {Label: "What Hot Cross Buns may do · ←/→ change", Detail: string(d.Mode) + "; sending requires foreground approval"}, {Label: "Per-try budget · ←/→ change", Detail: fmt.Sprintf("%d requests · %d tokens · %ds", d.MaxRequests, d.MaxTokens, d.MaxSeconds)}, {Label: "Daily Work checks · ←/→ change", Detail: fmt.Sprintf("Up to %d per UTC day; then review with Enter", d.MaxChecksPerDay)}}
 		p.Hints = []uisnapshot.Hint{{Shortcut: "Tab", Action: "next field"}, {Shortcut: "Ctrl+R", Action: "review"}, {Shortcut: "Ctrl+U", Action: "clear field"}, {Shortcut: "Esc", Action: "cancel"}}
 		for index, value := range map[int]string{0: d.Title, 1: d.Outcome, 2: d.SourcePath, 4: d.GmailQuery, 7: d.AlertWhen} {
 			p.Rows[index].Input = bridgeInput(value, 4096, index == 1 || index == 7)
@@ -420,7 +420,7 @@ func (m Model) followupPanel() uisnapshot.Panel {
 		p.Rows[6].Label, p.Rows[6].Input = "Check frequency", bridgeSelect(strconv.Itoa(d.IntervalMinutes),
 			uisnapshot.Option{Value: "5", Label: "Every 5 minutes"}, uisnapshot.Option{Value: "15", Label: "Every 15 minutes"},
 			uisnapshot.Option{Value: "30", Label: "Every 30 minutes"}, uisnapshot.Option{Value: "60", Label: "Every hour"})
-		p.Rows[8].Label, p.Rows[8].Input = "What Gator may do", bridgeSelect(string(d.Mode),
+		p.Rows[8].Label, p.Rows[8].Input = "What Hot Cross Buns may do", bridgeSelect(string(d.Mode),
 			uisnapshot.Option{Value: "inspect", Label: "Read and recommend"}, uisnapshot.Option{Value: "draft", Label: "Read and prepare drafts for review"})
 		p.Rows[8].Input.Help = "Sending and publishing always require separate foreground approval."
 		p.Rows[9].Label = "Limits for each attempt"

@@ -1,7 +1,7 @@
-Process:         GatorMac [74984]
-Path:            /private/tmp/*/Gator.app/Contents/MacOS/GatorMac
+Process:         HotCrossBunsMac [74984]
+Path:            /private/tmp/*/HotCrossBuns.app/Contents/MacOS/HotCrossBunsMac
 Load Address:    0x1029f8000
-Identifier:      dev.gator.pet.b2.fixture
+Identifier:      dev.hot-cross-buns.pet.b2.fixture
 Version:         0.1.0 (1)
 Code Type:       ARM64
 Platform:        macOS

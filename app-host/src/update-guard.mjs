@@ -4,14 +4,14 @@ import { spawn } from "node:child_process";
 // It does not cancel work or run profile maintenance. There are no shell args.
 export function acquireUpdateGuard(binary, cwd, env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, ["desktop-update-guard"], { cwd, env: { ...env, GATOR_DESKTOP_UPDATE_GUARD: "1" }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(binary, ["desktop-update-guard"], { cwd, env: { ...env, HOT_CROSS_BUNS_DESKTOP_UPDATE_GUARD: "1" }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let output = "", diagnostics = "", settled = false;
     const timer = setTimeout(() => fail(new Error("Update preparation timed out. Your saved work is unchanged.")), 8000);
     const fail = (error) => { if (!settled) { settled = true; clearTimeout(timer); child.kill(); reject(error); } };
     child.stdin.on("error", () => {});
     child.on("error", fail);
     child.stderr.on("data", (chunk) => { diagnostics = (diagnostics + chunk.toString()).slice(-3000); });
-    child.on("close", () => { if (!settled) fail(new Error(diagnostics.trim().replace(/^Gator:\s*/, "") || "Other work is using this profile. Finish it before updating.")); });
+    child.on("close", () => { if (!settled) fail(new Error(diagnostics.trim().replace(/^Hot Cross Buns:\s*/, "") || "Other work is using this profile. Finish it before updating.")); });
     child.stdout.on("data", (chunk) => {
       output += chunk.toString();
       if (output.length > 64 * 1024) { fail(new Error("Invalid update preparation response.")); return; }

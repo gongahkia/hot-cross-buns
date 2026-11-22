@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
 )
 
 // LocalPlans gives a main chat an owner-wide view, and a goal chat only its own
@@ -36,7 +36,7 @@ func (t *LocalPlans) inspectedRevision(id string, revision int) bool {
 type localPlanTool struct{ *LocalPlans }
 
 func (localPlanTool) Definition() agent.ToolDefinition {
-	return agent.ToolDefinition{Name: "local_plan", Description: "Inspect Gator's native goals and plans, without connectors. Prefer query with the goal title to inspect a unique match in one call. With no query or goal_id, list active goals; supply an exact ID to read the current plan, step IDs, dates, dependencies and revision before proposing changes. A goal chat can only read its own goal. Stored progress is last reported, not independently verified.", Parameters: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","maxLength":256},"goal_id":{"type":"string","maxLength":29}},"additionalProperties":false}`)}
+	return agent.ToolDefinition{Name: "local_plan", Description: "Inspect Hot Cross Buns's native goals and plans, without connectors. Prefer query with the goal title to inspect a unique match in one call. With no query or goal_id, list active goals; supply an exact ID to read the current plan, step IDs, dates, dependencies and revision before proposing changes. A goal chat can only read its own goal. Stored progress is last reported, not independently verified.", Parameters: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","maxLength":256},"goal_id":{"type":"string","maxLength":29}},"additionalProperties":false}`)}
 }
 func (t localPlanTool) Execute(_ context.Context, raw json.RawMessage) (agent.ToolResult, error) {
 	var args struct {

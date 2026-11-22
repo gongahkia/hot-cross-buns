@@ -2,76 +2,76 @@
 Building for debugging...
 [0/5] Write sources
 [1/5] Write swift-version--58304C5D6DBC2206.txt
-[3/8] Compiling GatorCore BridgeProtocol.swift
-[4/8] Compiling GatorCore NativeMessageReaction.swift
-[5/8] Emitting module GatorCore
-[6/13] Compiling GatorCore NativeTaskReview.swift
-[7/13] Compiling GatorCore NativeTranscriptSearch.swift
-[8/13] Compiling GatorCore NativeRecovery.swift
-[9/13] Compiling GatorCore ManagedSessionCoordinator.swift
-[10/13] Compiling GatorCore GatorApplicationState.swift
-[11/72] Compiling GatorMac NativeComposerPresentation.swift
-[12/72] Compiling GatorMac NativeMascotView.swift
-[13/72] Compiling GatorMac NativeMessageBody.swift
-[14/75] Compiling GatorMac AppDelegate.swift
-[15/75] Compiling GatorMac ApprovalReviewView.swift
-[16/75] Compiling GatorMac AttachmentSelectionView.swift
-[17/75] Compiling GatorMac ComposerView.swift
-[18/75] Emitting module GatorMac
-[19/75] Compiling GatorMac NativeMessageReactionView.swift
-[20/75] Compiling GatorMac NativeMotionPresentation.swift
-[21/75] Compiling GatorMac NativeStreamingPresentation.swift
-[22/75] Compiling GatorMac NativeTranscriptFind.swift
-[23/75] Compiling GatorMac NativeWorkspacePicker.swift
-[24/75] Compiling GatorMac NotchQuickAccess.swift
-[25/75] Compiling GatorMac GatorApp.swift
-[26/75] Compiling GatorMac NativeAcceptanceDiagnostics.swift
-[27/75] Compiling GatorMac NativeAttachmentActions.swift
-[28/75] Compiling GatorMac NativeComposer.swift
-[29/79] Compiling GatorMac RecoveryInspectorContent.swift
-[30/79] Compiling GatorMac RecoveryPreparationView.swift
-[31/79] Compiling GatorMac TaskInspectorView.swift
-[37/79] Compiling GatorCoreTests NativeCatalogOwnerTests.swift
-[38/79] Compiling GatorCoreTests NativeCatalogTests.swift
-[39/79] Compiling GatorCoreTests NativeClosingSafetyTests.swift
-[40/79] Compiling GatorCoreTests NativeClosureAcceptanceTests.swift
-[41/79] Compiling GatorMac ConversationCatalogView.swift
-[42/79] Compiling GatorMac ConversationView.swift
-[43/79] Compiling GatorMac ExactDecisionButton.swift
-[44/79] Compiling GatorMac ExactReviewContent.swift
-[49/79] Compiling GatorMac PlanReviewContent.swift
-[50/79] Compiling GatorMac ProviderSetupView.swift
-[51/79] Compiling GatorMac RecentConversationsMenu.swift
-[66/79] Emitting module GatorCoreTests
-[67/79] Compiling GatorCoreTests NativeWorkspaceTests.swift
-[68/79] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
-[69/79] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
-[70/79] Compiling GatorCoreTests RecoveryPreparationTests.swift
+[3/8] Compiling HotCrossBunsCore BridgeProtocol.swift
+[4/8] Compiling HotCrossBunsCore NativeMessageReaction.swift
+[5/8] Emitting module HotCrossBunsCore
+[6/13] Compiling HotCrossBunsCore NativeTaskReview.swift
+[7/13] Compiling HotCrossBunsCore NativeTranscriptSearch.swift
+[8/13] Compiling HotCrossBunsCore NativeRecovery.swift
+[9/13] Compiling HotCrossBunsCore ManagedSessionCoordinator.swift
+[10/13] Compiling HotCrossBunsCore HotCrossBunsApplicationState.swift
+[11/72] Compiling HotCrossBunsMac NativeComposerPresentation.swift
+[12/72] Compiling HotCrossBunsMac NativeMascotView.swift
+[13/72] Compiling HotCrossBunsMac NativeMessageBody.swift
+[14/75] Compiling HotCrossBunsMac AppDelegate.swift
+[15/75] Compiling HotCrossBunsMac ApprovalReviewView.swift
+[16/75] Compiling HotCrossBunsMac AttachmentSelectionView.swift
+[17/75] Compiling HotCrossBunsMac ComposerView.swift
+[18/75] Emitting module HotCrossBunsMac
+[19/75] Compiling HotCrossBunsMac NativeMessageReactionView.swift
+[20/75] Compiling HotCrossBunsMac NativeMotionPresentation.swift
+[21/75] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
+[22/75] Compiling HotCrossBunsMac NativeTranscriptFind.swift
+[23/75] Compiling HotCrossBunsMac NativeWorkspacePicker.swift
+[24/75] Compiling HotCrossBunsMac NotchQuickAccess.swift
+[25/75] Compiling HotCrossBunsMac HotCrossBunsApp.swift
+[26/75] Compiling HotCrossBunsMac NativeAcceptanceDiagnostics.swift
+[27/75] Compiling HotCrossBunsMac NativeAttachmentActions.swift
+[28/75] Compiling HotCrossBunsMac NativeComposer.swift
+[29/79] Compiling HotCrossBunsMac RecoveryInspectorContent.swift
+[30/79] Compiling HotCrossBunsMac RecoveryPreparationView.swift
+[31/79] Compiling HotCrossBunsMac TaskInspectorView.swift
+[37/79] Compiling HotCrossBunsCoreTests NativeCatalogOwnerTests.swift
+[38/79] Compiling HotCrossBunsCoreTests NativeCatalogTests.swift
+[39/79] Compiling HotCrossBunsCoreTests NativeClosingSafetyTests.swift
+[40/79] Compiling HotCrossBunsCoreTests NativeClosureAcceptanceTests.swift
+[41/79] Compiling HotCrossBunsMac ConversationCatalogView.swift
+[42/79] Compiling HotCrossBunsMac ConversationView.swift
+[43/79] Compiling HotCrossBunsMac ExactDecisionButton.swift
+[44/79] Compiling HotCrossBunsMac ExactReviewContent.swift
+[49/79] Compiling HotCrossBunsMac PlanReviewContent.swift
+[50/79] Compiling HotCrossBunsMac ProviderSetupView.swift
+[51/79] Compiling HotCrossBunsMac RecentConversationsMenu.swift
+[66/79] Emitting module HotCrossBunsCoreTests
+[67/79] Compiling HotCrossBunsCoreTests NativeWorkspaceTests.swift
+[68/79] Compiling HotCrossBunsCoreTests PresenceApprovalClosureTests.swift
+[69/79] Compiling HotCrossBunsCoreTests RecoveryPreparationIntegrationTests.swift
+[70/79] Compiling HotCrossBunsCoreTests RecoveryPreparationTests.swift
 [74/79] Write Objects.LinkFileList
-[75/79] Linking GatorMac
-[76/79] Applying GatorMac
-[78/87] Compiling GatorMacTests NativeTranscriptFindTests.swift
-[79/87] Compiling GatorMacTests NativeStreamingTests.swift
-[80/87] Compiling GatorMacTests NativeReactionGoTests.swift
-[81/88] Compiling GatorMacTests NativeMotionGoTests.swift
-[82/88] Compiling GatorMacTests NativeMessageReactionTests.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Tests/GatorMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
+[75/79] Linking HotCrossBunsMac
+[76/79] Applying HotCrossBunsMac
+[78/87] Compiling HotCrossBunsMacTests NativeTranscriptFindTests.swift
+[79/87] Compiling HotCrossBunsMacTests NativeStreamingTests.swift
+[80/87] Compiling HotCrossBunsMacTests NativeReactionGoTests.swift
+[81/88] Compiling HotCrossBunsMacTests NativeMotionGoTests.swift
+[82/88] Compiling HotCrossBunsMacTests NativeMessageReactionTests.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Tests/HotCrossBunsMacTests/NativeMessageReactionTests.swift:93:44: warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  91 |         for reduced in [false, true] {
  92 |             let host = NSHostingView(rootView: NativeMessageReactionChip(reaction: reaction).transaction { $0.disablesAnimations = reduced })
  93 |             host.appearance = try #require(NSAppearance(named: name))
     |                                            `- warning: '#require(_:_:)' is redundant because 'NSAppearance(named: name)' never equals 'nil' (from macro 'require')
  94 |             let size = host.fittingSize
  95 |             #expect(size.width >= 20 && size.width < 60 && size.height >= 16 && size.height < 45)
-[83/88] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
-[84/88] Emitting module GatorMacTests
-[85/88] Compiling GatorMacTests NativeMascotTests.swift
-[86/88] Compiling GatorMacTests NativeUIUXRemediationTests.swift
+[83/88] Compiling HotCrossBunsMacTests NativeProviderSecretEntryTests.swift
+[84/88] Emitting module HotCrossBunsMacTests
+[85/88] Compiling HotCrossBunsMacTests NativeMascotTests.swift
+[86/88] Compiling HotCrossBunsMacTests NativeUIUXRemediationTests.swift
 [86/88] Write Objects.LinkFileList
-[87/88] Linking GatorNativePackageTests
+[87/88] Linking HotCrossBunsNativePackageTests
 Build complete! (20.17s)
 Test Suite 'Selected tests' started at 2026-11-20 17:12:04.078.
-Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-20 17:12:04.079.
-Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-20 17:12:04.079.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' started at 2026-11-20 17:12:04.079.
+Test Suite 'HotCrossBunsNativePackageTests.xctest' passed at 2026-11-20 17:12:04.079.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
 Test Suite 'Selected tests' passed at 2026-11-20 17:12:04.079.
 	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds

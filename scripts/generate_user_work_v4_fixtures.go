@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/presentation"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/presentation"
 )
 
 // This generator creates small synthetic Office/PDF source files for the
-// user-work-v4 evaluation corpus. It is not used while evaluating Gator.
+// user-work-v4 evaluation corpus. It is not used while evaluating Hot Cross Buns.
 func main() {
 	deckOnly := flag.Bool("deck-only", false, "regenerate only the presentation fixture")
 	flag.Parse()

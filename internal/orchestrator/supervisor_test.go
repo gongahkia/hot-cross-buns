@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 )
 
 func hostedReader(run func(context.Context, Invocation) (Result, error)) Specialist {

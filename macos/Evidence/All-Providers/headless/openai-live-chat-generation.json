@@ -9,7 +9,7 @@
   "persistentConfigurationChanged": false,
   "provider": "openai",
   "requests": 1,
-  "responseText": "Gator model integration received this message.",
+  "responseText": "Hot Cross Buns model integration received this message.",
   "toolCalls": 0,
   "usage": {
     "completion_tokens": 11,

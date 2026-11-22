@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 type completionFixture struct {
@@ -265,7 +265,7 @@ func TestCompletionCancellationStopsWaitingWorker(t *testing.T) {
 	r = f.execute(t, context.Background(), completionArgs)
 	r.Status, r.Attempts[0].Stage = "running", "implementing"
 	data, _ := json.Marshal(r)
-	path := filepath.Join(f.tool.request.StateDir, "gator", "completions", f.tool.request.RunID, r.ID+".json")
+	path := filepath.Join(f.tool.request.StateDir, "hot-cross-buns", "completions", f.tool.request.RunID, r.ID+".json")
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}

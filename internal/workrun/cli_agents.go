@@ -5,11 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 	"path/filepath"
 )
 
@@ -48,7 +48,7 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 			if pathErr != nil {
 				return orchestrator.Result{}, pathErr
 			}
-			value, err = cliagent.RunSession(ctx, cliagent.SessionRequest{Request: assignment, Store: filepath.Join(store, "gator", "cli-sessions"), Owner: owner, Capture: capture, SessionID: i.SessionID, Steering: i.Steering, Controls: i.Controls, OnState: i.OnState})
+			value, err = cliagent.RunSession(ctx, cliagent.SessionRequest{Request: assignment, Store: filepath.Join(store, "hot-cross-buns", "cli-sessions"), Owner: owner, Capture: capture, SessionID: i.SessionID, Steering: i.Steering, Controls: i.Controls, OnState: i.OnState})
 		} else {
 			value, err = cliagent.Run(ctx, assignment)
 		}

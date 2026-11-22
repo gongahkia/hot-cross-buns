@@ -1,4 +1,4 @@
-/Users/gongahkia/Desktop/coding/projects/gator/macos/mascot/validation/RendererLab.swift:154:9: error: the compiler is unable to type-check this expression in reasonable time; try breaking up the expression into distinct sub-expressions
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/mascot/validation/RendererLab.swift:154:9: error: the compiler is unable to type-check this expression in reasonable time; try breaking up the expression into distinct sub-expressions
 152 |         let final = metrics(), elapsed = Date().timeIntervalSince(start)
 153 |         let warmFrames = renderers.flatMap(\.transitionMilliseconds).sorted()
 154 |         results.append(["phase": name, "seconds": elapsed, "cpuPercentOneCore": (final.cpu - initial.cpu) / elapsed * 100,

@@ -1,0 +1,131 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+	"unicode/utf8"
+
+	"encoding/json"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/workapp"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
+)
+
+func TestWorkBundleDetailsPreviewIsVerifiedAndRetained(t *testing.T) {
+	work := createCLIWorkBundle(t, t.TempDir(), "work-details")
+	summary, err := summarizeWorkBundle(work.Path)
+	if err != nil || summary.RunID != "work-details" || summary.FinishedAt == "" || len(summary.Artifacts) != 1 || summary.Artifacts[0].Preview != "# CLI report\n" || summary.Artifacts[0].PreviewKind != "markdown" {
+		t.Fatalf("summary = %#v, %v", summary, err)
+	}
+	if err := os.WriteFile(filepath.Join(work.Path, "output", "report.md"), []byte("tampered"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := summarizeWorkBundle(work.Path); err == nil {
+		t.Fatal("tampered bytes were exposed as a verified preview")
+	}
+	if summary.Artifacts[0].Preview != "# CLI report\n" {
+		t.Fatal("retained snapshot changed with the live file")
+	}
+}
+
+func TestWorkBundleDetailsBoundsAndDeduplicatesProvenance(t *testing.T) {
+	var bundle artifact.Bundle
+	for index := 0; index < 40; index++ {
+		bundle.Manifest.Evidence = append(bundle.Manifest.Evidence, artifact.Evidence{Locator: "recorded-source"})
+		bundle.Manifest.ConnectedSources = append(bundle.Manifest.ConnectedSources, connector.Provenance{ConnectorID: "drive", Operation: "fetch"})
+	}
+	var summary workapp.BundleSummary
+	projectWorkBundleDetails(bundle, &summary)
+	if len(summary.Sources) != 16 || len(summary.Connections) != 1 || len(summary.Connections[0].Operations) != 1 {
+		t.Fatalf("provenance projection = %#v", summary)
+	}
+	text := strings.Repeat("界", 2000)
+	preview, truncated := boundedDetailPreview(text, 4096)
+	if !truncated || !utf8.ValidString(preview) || len(preview) > 4096 || len(preview) < 4093 {
+		t.Fatalf("UTF-8 preview bounds = %d, %t", len(preview), truncated)
+	}
+}
+
+func TestWorkBundleDetailsBoundsPreviewReadsAndMatchesSelectedPaths(t *testing.T) {
+	work, err := workspace.CreateWork(t.TempDir(), t.TempDir(), "work-bounded-previews", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := []string{"large.txt", "one.md", "two.md", "three.md", "four.md", "five.md", "six.md", "seven.md", "eight.md", "nine.md"}
+	contract := artifact.DefaultContract(paths...)
+	for _, path := range paths {
+		content := strings.Repeat("界", 2000)
+		if path == "large.txt" {
+			content = strings.Repeat("x", 1024*1024+1)
+		}
+		if err := artifact.WriteText(work.Output, contract, path, content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest, err := artifact.Seal(work.Output, contract, artifact.SealOptions{RunID: "work-bounded-previews", Objective: "Review retained outputs", Source: work.Source, StartedAt: work.CreatedAt, FinishedAt: work.CreatedAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := artifact.WriteManifest(work.ManifestPath, manifest); err != nil {
+		t.Fatal(err)
+	}
+	summary, err := summarizeWorkBundle(work.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total, previews := 0, 0
+	for _, file := range summary.Artifacts {
+		if file.Path == "large.txt" && (file.Preview != "" || file.Bytes != 1024*1024+1 || !file.Valid) {
+			t.Fatal("large file metadata or preview read budget was lost")
+		}
+		if file.Preview != "" {
+			previews++
+			if !file.Truncated || !utf8.ValidString(file.Preview) || file.Preview != strings.Repeat("界", 1365) {
+				t.Fatalf("selected preview was assigned to the wrong path or truncated incorrectly: %#v", file)
+			}
+		}
+		total += len(file.Preview)
+	}
+	if len(summary.Artifacts) != 10 || previews != 8 || total > 32*1024 {
+		t.Fatalf("preview envelope: artifacts=%d previews=%d bytes=%d", len(summary.Artifacts), previews, total)
+	}
+}
+
+func TestWorkBundleDetailsProjectsRichGmailEnvelope(t *testing.T) {
+	var summary workapp.BundleSummary
+	bundle := artifact.Bundle{Manifest: artifact.Manifest{Actions: []action.Record{{Proposal: action.Proposal{ID: "send-rich", ConnectorID: "google", Operation: "gmail_send", Preview: `{"to":["one@example.com","two@example.com"],"cc":["cc@example.com"],"subject":"Report","body":"private-body"}`}, Status: action.Executed}}}}
+	projectWorkBundleDetails(bundle, &summary)
+	if len(summary.Actions) != 1 || summary.Actions[0].Recipient != "3 recipients (To 2, Cc 1, Bcc 0)" || summary.Actions[0].Subject != "Report" {
+		t.Fatal("rich receipt envelope lost", summary.Actions)
+	}
+}
+
+func TestWorkBundleDetailsProjectsBoundedReceiptsWithoutSendBody(t *testing.T) {
+	var bundle artifact.Bundle
+	for i := 0; i < 129; i++ {
+		preview, _ := json.Marshal(map[string]string{"to": "person@example.com", "subject": strings.Repeat("界", 100), "body": "private message body"})
+		bundle.Manifest.Actions = append(bundle.Manifest.Actions, action.Record{Proposal: action.Proposal{ID: "action-one", ConnectorID: "google", Operation: "gmail_send", Preview: string(preview)}, Status: action.Unknown, Error: strings.Repeat("界", 120)})
+	}
+	bundle.Manifest.Actions[1] = action.Record{Proposal: action.Proposal{ID: "batch-one", ConnectorID: "docs", Operation: "batch"}, Status: action.Unknown, BatchSteps: []action.BatchStep{{Operation: "document_create", Status: action.Executed, ProviderResourceID: "doc-one"}, {Operation: "document_update", Status: action.Unknown}}}
+	var summary workapp.BundleSummary
+	projectWorkBundleDetails(bundle, &summary)
+	if len(summary.Actions) != 128 || !summary.ActionsTruncated {
+		t.Fatal("unbounded action projection")
+	}
+	first := summary.Actions[0]
+	if first.Recipient != "person@example.com" || len(first.Subject) > 200 || len(first.Error) > 240 || !utf8.ValidString(first.Subject+first.Error) {
+		t.Fatal("invalid summary", first)
+	}
+	data, _ := json.Marshal(summary.Actions)
+	if strings.Contains(string(data), "private message body") {
+		t.Fatal("receipt projection leaked unneeded send body")
+	}
+	if steps := summary.Actions[1].Steps; len(steps) != 2 || steps[0].ProviderResourceID != "doc-one" || steps[1].Status != "unknown" {
+		t.Fatal("partial batch receipt erased", steps)
+	}
+}

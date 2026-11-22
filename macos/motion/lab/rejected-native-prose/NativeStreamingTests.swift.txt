@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 import Testing
 import Synchronization
-@testable import GatorMac
-@testable import GatorCore
+@testable import HotCrossBunsMac
+@testable import HotCrossBunsCore
 
 private func motionEntry(_ text: String, owner: String = "owner:generation:run:entry", active: Bool = true, exact: Bool = true) -> NativePublicText {
     .init(id: owner, text: text, active: active, hasExactIdentity: exact)
@@ -104,7 +104,7 @@ private func shown(_ cursor: NativeStreamingReveal) -> String { String(cursor.so
     #expect(!NativeMotionPolicy.followsLayout(following: true, scrolling: false, searching: true))
 }
 @Test @MainActor func streamingPreferencePersistsIndependentlyWithoutReenablingPresence() throws {
-    let domain = "gator.motion.test." + UUID().uuidString
+    let domain = "hot-cross-buns.motion.test." + UUID().uuidString
     let defaults = try #require(UserDefaults(suiteName: domain)); defer { defaults.removePersistentDomain(forName: domain) }
     #expect(NativeMotionPreference.enabled(in: defaults))
     for key in [NativeMascotPreference.shown, NativeMascotPreference.animated, NativeDesktopPetPreference.shown] { defaults.set(false, forKey: key) }
@@ -243,7 +243,7 @@ private func shown(_ cursor: NativeStreamingReveal) -> String { String(cursor.so
     #expect(NativeMotionPresentation.hasPublicTools(motionSnapshot(extra: ["activity": tools])))
 }
 @Test @MainActor func streamingTwoPresentationsCannotCreateGoOwnersOrAdmitWork() {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("gator-motion-unstarted-" + UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("hot-cross-buns-motion-unstarted-" + UUID().uuidString)
     let sessions = ManagedSessionCoordinator(configuration: .init(runtime: root.appendingPathComponent("not-a-runtime"), workspace: root), nativeDraftDirectory: root.appendingPathComponent("drafts"), profile: "test")
     let generation = sessions.current.generation
     let full = NativeStreamingPresentation(), compact = NativeStreamingPresentation()

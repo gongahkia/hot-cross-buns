@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "GatorNative",
+    name: "HotCrossBunsNative",
     platforms: [.macOS(.v15)],
-    products: [.executable(name: "GatorMac", targets: ["GatorMac"])],
+    products: [.executable(name: "HotCrossBunsMac", targets: ["HotCrossBunsMac"])],
     targets: [
-        .target(name: "GatorCore"),
-        .executableTarget(name: "GatorMac", dependencies: ["GatorCore"]),
-        .testTarget(name: "GatorMacTests", dependencies: ["GatorMac", "GatorCore"]),
-        .testTarget(name: "GatorCoreTests", dependencies: ["GatorCore"], resources: [.copy("Fixtures")])
+        .target(name: "HotCrossBunsCore"),
+        .executableTarget(name: "HotCrossBunsMac", dependencies: ["HotCrossBunsCore"]),
+        .testTarget(name: "HotCrossBunsMacTests", dependencies: ["HotCrossBunsMac", "HotCrossBunsCore"]),
+        .testTarget(name: "HotCrossBunsCoreTests", dependencies: ["HotCrossBunsCore"], resources: [.copy("Fixtures")])
     ]
 )

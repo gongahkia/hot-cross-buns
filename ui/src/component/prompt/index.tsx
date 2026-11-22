@@ -1,6 +1,6 @@
-// Gator adaptation of OpenCode component/prompt/index.tsx. Retains the bottom
+// Hot Cross Buns adaptation of OpenCode component/prompt/index.tsx. Retains the bottom
 // textarea/composer structure; replaces upstream prompt parts, API submission,
-// agent variants and local stash with Gator's acknowledged drafts and queues.
+// agent variants and local stash with Hot Cross Buns's acknowledged drafts and queues.
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
@@ -9,9 +9,9 @@ import { useData } from "../../context/data"
 import { useTheme } from "../../context/theme"
 import { useDialog } from "../../ui/dialog"
 import { Keymap } from "../../context/keymap"
-import { literal } from "../../gator/text"
-import { useKeyHints } from "../../gator/key-hints"
-import { readingSummary } from "../../gator/transcript-reading"
+import { literal } from "../../hot-cross-buns/text"
+import { useKeyHints } from "../../hot-cross-buns/key-hints"
+import { readingSummary } from "../../hot-cross-buns/transcript-reading"
 
 export function Prompt() {
   const client = useClient(), data = useData(), theme = useTheme(), dialog = useDialog()
@@ -26,10 +26,10 @@ export function Prompt() {
   const modelSummary = () => modelState() && modelState() !== "configured" ? "Model setup needed" : model()
   const contextualHint = () => {
     const hasItems = !!data.state?.messages.length || !!data.state?.chat_updates?.length || !!data.state?.dialogue?.length
-    const actions = `${hint("gator.context-actions")} actions`, context = `${hint("gator.draft-context")} context`, commands = `/ ${hint("command.palette.show")}`
+    const actions = `${hint("hot-cross-buns.context-actions")} actions`, context = `${hint("hot-cross-buns.draft-context")} context`, commands = `/ ${hint("command.palette.show")}`
     if (dimensions().width < 60) {
       const right = hasItems ? actions : "/ commands"
-      const running = `${hint("gator.send")} talk · ${hint("gator.queue")} queue`
+      const running = `${hint("hot-cross-buns.send")} talk · ${hint("hot-cross-buns.queue")} queue`
       return data.state?.running && running.length + right.length + 2 > dimensions().width - 6 ? "" : right
     }
     if (!hasItems) return `${context} · ${commands}`
@@ -39,14 +39,14 @@ export function Prompt() {
   const commands = createMemo(() => {
     const local = [
       ["following", "Goals, checks and updates"], ["saved", "Knowledge, history and retained files"],
-      ["settings", "Configure Gator"], ["models", "Choose model, effort or provider setup"],
+      ["settings", "Configure Hot Cross Buns"], ["models", "Choose model, effort or provider setup"],
       ["files", "Open files and working versions"], ["chats", "Switch conversations"],
       ["actions", "Open, edit, copy or inspect a conversation item"],
       ["drafts", "Recover unsent messages"], ["queue", "Manage queued messages"],
       ["voice", "Dictation and spoken replies"], ["attach-file", "Choose a private attachment"],
       ["updates", "Review this chat's updates"], ["memories", "Review saved memory receipts"],
       ["receipts", "Inspect connected requests"], ["about", "Version and installation"],
-      ["prompt-history", "Reuse a retained message"], ["exit", "Exit Gator"], ["quit", "Exit Gator"],
+      ["prompt-history", "Reuse a retained message"], ["exit", "Exit Hot Cross Buns"], ["quit", "Exit Hot Cross Buns"],
     ].map(([name, description]) => ({ name: name!, description: description!, needs_input: false }))
     const additional = Object.keys(client.actions).filter(name => name !== "activity" && !local.some(item => item.name === name)).map(name => ({ name, description: name.replaceAll("-", " "), needs_input: false }))
     return [...local, ...additional, ...(data.state?.commands ?? []).filter(command => !local.some(item => item.name === command.name) && !additional.some(item => item.name === command.name))]
@@ -109,14 +109,14 @@ export function Prompt() {
   createEffect(() => { if (dialog.stack.length || data.state?.panel) textarea?.blur(); else textarea?.focus() })
   const guide = () => { void client.guide().catch(error => client.fail(error)) }
   Keymap.createLayer(() => ({ priority: 2, enabled: dialog.stack.length === 0, commands: [
-    { id: "gator.send", bind: "return", title: "Talk, correct or start work", run: () => { void client.submit().catch(e => client.fail(e)) } },
-    { id: "gator.queue", bind: "tab", title: "Queue draft after the current task", palette: true,
+    { id: "hot-cross-buns.send", bind: "return", title: "Talk, correct or start work", run: () => { void client.submit().catch(e => client.fail(e)) } },
+    { id: "hot-cross-buns.queue", bind: "tab", title: "Queue draft after the current task", palette: true,
       enabled: () => !!data.state?.running && !data.state?.cancelling && !data.draft.text.trimStart().startsWith("/") && !!(data.draft.text.trim() || data.draft.uploads?.length),
       run: () => { void client.submit(true).catch(e => client.fail(e)) } },
-    { id: "gator.newline", bind: "shift+return", title: "New line", run: () => { textarea?.newLine() } },
+    { id: "hot-cross-buns.newline", bind: "shift+return", title: "New line", run: () => { textarea?.newLine() } },
     { bind: "ctrl+j", title: "New line fallback", run: () => { textarea?.newLine() } },
-    { id: "gator.guide", bind: "ctrl+g", title: "Guide active work with draft", palette: true, run: guide },
-    { id: "gator.draft-context", bind: "ctrl+t", title: "Inspect draft, processing, sources and work limits", palette: true, run: () => { void client.navigate("/draft-context").catch(error => client.fail(error)) } },
+    { id: "hot-cross-buns.guide", bind: "ctrl+g", title: "Guide active work with draft", palette: true, run: guide },
+    { id: "hot-cross-buns.draft-context", bind: "ctrl+t", title: "Inspect draft, processing, sources and work limits", palette: true, run: () => { void client.navigate("/draft-context").catch(error => client.fail(error)) } },
   ] }))
   return <box id="composer" flexShrink={0} marginX={dimensions().width < 60 ? 1 : 2} marginTop={short() ? 0 : 1} marginBottom={short() ? 0 : 1}>
     <Show when={matches().length}>
@@ -129,7 +129,7 @@ export function Prompt() {
       </box>
     </Show>
     <box border={["left"]} borderColor={theme.accent} backgroundColor={theme.background.raised.base} paddingX={short() ? 1 : 2} paddingY={compact() ? 0 : 1} gap={compact() ? 0 : 1}>
-    <Show when={metadata()}><text id="draft-context-summary" fg={theme.accent} height={1} wrapMode="none" truncate onMouseUp={() => void client.navigate("/draft-context").catch(error => client.fail(error))}>{hint("gator.draft-context")} · {metadata()}</text></Show>
+    <Show when={metadata()}><text id="draft-context-summary" fg={theme.accent} height={1} wrapMode="none" truncate onMouseUp={() => void client.navigate("/draft-context").catch(error => client.fail(error))}>{hint("hot-cross-buns.draft-context")} · {metadata()}</text></Show>
     <textarea id="message-input" ref={value => { textarea = value }} focused width="100%" minHeight={1} maxHeight={short() ? 2 : Math.max(2, Math.min(8, Math.floor(dimensions().height / 4)))}
       placeholderColor={theme.text.muted} initialValue={client.draft.text} placeholder="Ask anything…"
       textColor={theme.text.base} focusedTextColor={theme.text.base} backgroundColor={theme.background.raised.base} focusedBackgroundColor={theme.background.raised.base}
@@ -137,13 +137,13 @@ export function Prompt() {
       onContentChange={() => { if (!syncingDraft && textarea && textarea.plainText !== client.draft.text) void client.edit(textarea.plainText).catch(e => client.fail(e)) }}
       onSubmit={() => { if (!dialog.stack.length) void client.submit().catch(e => client.fail(e)) }} />
     <text id="composer-model" height={1} wrapMode="none" truncate selectable={false} fg={theme.text.muted} onMouseDown={event => event.stopPropagation()}
-      onMouseUp={event => { if (event.button !== 0) return; event.stopPropagation(); void client.navigate(modelState() && modelState() !== "configured" ? "/setup" : "/models").catch(e => client.fail(e)) }}><b style={{ fg: theme.accent }}>Gator</b>  {literal(modelSummary())}{(!modelState() || modelState() === "configured") && data.state?.composer?.effort ? ` · ${data.state.composer.effort} effort` : ""}</text>
+      onMouseUp={event => { if (event.button !== 0) return; event.stopPropagation(); void client.navigate(modelState() && modelState() !== "configured" ? "/setup" : "/models").catch(e => client.fail(e)) }}><b style={{ fg: theme.accent }}>Hot Cross Buns</b>  {literal(modelSummary())}{(!modelState() || modelState() === "configured") && data.state?.composer?.effort ? ` · ${data.state.composer.effort} effort` : ""}</text>
     </box>
     <box paddingX={dimensions().width < 60 ? 0 : 1} paddingTop={compact() ? 0 : 1} flexDirection="row" justifyContent="space-between" gap={2}>
     <Show when={data.reading && (!data.reading.following || data.reading.count || data.reading.notice)} fallback={<>
-      <text fg={theme.text.muted} attributes={TextAttributes.DIM} flexGrow={1} flexBasis={0} flexShrink={1} minWidth={0} height={1} wrapMode="none" truncate>{data.snapshot.connection !== "connected" ? "Reconnect before sending" : ["recording", "transcribing"].includes(data.voicePhase) ? "Finish dictation before sending" : data.state?.running ? `${hint("gator.send")} ${dimensions().width < 60 ? "talk" : "talk / steer"} · ${hint("gator.queue")} queue` : data.state?.dialogue_active ? `${hint("gator.send")} send · Talk, correct or start work` : `${hint("gator.send")} send · ${hint("gator.newline")} new line`}</text>
+      <text fg={theme.text.muted} attributes={TextAttributes.DIM} flexGrow={1} flexBasis={0} flexShrink={1} minWidth={0} height={1} wrapMode="none" truncate>{data.snapshot.connection !== "connected" ? "Reconnect before sending" : ["recording", "transcribing"].includes(data.voicePhase) ? "Finish dictation before sending" : data.state?.running ? `${hint("hot-cross-buns.send")} ${dimensions().width < 60 ? "talk" : "talk / steer"} · ${hint("hot-cross-buns.queue")} queue` : data.state?.dialogue_active ? `${hint("hot-cross-buns.send")} send · Talk, correct or start work` : `${hint("hot-cross-buns.send")} send · ${hint("hot-cross-buns.newline")} new line`}</text>
       <text fg={theme.text.muted} attributes={TextAttributes.DIM} flexShrink={0}>{contextualHint()}</text>
-    </>}><text id="transcript-catch-up" flexGrow={1} flexShrink={1} minWidth={0} height={1} wrapMode="none" truncate fg={theme.accent} onMouseUp={() => { if (!renderer.getSelection()?.getSelectedText()) client.emit(data.reading?.count ? "transcript-catch-up" : "transcript-latest") }}>{readingSummary(data.reading?.count ?? 0, hint("gator.latest"), data.reading?.notice, dimensions().width - (dimensions().width < 60 ? 2 : 6))}</text></Show>
+    </>}><text id="transcript-catch-up" flexGrow={1} flexShrink={1} minWidth={0} height={1} wrapMode="none" truncate fg={theme.accent} onMouseUp={() => { if (!renderer.getSelection()?.getSelectedText()) client.emit(data.reading?.count ? "transcript-catch-up" : "transcript-latest") }}>{readingSummary(data.reading?.count ?? 0, hint("hot-cross-buns.latest"), data.reading?.notice, dimensions().width - (dimensions().width < 60 ? 2 : 6))}</text></Show>
     </box>
   </box>
 }

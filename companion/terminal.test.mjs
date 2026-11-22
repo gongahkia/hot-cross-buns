@@ -11,7 +11,7 @@ import {callTerminal,validateTerminalAction} from './external-control.mjs';
 const execute=promisify(execFile),defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const target='target-'+'a'.repeat(32),generation='b'.repeat(32);
 test('terminal gateway rejects untrusted shape and checks revocation after queue waits',async()=>{
- const root=await mkdtemp(join(tmpdir(),'gator-t4-http-')),tokenFile=join(root,'token');let c,gate=defer(),entered=defer(),checks=0,dispatches=0;
+ const root=await mkdtemp(join(tmpdir(),'hot-cross-buns-t4-http-')),tokenFile=join(root,'token');let c,gate=defer(),entered=defer(),checks=0,dispatches=0;
  try{
   await writeFile(tokenFile,'a'.repeat(64)+'\n',{mode:0o600});const phone=await addDevice(tokenFile,'Phone',join(root,'phone')),token=(await readFile(join(root,'phone'),'utf8')).trim();
   c=createCompanion({binary:'',workspace:root,tokenFile,controlTerminal:async(mode,input)=>{if(mode==='check'){checks++;if(checks===1){entered.resolve();await gate.promise;}return {authorized:true};}dispatches++;throw new Error('should never dispatch');}});
@@ -22,12 +22,12 @@ test('terminal gateway rejects untrusted shape and checks revocation after queue
  }finally{gate.resolve();await c?.close();await rm(root,{recursive:true,force:true});}
 });
 
-test('real isolated tmux: separate trust, grants, literal input, keys, interrupt and cross-helper deduplication',{skip:process.env.GATOR_TMUX_LIVE!=='1',timeout:180000},async()=>{
+test('real isolated tmux: separate trust, grants, literal input, keys, interrupt and cross-helper deduplication',{skip:process.env.HOT_CROSS_BUNS_TMUX_LIVE!=='1',timeout:180000},async()=>{
  const root=await mkdtemp(join(tmpdir(),'gt4-')),socket=join(root,'socket'),binary=join(root,'runtime'),tokenFile=join(root,'token');let c;
- const mux=process.env.GATOR_TEST_TMUX||'/usr/local/bin/tmux',env={...process.env,GATOR_STATE_DIR:join(root,'state'),GATOR_INTERNAL_COMMANDS:'1'};
+ const mux=process.env.HOT_CROSS_BUNS_TEST_TMUX||'/usr/local/bin/tmux',env={...process.env,HOT_CROSS_BUNS_STATE_DIR:join(root,'state'),HOT_CROSS_BUNS_INTERNAL_COMMANDS:'1'};
  const tmux=(...a)=>execute(mux,['-f','/dev/null','-S',socket,...a],{timeout:5000});
  try{
-  await execute('go',['build','-o',binary,'./cmd/gator'],{timeout:90000});await writeFile(tokenFile,'a'.repeat(64)+'\n',{mode:0o600});
+  await execute('go',['build','-o',binary,'./cmd/hot-cross-buns'],{timeout:90000});await writeFile(tokenFile,'a'.repeat(64)+'\n',{mode:0o600});
   const phone=await addDevice(tokenFile,'Phone',join(root,'phone')),token=(await readFile(join(root,'phone'),'utf8')).trim(),actor=await inspectionDeviceActor(tokenFile,phone.id);
   await tmux('new-session','-d','-s','fixture','-x','120','-y','32',process.execPath,'-e',"process.on('SIGINT',()=>console.log('T4_INTERRUPTED'));process.stdin.on('data',b=>console.log('READ:'+b.toString('hex')));setInterval(()=>{},1000)");
   const pane=(await tmux('display-message','-p','#{pane_id}')).stdout.trim();await tmux('split-window','-d','cat');const other=(await tmux('list-panes','-F','#{pane_id}')).stdout.trim().split('\n').find(p=>p!==pane);await tmux('select-pane','-t',other);await tmux('swap-pane','-s',pane,'-t',other);
@@ -55,7 +55,7 @@ test('real isolated tmux: separate trust, grants, literal input, keys, interrupt
   const withEnter=await post(action('f',{kind:'text_enter',text:'TEXT_PLUS_ENTER'}));assert.equal(withEnter.value.receipt.delivery,'dispatch_acknowledged');
   await grant('interrupt');const interrupt=await post(action('1',{kind:'interrupt'}));assert.equal(interrupt.value.receipt.delivery,'dispatch_acknowledged');
   for(let i=0;i<50;i++){out=(await snapshot()).targets[0].text;if(out.includes('T4_INTERRUPTED'))break;await new Promise(r=>setTimeout(r,20));}assert.match(out,/T4_INTERRUPTED/);
-  const receiptPath=join(root,'state/gator/external-actions','.terminal','receipts',a.id+'.json');assert.equal((await readFile(receiptPath,'utf8')).includes(literal),false);
+  const receiptPath=join(root,'state/hot-cross-buns/external-actions','.terminal','receipts',a.id+'.json');assert.equal((await readFile(receiptPath,'utf8')).includes(literal),false);
   await execute(binary,['external-tmux','unreview-control',b.id],{env});assert.notEqual((await post(action('2',{kind:'text',text:'DENIED'}))).status,200);assert.ok((await snapshot()).targets[0]);
   const receipt=await fetch(`${base}/v1/external/${b.id}/receipts/${a.id}?generation=${b.generation}`,{headers});assert.equal(receipt.status,200,'receipt remains reconciliable after control withdrawal');
  }finally{await c?.close();await tmux('kill-server').catch(()=>{});await rm(root,{recursive:true,force:true});}

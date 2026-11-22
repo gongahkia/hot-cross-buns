@@ -14,17 +14,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/attachment"
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 type textOnlyScriptedModel struct{ *scriptedModel }
@@ -222,10 +222,10 @@ func TestExecutorSkipsIgnoredExternalInstructionSymlink(t *testing.T) {
 
 func TestExecutorDelegatesCodeAgainstFrozenSourceAndSealsPatchEvidence(t *testing.T) {
 	source := t.TempDir()
-	if err := os.Mkdir(filepath.Join(source, ".gator"), 0700); err != nil {
+	if err := os.Mkdir(filepath.Join(source, ".hot-cross-buns"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(source, ".gator", "agents.json"), []byte(`{"version":1,"profiles":[{"name":"implementer","instructions":"Implement bounded tasks"}]}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(source, ".hot-cross-buns", "agents.json"), []byte(`{"version":1,"profiles":[{"name":"implementer","instructions":"Implement bounded tasks"}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(source, "main.go"), []byte("package main\n"), 0o600); err != nil {

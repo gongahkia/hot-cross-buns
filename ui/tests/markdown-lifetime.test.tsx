@@ -3,13 +3,13 @@ import { Show, createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { CodeRenderable, getTreeSitterClient, type Renderable } from "@opentui/core"
 import { ThemeProvider } from "../src/context/theme"
-import { Markdown } from "../src/gator/markdown"
+import { Markdown } from "../src/hot-cross-buns/markdown"
 
 test("unchanged theme snapshots retain native syntax resources and remove them once",async()=>{
   let tick=()=>{};const warnings:string[]=[]
   const warning=spyOn(console,"warn").mockImplementation((...args)=>{warnings.push(args.map(String).join(" "))})
   const setup=await testRender(()=>{
-    const [snapshot,setSnapshot]=createSignal({theme:"gator",tick:0});tick=()=>setSnapshot(value=>({...value,tick:value.tick+1}))
+    const [snapshot,setSnapshot]=createSignal({theme:"hot-cross-buns",tick:0});tick=()=>setSnapshot(value=>({...value,tick:value.tick+1}))
     return <ThemeProvider theme={snapshot().theme}><Markdown text={"```json\n{\"budget\":2000}\n```"}/></ThemeProvider>
   },{width:80,height:24})
   const codes=(node:Renderable):CodeRenderable[]=>[...(node instanceof CodeRenderable?[node]:[]),...node.getChildren().flatMap(codes)]
@@ -31,7 +31,7 @@ test("native markdown consumers are destroyed before styles during navigation an
   let show = (_value: boolean) => {}, theme = (_value: string) => {}, update = (_value: string) => {}
   const body = "**Booking** [evidence](https://example.com)\n\n```json\n{\"price\": 2000}\n```\n\n| Venue | State |\n| --- | --- |\n| One | Pending |"
   const setup = await testRender(() => {
-    const [visible, setVisible] = createSignal(true), [appearance, setAppearance] = createSignal("gator"), [text, setText] = createSignal(body)
+    const [visible, setVisible] = createSignal(true), [appearance, setAppearance] = createSignal("hot-cross-buns"), [text, setText] = createSignal(body)
     show = setVisible; theme = setAppearance; update = setText
     return <ThemeProvider theme={appearance()}><Show when={visible()}><Markdown text={text()} streaming /></Show></ThemeProvider>
   }, { width: 80, height: 24 })
@@ -49,7 +49,7 @@ test("native markdown consumers are destroyed before styles during navigation an
     expect(() => oldStyle.getStyle("default")).toThrow("destroyed")
     await release(); await Promise.all(settled); expect(warnings).toHaveLength(0)
     show(true); await setup.flush()
-    for (const appearance of ["light", "contrast", "mono", "terminal", "gator"]) {
+    for (const appearance of ["light", "contrast", "mono", "terminal", "hot-cross-buns"]) {
       const before = codes(setup.renderer.root), styles = before.map(node => node.syntaxStyle), done = before.map(node => node.highlightingDone)
       theme(appearance)
       for (const node of before) expect(node.isDestroyed).toBe(true)

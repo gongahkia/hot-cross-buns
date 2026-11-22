@@ -26,7 +26,7 @@ func (o HTTPFetchOptions) searchConfiguration() (string, string, error) {
 		for name, key := range keys {
 			if key != "" {
 				if p != "" {
-					return "", "", errors.New("multiple web search keys configured; select GATOR_WEB_SEARCH_PROVIDER")
+					return "", "", errors.New("multiple web search keys configured; select HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER")
 				}
 				p = name
 			}
@@ -37,7 +37,7 @@ func (o HTTPFetchOptions) searchConfiguration() (string, string, error) {
 	}
 	key, ok := keys[p]
 	if !ok {
-		return "", "", errors.New("unsupported GATOR_WEB_SEARCH_PROVIDER; choose tinyfish, exa, tavily or brave")
+		return "", "", errors.New("unsupported HOT_CROSS_BUNS_WEB_SEARCH_PROVIDER; choose tinyfish, exa, tavily or brave")
 	}
 	if key == "" {
 		return "", "", errors.New("selected web search provider has no configured key")

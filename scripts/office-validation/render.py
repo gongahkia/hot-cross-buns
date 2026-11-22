@@ -150,7 +150,7 @@ def main():
         destination = output / extension
         destination.mkdir()
         inputs = sorted(fixtures.glob("*." + extension))
-        with tempfile.TemporaryDirectory(prefix="gator-layout-profile-") as profile:
+        with tempfile.TemporaryDirectory(prefix="hot-cross-buns-layout-profile-") as profile:
             result = subprocess.run([engine, "-env:UserInstallation=" + Path(profile).as_uri(), "--headless", "--norestore", "--convert-to", "pdf:" + filter_name, "--outdir", str(destination), *map(str, inputs)], check=True, capture_output=True, text=True, timeout=120)
             print(result.stdout, end="", flush=True)
         for original in inputs:

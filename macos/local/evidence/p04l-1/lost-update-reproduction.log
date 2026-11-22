@@ -5,5 +5,5 @@
         
 --- FAIL: TestLocalFirstAuditUseOverwritesAConcurrentIndependentWriter (0.02s)
 FAIL
-FAIL	github.com/gongahkia/gator/cmd/gator	0.784s
+FAIL	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	0.784s
 FAIL

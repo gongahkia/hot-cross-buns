@@ -3,15 +3,15 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { VoiceSession } from "@gator/application-host/voice-session"
+import { VoiceSession } from "@hot-cross-buns/application-host/voice-session"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 test("dictation shortcut reviews its route once per chat/session, stages editable text, and cancels directly", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-voice-controls-"))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-voice-controls-"))
   class VoiceHost extends FixtureHost { mutable() {} }
-  const host = new VoiceHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const host = new VoiceHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   let captures = 0, transcriptions = 0, cancelled = 0, route = "local-route", provider = "whisper-local", held = false
   const voice = new VoiceSession(host, {
     capture: () => { captures++; let finish!: (data: Uint8Array) => void; const audio = new Promise<Uint8Array>(resolve => { finish = resolve }); return { audio, stop: () => finish(new Uint8Array([1, 2])), cancel: () => { cancelled++; finish(new Uint8Array()) } } },

@@ -6,15 +6,15 @@
   "changedExistingBaselineFiles": [
     "internal/eval/work.go",
     "internal/eval/work_json_grader.go",
-    "cmd/gator/work_eval.go"
+    "cmd/hot-cross-buns/work_eval.go"
   ],
   "nativeAndMascotBaselineFilesUnchanged": true,
   "unexpectedExistingChanges": [],
   "sourceSHA256": {
-    "cmd/gator/work_eval.go": "094c99062cfb461ec2a444dd936d07cf818675f900aa5b3bacfac7959ff49c60",
-    "cmd/gator/work_eval_local_first.go": "e8337c5322b554243a998bcc7cd2cd9faa82e544c115611dbbccbef0b7d390d1",
-    "cmd/gator/work_eval_local_first_test.go": "4b36a7c1be008d1b4dc86ed1a43df9d2bd4526d7abb7f5eedf7739a9de7381d9",
-    "cmd/gator/local_first_audit_test.go": "c4c660a7389e98a53b78830afa3ed704232d473e73f4a1c4b2a777b36ca4d32e",
+    "cmd/hot-cross-buns/work_eval.go": "094c99062cfb461ec2a444dd936d07cf818675f900aa5b3bacfac7959ff49c60",
+    "cmd/hot-cross-buns/work_eval_local_first.go": "e8337c5322b554243a998bcc7cd2cd9faa82e544c115611dbbccbef0b7d390d1",
+    "cmd/hot-cross-buns/work_eval_local_first_test.go": "4b36a7c1be008d1b4dc86ed1a43df9d2bd4526d7abb7f5eedf7739a9de7381d9",
+    "cmd/hot-cross-buns/local_first_audit_test.go": "c4c660a7389e98a53b78830afa3ed704232d473e73f4a1c4b2a777b36ca4d32e",
     "internal/eval/work.go": "1a3785d927dd6cc1e915fa1d44911c017f04f8765a1999eba33f8c2ec163863c",
     "internal/eval/work_json_grader.go": "38877d044fe034e9c12bf72917773f714552350ae0c8fc7a393afe08b9a78e64",
     "internal/eval/local_first.go": "259bc8e94c11eca217b6c111191b49b06e6b3ffb919f1d30a245d373a37cd169",

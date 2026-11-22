@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 	maxRetainedSummaryBytes = 16 * 1024
 )
 
-const retainedContextPrefix = "Gator compacted context from earlier turns:\n"
+const retainedContextPrefix = "Hot Cross Buns compacted context from earlier turns:\n"
 
 // compactRetainedContext keeps Work conversation history bounded before the
 // next Work transaction. It lives with Work because its result becomes part of

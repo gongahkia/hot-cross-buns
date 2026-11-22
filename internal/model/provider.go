@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
 )
 
 func ParseProvider(value string) (Provider, error) {
@@ -26,20 +26,20 @@ func Names() []string {
 	return names
 }
 
-// SupportsDirect reports whether Gator can construct a direct adapter for the
+// SupportsDirect reports whether Hot Cross Buns can construct a direct adapter for the
 // provider without a vendor CLI or a vendor-owned agent loop.
 func SupportsDirect(provider Provider) bool {
 	_, ok := directProviders[provider]
 	return ok
 }
 
-// SupportsAPIKeyLogin reports whether Gator can persist an API key for a
+// SupportsAPIKeyLogin reports whether Hot Cross Buns can persist an API key for a
 // supported direct backend.
 func SupportsAPIKeyLogin(provider Provider) bool {
 	return SupportsDirect(provider) && APIKeyEnvironment(provider) != ""
 }
 
-// SupportsPDFAttachments reports whether Gator's adapter can encode a PDF
+// SupportsPDFAttachments reports whether Hot Cross Buns's adapter can encode a PDF
 // using the provider's documented native document input. Generic Chat
 // Completions endpoints do not share a stable file-input contract.
 func SupportsPDFAttachments(provider Provider) bool {
@@ -51,7 +51,7 @@ func SupportsPDFAttachments(provider Provider) bool {
 	}
 }
 
-// DefaultModel returns the stable default where Gator can select one without
+// DefaultModel returns the stable default where Hot Cross Buns can select one without
 // guessing a catalog-specific model. Empty means the user must provide one.
 func DefaultModel(provider Provider) string {
 	switch provider {
@@ -149,5 +149,5 @@ func APIKeyEnvironment(provider Provider) string {
 }
 
 // key resolves credentials in the same order exposed by the CLI: an explicit
-// run key, Gator's provider-scoped local credential, then the provider's
+// run key, Hot Cross Buns's provider-scoped local credential, then the provider's
 // ambient environment variable. It never reads another application's state.

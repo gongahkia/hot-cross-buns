@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 // Private helper holds Go's nonblocking exclusive profile guard until the
 // actual reference scan AND prune finish. A busy profile defers cleanup.
 export async function withProfileMaintenance(binary, env, action) {
-  const child = spawn(binary, ["ui-maintenance-lease"], { env: { ...env, GATOR_UI_BACKEND: "1" }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+  const child = spawn(binary, ["ui-maintenance-lease"], { env: { ...env, HOT_CROSS_BUNS_UI_BACKEND: "1" }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
   let diagnostics = "", closed = false;
   const completion = new Promise(resolve => child.once("close", () => { closed = true; resolve(); }));
   child.stderr.on("data", value => { diagnostics = (diagnostics + value).slice(-2048); });

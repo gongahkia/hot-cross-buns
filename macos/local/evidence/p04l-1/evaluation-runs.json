@@ -1,14 +1,14 @@
 {
   "UTC": "2026-11-20T02:31:29.977266+00:00",
-  "root": "/tmp/gator-p04l-1-fixtures-_slmhnzg",
+  "root": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg",
   "runs": [
     {
       "arm": "A",
       "split": "development",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/A-development",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/A-development",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -19,16 +19,16 @@
         "--split",
         "development",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/A-development"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/A-development"
       ]
     },
     {
       "arm": "A",
       "split": "held-out",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/A-held-out",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/A-held-out",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -39,16 +39,16 @@
         "--split",
         "held-out",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/A-held-out"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/A-held-out"
       ]
     },
     {
       "arm": "B",
       "split": "development",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -59,16 +59,16 @@
         "--split",
         "development",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-development"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-development"
       ]
     },
     {
       "arm": "B",
       "split": "held-out",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-held-out",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-held-out",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -79,16 +79,16 @@
         "--split",
         "held-out",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/B-held-out"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/B-held-out"
       ]
     },
     {
       "arm": "C",
       "split": "development",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/C-development",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/C-development",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -99,16 +99,16 @@
         "--split",
         "development",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/C-development"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/C-development"
       ]
     },
     {
       "arm": "C",
       "split": "held-out",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/C-held-out",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/C-held-out",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -119,16 +119,16 @@
         "--split",
         "held-out",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/C-held-out"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/C-held-out"
       ]
     },
     {
       "arm": "D",
       "split": "development",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/D-development",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/D-development",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -139,16 +139,16 @@
         "--split",
         "development",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/D-development"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/D-development"
       ]
     },
     {
       "arm": "D",
       "split": "held-out",
       "exit": 0,
-      "directory": "/tmp/gator-p04l-1-fixtures-_slmhnzg/D-held-out",
+      "directory": "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/D-held-out",
       "command": [
-        "/tmp/gator-p04l-1-eval",
+        "/tmp/hot-cross-buns-p04l-1-eval",
         "work",
         "eval",
         "local-first",
@@ -159,7 +159,7 @@
         "--split",
         "held-out",
         "--report-dir",
-        "/tmp/gator-p04l-1-fixtures-_slmhnzg/D-held-out"
+        "/tmp/hot-cross-buns-p04l-1-fixtures-_slmhnzg/D-held-out"
       ]
     }
   ]

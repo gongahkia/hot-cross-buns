@@ -32,7 +32,7 @@ scope set; it does not use Google's unsupported desktop incremental flow.
 
 The previous configuration stays in place until authorization succeeds. The
 credential is replaced with compare-and-swap before expanded settings are
-published. If settings publication fails, Gator attempts to restore the prior
+published. If settings publication fails, Hot Cross Buns attempts to restore the prior
 credential using compare-and-swap and reports any concurrent change. These are
 separate durable stores: a crash between them can leave a new grant with the old
 narrower local surface. It cannot publish sending before obtaining the grant.
@@ -76,7 +76,7 @@ Omit `reply` for a new conversation. For replies, read the original thread,
 preserve its subject and supply Gmail's thread ID plus the actual RFC Message-ID
 of the parent. References must end with that parent and contain at most 32 valid,
 distinct Message-IDs. Gmail requires matching subject, thread ID and reply
-headers; Gator supplies both the MIME headers and API `threadId`. A successful
+headers; Hot Cross Buns supplies both the MIME headers and API `threadId`. A successful
 HTTP response that does not confirm the requested thread remains uncertain.
 Do not invent header IDs or infer the parent from an email address.
 

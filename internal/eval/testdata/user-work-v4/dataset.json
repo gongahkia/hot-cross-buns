@@ -6236,7 +6236,7 @@
       "family": "presentation",
       "split": "held-out",
       "source": "sources/research-to-board-deck",
-      "objective": "Create a four-slide board update in deck.pptx from the saved public announcement, internal adoption table, and caveat note. Show the market change and GatorWorks adoption, separate observed figures from an unverified forum claim, and put the decision request on the final slide. All key facts must be visible on slides, not only in speaker notes.",
+      "objective": "Create a four-slide board update in deck.pptx from the saved public announcement, internal adoption table, and caveat note. Show the market change and HotCrossBunsWorks adoption, separate observed figures from an unverified forum claim, and put the decision request on the final slide. All key facts must be visible on slides, not only in speaker notes.",
       "contract": {
         "version": 1,
         "artifacts": [
@@ -6307,7 +6307,7 @@
                       "title": "Market and adoption update",
                       "body": [
                         "October 2026 board readout",
-                        "CloudBox pricing change and GatorWorks uptake"
+                        "CloudBox pricing change and HotCrossBunsWorks uptake"
                       ]
                     },
                     {
@@ -6320,7 +6320,7 @@
                     {
                       "title": "Observed adoption",
                       "body": [
-                        "GatorWorks active teams: 42 in August, 51 in September, 58 in October.",
+                        "HotCrossBunsWorks active teams: 42 in August, 51 in September, 58 in October.",
                         "Paid teams: 18 in August to 25 in October.",
                         "Forum API-discontinuation claim is unverified."
                       ]

@@ -30,7 +30,7 @@ Preparing and reviewing never dispatch implementation. Editing content increment
 
 The native boundary narrows connector adapters to the connected sources actually named in the reviewed content. Normal connector authentication, account pins, permissions and exact mutation reviews remain authoritative. Plan metadata does not establish a new trusted account, endpoint or operation permission.
 
-The existing runner `BeforeTool` hook revalidates the record and effect scope before dispatch. Supported native effects are read/research, staged deliverables, isolated coding with checks, connected-service writes, Gator settings/saved-memory changes, and separately approved browser interaction. Unsupported or undeclared tools are hidden from the advertised surface. A fabricated call to a hidden registered mutation stops the whole run before this or later calls dispatch. Code specialists require the same declared read/code/check categories; their existing sandbox, write scopes, command approvals and evidence verification remain intact.
+The existing runner `BeforeTool` hook revalidates the record and effect scope before dispatch. Supported native effects are read/research, staged deliverables, isolated coding with checks, connected-service writes, Hot Cross Buns settings/saved-memory changes, and separately approved browser interaction. Unsupported or undeclared tools are hidden from the advertised surface. A fabricated call to a hidden registered mutation stops the whole run before this or later calls dispatch. Code specialists require the same declared read/code/check categories; their existing sandbox, write scopes, command approvals and evidence verification remain intact.
 
 Dynamic `code_use_integration` and desktop-control operations are not supported in plan-first scope classification. Ordinary Work retains its existing tools. These limitations must be surfaced rather than treating an unknown operation as a safe read. Native coding controls and run-owned coding PTYs remain distinct from external tmux authority; no external-terminal grant or model tool is added.
 
@@ -57,8 +57,8 @@ All tests below use disposable state and scripted models or private local HTTP f
 - `go test -race ./internal/worksession ./internal/workapp`: PASS (57.945 s / 28.588 s), including existing admission, recovery and branch tests. Additional focused plan runs passed after the subsequent scope refinements.
 - `go test ./internal/workrun ./internal/tools`: PASS (78.738 s / 25.666 s), followed by focused tests for new control restrictions and scope filtering.
 - `go test -race ./internal/workrun ./internal/worksession ./internal/workapp -run 'TestTaskPlan|TestQueueChanges|TestManaged'`: PASS (3.409 s / 3.961 s / 4.189 s).
-- `go test -race ./cmd/gator -run '^TestDesktopTaskPlan'`: PASS (2.303 s). Exercises a real configured model adapter against a private HTTP fixture, verifies no Work infrastructure is started for preparation, and checks native narrowing to the reviewed connector source.
-- `go test ./cmd/gator -run 'Test.*Configuration|Test.*Policy|Test.*Defaults'`: PASS (5.352 s).
+- `go test -race ./cmd/hot-cross-buns -run '^TestDesktopTaskPlan'`: PASS (2.303 s). Exercises a real configured model adapter against a private HTTP fixture, verifies no Work infrastructure is started for preparation, and checks native narrowing to the reviewed connector source.
+- `go test ./cmd/hot-cross-buns -run 'Test.*Configuration|Test.*Policy|Test.*Defaults'`: PASS (5.352 s).
 - `go vet ./internal/workrun ./internal/worksession ./internal/workapp ./internal/tools`: PASS.
 - `npm test --prefix desktop`: desktop 31 PASS / 1 SKIP; application host 76 PASS / 1 SKIP. These are Node checks, not Electron journeys.
 - Desktop TypeScript: PASS. New plan-first Electron journeys and final regression verification remain required after the owner/card integration is complete and interactive testing resumes.
@@ -67,7 +67,7 @@ No physical microphone/phone, signed installer, or native Linux/WSL acceptance i
 
 ## Added owner and UI verification (historical checkpoint)
 
-- `go test -race ./internal/workapp ./internal/worksession ./cmd/gator -run 'TestTaskPlan|TestDesktopTaskPlan'`: PASS (6.018 s / 7.496 s / 2.882 s). Includes queued frozen settings, cancellation, restart without replay, explicit retained start, wrong owner, bounded pending/terminal retention, and the ordinary profile data-export guard during model preparation.
+- `go test -race ./internal/workapp ./internal/worksession ./cmd/hot-cross-buns -run 'TestTaskPlan|TestDesktopTaskPlan'`: PASS (6.018 s / 7.496 s / 2.882 s). Includes queued frozen settings, cancellation, restart without replay, explicit retained start, wrong owner, bounded pending/terminal retention, and the ordinary profile data-export guard during model preparation.
 - `desktop/tests/e2e/task-plans.spec.ts`: four real-Go/private-model journeys added for edit/review/exact approval/idempotency, retained review across restart/cancellation, out-of-scope mutation rejection, and a separately pending exact coding-command review after plan approval. **NOT RUN** while app automation is suspended. TypeScript checking these tests is not acceptance of their UI behavior.
 - Branch journeys also still require their corrected final rerun; see [Chat branches](CHAT-BRANCHES.md).
 
@@ -99,13 +99,13 @@ At this checkpoint the operator had asked to stop tests that open/click through 
 
 | Check | Observed result |
 | --- | --- |
-| `go test ./...` | PASS: 72 packages passed, 11 packages have no tests; `cmd/gator` 294.969 s under concurrent verification load |
+| `go test ./...` | PASS: 72 packages passed, 11 packages have no tests; `cmd/hot-cross-buns` 294.969 s under concurrent verification load |
 | `go vet ./...` | PASS, exit 0 |
 | `go test -race ./internal/workapp ./internal/worksession ./internal/workrun ./internal/workactivity ./internal/executiontarget/...` | Final confirmation PASS: 7 packages; workapp 23.153 s, remaining packages cached after successful runs |
 | `npm test --prefix desktop` | PASS: desktop 31 passed / 1 skipped; application host 78 passed / 1 skipped |
 | `npm run check --prefix desktop` | PASS, including authored but unexecuted branch/plan journey types |
 | `npm run build --prefix desktop` | PASS: private Go runtime and frontend built; no app launch |
-| `GATOR_TEST_BINARY="$PWD/desktop/runtime/gator-runtime" node --test companion/*.test.mjs` | Final confirmation PASS: 37 passed / 5 skipped / 0 cancelled, 45.650 s; includes headless Chromium authentication, inspection, semantic mutations, external targets and recovery |
+| `HOT_CROSS_BUNS_TEST_BINARY="$PWD/desktop/runtime/hot-cross-buns-runtime" node --test companion/*.test.mjs` | Final confirmation PASS: 37 passed / 5 skipped / 0 cancelled, 45.650 s; includes headless Chromium authentication, inspection, semantic mutations, external targets and recovery |
 | Branch/speech Electron journeys | Pending corrected final run; still suspended |
 | New plan Electron journeys | Added, not run; still suspended |
 | Physical microphone/phone, signed installer, native Linux/WSL | Not verified by these checks |
@@ -126,7 +126,7 @@ The broader focused regression `go test -race ./internal/workrun -run 'TestTaskP
 
 ## Resumed plan acceptance
 
-The operator explicitly resumed app tests. `GATOR_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop -- task-plans.spec.ts --max-failures=1`: **4 PASS, 21.0 s**. The actual Electron app and Go owner perform the flow; only model replies are scripted. These cover preparation without implementation, full review, edits/new revision, stale approval rejection, single dispatch/duplicate completion approval, actual activity/result linking, retained review across restart, cancellation without execution, scope denial before a write, and a later pending exact coding-command review that Stop cancels before the fixture command can create a file.
+The operator explicitly resumed app tests. `HOT_CROSS_BUNS_E2E_BACKGROUND=1 npm run test:e2e --prefix desktop -- task-plans.spec.ts --max-failures=1`: **4 PASS, 21.0 s**. The actual Electron app and Go owner perform the flow; only model replies are scripted. These cover preparation without implementation, full review, edits/new revision, stale approval rejection, single dispatch/duplicate completion approval, actual activity/result linking, retained review across restart, cancellation without execution, scope denial before a write, and a later pending exact coding-command review that Stop cancels before the fixture command can create a file.
 
 The run exposed an outcome label that accidentally included the textarea's default text. An explicit `htmlFor`/control identity now gives the field a stable accessible name. The completed-card test also now expands the deliberately collapsed retained plan before selecting its result link. No approval or dispatch semantics were weakened to make the journey pass.
 

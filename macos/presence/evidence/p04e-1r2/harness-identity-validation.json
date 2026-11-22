@@ -10,11 +10,11 @@
       "result": {
         "action": "state",
         "binarySHA256": "1a100790b6072f78d607b7f8fe4d69c2d62262417bf08e7c2f647d655eabfc45",
-        "bundle": "dev.gator.presence.r2.identity",
+        "bundle": "dev.hot-cross-buns.presence.r2.identity",
         "capture": [],
         "controllerPID": 45056,
         "elapsed": 0.02007293701171875,
-        "executable": "/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac",
+        "executable": "/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac",
         "focusedElement": {},
         "focusedWindow": {},
         "frontPID": 1649,
@@ -31,11 +31,11 @@
       "result": {
         "action": "state",
         "binarySHA256": "1a100790b6072f78d607b7f8fe4d69c2d62262417bf08e7c2f647d655eabfc45",
-        "bundle": "dev.gator.presence.r2.identity",
+        "bundle": "dev.hot-cross-buns.presence.r2.identity",
         "capture": [],
         "controllerPID": 45056,
         "elapsed": 0.0022879838943481445,
-        "executable": "/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac",
+        "executable": "/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac",
         "focusedElement": {},
         "focusedWindow": {},
         "frontPID": 1649,
@@ -52,7 +52,7 @@
       "result": {
         "controllerPID": 45056,
         "elapsed": 0.00019991397857666016,
-        "error": "refuse nonfixture: PID/bundle/executable mismatch; actualBundle=dev.gator.presence.r2.identity actualExecutable=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac expectedExecutable=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac manifest=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/wrong-bundle.json",
+        "error": "refuse nonfixture: PID/bundle/executable mismatch; actualBundle=dev.hot-cross-buns.presence.r2.identity actualExecutable=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac expectedExecutable=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac manifest=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/wrong-bundle.json",
         "ok": false,
         "started": 1795156694.3511782
       }
@@ -62,7 +62,7 @@
       "result": {
         "controllerPID": 45056,
         "elapsed": 0.00024700164794921875,
-        "error": "refuse nonfixture: PID/bundle/executable mismatch; actualBundle=dev.gator.presence.r2.identity actualExecutable=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac expectedExecutable=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Other.app/Contents/MacOS/GatorMac manifest=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/wrong-executable.json",
+        "error": "refuse nonfixture: PID/bundle/executable mismatch; actualBundle=dev.hot-cross-buns.presence.r2.identity actualExecutable=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac expectedExecutable=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Other.app/Contents/MacOS/HotCrossBunsMac manifest=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/wrong-executable.json",
         "ok": false,
         "started": 1795156694.3515449
       }
@@ -82,7 +82,7 @@
       "result": {
         "controllerPID": 45056,
         "elapsed": 0.00010311603546142578,
-        "error": "refuse nonfixture: PID/bundle/executable mismatch; actualBundle=dev.gator.presence.r2.identity actualExecutable=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac expectedExecutable=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac manifest=/tmp/gator-native-test-presence-r2-identity-m08fu5w7/wrong-manifest-pid.json",
+        "error": "refuse nonfixture: PID/bundle/executable mismatch; actualBundle=dev.hot-cross-buns.presence.r2.identity actualExecutable=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac expectedExecutable=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac manifest=/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/wrong-manifest-pid.json",
         "ok": false,
         "started": 1795156694.352274
       }
@@ -92,11 +92,11 @@
       "result": {
         "action": "state",
         "binarySHA256": "1a100790b6072f78d607b7f8fe4d69c2d62262417bf08e7c2f647d655eabfc45",
-        "bundle": "dev.gator.presence.r2.identity",
+        "bundle": "dev.hot-cross-buns.presence.r2.identity",
         "capture": [],
         "controllerPID": 45056,
         "elapsed": 0.001326918601989746,
-        "executable": "/tmp/gator-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/GatorMac",
+        "executable": "/tmp/hot-cross-buns-native-test-presence-r2-identity-m08fu5w7/Identity.app/Contents/MacOS/HotCrossBunsMac",
         "focusedElement": {},
         "focusedWindow": {},
         "frontPID": 1649,

@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 // TaskPlanReference is supplied by the foreground owner after durable claim.
@@ -108,6 +108,14 @@ func loadReviewedTaskPlan(request Request) (*worksession.TaskPlan, error) {
 }
 
 func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
+	if decorated, ok := tool.(activityIconTool); ok {
+		arguments, err := activityArguments(call.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		call.Arguments = arguments
+		return planToolEffects(decorated.Tool, call)
+	}
 	if _, native := tool.(taskAccessTool); native {
 		return []string{"read"}, nil
 	}
@@ -128,11 +136,11 @@ func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
 	}
 	name := call.Name
 	switch name {
-	case "read_file", "list_files", "search_files", "list_input_files", "extract_document", "inspect_table", "web_search", "http_fetch", "web_fetch", "list_evidence", "read_evidence", "check_claims", "artifact_status", "knowledge_read", "knowledge_search", "chat_read", "chat_search", "skill_list", "skill_read", "local_agenda", "gator_app_inspect":
+	case "read_file", "list_files", "search_files", "list_input_files", "extract_document", "inspect_table", "web_search", "http_fetch", "web_fetch", "list_evidence", "read_evidence", "check_claims", "artifact_status", "knowledge_read", "knowledge_search", "chat_read", "chat_search", "skill_list", "skill_read", "local_agenda", "hot_cross_buns_app_inspect":
 		return []string{"read"}, nil
 	case "write_artifact", "write_json_artifact", "write_table_artifact", "work_write_document", "work_write_workbook", "work_write_presentation", "reconcile_tables":
 		return []string{"draft"}, nil
-	case "memory_remember", "memory_forget", "local_plan", "suggest_change", "gator_app_update":
+	case "memory_remember", "memory_forget", "local_plan", "suggest_change", "hot_cross_buns_app_update":
 		return []string{"settings"}, nil
 	case "code_use_integration":
 		return nil, errors.New("this dynamic coding integration is not supported by plan-first scope checking")

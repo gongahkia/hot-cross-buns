@@ -27,8 +27,8 @@ jobs:
       VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
       COMMIT: ${{ github.sha }}
       # Installed OAuth client material, never user credentials or a web secret.
-      GATOR_GOOGLE_DESKTOP_CLIENT_ID: ${{ github.ref_type == 'tag' && vars.GOOGLE_DESKTOP_CLIENT_ID || '' }}
-      GATOR_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ github.ref_type == 'tag' && secrets.GOOGLE_DESKTOP_CLIENT_SECRET || '' }}
+      HOT_CROSS_BUNS_GOOGLE_DESKTOP_CLIENT_ID: ${{ github.ref_type == 'tag' && vars.GOOGLE_DESKTOP_CLIENT_ID || '' }}
+      HOT_CROSS_BUNS_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ github.ref_type == 'tag' && secrets.GOOGLE_DESKTOP_CLIENT_SECRET || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          tar -czf "release/gator-terminal_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" terminal-artifact
+          tar -czf "release/hot-cross-buns-terminal_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" terminal-artifact
       - uses: actions/upload-artifact@v4
         with:
           name: terminal-${{ matrix.goos }}-${{ matrix.goarch }}
@@ -89,7 +89,7 @@ jobs:
           merge-multiple: true
       - name: Create checksums
         working-directory: release
-        run: sha256sum gator-terminal_*.tar.gz > checksums.txt
+        run: sha256sum hot-cross-buns-terminal_*.tar.gz > checksums.txt
       - name: Prepare terminal release for review
         env:
           GH_TOKEN: ${{ github.token }}

@@ -17,14 +17,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/attachment"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/presentation"
-	"github.com/gongahkia/gator/internal/telemetry"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/presentation"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -482,7 +482,7 @@ func RunWorkExperiment(ctx context.Context, datasetPath string, dataset WorkData
 			if item.ExecutionCategory == "" {
 				item.ExecutionCategory = item.Category
 			}
-			item.TracePath = filepath.Join(state, "gator", "traces", outcome.RevisionID, "trace.json")
+			item.TracePath = filepath.Join(state, "hot-cross-buns", "traces", outcome.RevisionID, "trace.json")
 			if data, err := os.ReadFile(item.TracePath); err == nil {
 				var trace telemetry.Trace
 				if err := json.Unmarshal(data, &trace); err != nil {

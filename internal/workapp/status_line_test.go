@@ -37,13 +37,13 @@ func TestConfiguredStatusLineShowsSelectedLocalModel(t *testing.T) {
 		StatusLine:        &items,
 		StatusLineEnabled: true,
 		ModelStatus: func() (ModelStatus, error) {
-			return ModelStatus{Provider: "gator-local", Model: "qwen3:8b", Access: "local model configured"}, nil
+			return ModelStatus{Provider: "hot-cross-buns-local", Model: "qwen3:8b", Access: "local model configured"}, nil
 		},
 	})
 	model.home = false
 	model.width, model.height = 100, 24
 	view := ansi.Strip(model.snapshotText())
-	if !strings.Contains(view, "model gator-local/qwen3:8b") {
+	if !strings.Contains(view, "model hot-cross-buns-local/qwen3:8b") {
 		t.Fatalf("configured status line omitted selected local model: %q", view)
 	}
 }

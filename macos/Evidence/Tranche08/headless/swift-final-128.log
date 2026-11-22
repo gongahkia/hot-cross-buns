@@ -102,13 +102,13 @@ Build complete! (0.35s)
 ◇ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() started.
 ✔ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":1.2819766998291016,"messages":50,"transcriptMedianMS":0.072956085205078125},{"bytes":240934,"decodeMedianMS":12.544989585876465,"messages":500,"transcriptMedianMS":0.62704086303710938},{"bytes":964934,"decodeMedianMS":50.487041473388672,"messages":2000,"transcriptMedianMS":2.570033073425293}],"kind":"native-presentation","peakRSSBytes":24834048,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":1.2819766998291016,"messages":50,"transcriptMedianMS":0.072956085205078125},{"bytes":240934,"decodeMedianMS":12.544989585876465,"messages":500,"transcriptMedianMS":0.62704086303710938},{"bytes":964934,"decodeMedianMS":50.487041473388672,"messages":2000,"transcriptMedianMS":2.570033073425293}],"kind":"native-presentation","peakRSSBytes":24834048,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 0.510 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":" 3829  24504   0.0\n 3830  25132   0.0\n 3831  25432   0.0\n 3832  25196   0.0\n","timeToConnectedMS":[191.03109836578369,160.77005863189697,158.66100788116455,158.04409980773926]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":" 3829  24504   0.0\n 3830  25132   0.0\n 3831  25432   0.0\n 3832  25196   0.0\n","timeToConnectedMS":[191.03109836578369,160.77005863189697,158.66100788116455,158.04409980773926]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 4.952 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=171.3390350341797 peakRSSBytes=33755136
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=171.3390350341797 peakRSSBytes=33755136
 ✔ Test nativeThumbnailBenchmark() passed after 0.733 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.038 seconds.

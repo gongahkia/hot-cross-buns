@@ -1,5 +1,5 @@
-// Package radius implements Gator's adapter for a pi-messages-compatible
-// gateway such as Radius. Gator still owns the coding-agent and tool loop.
+// Package radius implements Hot Cross Buns's adapter for a pi-messages-compatible
+// gateway such as Radius. Hot Cross Buns still owns the coding-agent and tool loop.
 package radius
 
 import (
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/model/providerhttp"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/model/providerhttp"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 	maxResponseSize = 2 * 1024 * 1024
 )
 
-// Messages sends a normalized Gator turn to a pi-messages gateway.
+// Messages sends a normalized Hot Cross Buns turn to a pi-messages gateway.
 type Messages struct {
 	CredentialSource string
 	ProviderID       string

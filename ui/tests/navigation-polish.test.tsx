@@ -4,11 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 test("rail highlights the displayed page through nested forms and contextual help", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-current-page-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-current-page-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const selected = () => setup.captureCharFrame().split("\n").map(line => line.slice(0, 22)).filter(line => line.includes("› ")).map(line => line.trim())
@@ -30,13 +30,13 @@ test("rail highlights the displayed page through nested forms and contextual hel
 })
 
 test("rail removes repeated branding, supports pointer resizing and keeps chat space", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-rail-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-rail-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const rail = () => setup.renderer.root.findDescendantById("navigation-rail")!
   try {
     await client.start(); await client.configurePreferences({ sidebarCollapsed: false }); await flush()
-    expect(setup.captureCharFrame()).not.toContain("GATOR"); expect(setup.captureCharFrame()).not.toContain("⌕"); expect(setup.captureCharFrame()).toContain("Search")
+    expect(setup.captureCharFrame()).not.toContain("HOT CROSS BUNS"); expect(setup.captureCharFrame()).not.toContain("⌕"); expect(setup.captureCharFrame()).toContain("Search")
     const handle = setup.renderer.root.findDescendantById("sidebar-resize")!
     await setup.mockMouse.drag(handle.screenX, handle.screenY + 4, 35, handle.screenY + 4); await flush()
     expect(rail().width).toBe(36)
@@ -53,7 +53,7 @@ test("rail removes repeated branding, supports pointer resizing and keeps chat s
 })
 
 test("slash exit and quit use application shutdown, preserve cancelled reviews, and never reach Go", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-exit-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-exit-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   let closed = 0, busy = false
   const snapshot = host.snapshot.bind(host); host.snapshot = () => ({ ...snapshot(), allChatsBusy: busy })
   const setup = await testRender(() => <App client={client} quit={async () => { closed++ }} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 32 })
@@ -62,7 +62,7 @@ test("slash exit and quit use application shutdown, preserve cancelled reviews, 
     await client.start(); await client.edit("/exit"); client.navigationGuard = async () => false
     await client.submit(); expect(closed).toBe(0); expect(client.draft.text).toBe("/exit")
     client.navigationGuard = undefined; busy = true; host.change(host.current)
-    await client.submit(); await flush(); expect(setup.captureCharFrame()).toContain("Stop work and close Gator?")
+    await client.submit(); await flush(); expect(setup.captureCharFrame()).toContain("Stop work and close Hot Cross Buns?")
     setup.mockInput.pressEscape(); await flush(); expect(closed).toBe(0); expect(client.draft.text).toBe("/exit")
     busy = false; host.change(host.current); await client.submit(); expect(closed).toBe(1); expect(client.draft.text).toBe("")
     await client.edit("/quit", [], "inbox-fixture"); await client.submit(); expect(closed).toBe(2); expect(host.sent).toHaveLength(0)
@@ -71,10 +71,10 @@ test("slash exit and quit use application shutdown, preserve cancelled reviews, 
 })
 
 test("resume arguments accept one chat ID and reject shell fragments or extra arguments", async () => {
-  const { resumeID, resumeCommand } = await import("../src/gator/resume")
+  const { resumeID, resumeCommand } = await import("../src/hot-cross-buns/resume")
   expect(resumeID([])).toBeUndefined()
   expect(resumeID(["resume", "work-resume-fixture"])).toBe("work-resume-fixture")
   for (const args of [["resume"], ["resume", "../other"], ["resume", "work-id;echo"], ["resume", "work-one", "work-two"]]) expect(() => resumeID(args)).toThrow("Usage")
-  expect(resumeCommand("work-one", "/Apps/Gator/bin/gator", "/bin/bun", true, false)).toBe("'/Apps/Gator/bin/gator' resume work-one")
-  expect(resumeCommand("bad;id", "/bin/gator", "/bin/bun", true)).toBeUndefined()
+  expect(resumeCommand("work-one", "/Apps/Hot Cross Buns/bin/hot-cross-buns", "/bin/bun", true, false)).toBe("'/Apps/Hot Cross Buns/bin/hot-cross-buns' resume work-one")
+  expect(resumeCommand("bad;id", "/bin/hot-cross-buns", "/bin/bun", true)).toBeUndefined()
 })

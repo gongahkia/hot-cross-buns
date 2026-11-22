@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 func (t rememberChat) semanticRemember(ctx context.Context, input memory.ChatInput, scope string, unrecognizedRequest bool, suitabilityReview string) (agent.ToolResult, error) {

@@ -4,7 +4,7 @@
 
 **FAIL / NO-GO for production integration.** This bounded pass identifies the activity-memory charge, distinguishes test-wrapper ownership from a bounded last-output texture, and corrects a real back-face-culling mismatch. It does **not** turn the remaining end-to-end image failure or an unapproved resource budget into a pass.
 
-Production Gator remains unchanged. All work is isolated under `macos/mascot/`. No provider, credential, Go, draft, approval, recovery, icon or production view code is modified. No commits, installs, paid inference, signing or notarization are performed.
+Production Hot Cross Buns remains unchanged. All work is isolated under `macos/mascot/`. No provider, credential, Go, draft, approval, recovery, icon or production view code is modified. No commits, installs, paid inference, signing or notarization are performed.
 
 The appropriate next technical choice, if the user elects to continue, is the canonical USD/material path with one renderer reused during actual response bursts and released at idle/hidden boundaries. This preserves the approved character and avoids further guessing about reconstructed material shaders. It requires explicit resource-budget review and its own scoped acceptance; it is **not implemented as a replacement in this pass**.
 
@@ -27,9 +27,9 @@ Host: Apple M3, macOS **26.5.2 (25F84)**, Apple Swift **6.3.3**, arm64, `-O -swi
 Experiment groups are separate:
 
 1. **Historical v10**: prior report's +35.77 MiB 96px idle RSS, +38.17 MiB final settled footprint, +144.25 MiB highest activity-phase median footprint, 690.835s endurance. Those numbers are not relabeled as this pass's samples.
-2. **Attribution v1**: frozen uncorrected loader, unchanged engine/presenter, three fresh-process retained-renderer trials plus poster/offscreen controls. Each fresh process contains three warmed scene lifetimes. Sources/revision are copied into each result. The prototype is preserved at `/tmp/Gator-Mascot-Final-Attribution-v1.app`.
-3. **Attribution v2**: corrected culling, same engine/presenter, a matched ABBA policy comparison. Preserved at `/tmp/Gator-Mascot-Final-Attribution-v2.app`.
-4. **Corrected final lab**: `/tmp/Gator-Mascot-P04M-A2-Final-Diagnostic.app`, frozen source/asset/executable hashes above, with a new final-configuration endurance trial. The earlier 11m31s trial is historical corroboration, not certification of the material correction.
+2. **Attribution v1**: frozen uncorrected loader, unchanged engine/presenter, three fresh-process retained-renderer trials plus poster/offscreen controls. Each fresh process contains three warmed scene lifetimes. Sources/revision are copied into each result. The prototype is preserved at `/tmp/HotCrossBuns-Mascot-Final-Attribution-v1.app`.
+3. **Attribution v2**: corrected culling, same engine/presenter, a matched ABBA policy comparison. Preserved at `/tmp/HotCrossBuns-Mascot-Final-Attribution-v2.app`.
+4. **Corrected final lab**: `/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app`, frozen source/asset/executable hashes above, with a new final-configuration endurance trial. The earlier 11m31s trial is historical corroboration, not certification of the material correction.
 
 ## Measurement method
 
@@ -219,17 +219,17 @@ The corrected final executable also completed a separate native96 visual replay 
 
 An initial legacy capture filter returned `LabWindowNotFound`. The first PID/path-guarded attempt then rejected the legitimate fixture because macOS reports its bundle under `/private/tmp`, while the tool compared the literal `/tmp` path. Diagnostic inspection identified that harness error. The final helper resolves symlinks, verifies the exact owned PID/canonical bundle path and selects its unique visible main window. Capture then succeeds. Failed logs remain alongside the successful log; these failures are not classified as an application focus or renderer defect. No production code or system privacy/focus preference was changed to obtain the recording.
 
-This replay verifies actual native articulation and presentation at 96px. It does not certify production composer/scroll/focus behavior, a minimum-size Gator layout, physical VoiceOver or subframe hybrid flicker. Those remain outside this isolated resource diagnosis.
+This replay verifies actual native articulation and presentation at 96px. It does not certify production composer/scroll/focus behavior, a minimum-size Hot Cross Buns layout, physical VoiceOver or subframe hybrid flicker. Those remain outside this isolated resource diagnosis.
 
 ## Acceptance budget and complete-application impact
 
 The existing approximately **40 MiB additional steady-memory goal is unchanged**. Fresh/warmed evidence is close to that goal but not consistently below it. Repeated activity incurs approximately **140–145 MiB additional physical footprint**, not just a large RSS number. Graphics charges can linger after commands complete; no guaranteed reclamation deadline is established.
 
-For explicit user review only, an engineering envelope of **45 MiB additional settled footprint and 160 MiB additional footprint during animation/its quiescence tail** would cover the currently observed class with some margin. It is **not approved**, not a guaranteed cap, and not certified for sustained 4 Hz gestures or simultaneous Gator work. The old 40 MiB budget is not silently changed.
+For explicit user review only, an engineering envelope of **45 MiB additional settled footprint and 160 MiB additional footprint during animation/its quiescence tail** would cover the currently observed class with some margin. It is **not approved**, not a guaranteed cap, and not certified for sustained 4 Hz gestures or simultaneous Hot Cross Buns work. The old 40 MiB budget is not silently changed.
 
 That envelope describes the current optimized prototype. The previous canonical USD path measured about **45.28 MiB additional idle footprint** in its matched host. Keeping canonical imported material identity may reintroduce loading-path residency; the proposed alternative is not promised to fit a 45 MiB settled envelope without its own measurement. A larger budget is a user decision, not a workaround adopted here.
 
-Complete Gator impact is **NOT TESTED** because there is no production integration. [Inference] These graphics charges would compete with backend, transcript and attachment memory during real work; independent-process numbers cannot simply be added to claim an integrated app total. Energy/battery impact cannot be inferred from CPU or memory counters.
+Complete Hot Cross Buns impact is **NOT TESTED** because there is no production integration. [Inference] These graphics charges would compete with backend, transcript and attachment memory during real work; independent-process numbers cannot simply be added to claim an integrated app total. Energy/battery impact cannot be inferred from CPU or memory counters.
 
 Even approval of a larger budget alone would not clear the remaining end-to-end material mismatch. The recommendation is to retain canonical imported material identity, avoid per-token scene recreation, and validate that specific candidate only if the user authorizes continued work. No alternative renderer, GIF, spritesheet, desktop pet or production rollout is started.
 
@@ -240,23 +240,23 @@ The build scripts require a fresh destination and refuse overwriting a preserved
 ```sh
 # original frozen attribution artifact; same process contains three warm cycles
 python3 macos/mascot/final-diagnostic/run.py \
-  --app /tmp/Gator-Mascot-Final-Attribution-v1.app \
-  --root /tmp/gator-final-diag-r1 \
+  --app /tmp/HotCrossBuns-Mascot-Final-Attribution-v1.app \
+  --root /tmp/hot-cross-buns-final-diag-r1 \
   ownership retained-1 retained-2 retained-3 poster-1 offscreen-1
 
 # corrected, matched ABBA comparison
-GATOR_DIAGNOSTIC_APP=/tmp/Gator-Mascot-Final-Attribution-v2.app \
+HOT_CROSS_BUNS_DIAGNOSTIC_APP=/tmp/HotCrossBuns-Mascot-Final-Attribution-v2.app \
   bash macos/mascot/final-diagnostic/build.sh
 python3 macos/mascot/final-diagnostic/run.py \
-  --app /tmp/Gator-Mascot-Final-Attribution-v2.app \
-  --root /tmp/gator-final-diag-r2 policies-corrected
+  --app /tmp/HotCrossBuns-Mascot-Final-Attribution-v2.app \
+  --root /tmp/hot-cross-buns-final-diag-r2 policies-corrected
 
 # corrected frozen full/compact lab and a new final-config endurance run
-GATOR_GATE2_APP=/tmp/Gator-Mascot-P04M-A2-Final-Diagnostic.app \
+HOT_CROSS_BUNS_GATE2_APP=/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app \
   bash macos/mascot/gate2/build.sh
 python3 macos/mascot/gate2/run-experiments.py \
-  --app /tmp/Gator-Mascot-P04M-A2-Final-Diagnostic.app \
-  --root /tmp/gator-final-corrected-endurance endurance
+  --app /tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app \
+  --root /tmp/hot-cross-buns-final-corrected-endurance endurance
 
 python3 macos/mascot/final-diagnostic/image_analysis.py \
   macos/mascot/evidence/p04m-a2-final/images-final \
@@ -269,9 +269,9 @@ All Swift helpers use `-parse-as-library -swift-version 6 -strict-concurrency=co
 
 ## Artifact, preservation, changed files and remaining unknowns
 
-The corrected isolated artifact is **`/tmp/Gator-Mascot-P04M-A2-Final-Diagnostic.app`**. It is a finite renderer lab, with **no production Gator integration**. Its plain launch defaults to the original-USD `direct96` reference comparison. Use `--experiment hybrid` with a fresh `--output` directory to inspect the optimized hybrid, or `--experiment native96` for direct optimized articulation. No mode constitutes resource acceptance or starts a Go owner.
+The corrected isolated artifact is **`/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app`**. It is a finite renderer lab, with **no production Hot Cross Buns integration**. Its plain launch defaults to the original-USD `direct96` reference comparison. Use `--experiment hybrid` with a fresh `--output` directory to inspect the optimized hybrid, or `--experiment native96` for direct optimized articulation. No mode constitutes resource acceptance or starts a Go owner.
 
-The original `/tmp/Gator-Mascot-P04M-A2-Gate2.app`, `/tmp/Gator-Mascot-P04M-A2-Renderer-Lab.app` and `/tmp/Gator-Native-Parity-P04.app` are preserved. Final hash verification and the precise source delta are recorded in `evidence/p04m-a2-final/preservation.json`.
+The original `/tmp/HotCrossBuns-Mascot-P04M-A2-Gate2.app`, `/tmp/HotCrossBuns-Mascot-P04M-A2-Renderer-Lab.app` and `/tmp/HotCrossBuns-Native-Parity-P04.app` are preserved. Final hash verification and the precise source delta are recorded in `evidence/p04m-a2-final/preservation.json`.
 
 The final preservation check finds **11,201 of 11,202 protected existing files unchanged**, with only the isolated `gate2/NativeMesh.swift` correction differing. The three protected bundles are byte-identical, and the corrected bundle's runtime-source and asset hashes match the qualified revision. HEAD advanced externally to `3a3b437111daffb24ab15edcf80b2d67aae124f2`; this work issued no commit command and did not reset that history. Acceptance is bound to the executable/source hashes above.
 

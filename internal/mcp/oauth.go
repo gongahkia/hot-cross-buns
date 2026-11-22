@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
@@ -117,7 +117,7 @@ func BeginOAuthLogin(ctx context.Context, repository, serverName, trustedHash st
 		return nil, err
 	}
 	if digest == "" || trustedHash != digest {
-		return nil, errors.New("project MCP configuration is not trusted; review it and run 'gator mcp trust' before authenticating a remote server")
+		return nil, errors.New("project MCP configuration is not trusted; review it and run 'hot-cross-buns mcp trust' before authenticating a remote server")
 	}
 	specification, found := findHTTPServer(document, serverName)
 	if !found {
@@ -149,7 +149,7 @@ func BeginOAuthLogin(ctx context.Context, repository, serverName, trustedHash st
 	}
 	clientID := strings.TrimSpace(options.ClientID)
 	if clientID != "" && strings.TrimSpace(options.RedirectURL) == "" {
-		return nil, errors.New("a pre-registered MCP OAuth client requires its exact loopback redirect URI; retry with 'gator mcp login --client-id CLIENT_ID --redirect-url LOOPBACK_URL " + serverName + "'")
+		return nil, errors.New("a pre-registered MCP OAuth client requires its exact loopback redirect URI; retry with 'hot-cross-buns mcp login --client-id CLIENT_ID --redirect-url LOOPBACK_URL " + serverName + "'")
 	}
 	flow := auth.BrowserFlow{
 		ClientID:           clientID,
@@ -167,7 +167,7 @@ func BeginOAuthLogin(ctx context.Context, repository, serverName, trustedHash st
 	if strings.TrimSpace(options.RedirectURL) != "" {
 		if clientID == "" {
 			if authorization.RegistrationEndpoint == "" {
-				return nil, errors.New("MCP authorization server has no dynamic registration endpoint; register a public OAuth client and retry with 'gator mcp login --client-id CLIENT_ID --redirect-url LOOPBACK_URL " + serverName + "'")
+				return nil, errors.New("MCP authorization server has no dynamic registration endpoint; register a public OAuth client and retry with 'hot-cross-buns mcp login --client-id CLIENT_ID --redirect-url LOOPBACK_URL " + serverName + "'")
 			}
 			clientID, err = registerPublicClient(ctx, client, authorization.RegistrationEndpoint, options.RedirectURL)
 			if err != nil {
@@ -185,15 +185,15 @@ func BeginOAuthLogin(ctx context.Context, repository, serverName, trustedHash st
 			return nil, fmt.Errorf("start MCP OAuth callback: %w", err)
 		}
 	} else {
-		flow.ClientID = "gator-pending-registration"
-		attempt, callback, err = auth.BeginEphemeralLoopbackFlow(flow, "/gator/mcp/oauth/callback")
+		flow.ClientID = "hot-cross-buns-pending-registration"
+		attempt, callback, err = auth.BeginEphemeralLoopbackFlow(flow, "/hot-cross-buns/mcp/oauth/callback")
 		if err != nil {
 			return nil, fmt.Errorf("start MCP OAuth callback: %w", err)
 		}
 		if clientID == "" {
 			if authorization.RegistrationEndpoint == "" {
 				callback.Close()
-				return nil, errors.New("MCP authorization server has no dynamic registration endpoint; register a public OAuth client and retry with 'gator mcp login --client-id CLIENT_ID --redirect-url LOOPBACK_URL " + serverName + "'")
+				return nil, errors.New("MCP authorization server has no dynamic registration endpoint; register a public OAuth client and retry with 'hot-cross-buns mcp login --client-id CLIENT_ID --redirect-url LOOPBACK_URL " + serverName + "'")
 			}
 			clientID, err = registerPublicClient(ctx, client, authorization.RegistrationEndpoint, attempt.RedirectURL())
 			if err != nil {
@@ -316,13 +316,13 @@ func accessToken(ctx context.Context, credentials auth.Store, endpoint string, n
 		return "", false, err
 	}
 	if !credential.IsOAuth() || credential.Extra[extraResource] != resource || strings.TrimSpace(credential.Extra[extraClientID]) == "" || strings.TrimSpace(credential.Extra[extraTokenURL]) == "" {
-		return "", true, errors.New("stored MCP OAuth credential has incompatible resource metadata; run 'gator mcp logout SERVER' then 'gator mcp login SERVER'")
+		return "", true, errors.New("stored MCP OAuth credential has incompatible resource metadata; run 'hot-cross-buns mcp logout SERVER' then 'hot-cross-buns mcp login SERVER'")
 	}
 	if credential.Expires == 0 || credential.Expires > now.Add(oauthRefreshWindow).UnixMilli() {
 		return credential.Access, true, nil
 	}
 	if strings.TrimSpace(credential.Refresh) == "" {
-		return "", true, errors.New("stored MCP OAuth credential has expired and cannot be refreshed; run 'gator mcp login SERVER'")
+		return "", true, errors.New("stored MCP OAuth credential has expired and cannot be refreshed; run 'hot-cross-buns mcp login SERVER'")
 	}
 	flow := auth.BrowserFlow{
 		ClientID:           credential.Extra[extraClientID],
@@ -453,7 +453,7 @@ func discoverAuthorizationServer(ctx context.Context, client *http.Client, issue
 
 func registerPublicClient(ctx context.Context, client *http.Client, endpoint, redirectURL string) (string, error) {
 	payload, err := json.Marshal(map[string]any{
-		"client_name":                "Gator",
+		"client_name":                "Hot Cross Buns",
 		"redirect_uris":              []string{redirectURL},
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},

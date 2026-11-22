@@ -20,7 +20,7 @@ struct CompatibilityView: View {
         let root = URL(fileURLWithPath: CommandLine.arguments[1])
         for id in ["A", "B", "C"] {
             let start=ContinuousClock.now
-            let entity=try await Entity(contentsOf:root.appendingPathComponent("Gator-\(id).usdz"))
+            let entity=try await Entity(contentsOf:root.appendingPathComponent("HotCrossBuns-\(id).usdz"))
             let loadDuration=start.duration(to:.now)
             let names=["Jaw_Pivot","Eye_Left","Eye_Right","Upper_Lid","Lower_Lid","Pupil"]
             guard names.allSatisfy({entity.findEntity(named:$0) != nil}) else {throw NSError(domain:"MissingNamedPart",code:1)}

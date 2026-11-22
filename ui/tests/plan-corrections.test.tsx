@@ -5,9 +5,9 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 const correction = "Keep the venue comparison under $2,000"
 const originalPlan = { outcome: "A reviewed venue comparison", steps: [{ id: "compare", text: "Compare venues within the original selected scope" }], sources: [], effects: ["read"] }
@@ -17,7 +17,7 @@ const metadata = (body: any) => JSON.parse(body.messages.at(-1).content)
 async function until(predicate: () => boolean, label: string) { const end = Date.now() + 15000; while (!predicate()) { if (Date.now() > end) throw new Error("Timed out: " + label); await Bun.sleep(15) } }
 
 async function fixture(respond: (body: any) => string | Response | Promise<string | Response>) {
-  const root = await mkdtemp(join(tmpdir(), "gator-plan-corrections-")), workspace = join(root, "workspace")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-plan-corrections-")), workspace = join(root, "workspace")
   await mkdir(workspace)
   const requests: any[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
@@ -26,12 +26,12 @@ async function fixture(respond: (body: any) => string | Response | Promise<strin
     if (content instanceof Response) return content
     return Response.json({ choices: [{ message: { role: "assistant", content }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
   } })
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-  const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
   cli(["provider", "add", "plan-correction-fixture", "--base-url", `http://127.0.0.1:${server.port}/v1/chat/completions`, "--model", "fixture"])
   cli(["config", "set", "default-provider", "plan-correction-fixture"])
-  const options = { binary, env, workspace, userData: join(root, "app") }, client = new GatorClient(new Application(options))
+  const options = { binary, env, workspace, userData: join(root, "app") }, client = new HotCrossBunsClient(new Application(options))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   const flush = async () => { await setup.flush(); await Bun.sleep(25); await setup.flush() }
   const choose = async (text: string) => { await setup.mockInput.typeText(text); await flush(); setup.mockInput.pressEnter(); await flush() }
@@ -58,7 +58,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test(`ordinary 
   const initial = new Promise<void>(resolve => { releaseInitial = resolve }), revised = new Promise<void>(resolve => { releaseCorrection = resolve })
   const proposals: any[] = [], executions: string[] = []
   const f = await fixture(async body => {
-    if (system(body).includes("You handle the conversation with Gator")) {
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) {
       const meta = metadata(body)
       return JSON.stringify(meta.message === "Hello during the revision" ? { kind:"reply",text:"We can keep talking while the corrected plan is prepared." } : { kind:"revise_plan",target:meta.tasks.find((task:any) => task.can_revise_plan).id,instruction:meta.message })
     }
@@ -97,10 +97,10 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test(`ordinary 
     f.setup.mockInput.pressEscape(); await f.flush(); await f.review(); await f.choose("Approve plan and start"); f.setup.mockInput.pressEnter()
     await until(() => !f.client.state?.running && f.client.state?.task_plans?.[0]?.state === "completed", "only the corrected plan executes")
     expect(executions).toHaveLength(1); expect(executions[0]).toContain("Retained user correction"); expect(executions[0]).toContain("silver otter"); expect(executions[0]).not.toContain("amber finch")
-    const journal = JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR,"gator/conversations",owner,"requests.json"),"utf8"))
+    const journal = JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",owner,"requests.json"),"utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].id).toBe(original.id); expect(journal.requests[0].options.Uploads).toEqual([input]); expect(proposals).toHaveLength(2)
     expect(f.client.draft.text).toBe(draft); expect(f.client.draft.uploads?.map(file=>file.id)).toEqual([futureInput]); expect(f.client.draft.plan_first).toBe(true)
-    await f.client.close(); await f.setup.dispose(); const count = f.requests.length, restarted = new GatorClient(new Application(f.options))
+    await f.client.close(); await f.setup.dispose(); const count = f.requests.length, restarted = new HotCrossBunsClient(new Application(f.options))
     try { await restarted.start(); expect(restarted.state?.task_plans?.[0]?.id).toBe(original.id); expect(restarted.state?.dialogue?.[0]?.state).toBe("guided"); expect(restarted.draft.text).toBe(draft); expect(restarted.draft.uploads?.map(file=>file.id)).toEqual([futureInput]); expect(restarted.draft.plan_first).toBe(true); expect(f.requests).toHaveLength(count) }
     finally { await restarted.close() }
   } finally { releaseInitial(); releaseCorrection(); await f.close() }
@@ -110,7 +110,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) for (const scen
   let releaseInitial = () => {}, releaseCorrection = () => {}, revisionCalls = 0, executions = 0
   const initial = new Promise<void>(resolve=>{releaseInitial=resolve}), revised = new Promise<void>(resolve=>{releaseCorrection=resolve})
   const f = await fixture(async body => {
-    if (system(body).includes("You handle the conversation with Gator")) {
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) {
       const meta = metadata(body)
       return JSON.stringify(meta.message === "Stop the venue plan" ? {kind:"stop",target:meta.tasks.find((task:any)=>task.can_stop).id} : {kind:"revise_plan",target:meta.tasks.find((task:any)=>task.can_revise_plan).id,instruction:meta.message})
     }
@@ -123,7 +123,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) for (const scen
     }
     executions++; return "Unexpected unreviewed execution"
   })
-  let restarted: GatorClient | undefined, setup: Awaited<ReturnType<typeof testRender>> | undefined
+  let restarted: HotCrossBunsClient | undefined, setup: Awaited<ReturnType<typeof testRender>> | undefined
   try {
     await f.client.start(); f.setup.resize(width,height); await f.flush(); await f.client.send({type:"submit",text:"/mode inspect"})
     const input = await f.plan(), owner = f.client.state!.conversation_id!
@@ -136,7 +136,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) for (const scen
     await f.client.edit("Keep my correction recovery\ndraft",[],undefined,true)
     releaseInitial(); releaseCorrection(); await f.flush(); expect(revisionCalls).toBe(1); expect(executions).toBe(0)
     await f.client.close(); await f.setup.dispose(); const count = f.requests.length
-    const client = restarted = new GatorClient(new Application(f.options))
+    const client = restarted = new HotCrossBunsClient(new Application(f.options))
     setup = await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>undefined,write:async()=>{}}}/>,{width,height})
     await client.start(); await setup.flush(); expect(client.state?.task_plans?.[0]?.id).toBe(task.id); expect(f.requests).toHaveLength(count)
     expect(client.draft.text).toBe("Keep my correction recovery\ndraft"); expect(client.draft.plan_first).toBe(true)
@@ -145,7 +145,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) for (const scen
       await until(()=>client.state?.dialogue?.at(-1)?.state === "guided" && !client.state?.running,"explicit retry uses same task")
       expect(revisionCalls).toBe(2); expect(client.state?.task_plans?.[0]?.outcome).toBe(correctedPlan.outcome)
     } else expect(client.state?.task_plans?.[0]?.state).toBe("discarded")
-    const journal = JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR,"gator/conversations",owner,"requests.json"),"utf8"))
+    const journal = JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",owner,"requests.json"),"utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].id).toBe(task.id); expect(journal.requests[0].options.Uploads).toEqual([input]); expect(executions).toBe(0)
   } finally { releaseInitial();releaseCorrection();if(restarted)await restarted.close();if(setup&&!setup.renderer.isDestroyed)await setup.dispose();await f.close() }
 },30000)
@@ -154,14 +154,14 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test.skipIf(pro
   let releaseInitial=()=>{},releaseRevision=()=>{},revisionCalls=0,executions=0
   const initial=new Promise<void>(resolve=>{releaseInitial=resolve}),revision=new Promise<void>(resolve=>{releaseRevision=resolve})
   const f=await fixture(async body=>{
-    if(system(body).includes("You handle the conversation with Gator")){const meta=metadata(body);return JSON.stringify({kind:"revise_plan",target:meta.tasks.find((task:any)=>task.can_revise_plan).id,instruction:meta.message})}
+    if(system(body).includes("You handle the conversation with Hot Cross Buns")){const meta=metadata(body);return JSON.stringify({kind:"revise_plan",target:meta.tasks.find((task:any)=>task.can_revise_plan).id,instruction:meta.message})}
     if(system(body).includes("Propose a plan")){
       if(!metadata(body).correction){await initial;return JSON.stringify(originalPlan)}
       revisionCalls++;if(revisionCalls===1)await revision;return JSON.stringify(correctedPlan)
     }
     executions++;return "Unexpected execution"
   })
-  let restarted:GatorClient|undefined,setup:Awaited<ReturnType<typeof testRender>>|undefined
+  let restarted:HotCrossBunsClient|undefined,setup:Awaited<ReturnType<typeof testRender>>|undefined
   try{
     await f.client.start();f.setup.resize(width,height);await f.flush();await f.client.send({type:"submit",text:"/mode inspect"})
     const input=await f.plan(),owner=f.client.state!.conversation_id!
@@ -173,7 +173,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test.skipIf(pro
     expect(children).toHaveLength(1);process.kill(Number(children[0]![1]),"SIGKILL")
     await until(()=>f.client.snapshot.connection==="disconnected","exact isolated runtime crashed")
     releaseInitial();releaseRevision();await f.client.close();await f.setup.dispose();const count=f.requests.length
-    const client=restarted=new GatorClient(new Application(f.options))
+    const client=restarted=new HotCrossBunsClient(new Application(f.options))
     setup=await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>undefined,write:async()=>{}}}/>,{width,height})
     await client.start();await setup.flush()
     expect(client.state?.task_plans?.[0]?.id).toBe(task.id);expect(client.state?.task_plans?.[0]?.phase).toBe("interrupted");expect(client.state?.task_plans?.[0]?.state).toBe("interrupted")
@@ -182,7 +182,7 @@ for (const [width,height] of [[110,34],[80,24],[60,20],[42,14]]) test.skipIf(pro
     await client.edit("Retry that original venue plan",[],undefined,false);await setup.flush();await Bun.sleep(25);await setup.flush();setup.mockInput.pressEnter()
     await until(()=>client.state?.dialogue?.at(-1)?.state==="guided"&&!client.state?.running,"explicit retry after crash")
     expect(revisionCalls).toBe(2);expect(client.state?.task_plans?.[0]?.id).toBe(task.id);expect(client.state?.task_plans?.[0]?.outcome).toBe(correctedPlan.outcome)
-    const journal=JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR,"gator/conversations",owner,"requests.json"),"utf8"))
+    const journal=JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",owner,"requests.json"),"utf8"))
     expect(journal.requests).toHaveLength(1);expect(journal.requests[0].options.Uploads).toEqual([input]);expect(executions).toBe(0)
   }finally{releaseInitial();releaseRevision();if(restarted)await restarted.close();if(setup&&!setup.renderer.isDestroyed)await setup.dispose();await f.close()}
 },30000)
@@ -193,14 +193,14 @@ test("an empty plan-first draft survives restart and keyboard submission still p
     if (system(body).includes("Propose a plan")) { proposals++; return JSON.stringify(originalPlan) }
     executions++; return "Unexpected execution before review"
   })
-  let restarted: GatorClient | undefined, setup: Awaited<ReturnType<typeof testRender>> | undefined
+  let restarted: HotCrossBunsClient | undefined, setup: Awaited<ReturnType<typeof testRender>> | undefined
   try {
     await f.client.start(); await f.flush()
     const owner = f.client.state!.conversation_id!
     await f.client.navigate("/plan-first"); await f.flush(); await f.choose("Prepare a plan")
     expect(f.client.draft.text).toBe(""); expect(f.client.draft.plan_first).toBe(true)
     await f.client.close(); await f.setup.dispose()
-    const client = restarted = new GatorClient(new Application(f.options))
+    const client = restarted = new HotCrossBunsClient(new Application(f.options))
     setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
     const flush = async () => { await setup!.flush(); await Bun.sleep(25); await setup!.flush() }
     await client.start(); await flush()
@@ -227,7 +227,7 @@ test("ordinary corrections revise the same plan while conversation continues, th
   const gate = new Promise<void>(resolve => { release = resolve })
   const proposals: any[] = [], executions: string[] = []
   const f = await fixture(async body => {
-    if (system(body).includes("You handle the conversation with Gator")) {
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) {
       const context = metadata(body)
       return JSON.stringify(context.message === "Hello during the revision" ? { kind: "reply", text: "You can keep talking while I revise the plan." } : { kind: "revise_plan", target: context.tasks.find((task: any) => task.can_revise_plan).id, instruction: context.message })
     }
@@ -268,12 +268,12 @@ test("ordinary corrections revise the same plan while conversation continues, th
     await f.review(); await f.choose("Approve plan and start"); f.setup.mockInput.pressEnter()
     await until(() => !f.client.state?.running && f.client.state?.task_plans?.[0]?.state === "completed", "freshly reviewed execution")
     expect(executions).toHaveLength(1); expect(executions[0]).toContain("Retained user correction"); expect(executions[0]).toContain("silver otter"); expect(executions[0]).not.toContain("amber finch")
-    const journal = JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR, "gator/conversations", owner, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", owner, "requests.json"), "utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].id).toBe(original.id)
     expect(journal.requests[0].options.Uploads).toEqual([input]); expect(journal.requests[0].text).toBe("Compare venues")
     expect(f.client.draft.text).toBe(nextDraft); expect(f.client.draft.uploads?.map(file => file.id)).toEqual([futureInput]); expect(f.client.draft.plan_first).toBe(true)
     await f.client.close(); await f.setup.dispose()
-    const count = f.requests.length, restarted = new GatorClient(new Application(f.options))
+    const count = f.requests.length, restarted = new HotCrossBunsClient(new Application(f.options))
     try { await restarted.start(); expect(restarted.state?.conversation_id).toBe(owner); expect(restarted.state?.dialogue?.[0]?.state).toBe("guided"); expect(restarted.draft.text).toBe(nextDraft); expect(restarted.draft.uploads?.map(file => file.id)).toEqual([futureInput]); expect(restarted.draft.plan_first).toBe(true); expect(f.requests).toHaveLength(count) }
     finally { await restarted.close() }
   } finally { release(); await f.close() }
@@ -282,7 +282,7 @@ test("ordinary corrections revise the same plan while conversation continues, th
 test("failed plan corrections retain the previous draft and retry only after another explicit message", async () => {
   let revisionCalls = 0, executions = 0
   const f = await fixture(body => {
-    if (system(body).includes("You handle the conversation with Gator")) { const context = metadata(body); return JSON.stringify({ kind: "revise_plan", target: context.tasks.find((task: any) => task.can_revise_plan).id, instruction: context.message }) }
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) { const context = metadata(body); return JSON.stringify({ kind: "revise_plan", target: context.tasks.find((task: any) => task.can_revise_plan).id, instruction: context.message }) }
     if (system(body).includes("Propose a plan")) {
       if (metadata(body).correction && ++revisionCalls === 1) return new Response("Fixture provider is temporarily unavailable", { status: 503 })
       return JSON.stringify(metadata(body).correction ? correctedPlan : originalPlan)
@@ -312,7 +312,7 @@ test("failed plan corrections retain the previous draft and retry only after ano
     expect(revisionCalls).toBe(2); expect(executions).toBe(0)
     expect(f.client.state?.dialogue?.[0]?.state).toBe("failed")
     expect(f.client.state?.task_plans?.[0]?.revision).toBe(4)
-    const journal = JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR, "gator/conversations", owner, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", owner, "requests.json"), "utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].id).toBe(original.id)
     expect(journal.requests[0].options.Uploads).toEqual([input]); expect(journal.requests[0].plan.approval).toBeUndefined()
   } finally { await f.close() }
@@ -323,7 +323,7 @@ test("conversational cancellation stops an in-flight plan correction without rev
   const gate = new Promise<void>(resolve => { release = resolve })
   let revising = false, executions = 0
   const f = await fixture(async body => {
-    if (system(body).includes("You handle the conversation with Gator")) {
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) {
       const context = metadata(body)
       return JSON.stringify(context.message === "Cancel this plan" ? { kind: "stop", target: context.tasks.find((task: any) => task.can_stop).id } : { kind: "revise_plan", target: context.tasks.find((task: any) => task.can_revise_plan).id, instruction: context.message })
     }
@@ -356,7 +356,7 @@ for (const phase of ["preparing","review"] as const) test(`a delegated ${phase} 
   let work = 0
   const proposals: any[] = []
   const f = await fixture(async body => {
-    if (system(body).includes("You handle the conversation with Gator")) {
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) {
       const context = metadata(body)
       if (context.message === "Compare venues") return JSON.stringify({ kind: "task" })
       if (context.message === "Hello during the revision") return JSON.stringify({ kind: "reply", text: "I'm here while both tasks continue." })
@@ -388,7 +388,7 @@ for (const phase of ["preparing","review"] as const) test(`a delegated ${phase} 
     await until(() => f.client.state?.dialogue?.find(turn => turn.text === correction)?.state === "guided", "actual revised plan result returned")
     expect(f.client.state?.dialogue_peers?.find(peer => peer.conversation_id === child)?.summary).toContain("$2,000")
     expect(f.client.state?.conversation_id).toBe(parent); expect(f.client.state?.running).toBe(true); expect(work).toBe(1)
-    const journal = JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR, "gator/conversations", child, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", child, "requests.json"), "utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].plan.phase).toBe("review")
     expect(journal.requests[0].plan.approval).toBeUndefined(); expect(journal.requests[0].options.Uploads).toEqual([input])
     expect(journal.requests[0].options.DialogueParent).toBe(parent); expect(journal.requests[0].plan.edit.instruction).toBe(correction)
@@ -412,7 +412,7 @@ test("a second ordinary correction replaces an active revision in the same real 
   const first = new Promise<void>(resolve => { releaseFirst = resolve }), latest = new Promise<void>(resolve => { releaseLatest = resolve })
   const proposals:any[] = []; let work = 0
   const f = await fixture(async body => {
-    if (system(body).includes("You handle the conversation with Gator")) {
+    if (system(body).includes("You handle the conversation with Hot Cross Buns")) {
       const context = metadata(body)
       return JSON.stringify(context.message === "Hello during the revision" ? {kind:"reply",text:"We can keep talking."} : {kind:"revise_plan",target:context.tasks.find((task:any)=>task.can_revise_plan).id,instruction:context.message})
     }
@@ -440,7 +440,7 @@ test("a second ordinary correction replaces an active revision in the same real 
     expect(f.client.state?.dialogue?.at(-1)?.state).toBe("answered")
     releaseFirst(); releaseLatest()
     await until(()=>f.client.state?.task_plans?.[0]?.phase==="review"&&!f.client.state?.running,"latest proposal saved")
-    const journal = JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR,"gator/conversations",owner!,"requests.json"),"utf8"))
+    const journal = JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",owner!,"requests.json"),"utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].id).toBe(original.id)
     expect(journal.requests[0].options.Uploads).toEqual([input]); expect(journal.requests[0].plan.approval).toBeUndefined()
     expect(journal.requests[0].plan.edit.prior_corrections[0].instruction).toBe(correction)
@@ -464,7 +464,7 @@ test("typed input removal retains originals and executes only the freshly review
   await f.client.navigate("/task-plans");await f.flush();await f.choose(originalPlan.outcome)
   await f.choose("Remove selected inputs");await f.choose("remove.txt");f.setup.mockInput.pressEnter();await f.flush()
   await until(()=>(f.client.state?.task_plans?.[0]?.revision??0)>before.revision,"narrowed exact review")
-  const saved=JSON.parse(await readFile(join(f.env.GATOR_STATE_DIR,"gator/conversations",owner,"requests.json"),"utf8")).requests[0]
+  const saved=JSON.parse(await readFile(join(f.env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",owner,"requests.json"),"utf8")).requests[0]
   expect(saved.plan.approval).toBeUndefined();expect(saved.options.Uploads).not.toContain(removedID);expect(saved.plan.input_changes[0].before_options.Uploads).toContain(removedID)
   expect(executions).toHaveLength(0)
   await expect(f.client.result({type:"task_plan",task_plan:{conversation_id:owner,task_id:before.id,revision:before.revision,digest:before.digest,action:"approve",request_id:"stale-input-selection"}},"stale-input-selection",state=>state.task_plan_result)).rejects.toThrow()

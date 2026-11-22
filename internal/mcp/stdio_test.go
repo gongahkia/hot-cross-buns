@@ -17,7 +17,7 @@ import (
 // This fixture is the test executable itself, not an installed developer MCP
 // service. It receives only private protocol data and never launches a shell.
 func TestMCPChild(t *testing.T) {
-	mode := os.Getenv("GATOR_TEST_MCP_CHILD")
+	mode := os.Getenv("HOT_CROSS_BUNS_TEST_MCP_CHILD")
 	if mode == "" {
 		return
 	}
@@ -83,7 +83,7 @@ func childClient(t *testing.T, mode string) (*stdioClient, *atomic.Int32) {
 		t.Fatal(err)
 	}
 	command := exec.CommandContext(context.Background(), exe, "-test.run=^TestMCPChild$")
-	command.Env = append(os.Environ(), "GATOR_TEST_MCP_CHILD="+mode)
+	command.Env = append(os.Environ(), "HOT_CROSS_BUNS_TEST_MCP_CHILD="+mode)
 	cleanup := &atomic.Int32{}
 	c, err := startStdio(context.Background(), command, func() { cleanup.Add(1) })
 	if err != nil {

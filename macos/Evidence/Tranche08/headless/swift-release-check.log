@@ -2,17 +2,17 @@
 Building for debugging...
 [0/6] Write sources
 [2/6] Write swift-version--1AB21518FC5DEDBE.txt
-[4/8] Compiling GatorMac NativeWindowConfiguration.swift
-[5/8] Emitting module GatorMac
-[6/10] Compiling GatorMac AppDelegate.swift
-[7/10] Compiling GatorMac NativeComposer.swift
+[4/8] Compiling HotCrossBunsMac NativeWindowConfiguration.swift
+[5/8] Emitting module HotCrossBunsMac
+[6/10] Compiling HotCrossBunsMac AppDelegate.swift
+[7/10] Compiling HotCrossBunsMac NativeComposer.swift
 [7/12] Write Objects.LinkFileList
-[8/12] Linking GatorMac
-[9/12] Applying GatorMac
-[11/14] Emitting module GatorMacTests
-[12/14] Compiling GatorMacTests NativeInputTests.swift
+[8/12] Linking HotCrossBunsMac
+[9/12] Applying HotCrossBunsMac
+[11/14] Emitting module HotCrossBunsMacTests
+[12/14] Compiling HotCrossBunsMacTests NativeInputTests.swift
 [12/14] Write Objects.LinkFileList
-[13/14] Linking GatorNativePackageTests
+[13/14] Linking HotCrossBunsNativePackageTests
 Build complete! (36.95s)
 ◇ Test run started.
 ↳ Testing Library Version: 124.4
@@ -112,13 +112,13 @@ Build complete! (36.95s)
 ◇ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() started.
 ✔ Test nativeMarkdownPreservesCodeWhitespaceAndSeparatesReadableBlocks() passed after 0.001 seconds.
 ◇ Test nativePresentationBenchmark() started.
-GATOR_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":1.6720294952392578,"messages":50,"transcriptMedianMS":0.084042549133300781},{"bytes":240934,"decodeMedianMS":16.348004341125488,"messages":500,"transcriptMedianMS":0.90396404266357422},{"bytes":964934,"decodeMedianMS":65.323948860168457,"messages":2000,"transcriptMedianMS":2.8280019760131836}],"kind":"native-presentation","peakRSSBytes":24367104,"samples":7}
+HOT_CROSS_BUNS_BENCHMARK {"fixtures":[{"bytes":24084,"decodeMedianMS":1.6720294952392578,"messages":50,"transcriptMedianMS":0.084042549133300781},{"bytes":240934,"decodeMedianMS":16.348004341125488,"messages":500,"transcriptMedianMS":0.90396404266357422},{"bytes":964934,"decodeMedianMS":65.323948860168457,"messages":2000,"transcriptMedianMS":2.8280019760131836}],"kind":"native-presentation","peakRSSBytes":24367104,"samples":7}
 ✔ Test nativePresentationBenchmark() passed after 0.649 seconds.
 ◇ Test nativeOwnerStartupBenchmark() started.
-GATOR_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":" 3188  24060   0.0\n 3189  25356   0.0\n 3190  25240   0.0\n 3191  25028   0.0\n","timeToConnectedMS":[209.28502082824707,164.22688961029053,199.77200031280518,164.89303112030029]}
+HOT_CROSS_BUNS_OWNER_BENCHMARK {"cachedOwners":4,"idlePSSamplePID_RSSKiB_CPUPercent":" 3188  24060   0.0\n 3189  25356   0.0\n 3190  25240   0.0\n 3191  25028   0.0\n","timeToConnectedMS":[209.28502082824707,164.22688961029053,199.77200031280518,164.89303112030029]}
 ✔ Test nativeOwnerStartupBenchmark() passed after 5.255 seconds.
 ◇ Test nativeThumbnailBenchmark() started.
-GATOR_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=250.55396556854248 peakRSSBytes=33329152
+HOT_CROSS_BUNS_THUMBNAIL_BENCHMARK files=12 sourcePixels=512x512 stagedBytes=11116140 thumbnailBytes=930144 elapsedMS=250.55396556854248 peakRSSBytes=33329152
 ✔ Test nativeThumbnailBenchmark() passed after 1.232 seconds.
 ◇ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() started.
 ✔ Test exactPlanAuthorizationRequiresFullCurrentInspectionAndCorrectOwner() passed after 0.037 seconds.

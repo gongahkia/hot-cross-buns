@@ -16,13 +16,13 @@ final class FixtureRecordingDelegate:NSObject,SCRecordingOutputDelegate{
             _=NSApplication.shared
             guard CommandLine.arguments.count==4,let pid=Int32(CommandLine.arguments[1]),
                   let app=NSRunningApplication(processIdentifier:pid),
-                  ["dev.gator.presence.acceptance", "dev.gator.presence.finalcheck"].contains(app.bundleIdentifier ?? ""),
-                  app.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/gator-native-test-presence-").resolvingSymlinksInPath().path)==true else{throw NSError(domain:"RefuseNonfixture",code:1)}
+                  ["dev.hot-cross-buns.presence.acceptance", "dev.hot-cross-buns.presence.finalcheck"].contains(app.bundleIdentifier ?? ""),
+                  app.bundleURL?.resolvingSymlinksInPath().path.hasPrefix(URL(fileURLWithPath:"/tmp/hot-cross-buns-native-test-presence-").resolvingSymlinksInPath().path)==true else{throw NSError(domain:"RefuseNonfixture",code:1)}
             print("fixturePID=\(pid) bundle=\(app.bundleIdentifier ?? "nil") path=\(app.bundleURL!.path) screenCapture=\(CGPreflightScreenCaptureAccess())")
             let content=try await SCShareableContent.excludingDesktopWindows(false,onScreenWindowsOnly:false)
             let candidates=content.windows.filter{$0.owningApplication?.processID==pid}
             for w in candidates{print("candidate=\(w.windowID) title=\(w.title ?? "nil") onScreen=\(w.isOnScreen) bundle=\(w.owningApplication?.bundleIdentifier ?? "nil")")}
-            let mainWindows=candidates.filter{$0.isOnScreen && (($0.title?.hasPrefix("Gator") == true) && $0.frame.width>=540)}
+            let mainWindows=candidates.filter{$0.isOnScreen && (($0.title?.hasPrefix("Hot Cross Buns") == true) && $0.frame.width>=540)}
             guard mainWindows.count==1,let window=mainWindows.first else{throw NSError(domain:"NoUniqueVisibleFixtureWindow",code:1)}
             let config=SCStreamConfiguration();config.width=Int(window.frame.width)*2;config.height=Int(window.frame.height)*2
             config.minimumFrameInterval=CMTime(value:1,timescale:30);config.showsCursor=false;config.capturesAudio=false

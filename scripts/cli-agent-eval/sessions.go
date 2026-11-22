@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/model"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 // This evaluation uses a live manager and a live native worker, exercising the
@@ -39,14 +39,14 @@ func runSessionManager(ctx context.Context, cfg cliagent.Config, root, source, o
 	}
 	start := time.Now()
 	out, runErr := service.Execute(ctx, request)
-	tasks, taskErr := orchestrator.ReadTasks(filepath.Join(state, "gator", "tasks", "session-manager"))
+	tasks, taskErr := orchestrator.ReadTasks(filepath.Join(state, "hot-cross-buns", "tasks", "session-manager"))
 	if crossChat && runErr == nil && taskErr == nil && len(tasks) == 1 {
 		request.RunID = "session-manager-next"
 		request.ConversationID = out.ConversationID
 		request.Objective = fmt.Sprintf(`Continue specialist %s using start_agent with continue=%q and this exact task: "Without reading any files, what codeword did I ask you to remember? Who owns the project and what is its deadline?" Do not copy previous answers or remembered facts into the assignment. Wait for completion and report the result. Make exactly one assignment.`, cfg.Role(), tasks[0].GlobalID)
 		_, runErr = service.Execute(ctx, request)
 		var next []orchestrator.Task
-		next, taskErr = orchestrator.ReadTasks(filepath.Join(state, "gator", "tasks", request.RunID))
+		next, taskErr = orchestrator.ReadTasks(filepath.Join(state, "hot-cross-buns", "tasks", request.RunID))
 		tasks = append(tasks, next...)
 	}
 	checks := map[string]bool{"work_succeeded": runErr == nil, "two_worker_turns": taskErr == nil && len(tasks) == 2}

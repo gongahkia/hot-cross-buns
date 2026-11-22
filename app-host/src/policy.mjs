@@ -2,11 +2,11 @@ import { resolve, sep } from "node:path";
 import { validUploadID, uploadLimits } from "./uploads.mjs";
 import { validFrontendPreferences } from "./preferences.mjs";
 
-export const APP_URL = "gator://app/index.html";
+export const APP_URL = "hot-cross-buns://app/index.html";
 
 export function assetPath(url, root) {
   const parsed = new URL(url);
-  if (parsed.protocol !== "gator:" || parsed.hostname !== "app" || parsed.username || parsed.password || parsed.port) return null;
+  if (parsed.protocol !== "hot-cross-buns:" || parsed.hostname !== "app" || parsed.username || parsed.password || parsed.port) return null;
   let path;
   try { path = decodeURIComponent(parsed.pathname); } catch { return null; }
   if (path.includes("\0") || path.includes("\\")) return null;

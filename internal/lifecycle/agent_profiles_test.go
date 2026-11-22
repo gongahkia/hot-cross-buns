@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 )
 
 func TestAgentProfilesFollowKnowledgeBackupAndDeletion(t *testing.T) {
@@ -25,12 +25,12 @@ func TestAgentProfilesFollowKnowledgeBackupAndDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"gator/agent-profiles/profiles.json", "gator/tasks/old-run/roles/profiles.json"} {
+	for _, path := range []string{"hot-cross-buns/agent-profiles/profiles.json", "hot-cross-buns/tasks/old-run/roles/profiles.json"} {
 		if _, ok := manifest.Files[path]; !ok {
 			t.Fatal("profile missing from backup", path)
 		}
 	}
-	for _, path := range []string{"gator/agent-profiles/.profiles.lock", "gator/agent-profiles/.profiles-orphan.tmp", "gator/tasks/old-run/roles/.profiles.lock"} {
+	for _, path := range []string{"hot-cross-buns/agent-profiles/.profiles.lock", "hot-cross-buns/agent-profiles/.profiles-orphan.tmp", "hot-cross-buns/tasks/old-run/roles/.profiles.lock"} {
 		if _, ok := manifest.Files[path]; ok {
 			t.Fatal("runtime profile file exported", path)
 		}
@@ -48,7 +48,7 @@ func TestAgentProfilesFollowKnowledgeBackupAndDeletion(t *testing.T) {
 	if definitions, err := profiles.List(); err != nil || len(definitions) != 0 {
 		t.Fatal("knowledge deletion left saved definitions", definitions, err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "gator/tasks/old-run/roles/profiles.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "hot-cross-buns/tasks/old-run/roles/profiles.json")); err != nil {
 		t.Fatal("knowledge deletion erased task history", err)
 	}
 }

@@ -3,7 +3,7 @@
 --- FAIL: TestClientRestrictsRuntimeToLoopbackHTTP (0.00s)
     ollama_test.go:90: client = localmodel.Client{baseURL:(*url.URL)(0x37d778bb8870), client:(*http.Client)(0x37d778be2ae0)}, err = <nil>
 FAIL
-FAIL	github.com/gongahkia/gator/internal/localmodel	0.667s
+FAIL	github.com/gongahkia/hot-cross-buns/internal/localmodel	0.667s
 --- FAIL: TestLocalRemoveUpdatesSelectedProviderConfiguration (0.00s)
     command_local_test.go:96: local remove: model removal not admitted: cross-process use leases and durable mutation receipts are not implemented; no delete request was sent
 --- FAIL: TestLocalModelManagerSupportsTheTUICatalogLifecycle (0.00s)
@@ -13,5 +13,5 @@ FAIL	github.com/gongahkia/gator/internal/localmodel	0.667s
 --- FAIL: TestLocalFirstAuditRemovalCanOutliveSettingsPublication (0.00s)
     local_first_audit_test.go:151: removal/publication reproduction changed model removal not admitted: cross-process use leases and durable mutation receipts are not implemented; no delete request was sent
 FAIL
-FAIL	github.com/gongahkia/gator/cmd/gator	0.797s
+FAIL	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	0.797s
 FAIL

@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/gongahkia/gator/internal/sandbox"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -81,7 +81,7 @@ func InitSnapshot(ctx context.Context, source, destination string) error {
 	if err != nil {
 		return err
 	}
-	for _, argv := range [][]string{{"init", "--quiet"}, {"add", "--all", "--force"}, {"-c", "user.name=Gator", "-c", "user.email=gator@invalid", "commit", "--quiet", "--allow-empty", "-m", "frozen source"}} {
+	for _, argv := range [][]string{{"init", "--quiet"}, {"add", "--all", "--force"}, {"-c", "user.name=Hot Cross Buns", "-c", "user.email=hot-cross-buns@invalid", "commit", "--quiet", "--allow-empty", "-m", "frozen source"}} {
 		if _, err := gitOutput(ctx, destination, argv...); err != nil {
 			return err
 		}

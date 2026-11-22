@@ -4,24 +4,24 @@ import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
-import type { FrontendFrame } from "@gator/application-host/contracts/frontend"
+import { Application } from "@hot-cross-buns/application-host/application"
+import type { FrontendFrame } from "@hot-cross-buns/application-host/contracts/frontend"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("contextual recovery retries the original admission once and reconnects without replaying work", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-interaction-recovery-"))
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/gator-runtime")
-  const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-interaction-recovery-"))
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/hot-cross-buns-runtime")
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
   let calls = 0
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
     await request.json(); calls++
     return Response.json({ choices: [{ message: { role: "assistant", content: "One retained result." }, finish_reason: "stop" }], usage: { total_tokens: 20 } })
   } })
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
   cli(["provider", "add", "recovery-fixture", "--base-url", `http://127.0.0.1:${server.port}/chat`, "--model", "fixture"])
   cli(["config", "set", "default-provider", "recovery-fixture"])
-  const host = new Application({ binary, env, workspace: join(root, "workspace"), userData: join(root, "app") }), client = new GatorClient(host)
+  const host = new Application({ binary, env, workspace: join(root, "workspace"), userData: join(root, "app") }), client = new HotCrossBunsClient(host)
   // Test-only fault injection; backend transport remains outside the public UI contract.
   const runtime = host as Application & { backend: { submitUpload(frame: FrontendFrame): Promise<void>; stop(): Promise<void> } }
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
@@ -41,7 +41,7 @@ test("contextual recovery retries the original admission once and reconnects wit
     await until(() => client.draft.text === "", "original admission acknowledged")
     expect(client.canRetrySubmission).toBe(false); expect(calls).toBe(1)
     const conversation = client.state!.conversation_id!
-    const journal = JSON.parse(await readFile(join(env.GATOR_STATE_DIR, "gator/conversations", conversation, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", conversation, "requests.json"), "utf8"))
     expect(journal.requests).toHaveLength(1)
     await client.edit("Keep this offline draft"); await owner.stop()
     await until(() => client.snapshot.connection === "disconnected", "connection lost"); await flush()

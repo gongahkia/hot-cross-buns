@@ -1,11 +1,11 @@
-AXWindow | Gator – hmmm |  |  | conversation
+AXWindow | Hot Cross Buns – hmmm |  |  | conversation
  AXGroup |  |  |  | 
-  AXStaticText |  |  | Current workspace: /tmp/gator-native-test-mascot-mwzxmaad/workspace | gator.window
-  AXStaticText |  |  | Read-only in Work | gator.window
-  AXDisclosureTriangle |  | Open chats and retained tasks |  | gator.window
-  AXHeading |  | Review this exact action |  | gator.window
-  AXStaticText |  |  | Owner: hmmm | gator.window
-  AXScrollArea |  |  |  | gator.window
+  AXStaticText |  |  | Current workspace: /tmp/hot-cross-buns-native-test-mascot-mwzxmaad/workspace | hot-cross-buns.window
+  AXStaticText |  |  | Read-only in Work | hot-cross-buns.window
+  AXDisclosureTriangle |  | Open chats and retained tasks |  | hot-cross-buns.window
+  AXHeading |  | Review this exact action |  | hot-cross-buns.window
+  AXStaticText |  |  | Owner: hmmm | hot-cross-buns.window
+  AXScrollArea |  |  |  | hot-cross-buns.window
    AXHeading |  | Review web research access |  | 
    AXStaticText |  |  | Local mascot layout fixture. No fetch is implemented. Do not approve. | 
    AXStaticText |  |  | Web scope: https://mascot.example.invalid | 
@@ -13,28 +13,28 @@ AXWindow | Gator – hmmm |  |  | conversation
    AXStaticText |  |  | Shared limits: 8 search requests within 32 total web requests | 
    AXStaticText |  |  | This task only, including its connected researchers. Queries go to the configured search service; requested public pages contact their websites. Search may incur provider charges. No saved login, private-network access o | 
    AXDisclosureTriangle |  | Complete exact review data |  | 
-   AXStaticText |  |  | Approving permits exactly this proposed operation. Only Gator's retained outcome can confirm execution or delivery. | 
+   AXStaticText |  |  | Approving permits exactly this proposed operation. Only Hot Cross Buns's retained outcome can confirm execution or delivery. |
    AXScrollBar |  |  |  | 
     AXValueIndicator |  |  |  | 
     AXButton |  |  |  | 
     AXButton |  |  |  | 
     AXButton |  |  |  | 
     AXButton |  |  |  | 
-  AXButton |  | Back to Conversation |  | gator.window
-  AXButton |  | Request Correction |  | gator.window
-  AXStaticText |  |  | Space or click chooses · Return never approves | gator.window
-  AXButton |  | Decline |  | gator.window
-  AXButton |  | Approve Exact Action |  | gator.window
-  AXScrollArea |  | Conversation status and recovery |  | gator.window
+  AXButton |  | Back to Conversation |  | hot-cross-buns.window
+  AXButton |  | Request Correction |  | hot-cross-buns.window
+  AXStaticText |  |  | Space or click chooses · Return never approves | hot-cross-buns.window
+  AXButton |  | Decline |  | hot-cross-buns.window
+  AXButton |  | Approve Exact Action |  | hot-cross-buns.window
+  AXScrollArea |  | Conversation status and recovery |  | hot-cross-buns.window
    AXStaticText |  |  | Connected | 
    AXMenuButton |  | Select Model |  | 
    AXStaticText |  |  | Request: running | 
  AXToolbar |  |  |  | 
   AXGroup |  |  |  | 
-   AXMenuButton | Recent Conversations |  |  | gator.recent-conversations
+   AXMenuButton | Recent Conversations |  |  | hot-cross-buns.recent-conversations
   AXButton |  | Choose Workspace… |  | folder
-  AXButton |  | Models and Providers… |  | gator.providers.open
-  AXButton |  | All Conversations… |  | gator.catalog.open
+  AXButton |  | Models and Providers… |  | hot-cross-buns.providers.open
+  AXButton |  | All Conversations… |  | hot-cross-buns.catalog.open
   AXButton |  | Find in Current Transcript |  | magnifyingglass
   AXButton |  | New Conversation |  | square.and.pencil
   AXButton |  | Inspect Current Task |  | doc.text.magnifyingglass
@@ -47,5 +47,5 @@ AXWindow | Gator – hmmm |  |  | conversation
   AXGroup |  |  |  | 
    AXGroup |  |  |  | 
  AXButton |  |  |  | 
- AXStaticText |  |  | Gator | 
+ AXStaticText |  |  | Hot Cross Buns |
  AXStaticText |  |  | hmmm | 

@@ -14,6 +14,7 @@ export class Application extends EventEmitter {
   start(request?: { conversation_id?: string; goal?: boolean }): Promise<HostSnapshot>
   send(frame: FrontendFrame): Promise<void>
   importFiles(paths: string[], context: string): Promise<UploadedFile[]>
+  importFileBytes(name: string, bytes: Uint8Array, context: string): Promise<UploadedFile>
   file(request: FileRequest & { action: "attach" }): Promise<UploadedFile>
   file(request: FileRequest & { action: "compare" }): Promise<FileComparison>
   file(request: FileRequest): Promise<FileView>

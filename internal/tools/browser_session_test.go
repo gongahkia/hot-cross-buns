@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/agent"
-	gatorbrowser "github.com/gongahkia/gator/internal/browser"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	hotcrossbunsbrowser "github.com/gongahkia/hot-cross-buns/internal/browser"
 )
 
 func TestBrowserSessionToolsExposeOnlyExplicitSession(t *testing.T) {
@@ -23,7 +23,7 @@ func TestBrowserSessionToolsExposeOnlyExplicitSession(t *testing.T) {
 }
 
 func TestBrowserSessionToolsRequireFreshApprovalForMutations(t *testing.T) {
-	controller := &fakeBrowserController{session: selectedBrowserSession(), snapshot: gatorbrowser.Snapshot{TabID: "tab-1", URL: "https://example.test/start", Title: "start"}}
+	controller := &fakeBrowserController{session: selectedBrowserSession(), snapshot: hotcrossbunsbrowser.Snapshot{TabID: "tab-1", URL: "https://example.test/start", Title: "start"}}
 	var approvals [][]string
 	surface := BrowserSessionTools(BrowserSessionOptions{
 		SessionID:  controller.session.ID,
@@ -63,7 +63,7 @@ func TestBrowserSessionToolsFailClosedForOriginAndVisualConsent(t *testing.T) {
 }
 
 func TestBrowserScreenshotCreatesBoundedUntrustedObservation(t *testing.T) {
-	controller := &fakeBrowserController{session: selectedBrowserSession(), capture: gatorbrowser.Capture{Artifact: gatorbrowser.Artifact{ID: "artifact-1", SessionID: "browser-1234567890", Kind: "screenshot", Name: "screen.png", Bytes: 3}, PNG: []byte("png")}}
+	controller := &fakeBrowserController{session: selectedBrowserSession(), capture: hotcrossbunsbrowser.Capture{Artifact: hotcrossbunsbrowser.Artifact{ID: "artifact-1", SessionID: "browser-1234567890", Kind: "screenshot", Name: "screen.png", Bytes: 3}, PNG: []byte("png")}}
 	tool := toolNamed(t, BrowserSessionTools(BrowserSessionOptions{SessionID: controller.session.ID, Controller: controller}), "browser_screenshot")
 	result, err := tool.Execute(context.Background(), json.RawMessage(`{"tab_id":"tab-1"}`))
 	if err != nil {
@@ -85,8 +85,8 @@ func TestBrowserUploadAndSensitiveFillRemainControllerBounded(t *testing.T) {
 	}
 }
 
-func selectedBrowserSession() gatorbrowser.Session {
-	return gatorbrowser.Session{ID: "browser-1234567890", State: gatorbrowser.StateRunning, Mode: gatorbrowser.ModeManaged, VisualCapture: true, SelectedTabs: []gatorbrowser.Tab{{ID: "tab-1", URL: "https://example.test/start"}}, Origins: []gatorbrowser.Origin{{URL: "https://example.test:443"}}}
+func selectedBrowserSession() hotcrossbunsbrowser.Session {
+	return hotcrossbunsbrowser.Session{ID: "browser-1234567890", State: hotcrossbunsbrowser.StateRunning, Mode: hotcrossbunsbrowser.ModeManaged, VisualCapture: true, SelectedTabs: []hotcrossbunsbrowser.Tab{{ID: "tab-1", URL: "https://example.test/start"}}, Origins: []hotcrossbunsbrowser.Origin{{URL: "https://example.test:443"}}}
 }
 
 func toolNamed(t *testing.T, surface []agent.Tool, name string) agent.Tool {
@@ -101,46 +101,46 @@ func toolNamed(t *testing.T, surface []agent.Tool, name string) agent.Tool {
 }
 
 type fakeBrowserController struct {
-	session     gatorbrowser.Session
-	snapshot    gatorbrowser.Snapshot
-	capture     gatorbrowser.Capture
+	session     hotcrossbunsbrowser.Session
+	snapshot    hotcrossbunsbrowser.Snapshot
+	capture     hotcrossbunsbrowser.Capture
 	navigateURL string
 	clickRef    string
 	fillErr     error
 }
 
-func (f *fakeBrowserController) Session(context.Context, string) (gatorbrowser.Session, error) {
+func (f *fakeBrowserController) Session(context.Context, string) (hotcrossbunsbrowser.Session, error) {
 	return f.session, nil
 }
-func (f *fakeBrowserController) Tabs(context.Context, string) ([]gatorbrowser.Tab, error) {
-	return append([]gatorbrowser.Tab(nil), f.session.SelectedTabs...), nil
+func (f *fakeBrowserController) Tabs(context.Context, string) ([]hotcrossbunsbrowser.Tab, error) {
+	return append([]hotcrossbunsbrowser.Tab(nil), f.session.SelectedTabs...), nil
 }
-func (f *fakeBrowserController) Snapshot(context.Context, string, string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Snapshot(context.Context, string, string) (hotcrossbunsbrowser.Snapshot, error) {
 	return f.snapshot, nil
 }
-func (f *fakeBrowserController) Screenshot(context.Context, string, string) (gatorbrowser.Capture, error) {
+func (f *fakeBrowserController) Screenshot(context.Context, string, string) (hotcrossbunsbrowser.Capture, error) {
 	return f.capture, nil
 }
-func (f *fakeBrowserController) Navigate(_ context.Context, _ string, _ string, value string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Navigate(_ context.Context, _ string, _ string, value string) (hotcrossbunsbrowser.Snapshot, error) {
 	f.navigateURL = value
 	return f.snapshot, nil
 }
-func (f *fakeBrowserController) Click(_ context.Context, _ string, _ string, ref string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Click(_ context.Context, _ string, _ string, ref string) (hotcrossbunsbrowser.Snapshot, error) {
 	f.clickRef = ref
 	return f.snapshot, nil
 }
-func (f *fakeBrowserController) Fill(context.Context, string, string, string, string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Fill(context.Context, string, string, string, string) (hotcrossbunsbrowser.Snapshot, error) {
 	return f.snapshot, f.fillErr
 }
-func (f *fakeBrowserController) Select(context.Context, string, string, string, string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Select(context.Context, string, string, string, string) (hotcrossbunsbrowser.Snapshot, error) {
 	return f.snapshot, nil
 }
-func (f *fakeBrowserController) Press(context.Context, string, string, string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Press(context.Context, string, string, string) (hotcrossbunsbrowser.Snapshot, error) {
 	return f.snapshot, nil
 }
-func (f *fakeBrowserController) Download(context.Context, string, string, string) (gatorbrowser.Artifact, error) {
-	return gatorbrowser.Artifact{}, nil
+func (f *fakeBrowserController) Download(context.Context, string, string, string) (hotcrossbunsbrowser.Artifact, error) {
+	return hotcrossbunsbrowser.Artifact{}, nil
 }
-func (f *fakeBrowserController) Upload(context.Context, string, string, string, string) (gatorbrowser.Snapshot, error) {
+func (f *fakeBrowserController) Upload(context.Context, string, string, string, string) (hotcrossbunsbrowser.Snapshot, error) {
 	return f.snapshot, nil
 }

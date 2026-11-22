@@ -1,4 +1,4 @@
-// Package artifact owns the durable contract and evidence for Gator Work
+// Package artifact owns the durable contract and evidence for Hot Cross Buns Work
 // deliverables. It deliberately has no model- or provider-specific behavior.
 package artifact
 
@@ -12,7 +12,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 const (
@@ -40,7 +40,7 @@ type Contract struct {
 }
 
 // Requirement defines one required output-relative artifact and the
-// validations that trusted Gator code must perform on it.
+// validations that trusted Hot Cross Buns code must perform on it.
 type Requirement struct {
 	Path        string       `json:"path"`
 	MediaTypes  []string     `json:"media_types,omitempty"`

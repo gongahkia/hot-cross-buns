@@ -1,7 +1,7 @@
-AXApplication | Gator |  | 
-AXWindow | Gator |  | 
+AXApplication | Hot Cross Buns |  |
+AXWindow | Hot Cross Buns |  |
 AXGroup |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXStaticText |  |  | New chat
 AXButton |  | Inspect Current Task | 
 AXPopUpButton | More |  | 
@@ -55,6 +55,6 @@ AXButton |  |  |
 AXGroup |  |  | 
 AXGroup |  |  | 
 AXButton |  |  | 
-AXStaticText |  |  | Gator
+AXStaticText |  |  | Hot Cross Buns
 AXMenuBar |  |  | 
-AXMenuBarItem | Gator |  | 
+AXMenuBarItem | Hot Cross Buns |  |

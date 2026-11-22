@@ -1,3 +1,3 @@
-ok  	github.com/gongahkia/gator/cmd/gator	32.129s
-ok  	github.com/gongahkia/gator/internal/workapp	10.180s
-ok  	github.com/gongahkia/gator/internal/attachment	1.582s
+ok  	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	32.129s
+ok  	github.com/gongahkia/hot-cross-buns/internal/workapp	10.180s
+ok  	github.com/gongahkia/hot-cross-buns/internal/attachment	1.582s

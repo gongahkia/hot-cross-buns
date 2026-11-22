@@ -53,7 +53,7 @@
         }
       },
       "execution_category": "completed",
-      "trace_path": "/tmp/gator-learning-km-learning-clarified-20261030/state-4250582026/gator/traces/learning-km-live-v1-learning-dialogue-01-rev1/trace.json",
+      "trace_path": "/tmp/hot-cross-buns-learning-km-learning-clarified-20261030/state-4250582026/hot-cross-buns/traces/learning-km-live-v1-learning-dialogue-01-rev1/trace.json",
       "spans": [
         {
           "id": "aa95fdb07dd6885d",
@@ -312,7 +312,7 @@
       "contract_sha256": "57e1bebb69d88ac8726c2096f955217b77984f7e9882be0b7819426da064394c",
       "policy_sha256": "22f17ec319e1c3c39197e328b1b40ffdb38f501aae09de786c56a18c36d4bd8d",
       "source_sha256": "705e2377df61ce0b7f133ca0aefedfe8f9eec7bdcfa5847e29e8e90a9f53c7e2",
-      "bundle_path": "/private/tmp/gator-learning-km-learning-clarified-20261030/state-4250582026/gator/workspaces/48ea409ea3dc80a5be443dfa2e82f480/learning-km-live-v1-learning-dialogue-01-rev1",
+      "bundle_path": "/private/tmp/hot-cross-buns-learning-km-learning-clarified-20261030/state-4250582026/hot-cross-buns/workspaces/48ea409ea3dc80a5be443dfa2e82f480/learning-km-live-v1-learning-dialogue-01-rev1",
       "usage": {
         "unknown_requests": 0,
         "model_requests": 10,

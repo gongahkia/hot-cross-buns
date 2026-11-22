@@ -15,7 +15,7 @@ final class RecordingDelegate: NSObject, SCRecordingOutputDelegate {
     @MainActor static func main() async throws {
         _ = NSApplication.shared
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        guard let window = content.windows.first(where: { $0.owningApplication?.bundleIdentifier == "dev.gator.mascot.gate2.validation" && $0.title == "Gator Concept B — Gate 2 only" }) else {
+        guard let window = content.windows.first(where: { $0.owningApplication?.bundleIdentifier == "dev.hot-cross-buns.mascot.gate2.validation" && $0.title == "Hot Cross Buns Concept B — Gate 2 only" }) else {
             throw NSError(domain: "LabWindowNotFound", code: 1)
         }
         let filter = SCContentFilter(desktopIndependentWindow: window)

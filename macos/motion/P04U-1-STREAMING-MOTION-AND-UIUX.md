@@ -139,7 +139,7 @@ Strategy comparison uses 10 deterministic runs per dataset (not a real model ben
 
 | Check | Result |
 |---|---|
-| `swift build --package-path macos --scratch-path /tmp/gator-native-build` | PASS |
+| `swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build` | PASS |
 | Complete normal Swift suite, final production code | **294 PASS**, 146.692 s test time |
 | Final focused strict Swift 6, complete concurrency checks, warnings as errors | **68 PASS**, 3.415 s test time |
 | Complete final Swift suite under the same strict flags | **294 PASS**, 144.991 s test time |
@@ -147,10 +147,10 @@ Strategy comparison uses 10 deterministic runs per dataset (not a real model ben
 | Host tests with installed Node 26.7.0 | **140 PASS, 0 FAIL, 1 Windows-only SKIP**, 141 total |
 | Standalone reveal benchmark, optimized strict Swift 6 / explicit `arm64-apple-macosx15.0` | PASS |
 | Packaged Info.plist and Mach-O deployment minimum | **15.0**, PASS; macOS 15 runtime NOT TESTED |
-| Source preservation | All existing GatorCore sources/tests and resource hashes unchanged; no Go/host/README edit |
+| Source preservation | All existing HotCrossBunsCore sources/tests and resource hashes unchanged; no Go/host/README edit |
 | Packaged resources/dependencies | Eight files, existing two reaction GIFs unchanged; no RealityKit/SceneKit/WebView or rejected custom prose-view type in native executable |
 
-The 28 added tests cover the cursor/Unicode/identities, static and failure boundaries, copy/pasteboard fidelity, independent preferences, pulse/visibility lifetime, policy/reading anchors, source equality, native component sizing and real-Go deltas. Two opt-in evidence hooks return without capture/measurement during an ordinary suite; they were separately invoked with `GATOR_MOTION_CAPTURE=1` and `GATOR_MOTION_BENCH=before/after` to produce the retained artifacts. They are not represented as actual desktop tests.
+The 28 added tests cover the cursor/Unicode/identities, static and failure boundaries, copy/pasteboard fidelity, independent preferences, pulse/visibility lifetime, policy/reading anchors, source equality, native component sizing and real-Go deltas. Two opt-in evidence hooks return without capture/measurement during an ordinary suite; they were separately invoked with `HOT_CROSS_BUNS_MOTION_CAPTURE=1` and `HOT_CROSS_BUNS_MOTION_BENCH=before/after` to produce the retained artifacts. They are not represented as actual desktop tests.
 
 The first strict attempt rejected two test-owned `weak var` probes under the new compiler's WeakMutability warning. Both now explicitly clear their weak references after the unchanged assertions. No warning was suppressed and no assertion was relaxed. The complete final strict run above includes these final test sources; production source/bundle did not change. Original failure logs are retained.
 
@@ -164,15 +164,15 @@ Reproduction:
 
 ```sh
 export PATH=/Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin:$PATH
-export GATOR_TEST_BINARY=/tmp/Gator-Native-P04U1-Motion.app/Contents/Resources/gator-runtime
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+export HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-P04U1-Motion.app/Contents/Resources/hot-cross-buns-runtime
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 npm test --prefix app-host
 python3 macos/motion/lab/MeasureHosted.py
 ```
 
-The exact ten-test Go filter and separate verification commands are in [Verify.py](lab/Verify.py). The development bundle was built once into the fresh requested destination with `GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-P04U1-Motion.app bash macos/scripts/build-dev-app.sh`. That script refuses an existing destination. It must be given another fresh destination for a later rebuild; prior apps were preserved.
+The exact ten-test Go filter and separate verification commands are in [Verify.py](lab/Verify.py). The development bundle was built once into the fresh requested destination with `HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-P04U1-Motion.app bash macos/scripts/build-dev-app.sh`. That script refuses an existing destination. It must be given another fresh destination for a later rebuild; prior apps were preserved.
 
 ### Changed files and delivery identity
 
@@ -187,7 +187,7 @@ Tests: new `NativeStreamingTests.swift`, `NativeMotionRenderTests.swift`, `Nativ
 
 The initial clean HEAD was `5258dab779a9ecb2e95f761224fed88b32cca3f1`; final observed HEAD is `dd9790d4abe388441bd3e277b4a2487b19dc7403`, advanced externally. No commit/reset was performed. Current source, measured-source correspondence and bundle hashes: [final identity](evidence/p04u-1/final-identity.json), [packaging](evidence/p04u-1/packaging.json). Prior P04E1R2 native binary still matches its reported SHA256 `fe2cf9e7d8313fe99aad6ee1424fff75acff27e542812f50f5e2cb6b530f375c`.
 
-Development candidate: **`/tmp/Gator-Native-P04U1-Motion.app`**.
+Development candidate: **`/tmp/HotCrossBuns-Native-P04U1-Motion.app`**.
 
 Native executable SHA256: `757dcf483c31948c9e9d3e5188c2d158454c0862e6ee28b5cdf482dadb89399a`.
 

@@ -1,6 +1,6 @@
-# Gator's internal agent: implementation and verification
+# Hot Cross Buns's internal agent: implementation and verification
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -86,8 +86,8 @@ live-account sign-in test, external message, or deployment is part of this phase
 - Preserved optional Gmail checks, including a workflow using a user-maintained
   local schedule. No configured account or provider grant was deleted.
 - Passed `go test ./internal/connector ./internal/followup ./internal/workapp`
-  and the Google/Calendar/Followup/ConnectedGoal tests in `./cmd/gator`.
-- Full `./cmd/gator` run reported a slide-deck fixture failure in
+  and the Google/Calendar/Followup/ConnectedGoal tests in `./cmd/hot-cross-buns`.
+- Full `./cmd/hot-cross-buns` run reported a slide-deck fixture failure in
   `TestUserWorkV4CorpusThroughProductService` (49/50). Investigate separately;
   this is not a clean full-suite result.
 
@@ -109,7 +109,7 @@ live-account sign-in test, external message, or deployment is part of this phase
 - Steps now support explicit start/end blocks and up to eight same-plan
   dependencies. Invalid intervals, missing dependencies, duplicate dependencies
   and cycles are rejected. Removing a referenced step requires unlinking it first.
-- `/agenda` and `gator goal agenda [--days N] [--goal ID]` show unfinished work,
+- `/agenda` and `hot-cross-buns goal agenda [--days N] [--goal ID]` show unfinished work,
   overdue dates, blocked dependencies and overlapping blocks. Paused/completed
   goals and completed steps are omitted. This is derived from the plan store.
 - Main chat can inspect an existing project by title with `local_plan`, then
@@ -126,10 +126,10 @@ live-account sign-in test, external message, or deployment is part of this phase
 
 Example: “In my workshop project, schedule the outline for 2 November from
 10:00 to 11:00 Singapore time. It depends on budget approval. Keep it pending.”
-Gator reads that project and proposes the change. After accepting it through
+Hot Cross Buns reads that project and proposes the change. After accepting it through
 `/suggestions`, `/agenda` reflects the new block and unresolved dependency.
 
-Direct terminal edits also support `gator goal plan ID add --title TEXT --start
+Direct terminal edits also support `hot-cross-buns goal plan ID add --title TEXT --start
 RFC3339 --end RFC3339 --depends-on STEP_ID` and the corresponding `step` flags.
 Use an explicit timezone offset. `--clear-schedule` and `--clear-dependencies`
 remove those fields without deleting the task.
@@ -204,7 +204,7 @@ All runs used `gpt-5.6`, synthetic profiles and zero selected connectors.
 
 Request/token totals include two text-only decision baselines. Both baselines
 also made the correct quiet/overdue decisions; there is no measured reasoning
-advantage here. The final Gator workflow used 20 calls, versus 2 calls for the
+advantage here. The final Hot Cross Buns workflow used 20 calls, versus 2 calls for the
 baseline's narrower decision task. Those workloads are not interchangeable.
 A single rerun with fewer calls is not a statistically established latency gain.
 

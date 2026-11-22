@@ -9,15 +9,17 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/rattles"
-	"github.com/gongahkia/gator/internal/uisnapshot"
-	"github.com/gongahkia/gator/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/rattles"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
 func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 	switch value := messageValue.(type) {
+	case personalMemoryFinished:
+		return m.finishPersonalMemory(value.Result)
 	case nativeProviderFinished:
 		return m.finishNativeProvider(value.Result)
 	case nativeWorkspaceResolved:
@@ -276,7 +278,7 @@ func (m Model) updateAgentEvent(value agent.Event) (tea.Model, tea.Cmd) {
 			m.tasks[task.ID] = task.Role + ": " + task.Status
 			m.status = specialistProgress(task.Role, task.Status)
 			if task.Error != "" && task.Status != "cancelled" {
-				m.messages = append(m.messages, noticeMessage("Part of this work needs review", "Gator retained progress. Inspect /activity for the outcome or /tasks for diagnostics.", "warning"))
+				m.messages = append(m.messages, noticeMessage("Part of this work needs review", "Hot Cross Buns retained progress. Inspect /activity for the outcome or /tasks for diagnostics.", "warning"))
 			}
 			return m, waitWorkEvent(m.live)
 		}
@@ -338,7 +340,7 @@ func (m Model) updateRunDone(value runDone) (tea.Model, tea.Cmd) {
 		if text == "" {
 			text = "Saved " + strings.ReplaceAll(change.Setting, "_", " ") + ". The change applies to new requests."
 		}
-		m.messages = append(m.messages, reportMessage("Gator app updated", text, "success"))
+		m.messages = append(m.messages, reportMessage("Hot Cross Buns app updated", text, "success"))
 	}
 	if len(value.AppChanges) > 0 {
 		m.preferencesRevision++
@@ -395,7 +397,7 @@ func (m Model) updateRunDone(value runDone) (tea.Model, tea.Cmd) {
 		if text == "" {
 			text = "Finished the Work revision."
 		}
-		m.messages = append(m.messages, message{role: "Gator", text: text, createdAt: time.Now().UTC()})
+		m.messages = append(m.messages, message{role: "Hot Cross Buns", text: text, createdAt: time.Now().UTC()})
 	}
 	// A failed or stopped task can still have verified partial files and
 	// external request evidence. Keep that bundle attached to its owning turn
@@ -665,7 +667,7 @@ func (m Model) updateSectionKey(value tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.section = ""
-			m.messages = append(m.messages, message{role: "Gator", text: "Effort set to " + effortName(m.options.MaxSteps) + ".", result: &uisnapshot.Result{Kind: "notice", Title: "Effort", Tone: "success", Summary: "Set to " + effortName(m.options.MaxSteps)}})
+			m.messages = append(m.messages, message{role: "Hot Cross Buns", text: "Effort set to " + effortName(m.options.MaxSteps) + ".", result: &uisnapshot.Result{Kind: "notice", Title: "Effort", Tone: "success", Summary: "Set to " + effortName(m.options.MaxSteps)}})
 		}
 		return m, nil
 	case "history":

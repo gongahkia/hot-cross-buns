@@ -210,19 +210,19 @@ func (a BrowserAttempt) startCallback(listener net.Listener, callbackURL *url.UR
 			return
 		}
 		if message := strings.TrimSpace(request.URL.Query().Get("error")); message != "" {
-			callback.respond(writer, callbackResult{err: fmt.Errorf("OAuth authorization failed: %s", message)}, http.StatusBadRequest, "Authentication did not complete. Return to Gator.")
+			callback.respond(writer, callbackResult{err: fmt.Errorf("OAuth authorization failed: %s", message)}, http.StatusBadRequest, "Authentication did not complete. Return to Hot Cross Buns.")
 			return
 		}
 		if !a.flow.AllowMissingState && request.URL.Query().Get("state") != a.state {
-			callback.respond(writer, callbackResult{err: errors.New("OAuth callback state mismatch")}, http.StatusBadRequest, "Authentication state did not match. Return to Gator.")
+			callback.respond(writer, callbackResult{err: errors.New("OAuth callback state mismatch")}, http.StatusBadRequest, "Authentication state did not match. Return to Hot Cross Buns.")
 			return
 		}
 		code := strings.TrimSpace(request.URL.Query().Get("code"))
 		if code == "" {
-			callback.respond(writer, callbackResult{err: errors.New("OAuth callback did not include an authorization code")}, http.StatusBadRequest, "Authentication returned no code. Return to Gator.")
+			callback.respond(writer, callbackResult{err: errors.New("OAuth callback did not include an authorization code")}, http.StatusBadRequest, "Authentication returned no code. Return to Hot Cross Buns.")
 			return
 		}
-		callback.respond(writer, callbackResult{code: code}, http.StatusOK, "Authentication completed. You can close this page and return to Gator.")
+		callback.respond(writer, callbackResult{code: code}, http.StatusOK, "Authentication completed. You can close this page and return to Hot Cross Buns.")
 	})}
 	go func() {
 		_ = callback.server.Serve(listener)
@@ -447,7 +447,7 @@ func absoluteURL(value string) (*url.URL, error) {
 }
 
 func writeCallbackPage(writer http.ResponseWriter, status int, message string) {
-	page := "<!doctype html><title>Gator authentication</title><p>" + message + "</p>"
+	page := "<!doctype html><title>Hot Cross Buns authentication</title><p>" + message + "</p>"
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 	writer.Header().Set("Cache-Control", "no-store")
 	writer.Header().Set("Content-Length", strconv.Itoa(len(page)))

@@ -5,21 +5,21 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 test("compact hubs reveal selected destinations and reset selection when switching pages", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-hubs-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-hubs-")), host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 50, height: 18 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   try {
     await client.start(); await client.edit("Keep compact-page draft"); await client.navigate("/settings"); await flush()
-    expect(setup.captureCharFrame()).toContain("Models and providers"); expect(setup.captureCharFrame()).not.toContain("GATOR")
+    expect(setup.captureCharFrame()).toContain("Models and providers"); expect(setup.captureCharFrame()).not.toContain("HOT CROSS BUNS")
     for (let i = 0; i < 8; i++) { setup.mockInput.pressArrow("down"); await flush() }
     const scroll = setup.renderer.root.findDescendantById("hub-items") as ScrollBoxRenderable
     expect(scroll.scrollTop).toBeGreaterThan(0); expect(setup.captureCharFrame()).toContain("› About and updates")
     setup.resize(42, 14); await flush(); expect(setup.captureCharFrame()).toContain("› About and updates")
-    setup.mockInput.pressEnter(); await flush(); expect(setup.captureCharFrame()).toContain("About Gator terminal"); setup.mockInput.pressEscape(); await flush()
+    setup.mockInput.pressEnter(); await flush(); expect(setup.captureCharFrame()).toContain("About Hot Cross Buns"); setup.mockInput.pressEscape(); await flush()
     await client.navigate("/following"); await flush(); expect(setup.captureCharFrame()).toContain("› Goals and plans")
     setup.mockInput.pressEnter(); await flush(); expect(host.sent.at(-1)).toEqual({ type: "navigate", text: "/goals" })
     await client.navigate("/saved"); await flush(); setup.resize(42, 14); await flush()

@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const Version = 1
@@ -68,7 +68,7 @@ func Open(stateDir string) (Store, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("inbox state directory is required")
 	}
-	root := filepath.Join(stateDir, "gator", "inbox")
+	root := filepath.Join(stateDir, "hot-cross-buns", "inbox")
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return Store{}, err
 	}

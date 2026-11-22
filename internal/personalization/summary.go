@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 const maxEntries = 40

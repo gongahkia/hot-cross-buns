@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
 // SelectionReceipt records configuration publication only. It is not a model-use
@@ -72,7 +72,7 @@ func (r SelectionReceipt) Validate() error {
 type SelectionReceipts struct{ Directory string }
 
 func NewSelectionReceipts(stateDir string) SelectionReceipts {
-	return SelectionReceipts{Directory: filepath.Join(stateDir, "gator", "local-selection")}
+	return SelectionReceipts{Directory: filepath.Join(stateDir, "hot-cross-buns", "local-selection")}
 }
 func (s SelectionReceipts) Read() (*SelectionReceipt, error) {
 	if _, err := os.Lstat(s.Directory); errors.Is(err, os.ErrNotExist) {

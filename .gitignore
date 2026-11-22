@@ -1,7 +1,7 @@
-.gator/
+.hot-cross-buns/
 bin/
-/gator
-/gator.exe
+/hot-cross-buns
+/hot-cross-buns.exe
 coverage.out
 AGENTS.md
 node_modules
@@ -11,3 +11,5 @@ node_modules
 /.env
 /.env.local
 /scripts/project-followup-eval/results/*.artifacts/
+
+/web/.build/

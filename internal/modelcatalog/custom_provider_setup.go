@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/localmodel"
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 type customProviderField uint8
@@ -94,7 +94,7 @@ func (m Model) beginCustomProviderEdit() (tea.Model, tea.Cmd) {
 		return m.beginCloudModelSetup()
 	}
 	if provider.ID == localmodel.ProviderID {
-		m.notice = notice{text: "Gator-managed local Ollama is configured from the Local section.", kind: noticeInfo}
+		m.notice = notice{text: "Hot Cross Buns-managed local Ollama is configured from the Local section.", kind: noticeInfo}
 		return m, nil
 	}
 	if m.config.ModelManagement == nil {
@@ -211,7 +211,7 @@ func splitCustomProviderModels(value string) []string {
 func validateCustomProviderSetup(setup CustomProviderSetup, creating bool) error {
 	if creating {
 		if _, err := modelprovider.ParseProvider(setup.ID); err == nil {
-			return fmt.Errorf("custom provider ID %q conflicts with a built-in Gator provider", setup.ID)
+			return fmt.Errorf("custom provider ID %q conflicts with a built-in Hot Cross Buns provider", setup.ID)
 		}
 		if setup.ID == localmodel.ProviderID {
 			return fmt.Errorf("custom provider ID %q is reserved for the Local section", setup.ID)
@@ -233,7 +233,7 @@ func customProviderWarnings(setup CustomProviderSetup) []string {
 	if setup.APIKeyEnv == "" {
 		warnings = append(warnings, "Keyless: requests send no Authorization header. Use this only for a local or otherwise unauthenticated endpoint.")
 	} else {
-		warnings = append(warnings, "API key is read from "+setup.APIKeyEnv+" at run time. Gator stores the variable name, never the key.")
+		warnings = append(warnings, "API key is read from "+setup.APIKeyEnv+" at run time. Hot Cross Buns stores the variable name, never the key.")
 	}
 	return warnings
 }

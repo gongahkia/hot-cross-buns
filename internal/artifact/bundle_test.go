@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestOpenAndVerifyBundleWithoutOriginalSource(t *testing.T) {

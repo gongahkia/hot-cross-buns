@@ -2,7 +2,7 @@
   {
     "name": "lifecycle",
     "command": [
-      "/tmp/gator-final-lifecycle",
+      "/tmp/hot-cross-buns-final-lifecycle",
       "macos/mascot/gate2/Assets/B-native-meshes.json"
     ],
     "exitCode": 0
@@ -10,8 +10,8 @@
   {
     "name": "native",
     "command": [
-      "/tmp/gator-final-native-check",
-      "macos/mascot/validation/Assets/Gator-B.usdz",
+      "/tmp/hot-cross-buns-final-native-check",
+      "macos/mascot/validation/Assets/HotCrossBuns-B.usdz",
       "macos/mascot/gate2/Assets/B-native-meshes.json"
     ],
     "exitCode": 0
@@ -19,8 +19,8 @@
   {
     "name": "materials",
     "command": [
-      "/tmp/gator-final-material-check",
-      "macos/mascot/validation/Assets/Gator-B.usdz",
+      "/tmp/hot-cross-buns-final-material-check",
+      "macos/mascot/validation/Assets/HotCrossBuns-B.usdz",
       "macos/mascot/gate2/Assets/B-native-meshes.json"
     ],
     "exitCode": 0
@@ -28,7 +28,7 @@
   {
     "name": "released",
     "command": [
-      "/tmp/gator-final-released-verified",
+      "/tmp/hot-cross-buns-final-released-verified",
       "macos/mascot/gate2/Assets/B-native-meshes.json"
     ],
     "exitCode": 0
@@ -36,9 +36,9 @@
   {
     "name": "images",
     "command": [
-      "/tmp/gator-final-render-verified",
+      "/tmp/hot-cross-buns-final-render-verified",
       "macos/mascot/evidence/p04m-a2-final/images-final",
-      "macos/mascot/validation/Assets/Gator-B.usdz",
+      "macos/mascot/validation/Assets/HotCrossBuns-B.usdz",
       "macos/mascot/gate2/Assets/B-native-meshes.json"
     ],
     "exitCode": 0

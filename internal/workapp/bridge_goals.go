@@ -7,7 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
 )
 
 type BridgeGoalAction struct {

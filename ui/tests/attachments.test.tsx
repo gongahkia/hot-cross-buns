@@ -3,15 +3,15 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises"
 import { join, resolve, delimiter } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { pngFixture } from "../../app-host/tests/pdf-fixture.mjs"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 // The clipboard helper is a local process fixture. Native desktop clipboard
 // permissions and macOS/Windows integration still require their own host checks.
 test.skipIf(process.platform !== "linux")("file selection and native image paste preserve drafts, reject limits, and submit immutable files only explicitly", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-attachments-")), helpers = join(root, "helpers"), config = join(root, "config/gator"), oldPath = process.env.PATH
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-attachments-")), helpers = join(root, "helpers"), config = join(root, "config/hot-cross-buns"), oldPath = process.env.PATH
   const document = join(root, "brief.txt"), image = join(root, "clipboard.png"), invalid = join(root, "program.exe"), large = join(root, "large.txt"), largeImage = join(root, "large.png")
   await mkdir(helpers); await mkdir(config, { recursive: true })
   await writeFile(document, "Immutable brief: violet kiwi."); await writeFile(image, pngFixture()); await writeFile(invalid, "unsupported executable")
@@ -21,8 +21,8 @@ test.skipIf(process.platform !== "linux")("file selection and native image paste
   const calls: string[] = []
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) { calls.push(await request.text()); return Response.json({ choices: [{ message: { role: "assistant", content: "The selected files arrived." }, finish_reason: "stop" }], usage: { total_tokens: 20 } }) } })
   await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/gator-runtime"), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/hot-cross-buns-runtime"), userData: join(root, "app"), workspace: join(root, "workspace"), env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 36 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -54,7 +54,7 @@ test.skipIf(process.platform !== "linux")("file selection and native image paste
     expect(client.draft.uploads ?? []).toHaveLength(0); await client.edit("Separate draft")
     await client.host.sessions.open({ conversation_id: original.slice(13) }); await until(() => client.context === original, "original draft")
     expect(client.draft.text).toBe("Keep this request"); expect(client.draft.uploads).toEqual(files)
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await flush()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await flush()
     expect(client.context).toBe(original); expect(client.draft.uploads).toEqual(files); expect(calls).toHaveLength(0)
     await writeFile(document, "Changed original after selection."); await writeFile(image, "Clipboard changed.")
     await client.send({ type: "submit", text: "/mode inspect" }); await client.edit(""); await flush(); setup.mockInput.pressEnter()

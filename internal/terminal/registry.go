@@ -10,7 +10,7 @@ import (
 const defaultMaxBackgroundTasks = 8
 
 // Registry owns the small set of terminal managers that belong to one
-// interactive Gator process. Detached task histories remain available after
+// interactive Hot Cross Buns process. Detached task histories remain available after
 // exit so a developer can inspect or restart their exact command; neither a
 // PTY nor its history survives an application restart.
 type Registry struct {
@@ -62,7 +62,7 @@ func (r *Registry) reserveDetached(task *task) error {
 		return nil
 	}
 	if len(r.background) >= r.maxBackground {
-		return errors.New("at most " + strconv.Itoa(r.maxBackground) + " background terminal tasks may run in one Gator session")
+		return errors.New("at most " + strconv.Itoa(r.maxBackground) + " background terminal tasks may run in one Hot Cross Buns session")
 	}
 	r.background[task] = struct{}{}
 	return nil
@@ -107,7 +107,7 @@ func (r *Registry) Attachment() Attachment {
 	return registryAttachment{registry: r}
 }
 
-// Close stops all registered tasks. Call it when the interactive Gator
+// Close stops all registered tasks. Call it when the interactive Hot Cross Buns
 // process exits; it is safe to call multiple times.
 func (r *Registry) Close() {
 	for _, manager := range r.snapshot() {
@@ -211,5 +211,5 @@ func (a registryAttachment) manager(id string) (*Manager, error) {
 			return manager, nil
 		}
 	}
-	return nil, errors.New("terminal task is not available in this Gator session")
+	return nil, errors.New("terminal task is not available in this Hot Cross Buns session")
 }

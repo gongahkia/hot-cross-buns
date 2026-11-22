@@ -17,12 +17,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/companionaccess"
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/executiontarget/tmux"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/companionaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget/tmux"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 var idPattern = regexp.MustCompile(`^target-[a-f0-9]{32}$`)
@@ -74,7 +74,7 @@ type Response struct {
 }
 
 func Open(stateDir string) (Store, error) {
-	parent := filepath.Join(stateDir, "gator")
+	parent := filepath.Join(stateDir, "hot-cross-buns")
 	if info, err := os.Lstat(parent); err == nil && (!info.IsDir() || info.Mode()&os.ModeSymlink != 0) {
 		return Store{}, ErrDenied
 	}

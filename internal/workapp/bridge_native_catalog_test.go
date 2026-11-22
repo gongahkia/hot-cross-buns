@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func nativeCatalogFixture(t *testing.T, count int) (Model, worksession.Store, string) {
@@ -23,7 +23,7 @@ func nativeCatalogFixture(t *testing.T, count int) (Model, worksession.Store, st
 	at := time.Date(2026, 11, 18, 0, 0, 0, 0, time.UTC)
 	for i := 0; i < count; i++ {
 		id := fmt.Sprintf("work-native-%04d", i)
-		path := filepath.Join(dir, "gator", "conversations", id)
+		path := filepath.Join(dir, "hot-cross-buns", "conversations", id)
 		if err = os.MkdirAll(filepath.Join(path, "revisions"), 0700); err != nil {
 			t.Fatal(err)
 		}
@@ -221,11 +221,11 @@ func TestNativeCatalogSupersessionCancelAndResultIsolation(t *testing.T) {
 
 func TestNativeCatalogMissingChangedAndFallbackRecordsRemainExplicit(t *testing.T) {
 	m, s, dir := nativeCatalogFixture(t, 3)
-	cache := filepath.Join(dir, "gator", "cache")
+	cache := filepath.Join(dir, "hot-cross-buns", "cache")
 	if err := os.WriteFile(cache, []byte("fixture cache unavailable"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	broken := filepath.Join(dir, "gator", "conversations", "work-broken")
+	broken := filepath.Join(dir, "hot-cross-buns", "conversations", "work-broken")
 	if err := os.MkdirAll(broken, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestNativeCatalogMissingChangedAndFallbackRecordsRemainExplicit(t *testing.
 		t.Fatal("changed selection accepted")
 	}
 	item = page.Page.Items[1]
-	if err := os.RemoveAll(filepath.Join(dir, "gator", "conversations", item.ID)); err != nil {
+	if err := os.RemoveAll(filepath.Join(dir, "hot-cross-buns", "conversations", item.ID)); err != nil {
 		t.Fatal(err)
 	}
 	m = nativeCatalogAction(t, m, NativeCatalogAction{RequestID: "removed-open", Action: "open", PageID: page.PageID, ID: item.ID, Version: item.Version})

@@ -1,6 +1,6 @@
 package workapp
 
-import "github.com/gongahkia/gator/internal/worksession"
+import "github.com/gongahkia/hot-cross-buns/internal/worksession"
 
 // Review is generated from current account configuration. Change never crosses
 // the frontend boundary; its token binds the displayed selection and readiness.

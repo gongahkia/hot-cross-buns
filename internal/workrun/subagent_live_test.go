@@ -3,10 +3,10 @@ package workrun
 import (
 	"context"
 	"encoding/json"
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/model"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,18 +16,18 @@ import (
 
 // Opt-in live smoke test of actual manager routing, not a statistical benchmark.
 func TestLiveSubagentManager(t *testing.T) {
-	reportPath := os.Getenv("GATOR_LIVE_SUBAGENT_REPORT")
+	reportPath := os.Getenv("HOT_CROSS_BUNS_LIVE_SUBAGENT_REPORT")
 	if reportPath == "" {
 		t.Skip("opt-in live evaluation")
 	}
 	if _, err := os.Stat(reportPath); !os.IsNotExist(err) {
 		t.Fatal("report path must be new")
 	}
-	selected := os.Getenv("GATOR_LIVE_MODEL")
+	selected := os.Getenv("HOT_CROSS_BUNS_LIVE_MODEL")
 	if selected == "" || os.Getenv("OPENAI_API_KEY") == "" {
 		t.Fatal("live model and credential required")
 	}
-	backend, err := model.New(model.Config{Provider: model.OpenAI, Model: selected, BaseURL: os.Getenv("GATOR_LIVE_ENDPOINT")})
+	backend, err := model.New(model.Config{Provider: model.OpenAI, Model: selected, BaseURL: os.Getenv("HOT_CROSS_BUNS_LIVE_ENDPOINT")})
 	if err != nil {
 		t.Fatal(err)
 	}

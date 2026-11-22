@@ -58,7 +58,7 @@ func TestRetainedConversationPromptsPopulateHistory(t *testing.T) {
 		LoadConversation: func(string) (ConversationState, error) {
 			return ConversationState{Messages: []TranscriptMessage{
 				{Role: "You", Text: "retained first"},
-				{Role: "Gator", Text: "answer"},
+				{Role: "Hot Cross Buns", Text: "answer"},
 				{Role: "You", Text: "retained second"},
 			}}, nil
 		},

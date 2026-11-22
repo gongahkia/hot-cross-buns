@@ -1,4 +1,4 @@
-/Users/gongahkia/Desktop/coding/projects/gator/macos/mascot/desktop-pet-lab/Lab.swift:26:9: error: property must be declared fileprivate because its type uses a private type
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/mascot/desktop-pet-lab/Lab.swift:26:9: error: property must be declared fileprivate because its type uses a private type
   2 | import Darwin
   3 | 
   4 | private final class ObserverBag {
@@ -13,7 +13,7 @@
  27 |     var statusItem:NSStatusItem?
  28 |     var ownedTask:Task<Void,Never>?
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/mascot/desktop-pet-lab/Lab.swift:35:9: error: property must be declared fileprivate because its type uses a private type
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/mascot/desktop-pet-lab/Lab.swift:35:9: error: property must be declared fileprivate because its type uses a private type
   6 |     deinit{for (center,token) in entries{center.removeObserver(token)}}
   7 | }
   8 | private final class WeakProbe {
@@ -28,7 +28,7 @@
  36 |     var assertions=0
  37 |     let began=Date()
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/mascot/desktop-pet-lab/Lab.swift:167:103: error: actor-isolated property 'bytes' can not be referenced from the main actor
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/mascot/desktop-pet-lab/Lab.swift:167:103: error: actor-isolated property 'bytes' can not be referenced from the main actor
 165 |         tuck();await pet?.canvas?.player.settled();let starts=pet?.canvas?.player.animationStarts ?? 0
 166 |         try await samplePhase("tucked-away",12,pulses:true);await pet?.canvas?.player.settled()
 167 |         try verify(pet?.canvas?.player.layer.animationKeys()==nil && (await pet?.canvas?.player.store.bytes ?? 0)==0,"hidden target and cache cleared")
@@ -36,7 +36,7 @@
 168 |         try verify(pet?.canvas?.player.animationStarts==starts && !policy.enabled,"signals cannot wake tucked pet")
 169 |         enable();policy.reduceMotion=false;policy.inChat=true;apply();try await samplePhase("pet-and-inchat",10,pulses:true)
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeMascotPlayback.swift:17:9: note: property declared here
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeMascotPlayback.swift:17:9: note: property declared here
  15 |     private var key = ""
  16 |     private(set) var decodeCount = 0
  17 |     var bytes: Int { cached?.bytes ?? 0 }
@@ -44,7 +44,7 @@
  18 |     init(root: URL) { self.root = root }
  19 |     func clear(ticket: Int) {
 
-/Users/gongahkia/Desktop/coding/projects/gator/macos/mascot/desktop-pet-lab/Lab.swift:167:71: error: 'await' in an autoclosure that does not support concurrency
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/mascot/desktop-pet-lab/Lab.swift:167:71: error: 'await' in an autoclosure that does not support concurrency
 165 |         tuck();await pet?.canvas?.player.settled();let starts=pet?.canvas?.player.animationStarts ?? 0
 166 |         try await samplePhase("tucked-away",12,pulses:true);await pet?.canvas?.player.settled()
 167 |         try verify(pet?.canvas?.player.layer.animationKeys()==nil && (await pet?.canvas?.player.store.bytes ?? 0)==0,"hidden target and cache cleared")

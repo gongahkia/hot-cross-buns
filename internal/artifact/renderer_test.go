@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestSealBindsSemanticRendererEvidenceToArtifactBytes(t *testing.T) {
@@ -22,7 +22,7 @@ func TestSealBindsSemanticRendererEvidenceToArtifactBytes(t *testing.T) {
 	}
 	output, _ := workspace.Open(outputDirectory)
 	source, _ := workspace.Open(t.TempDir())
-	evidence, err := NewRendererEvidence("report.docx", "gator.document.v1", spec, nil, contents)
+	evidence, err := NewRendererEvidence("report.docx", "hot-cross-buns.document.v1", spec, nil, contents)
 	if err != nil {
 		t.Fatal(err)
 	}

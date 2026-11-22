@@ -1,6 +1,6 @@
 # T7 — final Onibi migration acceptance
 
-> Interface status, 7 November 2026: Gator is CLI/TUI only. Electron and earlier
+> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
 > standalone-CLI retirement instructions below are historical. Current commands
 > and verification are in [the terminal port](CLI-TUI-PORT.md) and
 > [development](DEVELOPMENT.md).
@@ -11,9 +11,9 @@
 > [Electron consolidation](ELECTRON-CONSOLIDATION.md).
 
 Acceptance date: 31 October 2026. This is verification and documentation of the
-completed migration, not another implementation tranche. Gator remains a
+completed migration, not another implementation tranche. Hot Cross Buns remains a
 terminal-agnostic, local-first personal AI agent. Remote supervision supports that
-product; it does not turn Gator into a shell service or terminal-session manager.
+product; it does not turn Hot Cross Buns into a shell service or terminal-session manager.
 
 | Acceptance category | Verdict | Evidence boundary |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ checks, bounded queues, fresh authorization and response projections. There is n
 second auth service, Onibi runtime, pairing database, action database or required
 supervisor. The optional companion listener itself is an existing Node process.
 
-T4.5 already built copied Gator source with no sibling Onibi, verified dependency
+T4.5 already built copied Hot Cross Buns source with no sibling Onibi, verified dependency
 closure, built desktop runtime/assets with vendored notices and cross-built the
 full Go runtime. T7 repeats the actual ordinary-operation fixture with only Git
 on child PATH, no optional binaries or phone authority, and no creation of the
@@ -104,8 +104,8 @@ Only adapted tmux controller/capture/text/input patterns and relevant tests were
 retained from Onibi. Its daemon, web application, auth, configuration discovery,
 SQLite store, lifecycle management, Ghostty and other backends were excluded.
 `third_party/onibi/LICENSE` and `NOTICE.md`, source headers and packaged attribution
-remain intact; Gator's project licensing is unchanged. Onibi can independently
-become an archived reference repository without affecting Gator build or operation.
+remain intact; Hot Cross Buns's project licensing is unchanged. Onibi can independently
+become an archived reference repository without affecting Hot Cross Buns build or operation.
 That repository-owner action was not performed here.
 
 ## Verified local workflows
@@ -141,10 +141,10 @@ installed Go go1.27.0, CGO enabled. The unchanged module declares Go 1.25.13.
 Bun is not installed; no toolchain was installed or upgraded.
 
 ```sh
-GATOR_TMUX_LIVE=1 node --test companion/auth.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/external.test.mjs companion/terminal.test.mjs companion/recovery.test.mjs companion/server.test.mjs companion/health.test.mjs
-GATOR_TMUX_LIVE=1 go test -race -count=1 ./internal/executiontarget/... ./internal/actionlog ./internal/workrun
+HOT_CROSS_BUNS_TMUX_LIVE=1 node --test companion/auth.test.mjs companion/inspection.test.mjs companion/mutation.test.mjs companion/external.test.mjs companion/terminal.test.mjs companion/recovery.test.mjs companion/server.test.mjs companion/health.test.mjs
+HOT_CROSS_BUNS_TMUX_LIVE=1 go test -race -count=1 ./internal/executiontarget/... ./internal/actionlog ./internal/workrun
 go test -race ./internal/executiontarget/tmux -run '^TestRunnerBoundTimeoutAndErrors$' -count=3 -v
-GATOR_TMUX_LIVE=1 go test -race -count=1 ./internal/executiontarget/tmux
+HOT_CROSS_BUNS_TMUX_LIVE=1 go test -race -count=1 ./internal/executiontarget/tmux
 node --test companion/client.test.mjs companion/inspection-client.test.mjs companion/mutation-client.test.mjs companion/external-client.test.mjs companion/terminal-client.test.mjs
 node --test app-host/tests/execution-independence.test.mjs
 npm run check --prefix ui
@@ -173,7 +173,7 @@ The production timeout remained enforced and no unbounded output escaped. If it
 recurs, retain the command/load details and investigate separately; T7 changes no
 timeout or test implementation to obtain a pass.
 
-Session-local raw test evidence is in `/tmp/gator-t7-{companion,go,runner-recheck,
+Session-local raw test evidence is in `/tmp/hot-cross-buns-t7-{companion,go,runner-recheck,
 tmux-recheck,browser,independence,ui}.log`; these temporary paths are not durable
 release artifacts. This document records the outcomes independently of those files.
 
@@ -203,7 +203,7 @@ changes since those checks justify repeating the expensive broad build matrix.
 
 ## Operational prerequisites and security limitations
 
-Use a configured Gator runtime/profile and Node 22.12+ for the optional companion.
+Use a configured Hot Cross Buns runtime/profile and Node 22.12+ for the optional companion.
 Keep the matching host state/config roots across owner, companion and local grant
 commands. Use the existing supported private encrypted connection described in
 [companion setup](../companion/README.md); do not expose the loopback listener
@@ -251,9 +251,9 @@ change canonical command effects; there is no proven alias-free CLI path or
 automatic runtime-configuration attestation. Known changes require withdrawal
 and renewed review. Malicious same-user processes, undetectable runtime changes,
 the native preflight/dispatch race, local keyboards and other clients remain
-limitations. Per-target serialization coordinates Gator helpers, not the whole
+limitations. Per-target serialization coordinates Hot Cross Buns helpers, not the whole
 desktop or duplicate enrollments of the same physical pane. Raw terminal input
-can execute with host-user privileges and is not a substitute for Gator Work
+can execute with host-user privileges and is not a substitute for Hot Cross Buns Work
 approvals, specialist protocols or artifact verification.
 
 ## Operator-led physical iPhone acceptance — not performed
@@ -330,5 +330,5 @@ not convert their absence into a new terminal integration project.
 Engineering migration is complete. Local automated/native fixture operation is
 accepted under the documented reviewed-backend model. Physical-device and broader
 release deployment acceptance remain open, explicitly bounded operational work.
-Onibi is independently archivable; retain Gator's vendored license/provenance.
+Onibi is independently archivable; retain Hot Cross Buns's vendored license/provenance.
 T7 does not archive it or authorize any further feature tranche.

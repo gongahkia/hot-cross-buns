@@ -12,7 +12,7 @@
     "./internal/model/...",
     "./internal/agent",
     "./internal/workrun",
-    "./cmd/gator"
+    "./cmd/hot-cross-buns"
   ],
   "liveOptInVariablesCleared": true,
   "providerKeyEnvironmentCleared": true

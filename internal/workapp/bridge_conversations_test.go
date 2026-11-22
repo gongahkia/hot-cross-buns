@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 func TestBridgeRecentsBoundSortedDisplayMetadata(t *testing.T) {
@@ -30,7 +30,7 @@ func TestBridgeRecentSelectionUsesExistingRestoreAndRejectsStaleOrBusy(t *testin
 	loaded := 0
 	model := New(Config{BridgeMode: true, CurrentFolder: "/new", Conversations: records, ListConversations: func() ([]worksession.Conversation, error) { return records, nil }, LoadConversation: func(id string) (ConversationState, error) {
 		loaded++
-		return ConversationState{Title: "One", SourcePath: "/one", RevisionID: "rev-one", Messages: []TranscriptMessage{{Role: "Gator", Text: "Retained response"}}}, nil
+		return ConversationState{Title: "One", SourcePath: "/one", RevisionID: "rev-one", Messages: []TranscriptMessage{{Role: "Hot Cross Buns", Text: "Retained response"}}}, nil
 	}})
 	action := BridgeConversationAction{ID: "work-one", ListID: model.BridgeState().RecentID}
 	model.running = true

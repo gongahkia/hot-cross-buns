@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gongahkia/gator/internal/document"
-	"github.com/gongahkia/gator/internal/presentation"
-	"github.com/gongahkia/gator/internal/workbook"
+	"github.com/gongahkia/hot-cross-buns/internal/document"
+	"github.com/gongahkia/hot-cross-buns/internal/presentation"
+	"github.com/gongahkia/hot-cross-buns/internal/workbook"
 )
 
 func main() {
@@ -48,7 +48,7 @@ func generate(directory string) error {
 		if err := os.WriteFile(filepath.Join(directory, theme+"-new.docx"), doc, 0600); err != nil {
 			return err
 		}
-		template, _, err := document.RenderDOCX(document.Spec{Title: "{{gator:title}}", Theme: theme, Header: "Retained template header", Blocks: []document.Block{{Kind: "paragraph", Text: "Before inserted body"}, {Kind: "paragraph", Text: "{{gator:body}}"}, {Kind: "paragraph", Text: "After inserted body"}}})
+		template, _, err := document.RenderDOCX(document.Spec{Title: "{{hot-cross-buns:title}}", Theme: theme, Header: "Retained template header", Blocks: []document.Block{{Kind: "paragraph", Text: "Before inserted body"}, {Kind: "paragraph", Text: "{{hot-cross-buns:body}}"}, {Kind: "paragraph", Text: "After inserted body"}}})
 		if err != nil {
 			return err
 		}

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
 
 func TestControllerLeaseDoesNotRevokeLiveOrLegacySessions(t *testing.T) {

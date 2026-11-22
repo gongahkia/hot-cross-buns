@@ -1,13 +1,13 @@
 """Read-only cadence attribution after an explicitly initiated inert fixture task."""
 import json,os,pathlib,queue,shutil,subprocess,tempfile,threading,time,collections
 out=pathlib.Path('macos/presence/evidence/p04e-1r2')
-root=pathlib.Path(tempfile.mkdtemp(prefix='gator-native-test-presence-r2-cadence-',dir='/tmp'));root.chmod(0o700)
-(root/'workspace').mkdir();(root/'config/gator').mkdir(parents=True)
-provider=subprocess.Popen([shutil.which('node'),'macos/mascot/2d/acceptance/provider.mjs'],env={'PATH':os.environ['PATH'],'GATOR_FIXTURE_CONTROL':str(root)},stdout=subprocess.PIPE,stderr=open(root/'provider.log','w'))
+root=pathlib.Path(tempfile.mkdtemp(prefix='hot-cross-buns-native-test-presence-r2-cadence-',dir='/tmp'));root.chmod(0o700)
+(root/'workspace').mkdir();(root/'config/hot-cross-buns').mkdir(parents=True)
+provider=subprocess.Popen([shutil.which('node'),'macos/mascot/2d/acceptance/provider.mjs'],env={'PATH':os.environ['PATH'],'HOT_CROSS_BUNS_FIXTURE_CONTROL':str(root)},stdout=subprocess.PIPE,stderr=open(root/'provider.log','w'))
 port=json.loads(provider.stdout.readline())['port']
-(root/'config/gator/config.json').write_text(json.dumps({'version':4,'defaults':{'provider':'openai','model':'gpt-5.6'},'provider_endpoints':{'openai':f'http://127.0.0.1:{port}/responses'}}))
-runtime='/tmp/Gator-Native-P04E1R2-Diagnostic.app/Contents/Resources/gator-runtime'
-env={'PATH':os.environ['PATH'],'HOME':str(root),'GATOR_CONFIG_DIR':str(root/'config'),'GATOR_STATE_DIR':str(root/'state'),'OPENAI_API_KEY':'inert-only-cadence-fixture','GATOR_UI_BACKEND':'1','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'}
+(root/'config/hot-cross-buns/config.json').write_text(json.dumps({'version':4,'defaults':{'provider':'openai','model':'gpt-5.6'},'provider_endpoints':{'openai':f'http://127.0.0.1:{port}/responses'}}))
+runtime='/tmp/HotCrossBuns-Native-P04E1R2-Diagnostic.app/Contents/Resources/hot-cross-buns-runtime'
+env={'PATH':os.environ['PATH'],'HOME':str(root),'HOT_CROSS_BUNS_CONFIG_DIR':str(root/'config'),'HOT_CROSS_BUNS_STATE_DIR':str(root/'state'),'OPENAI_API_KEY':'inert-only-cadence-fixture','HOT_CROSS_BUNS_UI_BACKEND':'1','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'}
 p=subprocess.Popen([runtime,'ui-backend','',''],cwd=root/'workspace',env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=open(root/'go.log','w'),text=True)
 q=queue.Queue()
 def read():

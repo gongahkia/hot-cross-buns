@@ -17,13 +17,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/filelock"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/patch"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/patch"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 type completionAttempt struct {
@@ -73,7 +73,7 @@ func ReadCompletions(stateDir, runID string) ([]CompletionRecord, error) {
 	if !validInteractionRunID(runID) {
 		return nil, errors.New("invalid completion run ID")
 	}
-	directory := filepath.Join(stateDir, "gator", "completions", runID)
+	directory := filepath.Join(stateDir, "hot-cross-buns", "completions", runID)
 	entries, err := os.ReadDir(directory)
 	if errors.Is(err, os.ErrNotExist) {
 		return []CompletionRecord{}, nil
@@ -183,7 +183,7 @@ func (c *codeCompletion) Execute(ctx context.Context, raw json.RawMessage) (agen
 		c.created++
 		c.mu.Unlock()
 	}
-	directory := filepath.Join(c.request.StateDir, "gator", "completions", c.request.RunID)
+	directory := filepath.Join(c.request.StateDir, "hot-cross-buns", "completions", c.request.RunID)
 	if err := privatefs.MkdirAll(directory); err != nil {
 		return agent.ToolResult{}, err
 	}

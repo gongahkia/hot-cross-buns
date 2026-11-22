@@ -5,15 +5,15 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost, state } from "./fixture"
 
 test("programmatic drafts wait for native layout and keep the latest text through work snapshots",async()=>{
   for(const [width,height] of [[110,34],[80,24],[60,20],[42,14]]){
-    const root=await mkdtemp(join(tmpdir(),"gator-draft-sync-"))
-    const host=new FixtureHost({binary:"/unused",workspace:root,userData:root,env:{GATOR_STATE_DIR:root}})
+    const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-draft-sync-"))
+    const host=new FixtureHost({binary:"/unused",workspace:root,userData:root,env:{HOT_CROSS_BUNS_STATE_DIR:root}})
     host.current={...state(),running:true,dialogue_active:true}
-    const client=new GatorClient(host)
+    const client=new HotCrossBunsClient(host)
     const setup=await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>({data:"",mime:"text/plain"}),write:async()=>{}}}/>,{width,height})
     try{
       await client.start()

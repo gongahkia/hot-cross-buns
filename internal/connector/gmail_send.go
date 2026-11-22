@@ -224,7 +224,7 @@ func gmailMessageID(correlationID string) (string, error) {
 	if err != nil || hex.EncodeToString(value) != correlationID {
 		return "", errors.New("Gmail reconciliation identity is invalid")
 	}
-	return "<gator-" + correlationID + "@gator.invalid>", nil
+	return "<hot-cross-buns-" + correlationID + "@hot-cross-buns.invalid>", nil
 }
 
 func singleGmailAddress(value string) (string, error) {

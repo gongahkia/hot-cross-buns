@@ -4,12 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 test("combined draft context leaves input and transcript usable through narrow resizes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-composer-budget-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-composer-budget-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   let connected = true
   const snapshot = host.snapshot.bind(host)
   host.snapshot = () => ({ ...snapshot(), connection: connected ? "connected" : "disconnected" })
@@ -17,7 +17,7 @@ test("combined draft context leaves input and transcript usable through narrow r
   const flush = async () => { await setup.flush(); await Bun.sleep(20); await setup.flush() }
   try {
     await client.start()
-    host.change({ ...host.current, running: true, messages: Array.from({ length: 60 }, (_, n) => ({ role: "Gator", text: `Itinerary ${n} stays readable while you compose.`, created_at: new Date(1700000000000 + n * 60000).toISOString() })) })
+    host.change({ ...host.current, running: true, messages: Array.from({ length: 60 }, (_, n) => ({ role: "Hot Cross Buns", text: `Itinerary ${n} stays readable while you compose.`, created_at: new Date(1700000000000 + n * 60000).toISOString() })) })
     await client.setPlanFirst(true)
     // Render-only file metadata: this test makes no claim about upload admission.
     client.drafts.set(client.context, { ...client.draft, text: "Keep the input visible\nSecond line", reply_to_update_id: "booking",
@@ -54,8 +54,8 @@ test("combined draft context leaves input and transcript usable through narrow r
 })
 
 test("idle Ctrl+C preserves input; custom bindings drive help and composer hints", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-key-hints-"))
-  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-key-hints-"))
+  const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
   let quits = 0
   const setup = await testRender(() => <App client={client} quit={async () => { quits++ }} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   const flush = async () => { await setup.flush(); await Bun.sleep(20); await setup.flush() }
@@ -70,7 +70,7 @@ test("idle Ctrl+C preserves input; custom bindings drive help and composer hints
     expect(setup.captureCharFrame()).toContain("Ctrl+R guides the live task")
     expect(setup.captureCharFrame()).not.toContain("Ctrl+N new independent chat")
     setup.mockInput.pressKey("c", { ctrl: true }); await flush()
-    expect(setup.captureCharFrame()).not.toContain("Gator terminal help")
+    expect(setup.captureCharFrame()).not.toContain("Hot Cross Buns terminal help")
     expect(client.draft.text).toBe("Unsent, keep this draft"); expect(quits).toBe(0)
     setup.mockInput.pressKey("q", { ctrl: true }); await flush(); expect(quits).toBe(1)
   } finally { await client.close(); await setup.dispose(); await rm(root, { recursive: true, force: true }) }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // QuietReview is a user's explicit assessment of one completed watch check

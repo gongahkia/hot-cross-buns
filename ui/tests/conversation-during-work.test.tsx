@@ -4,16 +4,16 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { execFileSync } from "node:child_process"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 async function until(predicate: () => boolean, label: string) { const deadline=Date.now()+15000;while(!predicate()){if(Date.now()>deadline)throw new Error(`Timed out: ${label}`);await Bun.sleep(15)} }
 
 test("ordinary messages converse, steer an original task and delegate work without changing focus; results survive restart",async()=>{
-  const root=await mkdtemp(join(tmpdir(),"gator-dialogue-"))
-  const binary=process.env.GATOR_TEST_BINARY || resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"gator-runtime.exe":"gator-runtime"))
-  const env={...process.env,GATOR_STATE_DIR:join(root,"state"),GATOR_CONFIG_DIR:join(root,"config")}
+  const root=await mkdtemp(join(tmpdir(),"hot-cross-buns-dialogue-"))
+  const binary=process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir,"../runtime/"+(process.platform==="win32"?"hot-cross-buns-runtime.exe":"hot-cross-buns-runtime"))
+  const env={...process.env,HOT_CROSS_BUNS_STATE_DIR:join(root,"state"),HOT_CROSS_BUNS_CONFIG_DIR:join(root,"config")}
   let releaseMain!:()=>void,releaseChild!:()=>void,releaseStop!:()=>void
   const mainGate=new Promise<void>(resolve=>{releaseMain=resolve}),childGate=new Promise<void>(resolve=>{releaseChild=resolve})
   const stopGate=new Promise<void>(resolve=>{releaseStop=resolve})
@@ -21,7 +21,7 @@ test("ordinary messages converse, steer an original task and delegate work witho
   const server=Bun.serve({hostname:"127.0.0.1",port:0,async fetch(request){
     const body=await request.json() as any, serialized=JSON.stringify(body)
     let content=""
-    if(body.messages.some((message:any)=>message.role==="system" && message.content.includes("You handle the conversation with Gator"))){
+    if(body.messages.some((message:any)=>message.role==="system" && message.content.includes("You handle the conversation with Hot Cross Buns"))){
       const context=JSON.parse(body.messages.at(-1).content);routes.push(context)
       if(context.message==="Hello while working")content=JSON.stringify({kind:"reply",text:"I'm here. The venue comparison is still working."})
       else if(context.message==="Keep the venues under $2,000")content=JSON.stringify({kind:"guide",target:context.tasks.find((task:any)=>task.title.includes("Compare venues")).id,instruction:"Keep the venues under $2,000"})
@@ -42,11 +42,11 @@ test("ordinary messages converse, steer an original task and delegate work witho
     }
     return Response.json({choices:[{message:{role:"assistant",content},finish_reason:"stop"}],usage:{prompt_tokens:10,completion_tokens:10,total_tokens:20}})
   }})
-  const cli=(args:string[])=>execFileSync(binary,args,{env:{...env,GATOR_INTERNAL_COMMANDS:"1"}})
+  const cli=(args:string[])=>execFileSync(binary,args,{env:{...env,HOT_CROSS_BUNS_INTERNAL_COMMANDS:"1"}})
   cli(["provider","add","dialogue-fixture","--base-url",`http://127.0.0.1:${server.port}/v1/chat/completions`,"--model","fixture"])
   cli(["config","set","default-provider","dialogue-fixture"])
   const options={binary,env,userData:join(root,"app"),workspace:join(root,"workspace")}
-  const client=new GatorClient(new Application(options))
+  const client=new HotCrossBunsClient(new Application(options))
   const warnings:string[]=[],copied:string[]=[];const warning=spyOn(console,"warn").mockImplementation((...args)=>{warnings.push(args.map(String).join(" "))})
   const setup=await testRender(()=><App client={client} quit={()=>client.close()} clipboard={{read:async()=>({data:"",mime:"text/plain"}),write:async text=>{copied.push(text)}}}/>,{width:110,height:34})
   const flush=async()=>{await setup.flush();await Bun.sleep(30);await setup.flush()}
@@ -121,19 +121,19 @@ test("ordinary messages converse, steer an original task and delegate work witho
     const detail=client.state!.dialogue!.at(-1)!
     await until(()=>!!client.state?.dialogue_peers?.some(peer=>peer.conversation_id===detail.task_chat && peer.state==="completed"),"follow-up work completed")
     expect(work.at(-1)).toContain(child);expect(work.at(-1)).toContain("jade heron")
-    const captured=JSON.parse(await readFile(join(env.GATOR_STATE_DIR,"gator/conversations",parent,"dialogue",String(detail.sequence).padStart(20,"0")+"-"+detail.id+".json"),"utf8")).options
+    const captured=JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",parent,"dialogue",String(detail.sequence).padStart(20,"0")+"-"+detail.id+".json"),"utf8")).options
     const reference=captured.task_context.find((task:any)=>task.id===child)
     expect(reference.summary).toContain("jade heron");expect(reference.can_guide).toBe(false);expect(reference.can_stop).toBe(false)
     expect(captured.run_options.Uploads || []).toEqual([])
     await client.edit("Keep this draft while inspecting")
-    const original=JSON.parse(await readFile(join(env.GATOR_STATE_DIR,"gator/conversations",parent,"requests.json"),"utf8"))
-    const independent=JSON.parse(await readFile(join(env.GATOR_STATE_DIR,"gator/conversations",child,"requests.json"),"utf8"))
+    const original=JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",parent,"requests.json"),"utf8"))
+    const independent=JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR,"hot-cross-buns/conversations",child,"requests.json"),"utf8"))
     expect(original.requests).toHaveLength(1);expect(independent.requests).toHaveLength(1)
     expect(independent.requests[0].options.DialogueParent).toBe(parent)
     for(const [width,height] of [[110,34],[80,24],[60,20],[42,14]]){setup.resize(width,height);await flush();const frame=setup.captureCharFrame();expect(frame).toContain("Keep this draft");expect(frame).not.toContain("[object Object]")}
     const count=work.length+routes.length
     await client.close();await setup.dispose();expect(warnings).toHaveLength(0)
-    const restarted=new GatorClient(new Application(options))
+    const restarted=new HotCrossBunsClient(new Application(options))
     try{await restarted.start();expect(restarted.state?.conversation_id).toBe(parent);expect(restarted.state?.dialogue?.some(message=>message.response?.includes("I'm here"))).toBe(true);expect(restarted.state?.dialogue_peers?.find(peer=>peer.conversation_id===child)?.summary).toContain("jade heron");expect(restarted.draft.text).toBe("Keep this draft while inspecting");expect(work.length+routes.length).toBe(count)
       await until(()=>!!restarted.state?.dialogue_active,"restored conversation routing")
       await restarted.edit("What did the separate brief say?");await restarted.submit()
@@ -145,7 +145,7 @@ test("ordinary messages converse, steer an original task and delegate work witho
 },60000)
 
 test("ordinary conversation cancels a preparing plan and a delegated review through their exact native owners", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-dialogue-plans-"))
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-dialogue-plans-"))
   let releasePreparation!: () => void
   const preparationGate = new Promise<void>(resolve => { releasePreparation = resolve })
   let plans = 0, executions = 0
@@ -154,7 +154,7 @@ test("ordinary conversation cancels a preparing plan and a delegated review thro
     const body = await request.json() as any
     const system = body.messages.find((message: any) => message.role === "system")?.content || ""
     let content = ""
-    if (system.includes("You handle the conversation with Gator")) {
+    if (system.includes("You handle the conversation with Hot Cross Buns")) {
       const context = JSON.parse(body.messages.at(-1).content); routes.push(context)
       content = JSON.stringify(context.message.startsWith("Cancel")
         ? { kind: "stop", target: context.tasks.find((task: any) => task.title === (context.message.includes("venue") ? "Compare venues" : "Compare trains")).id }
@@ -166,13 +166,13 @@ test("ordinary conversation cancels a preparing plan and a delegated review thro
     } else { executions++; content = "Unexpected implementation" }
     return Response.json({ choices: [{ message: { role: "assistant", content }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 10 } })
   } })
-  const binary = process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime"))
-  const env = { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") }
-  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, GATOR_INTERNAL_COMMANDS: "1" } })
+  const binary = process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"))
+  const env = { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") }
+  const cli = (args: string[]) => execFileSync(binary, args, { env: { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1" } })
   cli(["provider", "add", "plan-dialogue-fixture", "--base-url", `http://127.0.0.1:${server.port}/v1/chat/completions`, "--model", "fixture"])
   cli(["config", "set", "default-provider", "plan-dialogue-fixture"])
   const options = { binary, env, userData: join(root, "app"), workspace: join(root, "workspace") }
-  const client = new GatorClient(new Application(options))
+  const client = new HotCrossBunsClient(new Application(options))
   const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 110, height: 34 })
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
   const plan = async (text: string) => {
@@ -216,13 +216,13 @@ test("ordinary conversation cancels a preparing plan and a delegated review thro
       expect(setup.captureCharFrame()).toContain("Keep my next question")
       expect(setup.captureCharFrame()).not.toContain("[object Object]")
     }
-    const journal = JSON.parse(await readFile(join(env.GATOR_STATE_DIR, "gator/conversations", child, "requests.json"), "utf8"))
+    const journal = JSON.parse(await readFile(join(env.HOT_CROSS_BUNS_STATE_DIR, "hot-cross-buns/conversations", child, "requests.json"), "utf8"))
     expect(journal.requests).toHaveLength(1); expect(journal.requests[0].state).toBe("discarded")
     expect(journal.requests[0].plan.approval).toBeUndefined()
     expect(journal.requests[0].options.DialogueParent).toBe(parent)
     await client.close(); await setup.dispose()
     const count = plans + routes.length
-    const restarted = new GatorClient(new Application(options))
+    const restarted = new HotCrossBunsClient(new Application(options))
     try {
       await restarted.start(); expect(restarted.state?.conversation_id).toBe(parent)
       await until(() => restarted.state?.dialogue_peers?.some(peer => peer.conversation_id === child) || false, "retained cancellation")

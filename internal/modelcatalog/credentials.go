@@ -5,18 +5,18 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/auth"
-	"github.com/gongahkia/gator/internal/config"
-	"github.com/gongahkia/gator/internal/localmodel"
-	modelprovider "github.com/gongahkia/gator/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
+	modelprovider "github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
-func gatorCredentialCacheKey(provider string) string {
+func hotCrossBunsCredentialCacheKey(provider string) string {
 	return provider
 }
 
 func (m Model) storedCredential(provider string) StoredCredentialStatus {
-	key := gatorCredentialCacheKey(provider)
+	key := hotCrossBunsCredentialCacheKey(provider)
 	if status, ok := m.localModels.credentials[key]; ok {
 		return status
 	}
@@ -62,11 +62,11 @@ func (m Model) beginRemoveCloudCredential() (tea.Model, tea.Cmd) {
 	}
 	cloud, found := m.selectedCloudModel()
 	if !found {
-		m.notice = notice{text: "Select a cloud provider before removing its Gator credential.", kind: noticeError}
+		m.notice = notice{text: "Select a cloud provider before removing its Hot Cross Buns credential.", kind: noticeError}
 		return m, nil
 	}
 	if cloud.custom {
-		m.notice = notice{text: "Custom providers read an environment variable at run time. Gator does not store their API keys.", kind: noticeInfo}
+		m.notice = notice{text: "Custom providers read an environment variable at run time. Hot Cross Buns does not store their API keys.", kind: noticeInfo}
 		return m, nil
 	}
 	if m.config.ModelManagement == nil {
@@ -75,11 +75,11 @@ func (m Model) beginRemoveCloudCredential() (tea.Model, tea.Cmd) {
 	}
 	status := m.storedCredential(cloud.provider)
 	if !status.Present {
-		m.notice = notice{text: "No Gator credential is stored for " + cloud.provider + ". Environment variables and vendor CLI logins are unchanged.", kind: noticeInfo}
+		m.notice = notice{text: "No Hot Cross Buns credential is stored for " + cloud.provider + ". Environment variables and vendor CLI logins are unchanged.", kind: noticeInfo}
 		return m, nil
 	}
 	m.localModels.confirmation = localModelConfirmRemoveCredential
-	m.notice = notice{text: "Confirm removal of the stored Gator credential. Ambient environment credentials are not unset.", kind: noticeInfo}
+	m.notice = notice{text: "Confirm removal of the stored Hot Cross Buns credential. Ambient environment credentials are not unset.", kind: noticeInfo}
 	return m, nil
 }
 
@@ -99,11 +99,11 @@ func (m Model) removeCloudCredential() (tea.Model, tea.Cmd) {
 func (m Model) beginRemoveCustomProvider() (tea.Model, tea.Cmd) {
 	cloud, found := m.selectedCloudModel()
 	if !found || !cloud.custom {
-		m.notice = notice{text: "Cloud models are managed by their provider. Gator only removes custom endpoint metadata or local model weights here.", kind: noticeInfo}
+		m.notice = notice{text: "Cloud models are managed by their provider. Hot Cross Buns only removes custom endpoint metadata or local model weights here.", kind: noticeInfo}
 		return m, nil
 	}
 	if cloud.provider == localmodel.ProviderID {
-		m.notice = notice{text: "Gator-managed local Ollama is removed from the Local section.", kind: noticeInfo}
+		m.notice = notice{text: "Hot Cross Buns-managed local Ollama is removed from the Local section.", kind: noticeInfo}
 		return m, nil
 	}
 	if m.config.ModelManagement == nil {
@@ -139,7 +139,7 @@ func (m Model) beginCustomProviderDiscover() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if cloud.provider == localmodel.ProviderID {
-		m.notice = notice{text: "Gator-managed local Ollama uses the reviewed Local catalog, not /models discovery.", kind: noticeInfo}
+		m.notice = notice{text: "Hot Cross Buns-managed local Ollama uses the reviewed Local catalog, not /models discovery.", kind: noticeInfo}
 		return m, nil
 	}
 	if m.config.ModelManagement == nil {
@@ -197,11 +197,11 @@ func (m *Model) applyCustomProviders(providers []config.CustomProvider, selectID
 
 func credentialRemovalNotice(result CredentialRemovalResult) string {
 	if result.Removed {
-		text := "Removed the stored Gator " + result.Kind + " for " + result.Provider + ". Environment variables, AWS/ADC, and vendor CLI credentials were not changed."
+		text := "Removed the stored Hot Cross Buns " + result.Kind + " for " + result.Provider + ". Environment variables, AWS/ADC, and vendor CLI credentials were not changed."
 		if len(result.RemainingSources) > 0 {
 			return text + " This process can still authenticate via " + strings.Join(result.RemainingSources, ", ") + "."
 		}
 		return text
 	}
-	return "No Gator credential was stored for " + result.Provider + "."
+	return "No Hot Cross Buns credential was stored for " + result.Provider + "."
 }

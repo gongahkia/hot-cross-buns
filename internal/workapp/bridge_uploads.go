@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
 )
 
 type BridgeUploadSubmission struct {

@@ -6,7 +6,7 @@ This is a Go-owned durable acknowledgement with native emoji presentation, not a
 
 Starting HEAD: `60b5e74cab9785e12cade1c67190b955a38906e6`, clean worktree. [Baseline identities](evidence/p04e-2/baseline.json). HEAD advanced externally during work; this agent issued no commit, checkout or reset. Final file/binary hashes identify the delivered source independently of those external snapshots.
 
-Inspected the current Work conversational router, dialogue owner/admission/bridge, strict dialogue store and its CAS/transition rules; actual native protocol/application/coordinator, transcript/message rendering, streaming/pulse/preferences, current tests and host/terminal protocol consumers. Read P04U-1 and P04E-1R2 acceptance reports. Additional inspection of `cmd/gator/work_dialogue.go` established the canonical processing-scope check that must precede a shortcut.
+Inspected the current Work conversational router, dialogue owner/admission/bridge, strict dialogue store and its CAS/transition rules; actual native protocol/application/coordinator, transcript/message rendering, streaming/pulse/preferences, current tests and host/terminal protocol consumers. Read P04U-1 and P04E-1R2 acceptance reports. Additional inspection of `cmd/hot-cross-buns/work_dialogue.go` established the canonical processing-scope check that must precede a shortcut.
 
 Existing boundaries retained:
 
@@ -18,7 +18,7 @@ Existing boundaries retained:
 
 ## Decision policy and cost boundary
 
-The Go whole-message allowlist deliberately recognizes a small English vocabulary, including “Thanks!”, “Appreciate it!”, “Thanks Gator, that was helpful!”, “Hahaha”, “Haha that's hilarious”, “Nice, that's great!” and “See you!”. Case and trailing period/exclamation punctuation are normalized. Internal multiline/control input, extra clauses, questions, quoted text and unrecognized text stay on the normal router. Generic “okay”, “yes”, “great”, “nice”, “approved” and “sounds good” are deliberately absent because they may be consequential confirmation.
+The Go whole-message allowlist deliberately recognizes a small English vocabulary, including “Thanks!”, “Appreciate it!”, “Thanks Hot Cross Buns, that was helpful!”, “Hahaha”, “Haha that's hilarious”, “Nice, that's great!” and “See you!”. Case and trailing period/exclamation punctuation are normalized. Internal multiline/control input, extra clauses, questions, quoted text and unrecognized text stay on the normal router. Generic “okay”, “yes”, “great”, “nice”, “approved” and “sounds good” are deliberately absent because they may be consequential confirmation.
 
 Eligibility requires a valid bounded conversation request, at most 160 input bytes, no attachments/update reply/plan-first/explicit source refresh, and no projected inspection requirement. Pending approvals/connections, plan preparation/revision, recovery/receipt uncertainty or errors, shutdown and dialogue errors decline the shortcut. Task context is accepted only in ordinary running/completed states with no review/edit/inspection capability; other and future unknown states use ordinary routing. A recent assistant question or confirmation/authorization prompt also declines the shortcut. These conservative checks can produce false negatives; ambiguity costs the normal route rather than silence.
 
@@ -62,7 +62,7 @@ Each immutable `BridgeMessage` validates and caches its optional reaction bindin
 
 The original user bubble/content and stable ID remain intact. A small native Unicode emoji capsule sits against its lower trailing boundary; 12 pt reserved row spacing keeps insertion from changing the row height. It is passive, nonfocusable and click-through. Existing text selection remains on the original bubble, and review/approval surfaces are not involved.
 
-A response row is hidden **only** when its exact dialogue response ID and user reference match a validated displayed reaction, its role is Gator and it is ordinary prose. Unrelated/structured/review messages remain visible even if a malformed fixture supplies a matching reference field. This was first reproduced by a failing negative test, then corrected; the failure is retained. Actual Go projections never emit that malformed case.
+A response row is hidden **only** when its exact dialogue response ID and user reference match a validated displayed reaction, its role is Hot Cross Buns and it is ordinary prose. Unrelated/structured/review messages remain visible even if a malformed fixture supplies a matching reference field. This was first reproduced by a failing negative test, then corrected; the failure is retained. Actual Go projections never emit that malformed case.
 
 Find indexes the same presented message list. It still finds original user text; a hidden fallback cannot become an unrevealable search result. Turning reactions Off restores the normal acknowledgement row and searchability. If a reader's saved anchor refers to a now-hidden acknowledgement, the presentation maps it to that same original user turn without rewriting the stored reading-position intent. Cross-conversation prefixes remain distinct. A reaction update does not touch an unrelated streaming cursor or replay a completed response.
 
@@ -114,7 +114,7 @@ Values below are medians of trial medians, for 1,000 user rows. RSS and physical
 | Filtering 2,000 projected rows into 1,000 visible user rows, ms | 3.564 | 3.614 |
 | Hosted insertion/layout, ms | 18.438 | 22.323 |
 
-Incremental static physical footprint is approximately **0.27 MiB**, and static RSS approximately **0.86 MiB**, above the matched reference. Candidate settled physical footprint is approximately **0.34 MiB** higher. Largest sampled lifetime footprint is **18.05 MiB** candidate versus **17.81 MiB** reference, including the common fixture host/data. These are component-process totals, not whole-Gator memory or model residency. No continuing reaction timer/animation exists; static and hidden-component CPU settle near the sampler floor. A bounded trial does not prove unlimited lifetime behavior or resolve the historical full-app stall.
+Incremental static physical footprint is approximately **0.27 MiB**, and static RSS approximately **0.86 MiB**, above the matched reference. Candidate settled physical footprint is approximately **0.34 MiB** higher. Largest sampled lifetime footprint is **18.05 MiB** candidate versus **17.81 MiB** reference, including the common fixture host/data. These are component-process totals, not whole-Hot Cross Buns memory or model residency. No continuing reaction timer/animation exists; static and hidden-component CPU settle near the sampler floor. A bounded trial does not prove unlimited lifetime behavior or resolve the historical full-app stall.
 
 Final pure Go classification benchmark, three runs: **131.5–133.5 ns/op**, median **131.6 ns/op**, **32 B/op, 1 allocation/op**, for the supplied acknowledgement fixture. [Benchmark log](evidence/p04e-2/classifier-benchmark.log). Context validation still scales with the existing bounded public context; this is not a claim that every context costs exactly that much.
 
@@ -126,7 +126,7 @@ All ordinary tests use inert scripts, private profiles and loopback fixtures. Li
 
 Retained intermediate failures:
 
-- An initial mixed streaming test run omitted the required `GATOR_TEST_BINARY`; it failed at fixture setup, then passed with the supplied isolated runtime.
+- An initial mixed streaming test run omitted the required `HOT_CROSS_BUNS_TEST_BINARY`; it failed at fixture setup, then passed with the supplied isolated runtime.
 - A test attempted to override the read-only Reduce Motion environment key. It was corrected to test static layout with normal/disabled-animation transactions; no physical system preference acceptance is claimed.
 - The negative unrelated-message/reference test exposed an overly broad fallback filter. The final filter and reading-position mapper require the exact response identity, ordinary prose role and validated original user turn; its unchanged negative assertions now pass.
 - The first strict compiler run rejected a redundant nonnil `#require` under an optional assignment context. The final test keeps that same nonnil assertion in a local binding, then assigns the result. No assertion or warning was disabled. Production source/bundle did not change for that test correction.
@@ -150,7 +150,7 @@ Go results below include subtest pass events (top-level counts and every skip ar
 
 | Package | Normal pass / skip / fail | Race pass / skip / fail |
 |---|---:|---:|
-| `cmd/gator` | 477 / 13 / 0 | Not repeated under race |
+| `cmd/hot-cross-buns` | 477 / 13 / 0 | Not repeated under race |
 | `internal/workapp` | 358 / 0 / 0 | 358 / 0 / 0 |
 | `internal/workrun` | 231 / 1 / 0 | 231 / 1 / 0 |
 | `internal/worksession` | 100 / 0 / 0 | 100 / 0 / 0 |
@@ -163,11 +163,11 @@ Reproduction uses the already installed supported Node version and the exact del
 
 ```sh
 export PATH=/Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin:$PATH
-export GATOR_TEST_BINARY=/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime
-swift build --package-path macos --scratch-path /tmp/gator-native-build
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel
-swift test --package-path macos --scratch-path /tmp/gator-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-go test -count=1 ./internal/workrun ./internal/worksession ./internal/workapp ./cmd/gator
+export HOT_CROSS_BUNS_TEST_BINARY=/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-native-build
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift test --package-path macos --scratch-path /tmp/hot-cross-buns-native-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+go test -count=1 ./internal/workrun ./internal/worksession ./internal/workapp ./cmd/hot-cross-buns
 go test -race -count=1 ./internal/workrun ./internal/worksession ./internal/workapp
 npm test --prefix app-host
 ```
@@ -179,17 +179,17 @@ No live-test opt-in variables should be supplied. [Verify.py](lab/Verify.py) rec
 Production changes:
 
 - `internal/workrun/conversation.go` and new `conversation_acknowledgement.go`: finite whole-message policy, optional reply metadata, exact validation and inspection gating.
-- `cmd/gator/work_dialogue.go`: zero-inference branch after the canonical scope/cancellation check.
+- `cmd/hot-cross-buns/work_dialogue.go`: zero-inference branch after the canonical scope/cancellation check.
 - `internal/workapp/bridge_uploads.go`, `dialogue.go`, `dialogue_owner.go`: idle acknowledgement admission through the existing dialogue store, captured-revision finish guard, safe metadata projection and nonsecret inspection flag propagation.
-- `macos/Sources/GatorCore/BridgeProtocol.swift` and new `NativeMessageReaction.swift`: stable turn binding and immutable validated metadata cache. Spinner comparison is byte-for-byte unchanged.
-- `macos/Sources/GatorMac/ConversationView.swift`, `NativeMascotPreferences.swift`, new `NativeMessageReactionView.swift`: static chips, exact fallback filtering, consistent Find/reading presentation and an independent preference. `MessageRow` is module-visible for production-component tests.
+- `macos/Sources/HotCrossBunsCore/BridgeProtocol.swift` and new `NativeMessageReaction.swift`: stable turn binding and immutable validated metadata cache. Spinner comparison is byte-for-byte unchanged.
+- `macos/Sources/HotCrossBunsMac/ConversationView.swift`, `NativeMascotPreferences.swift`, new `NativeMessageReactionView.swift`: static chips, exact fallback filtering, consistent Find/reading presentation and an independent preference. `MessageRow` is module-visible for production-component tests.
 - `app-host/contracts/protocol.ts`: optional additive dialogue metadata/inspection fields. Existing terminal response rendering remains unchanged.
 
 Tests: new Go acknowledgement/router/store/scope tests, new Swift reaction/real-Go tests, and an additive host protocol compatibility test. The original version-1 dialogue store implementation, approvals, provider/credential flows, archive logic, coordinator ownership, native streaming engine, mascot/pet assets and app icons are unchanged. No README edits, signing/notarization, commits, model installs or paid inference were performed.
 
 [Complete changed-path inventory](evidence/p04e-2/changed-files.txt), [final identity](evidence/p04e-2/final-identity.json), [bundle hashes/dependencies](evidence/p04e-2/packaging.json). Source snapshots advanced externally from the initial clean HEAD; no commit or reset was issued here. Intermediate candidates from this tranche were preserved with `Pre-Final` and `Pre-Binding` suffixes, as were all prior accepted/conditional bundles.
 
-Delivered development app: **`/tmp/Gator-Native-P04E2-Reactions.app`**.
+Delivered development app: **`/tmp/HotCrossBuns-Native-P04E2-Reactions.app`**.
 
 Native SHA256: `2f4d94c072526a9df6f8783066fdf06a32ad1f50334bcf4051375ed170ddcb2b`.
 

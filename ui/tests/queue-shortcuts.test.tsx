@@ -4,14 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 import { FixtureHost } from "./fixture"
 
 for (const [width, height, queueBinding, kittyKeyboard] of [[110, 34, "Tab", false], [80, 24, "Tab", false], [60, 20, "Tab", false], [42, 14, "Tab", false], [42, 14, "Ctrl+K", false], [42, 14, "Ctrl+Shift+K", true]] as const) {
   test(`queue preserves exact draft context, completion and modal navigation at ${width}×${height} with ${queueBinding}${kittyKeyboard ? " (Kitty protocol)" : ""}`, async () => {
     const custom = queueBinding !== "Tab"
-    const root = await mkdtemp(join(tmpdir(), "gator-queue-key-"))
-    const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { GATOR_STATE_DIR: root } }), client = new GatorClient(host)
+    const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-queue-key-"))
+    const host = new FixtureHost({ binary: "/unused", workspace: root, userData: root, env: { HOT_CROSS_BUNS_STATE_DIR: root } }), client = new HotCrossBunsClient(host)
     host.current = { ...host.current, running: true, dialogue_active: true, desktop: { shortcuts: { queue_message: queueBinding } } }
     const setup = await testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width, height, kittyKeyboard })
     const flush = async () => { await setup.flush(); await Bun.sleep(20); await setup.flush() }

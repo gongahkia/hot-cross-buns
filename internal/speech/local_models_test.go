@@ -136,7 +136,7 @@ func TestLocalModelNeverFollowsLinkedStorageOrDestinations(t *testing.T) {
 		t.Fatal("linked destination was replaced")
 	}
 	root := t.TempDir()
-	if err := os.Symlink(t.TempDir(), filepath.Join(root, "gator")); err != nil {
+	if err := os.Symlink(t.TempDir(), filepath.Join(root, "hot-cross-buns")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := OpenLocalStore(root); err == nil {
@@ -163,7 +163,7 @@ func TestLocalModelRejectsUntrustedRedirectAndCleansOnlyItsAbandonedChunks(t *te
 		t.Fatalf("untrusted redirect executed: calls=%d error=%v", calls, err)
 	}
 	if _, err := os.Stat(filepath.Join(store.directory, abandoned)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("abandoned Gator chunk retained")
+		t.Fatal("abandoned Hot Cross Buns chunk retained")
 	}
 	if got, _ := os.ReadFile(filepath.Join(store.directory, unrelated)); string(got) != "keep" {
 		t.Fatal("unrelated file removed")

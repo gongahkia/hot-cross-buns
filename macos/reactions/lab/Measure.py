@@ -2,7 +2,7 @@
 """Fresh-process hosted reaction comparisons. Sends no desktop input."""
 import datetime,hashlib,json,os,pathlib,statistics,subprocess,time
 ROOT=pathlib.Path(__file__).resolve().parents[3]; E=ROOT/'macos/reactions/evidence/p04e-2'
-SAMPLER='/tmp/gator-p04e2-resource-sampler'
+SAMPLER='/tmp/hot-cross-buns-p04e2-resource-sampler'
 subprocess.run(['clang','-O2',str(ROOT/'macos/presence/acceptance-r2/sample.c'),'-o',SAMPLER],check=True)
 sources=list((ROOT/'macos/Sources').rglob('*.swift'))+list((ROOT/'macos/Tests').rglob('*.swift'))
 (E/'measured-source.json').write_text(json.dumps({str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},indent=2))
@@ -11,10 +11,10 @@ for trial in range(1,4):
  for mode in (['before','after'] if trial!=2 else ['after','before']):
   phase=E/f'resource-{mode}-phases.jsonl'
   if phase.exists():phase.unlink()
-  env=dict(os.environ,GATOR_REACTION_BENCH=mode)
+  env=dict(os.environ,HOT_CROSS_BUNS_REACTION_BENCH=mode)
   started=time.monotonic()
   with (E/f'resource-{mode}-{trial}.log').open('w') as log:
-   app=subprocess.Popen(['swift','test','--package-path','macos','--scratch-path','/tmp/gator-native-build','--skip-build','--no-parallel','--filter','messageReactionResourceTrial'],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
+   app=subprocess.Popen(['swift','test','--package-path','macos','--scratch-path','/tmp/hot-cross-buns-native-build','--skip-build','--no-parallel','--filter','messageReactionResourceTrial'],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
    while not phase.exists() and app.poll() is None and time.monotonic()-started<20:time.sleep(.05)
    if not phase.exists():raise RuntimeError('No verified component readiness')
    pid=json.loads(phase.read_text().splitlines()[0])['pid']

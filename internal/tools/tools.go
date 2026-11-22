@@ -1,8 +1,8 @@
 package tools
 
 import (
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // Default returns the minimal local tool surface for one run. Callers provide

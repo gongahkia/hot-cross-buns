@@ -3,12 +3,12 @@ import { testRender } from "@opentui/solid"
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
-import { Application } from "@gator/application-host/application"
+import { Application } from "@hot-cross-buns/application-host/application"
 import { App } from "../src/app"
-import { GatorClient } from "../src/gator/client"
+import { HotCrossBunsClient } from "../src/hot-cross-buns/client"
 
 test("real public tool activity folds before the answer, remains searchable when open, and survives restart without replay", async () => {
-  const root = await mkdtemp(join(tmpdir(), "gator-terminal-activity-")), workspace = join(root, "workspace"), config = join(root, "config/gator")
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-terminal-activity-")), workspace = join(root, "workspace"), config = join(root, "config/hot-cross-buns")
   await mkdir(workspace); await mkdir(config, { recursive: true }); await writeFile(join(workspace, "note.md"), "Decision: use sage Tide. Internal fixture body must stay out of public activity.")
   let calls = 0, release = () => {}; const gate = new Promise<void>(resolve => { release = resolve })
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
@@ -18,8 +18,8 @@ test("real public tool activity folds before the answer, remains searchable when
     return Response.json({ choices: [{ message, finish_reason: ready ? "stop" : "tool_calls" }], usage: { total_tokens: 20 } })
   } })
   await writeFile(join(config, "config.json"), JSON.stringify({ version: 4, defaults: { provider: "fixture", model: "fixture" }, custom_providers: [{ id: "fixture", base_url: `http://127.0.0.1:${server.port}/chat`, models: ["fixture"], default_model: "fixture" }] }))
-  const options = { binary: process.env.GATOR_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "gator-runtime.exe" : "gator-runtime")), userData: join(root, "app"), workspace, env: { ...process.env, GATOR_STATE_DIR: join(root, "state"), GATOR_CONFIG_DIR: join(root, "config") } }
-  let client = new GatorClient(new Application(options))
+  const options = { binary: process.env.HOT_CROSS_BUNS_TEST_BINARY || resolve(import.meta.dir, "../runtime/" + (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime")), userData: join(root, "app"), workspace, env: { ...process.env, HOT_CROSS_BUNS_STATE_DIR: join(root, "state"), HOT_CROSS_BUNS_CONFIG_DIR: join(root, "config") } }
+  let client = new HotCrossBunsClient(new Application(options))
   const render = () => testRender(() => <App client={client} quit={() => client.close()} clipboard={{ read: async () => ({ data: "", mime: "text/plain" }), write: async () => {} }} />, { width: 120, height: 42 })
   let setup = await render()
   const flush = async () => { await setup.flush(); await Bun.sleep(30); await setup.flush() }
@@ -43,7 +43,7 @@ test("real public tool activity folds before the answer, remains searchable when
     await search(); expect(setup.captureCharFrame()).toContain("Sage Tide is selected."); setup.mockInput.pressEscape(); await flush()
     await activity(); await choose("Collapse in transcript"); await search()
     expect(setup.captureCharFrame()).toContain("No items available"); setup.mockInput.pressEscape(); await flush()
-    await client.close(); await setup.dispose(); client = new GatorClient(new Application(options)); setup = await render(); await client.start(); await flush()
+    await client.close(); await setup.dispose(); client = new HotCrossBunsClient(new Application(options)); setup = await render(); await client.start(); await flush()
     expect(calls).toBe(2); expect(client.draft.text).toBe("Keep the next question"); expect(setup.captureCharFrame()).not.toContain("I will check your notes first.")
     await activity(); await choose("Inspect all public entries"); expect(setup.captureCharFrame()).toContain("I will check your notes first."); expect(setup.captureCharFrame()).toContain("read_file"); expect(calls).toBe(2)
     expect(client.state?.messages.find(message => message.activity)?.activity?.entries.map(entry => entry.kind)).toEqual(["text", "tool"])

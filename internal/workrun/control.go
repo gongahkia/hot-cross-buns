@@ -19,10 +19,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/executiontarget"
-	"github.com/gongahkia/gator/internal/privatefs"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/executiontarget"
+	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 const (
@@ -54,7 +54,7 @@ func startWorkControl(ctx context.Context, stateDir, runID string, cancel contex
 	if !validInteractionRunID(runID) {
 		return nil, nil, errors.New("invalid Work control run ID")
 	}
-	directory := filepath.Join(stateDir, "gator", "work-control")
+	directory := filepath.Join(stateDir, "hot-cross-buns", "work-control")
 	if err := privatefs.MkdirAll(directory); err != nil {
 		return nil, nil, err
 	}
@@ -523,7 +523,7 @@ func connectWorkControl(ctx context.Context, stateDir, runID string) (*http.Clie
 	if record.Status != workhistory.Running || record.LiveStatus != "active" {
 		return nil, workControlState{}, errors.New("Work run is not active")
 	}
-	root, err := workspace.Open(filepath.Join(stateDir, "gator", "work-control"))
+	root, err := workspace.Open(filepath.Join(stateDir, "hot-cross-buns", "work-control"))
 	if err != nil {
 		return nil, workControlState{}, errors.New("active Work run has no control endpoint")
 	}

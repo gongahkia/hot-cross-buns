@@ -3,12 +3,12 @@ import { createSignal } from "solid-js"
 import { testRender } from "@opentui/solid"
 import { ConfigProvider } from "../src/config"
 import { ThemeProvider } from "../src/context/theme"
-import { WorkingStatus } from "../src/gator/working-status"
+import { WorkingStatus } from "../src/hot-cross-buns/working-status"
 import { SPINNER_FRAMES } from "../src/component/spinner-frames"
 
 test("spinner advances, approval and cancellation stop it, and reduced motion stays still", async () => {
-  const previous = process.env.GATOR_REDUCED_MOTION, noColor = process.env.NO_COLOR
-  delete process.env.GATOR_REDUCED_MOTION; delete process.env.NO_COLOR
+  const previous = process.env.HOT_CROSS_BUNS_REDUCED_MOTION, noColor = process.env.NO_COLOR
+  delete process.env.HOT_CROSS_BUNS_REDUCED_MOTION; delete process.env.NO_COLOR
   const [phase, setPhase] = createSignal("working")
   const render = () => testRender(() => <ThemeProvider theme="dark"><ConfigProvider><WorkingStatus status="Working from an immutable snapshot…" elapsed="4s" attention={phase() === "approval"} cancelling={phase() === "stopping"} /></ConfigProvider></ThemeProvider>, { width: 60, height: 5 })
   let setup = await render()
@@ -20,12 +20,12 @@ test("spinner advances, approval and cancellation stop it, and reduced motion st
     setPhase("approval"); await setup.flush(); expect(setup.captureCharFrame()).toContain("Waiting for approval")
     expect(SPINNER_FRAMES.some(frame => setup.captureCharFrame().includes(frame))).toBe(false)
     setPhase("stopping"); await setup.flush(); expect(setup.captureCharFrame()).toContain("Stopping…")
-    await setup.dispose(); process.env.GATOR_REDUCED_MOTION = "1"; setPhase("working"); setup = await render(); await setup.flush()
+    await setup.dispose(); process.env.HOT_CROSS_BUNS_REDUCED_MOTION = "1"; setPhase("working"); setup = await render(); await setup.flush()
     const still = setup.captureCharFrame(); await Bun.sleep(180); await setup.flush()
     expect(setup.captureCharFrame()).toBe(still); expect(still).toContain("⋯ Thinking…")
   } finally {
     await setup.dispose()
-    if (previous === undefined) delete process.env.GATOR_REDUCED_MOTION; else process.env.GATOR_REDUCED_MOTION = previous
+    if (previous === undefined) delete process.env.HOT_CROSS_BUNS_REDUCED_MOTION; else process.env.HOT_CROSS_BUNS_REDUCED_MOTION = previous
     if (noColor === undefined) delete process.env.NO_COLOR; else process.env.NO_COLOR = noColor
   }
 })

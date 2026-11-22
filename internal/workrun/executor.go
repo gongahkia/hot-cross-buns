@@ -15,29 +15,29 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/actionlog"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/attachment"
-	"github.com/gongahkia/gator/internal/cliagent"
-	"github.com/gongahkia/gator/internal/connector"
-	"github.com/gongahkia/gator/internal/goal"
-	"github.com/gongahkia/gator/internal/knowledge"
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/memory"
-	"github.com/gongahkia/gator/internal/orchestrator"
-	"github.com/gongahkia/gator/internal/projectcapture"
-	"github.com/gongahkia/gator/internal/snapshot"
-	"github.com/gongahkia/gator/internal/state"
-	"github.com/gongahkia/gator/internal/suggestion"
-	"github.com/gongahkia/gator/internal/telemetry"
-	"github.com/gongahkia/gator/internal/tools"
-	"github.com/gongahkia/gator/internal/usage"
-	"github.com/gongahkia/gator/internal/workactivity"
-	"github.com/gongahkia/gator/internal/workhistory"
-	"github.com/gongahkia/gator/internal/worksession"
-	"github.com/gongahkia/gator/internal/workspace"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/attachment"
+	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
+	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
+	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 // Execute creates a private non-Git workspace, runs the bounded agent loop,
@@ -130,11 +130,11 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		StartedAt:   startedAt,
 		RequestedAt: request.RequestedAt,
 		Evidence: workhistory.EvidenceReferences{
-			TracePath:        filepath.Join(request.StateDir, "gator", "traces", request.RunID, "trace.json"),
-			InteractionsPath: filepath.Join(request.StateDir, "gator", "interactions", request.RunID),
-			TasksPath:        filepath.Join(request.StateDir, "gator", "tasks", request.RunID),
-			CandidatesPath:   filepath.Join(request.StateDir, "gator", "candidates", request.RunID),
-			DeliveriesPath:   filepath.Join(request.StateDir, "gator", "delivery", request.RunID),
+			TracePath:        filepath.Join(request.StateDir, "hot-cross-buns", "traces", request.RunID, "trace.json"),
+			InteractionsPath: filepath.Join(request.StateDir, "hot-cross-buns", "interactions", request.RunID),
+			TasksPath:        filepath.Join(request.StateDir, "hot-cross-buns", "tasks", request.RunID),
+			CandidatesPath:   filepath.Join(request.StateDir, "hot-cross-buns", "candidates", request.RunID),
+			DeliveriesPath:   filepath.Join(request.StateDir, "hot-cross-buns", "delivery", request.RunID),
 		},
 	}); err != nil {
 		return Outcome{}, fmt.Errorf("start Work history: %w", err)
@@ -155,7 +155,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 				scope = &learning.Scope{Kind: learning.Project, Value: value}
 			}
 		}
-		evidence := []string{filepath.ToSlash(filepath.Join("gator", "work-history", request.RunID+".json"))}
+		evidence := []string{filepath.ToSlash(filepath.Join("hot-cross-buns", "work-history", request.RunID+".json"))}
 		if finalErr != nil || finalOutcome.Manifest.Status == artifact.Failed {
 			signal := learning.WorkFailed
 			summary := "Work execution failed before a completed, verified result."
@@ -199,7 +199,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	}()
 	trace := telemetry.New(request.RunID, startedAt)
 	defer func() {
-		if err := trace.Finish(filepath.Join(request.StateDir, "gator", "traces", request.RunID), request.OTLPEndpoint); err != nil {
+		if err := trace.Finish(filepath.Join(request.StateDir, "hot-cross-buns", "traces", request.RunID), request.OTLPEndpoint); err != nil {
 			finalErr = errors.Join(finalErr, fmt.Errorf("retain local telemetry: %w", err))
 		}
 	}()
@@ -659,6 +659,11 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	surface = append(surface, applicationTools(e.App, request)...)
 	planSurface := surface
 	surface = filterTaskPlanTools(request, surface)
+	if request.ForegroundApp {
+		for i, tool := range surface {
+			surface[i] = withActivityIcon(tool)
+		}
+	}
 	runner := agent.Runner{Model: e.Model, Tools: surface, Now: now}
 	var malformedCallFallback []string
 	if !request.codeEnabled() && !request.externalEditsEnabled() {
@@ -783,7 +788,14 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	}
 	originalBeforeTool := beforeTool
 	beforeTool = func(ctx context.Context, call agent.ToolCall) error {
-		if len(accessNeeds.snapshot()) > 0 && call.Name != "gator_request_access" && call.Name != "gator_app_inspect" {
+		if request.ForegroundApp {
+			arguments, err := activityArguments(call.Arguments)
+			if err != nil {
+				return err
+			}
+			call.Arguments = arguments
+		}
+		if len(accessNeeds.snapshot()) > 0 && call.Name != "hot_cross_buns_request_access" && call.Name != "hot_cross_buns_app_inspect" {
 			return errTaskAccess
 		}
 		if originalBeforeTool != nil {
@@ -845,7 +857,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 				break
 			}
 			if _, err := pending.mutation.Apply(ctx); err != nil {
-				runErr = fmt.Errorf("apply Gator setting after reply: %w", err)
+				runErr = fmt.Errorf("apply Hot Cross Buns setting after reply: %w", err)
 				break
 			}
 			if request.OnAppChange != nil {

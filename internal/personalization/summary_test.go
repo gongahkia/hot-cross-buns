@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/learning"
-	"github.com/gongahkia/gator/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/learning"
+	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
 
 func TestSummaryUsesOwningStoresAndSeparatesUnconfirmedAndProjectContext(t *testing.T) {
@@ -86,7 +86,7 @@ func TestSummaryPreservesHealthyFactsWithVisibleDiagnosticAndBounds(t *testing.T
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gator", "memory", "broken.json"), []byte("{"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "hot-cross-buns", "memory", "broken.json"), []byte("{"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := Read(dir)

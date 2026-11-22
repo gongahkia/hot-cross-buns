@@ -15,15 +15,15 @@ func QuickAcknowledgement(request ConversationRequest) (ConversationDecision, bo
 	text = strings.TrimRight(text, "!.")
 	var kind string
 	switch text {
-	case "thanks", "thank you", "thanks gator", "thank you gator", "appreciate it", "thanks, that was helpful", "thanks gator, that was helpful", "thank you, that was helpful":
+	case "thanks", "thank you", "thanks hot cross buns", "thank you hot cross buns", "appreciate it", "thanks, that was helpful", "thanks hot cross buns, that was helpful", "thank you, that was helpful":
 		kind = "appreciation"
 	case "haha", "hahaha", "hahahaha", "lol", "haha that's hilarious", "haha, that's hilarious":
 		kind = "laughter"
 	case "nice, that's great", "that's great", "that was helpful", "great answer":
 		kind = "praise"
-	case "see you", "goodbye", "bye", "bye gator":
+	case "see you", "goodbye", "bye", "bye hot cross buns":
 		kind = "farewell"
-	case "hi", "hello", "hello gator", "hey gator":
+	case "hi", "hello", "hello hot cross buns", "hey hot cross buns":
 		kind = "greeting"
 	default:
 		return ConversationDecision{}, false

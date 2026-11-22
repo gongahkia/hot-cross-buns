@@ -4,7 +4,7 @@
   "swift": "6.1.2",
   "cpu": "Intel Core i5-8279U 2.40 GHz",
   "memoryGiB": 8,
-  "scratch": "/tmp/gator-native-build",
+  "scratch": "/tmp/hot-cross-buns-native-build",
   "benchmarkSamples": 7,
   "hostLoadObserved": [
     45.55,

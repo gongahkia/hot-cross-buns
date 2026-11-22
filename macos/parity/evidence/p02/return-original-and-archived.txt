@@ -1,6 +1,6 @@
-press gator.recent-conversations -> press gator.recent-conversations: 0
-press gator.recent.work-20261118T025143-47b2d59165f97589 -> press gator.recent.work-20261118T025143-47b2d59165f97589: 0
-inspect gator.composer.text -> focused=Optional(1) enabled=nil position=(349.0, 721.0) size=(772.0, 76.0) value=Unsent main draft across global search
+press hot-cross-buns.recent-conversations -> press hot-cross-buns.recent-conversations: 0
+press hot-cross-buns.recent.work-20261118T025143-47b2d59165f97589 -> press hot-cross-buns.recent.work-20261118T025143-47b2d59165f97589: 0
+inspect hot-cross-buns.composer.text -> focused=Optional(1) enabled=nil position=(349.0, 721.0) size=(772.0, 76.0) value=Unsent main draft across global search
 Jump to Latest at (667.5, 623.0) size (135.5, 24.0)
 Retained note 0309-11 at (373.0, -287.1226501464844) size (163.0, 19.122650146484375)
 Retained note 0309-12 at (373.0, -27.122634887695312) size (165.0, 19.122634887695312)
@@ -14,7 +14,7 @@ set Search all retained conversations Retained topic 0007 -> 0
 press AXRadioButton::Archived -> press AXRadioButton::Archived: 0
 resize-catalog 800 680 -> 0
 frames -> window All Conversations (335.0, 155.0) (800.0, 680.0)
-window Gator – Retained topic 0309 (325.0, 125.0) (820.0, 740.0)
+window Hot Cross Buns – Retained topic 0309 (325.0, 125.0) (820.0, 740.0)
 28547 {
     Height = 680;
     Width = 800;

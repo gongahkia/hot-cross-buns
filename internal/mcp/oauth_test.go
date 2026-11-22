@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gongahkia/gator/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
 )
 
 func TestOAuthLoginDiscoversRegistersAndBindsCredentialToResource(t *testing.T) {
@@ -53,9 +53,9 @@ func TestOAuthLoginDiscoversRegistersAndBindsCredentialToResource(t *testing.T) 
 			}
 			mutex.Lock()
 			registration.RedirectURI = payload.RedirectURIs[0]
-			registration.ClientID = "registered-gator"
+			registration.ClientID = "registered-hot-cross-buns"
 			mutex.Unlock()
-			_ = json.NewEncoder(writer).Encode(map[string]string{"client_id": "registered-gator"})
+			_ = json.NewEncoder(writer).Encode(map[string]string{"client_id": "registered-hot-cross-buns"})
 		case "/token":
 			if err := request.ParseForm(); err != nil {
 				t.Fatal(err)
@@ -63,7 +63,7 @@ func TestOAuthLoginDiscoversRegistersAndBindsCredentialToResource(t *testing.T) 
 			mutex.Lock()
 			tokenRequest = request.Form
 			mutex.Unlock()
-			if request.Form.Get("grant_type") != "authorization_code" || request.Form.Get("client_id") != "registered-gator" || request.Form.Get("resource") != serverURL+"/mcp" || request.Form.Get("code_verifier") == "" {
+			if request.Form.Get("grant_type") != "authorization_code" || request.Form.Get("client_id") != "registered-hot-cross-buns" || request.Form.Get("resource") != serverURL+"/mcp" || request.Form.Get("code_verifier") == "" {
 				t.Fatalf("token form = %#v", request.Form)
 			}
 			_ = json.NewEncoder(writer).Encode(map[string]any{"access_token": "mcp-access", "refresh_token": "mcp-refresh", "token_type": "Bearer", "expires_in": 3600})
@@ -91,7 +91,7 @@ func TestOAuthLoginDiscoversRegistersAndBindsCredentialToResource(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if authorizationURL.Query().Get("client_id") != "registered-gator" || authorizationURL.Query().Get("resource") != server.URL+"/mcp" || authorizationURL.Query().Get("scope") != "issues:read" || authorizationURL.Query().Get("code_challenge_method") != "S256" {
+	if authorizationURL.Query().Get("client_id") != "registered-hot-cross-buns" || authorizationURL.Query().Get("resource") != server.URL+"/mcp" || authorizationURL.Query().Get("scope") != "issues:read" || authorizationURL.Query().Get("code_challenge_method") != "S256" {
 		t.Fatalf("authorization URL = %s", authorizationURL)
 	}
 	mutex.Lock()
@@ -127,7 +127,7 @@ func TestOAuthLoginDiscoversRegistersAndBindsCredentialToResource(t *testing.T) 
 		t.Fatal(err)
 	}
 	credential, found, err := credentials.Read(key)
-	if err != nil || !found || credential.Access != "mcp-access" || credential.Extra[extraResource] != server.URL+"/mcp" || credential.Extra[extraClientID] != "registered-gator" {
+	if err != nil || !found || credential.Access != "mcp-access" || credential.Extra[extraResource] != server.URL+"/mcp" || credential.Extra[extraClientID] != "registered-hot-cross-buns" {
 		t.Fatalf("stored MCP credential = %#v, found=%t err=%v", credential, found, err)
 	}
 	mutex.Lock()
@@ -347,11 +347,11 @@ func TestLoadWithCredentialsSendsOAuthTokenOnlyToMatchingServer(t *testing.T) {
 func oauthRepository(t *testing.T, endpoint string) string {
 	t.Helper()
 	repository := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repository, ".gator"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repository, ".hot-cross-buns"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	manifest := `{"version":1,"servers":[{"name":"remote","transport":"streamable_http","url":` + quote(endpoint) + `}]}`
-	if err := os.WriteFile(filepath.Join(repository, ".gator", "mcp.json"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(repository, ".hot-cross-buns", "mcp.json"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return repository

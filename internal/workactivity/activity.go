@@ -1,6 +1,7 @@
 // Package workactivity projects public runner events into bounded display data.
 // It retains narration and finite outcomes, never tool arguments, command
-// output, provider payloads or private reasoning.
+// output, provider payloads or private reasoning. Only the allowlisted
+// display_icon presentation field is copied from tool arguments.
 package workactivity
 
 import (
@@ -10,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 const maxEntries = 160
@@ -21,6 +22,7 @@ type Entry struct {
 	Kind       string     `json:"kind"`
 	Text       string     `json:"text,omitempty"`
 	Tool       string     `json:"tool,omitempty"`
+	Icon       string     `json:"icon,omitempty"`
 	State      string     `json:"state"`
 	StartedAt  time.Time  `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
@@ -109,7 +111,7 @@ func (t *Trace) Record(event agent.Event) {
 		key := fmt.Sprintf("%d/%s", event.Step, event.ToolCall.ID)
 		index, found := t.tools[key]
 		if !found {
-			index = t.append(Entry{Kind: "tool", Tool: boundedName(event.ToolCall.Name), State: "running", StartedAt: at})
+			index = t.append(Entry{Kind: "tool", Tool: boundedName(event.ToolCall.Name), Icon: displayIcon(event.ToolCall.Arguments), State: "running", StartedAt: at})
 			if index < 0 {
 				return
 			}

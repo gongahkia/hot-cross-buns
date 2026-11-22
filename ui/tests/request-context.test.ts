@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { requestContext } from "../src/gator/request-context"
+import { requestContext } from "../src/hot-cross-buns/request-context"
 import { state } from "./fixture"
 
 test("request scope keeps selected account identities even when their display metadata is unavailable", () => {

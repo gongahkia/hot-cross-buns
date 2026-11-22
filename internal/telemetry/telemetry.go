@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 type Span struct {
@@ -126,7 +126,7 @@ func ExportOTLP(ctx context.Context, client *http.Client, endpoint string, trace
 	for _, span := range trace.Spans {
 		spans = append(spans, map[string]any{"traceId": trace.ID, "spanId": span.ID, "parentSpanId": span.Parent, "name": span.Name, "kind": 1, "startTimeUnixNano": strconv.FormatInt(span.Start.UnixNano(), 10), "endTimeUnixNano": strconv.FormatInt(span.End.UnixNano(), 10)})
 	}
-	payload := map[string]any{"resourceSpans": []any{map[string]any{"resource": map[string]any{"attributes": []any{map[string]any{"key": "service.name", "value": map[string]string{"stringValue": "gator"}}}}, "scopeSpans": []any{map[string]any{"scope": map[string]string{"name": "gator.work", "version": "1"}, "spans": spans}}}}}
+	payload := map[string]any{"resourceSpans": []any{map[string]any{"resource": map[string]any{"attributes": []any{map[string]any{"key": "service.name", "value": map[string]string{"stringValue": "hot-cross-buns"}}}}, "scopeSpans": []any{map[string]any{"scope": map[string]string{"name": "hot-cross-buns.work", "version": "1"}, "spans": spans}}}}}
 	return Post(ctx, client, endpoint, "", payload, nil)
 }
 func Post(ctx context.Context, client *http.Client, endpoint, key string, value, result any) error {

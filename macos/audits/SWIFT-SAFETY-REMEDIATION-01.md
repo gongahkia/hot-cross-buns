@@ -19,7 +19,7 @@ The three original failures were reproduced against the unchanged implementation
 | E02 / P1 | Quit flushed a captured save task, awaited transport cleanup, accepted another edit during that await, then returned success without checking the newer failed save. Pre-change probe: `canEditDuringShutdown=true`, `saved=false`, `quitReportedSuccess=true`, with new input still only in memory. | Every existing owner closes admission synchronously before coordinator suspension. Already accepted edits join the save chain. Final transport events are consumed and persisted before success. Paused/failed writes, failed final-disconnect persistence, attachments, multiple owners, repair/retry and repeated shutdown have regression coverage. |
 | E03 / P1 | EOF and reader-task completion depended on every inherited descriptor closing. Direct-child exit had no independent observer, and shutdown awaited blocking readers. A controlled eight-second descendant produced **8.027881375 seconds** shutdown time after the direct owner exited. | Foundation termination notification initiates bounded output draining. Nonblocking descriptors and cancellation-aware finite polls permit reader completion without descendant EOF. Tests assert direct PID reaping, completed reader/input cleanup, bounded diagnostics and still-live descendants. |
 
-Recompiling and rerunning the same three scratch probes after the corrections produced `successful=16 retained=16`, `canEditDuringShutdown=false` with `text=saved before quit`, and descendant shutdown of **0.360023792 seconds** (`/tmp/gator-safety-after.log`). The late request is rejected; the previously accepted text remains the durable input. This probe externally moves the archive directory to induce a storage failure, so the dedicated closing tests also check the stored contents directly without moving the directory. In the final fixture suite, stdout/stderr/both inherited-descriptor shutdown took 0.303489 / 0.309195708 / 0.3578625 seconds respectively.
+Recompiling and rerunning the same three scratch probes after the corrections produced `successful=16 retained=16`, `canEditDuringShutdown=false` with `text=saved before quit`, and descendant shutdown of **0.360023792 seconds** (`/tmp/hot-cross-buns-safety-after.log`). The late request is rejected; the previously accepted text remains the durable input. This probe externally moves the archive directory to induce a storage failure, so the dedicated closing tests also check the stored contents directly without moving the directory. In the final fixture suite, stdout/stderr/both inherited-descriptor shutdown took 0.303489 / 0.309195708 / 0.3578625 seconds respectively.
 
 The pre-change harness was compiled from the then-unchanged Core sources and the audit's scratch probe, not from a reconstructed historical checkout. The current test fixtures are checked into the worktree for repeatable regression verification.
 
@@ -69,17 +69,17 @@ The bounds above assume ordinary OS scheduling/system-call progress; they are no
 
 | File | Purpose |
 | --- | --- |
-| `macos/Sources/GatorCore/NativeDraftStore.swift` | Cross-writer locking, context comparison/merge, batched ownership writes, bounded reads, durable publication and internal fault stages. |
-| `macos/Sources/GatorCore/GatorApplicationState.swift` | Successful-save baselines, stable flush, closing admission barrier, final event/persistence handling, exit confirmation and usable abort/retry. |
-| `macos/Sources/GatorCore/ManagedSessionCoordinator.swift` | All-owner closing boundary, preflight before stopping owners, failed-close restoration and idempotent completed shutdown. |
-| `macos/Sources/GatorCore/GoBridgeConnection.swift` | Direct-exit notification, bounded reader cleanup, owned task/deadline cleanup, serialized cancelable writer and confirmed shutdown result. |
-| `macos/Sources/GatorCore/BridgePipeIO.swift` (new) | Small nonblocking pipe adapter and lock-protected cancellation bit. |
-| `macos/Sources/GatorMac/AppDelegate.swift` | Present coordinator shutdown error when persistence itself has no error. |
-| `macos/Tests/GatorCoreTests/NativeArchiveSafetyTests.swift` (new) | Nine archive tests with parameterized migration/interruption/corruption cases and 16 independent writers. |
-| `macos/Tests/GatorCoreTests/NativeClosingSafetyTests.swift` (new) | Seven deterministic closing/flush/import/failure/confirmation tests, including repeated completed shutdown. |
-| `macos/Tests/GatorCoreTests/BridgeShutdownSafetyTests.swift` (new) | Seven subprocess tests, including inherited descriptors, external exit, partial frame, concurrent callers and independent owners. |
-| `macos/Tests/GatorCoreTests/Fixtures/native-archive-writer.swift` (new) | Independent executable writer with filesystem gates and interruption stages. |
-| `macos/Tests/GatorCoreTests/Fixtures/pipe-lifecycle.py` (new) | Controlled direct owner/descendants, streaming and partial-frame exits. |
+| `macos/Sources/HotCrossBunsCore/NativeDraftStore.swift` | Cross-writer locking, context comparison/merge, batched ownership writes, bounded reads, durable publication and internal fault stages. |
+| `macos/Sources/HotCrossBunsCore/HotCrossBunsApplicationState.swift` | Successful-save baselines, stable flush, closing admission barrier, final event/persistence handling, exit confirmation and usable abort/retry. |
+| `macos/Sources/HotCrossBunsCore/ManagedSessionCoordinator.swift` | All-owner closing boundary, preflight before stopping owners, failed-close restoration and idempotent completed shutdown. |
+| `macos/Sources/HotCrossBunsCore/GoBridgeConnection.swift` | Direct-exit notification, bounded reader cleanup, owned task/deadline cleanup, serialized cancelable writer and confirmed shutdown result. |
+| `macos/Sources/HotCrossBunsCore/BridgePipeIO.swift` (new) | Small nonblocking pipe adapter and lock-protected cancellation bit. |
+| `macos/Sources/HotCrossBunsMac/AppDelegate.swift` | Present coordinator shutdown error when persistence itself has no error. |
+| `macos/Tests/HotCrossBunsCoreTests/NativeArchiveSafetyTests.swift` (new) | Nine archive tests with parameterized migration/interruption/corruption cases and 16 independent writers. |
+| `macos/Tests/HotCrossBunsCoreTests/NativeClosingSafetyTests.swift` (new) | Seven deterministic closing/flush/import/failure/confirmation tests, including repeated completed shutdown. |
+| `macos/Tests/HotCrossBunsCoreTests/BridgeShutdownSafetyTests.swift` (new) | Seven subprocess tests, including inherited descriptors, external exit, partial frame, concurrent callers and independent owners. |
+| `macos/Tests/HotCrossBunsCoreTests/Fixtures/native-archive-writer.swift` (new) | Independent executable writer with filesystem gates and interruption stages. |
+| `macos/Tests/HotCrossBunsCoreTests/Fixtures/pipe-lifecycle.py` (new) | Controlled direct owner/descendants, streaming and partial-frame exits. |
 | `macos/audits/SWIFT-SAFETY-REMEDIATION-01.md` (new) | This report. |
 
 ## 6. Swift concurrency implications
@@ -92,57 +92,57 @@ Test gates pause disk/upload/transport owners instead of relying on arbitrary sl
 
 ## 7. Verification commands and results
 
-All routine verification was headless. Exact final results are recorded below; logs are local `/tmp/gator-safety-*.log` artifacts, not modifications to earlier audit evidence.
+All routine verification was headless. Exact final results are recorded below; logs are local `/tmp/hot-cross-buns-safety-*.log` artifacts, not modifications to earlier audit evidence.
 
 ### Before reproductions
 
 ```sh
-swiftc -swift-version 6 -parse-as-library macos/Sources/GatorCore/*.swift /tmp/gator-swift-audit-probes.swift -o /tmp/gator-safety-before-probes
-python3 /tmp/gator-safety-before.py > /tmp/gator-safety-before.log 2>&1
+swiftc -swift-version 6 -parse-as-library macos/Sources/HotCrossBunsCore/*.swift /tmp/hot-cross-buns-swift-audit-probes.swift -o /tmp/hot-cross-buns-safety-before-probes
+python3 /tmp/hot-cross-buns-safety-before.py > /tmp/hot-cross-buns-safety-before.log 2>&1
 ```
 
-After production edits, the same harness/controller was rebuilt with the executable name changed to `gator-safety-after-probes`:
+After production edits, the same harness/controller was rebuilt with the executable name changed to `hot-cross-buns-safety-after-probes`:
 
 ```sh
-swiftc -swift-version 6 -parse-as-library macos/Sources/GatorCore/*.swift /tmp/gator-swift-audit-probes.swift -o /tmp/gator-safety-after-probes
-python3 /tmp/gator-safety-after.py > /tmp/gator-safety-after.log 2>&1
+swiftc -swift-version 6 -parse-as-library macos/Sources/HotCrossBunsCore/*.swift /tmp/hot-cross-buns-swift-audit-probes.swift -o /tmp/hot-cross-buns-safety-after-probes
+python3 /tmp/hot-cross-buns-safety-after.py > /tmp/hot-cross-buns-safety-after.log 2>&1
 ```
 
 All three original probes exited zero and exposed the failures in section 1. A zero probe exit was not treated as success; reported retained contents, persistence outcome and elapsed time were inspected.
 
 ### Targeted implementation verification
 
-- Existing targeted transport/admission/persistence tests: six passed (`/tmp/gator-safety-targeted.log`), including blocked stdin escalation in 5.820 seconds and externally killed direct owner in 0.189 seconds.
-- Nine archive tests passed (`/tmp/gator-safety-archive.log`), including sixteen gated independent processes and exact final values.
-- Thirteen lifecycle/fault tests passed (`/tmp/gator-safety-lifecycle.log`).
+- Existing targeted transport/admission/persistence tests: six passed (`/tmp/hot-cross-buns-safety-targeted.log`), including blocked stdin escalation in 5.820 seconds and externally killed direct owner in 0.189 seconds.
+- Nine archive tests passed (`/tmp/hot-cross-buns-safety-archive.log`), including sixteen gated independent processes and exact final values.
+- Thirteen lifecycle/fault tests passed (`/tmp/hot-cross-buns-safety-lifecycle.log`).
 - A later 28-test regression run found a new test's mismatched error wording. The test now checks the actual specific shutdown-confirmation message; no production behavior/assertion was weakened.
-- The first complete suite found a real compatibility regression: a second call after successful coordinator shutdown returned false. The existing real-Go retained-plan test reproduced it independently. Idempotent completed shutdown was restored; the unchanged existing test plus two closing tests passed (`/tmp/gator-safety-idempotent.log`, 3 tests).
-- The next complete run passed 155 tests in 48.757 seconds (`/tmp/gator-safety-full.log`). An additional independent-owner concurrency test and a real permission-denied write assertion were then added and passed under strict compilation (`/tmp/gator-safety-strict-tests.log`, 2 tests).
+- The first complete suite found a real compatibility regression: a second call after successful coordinator shutdown returned false. The existing real-Go retained-plan test reproduced it independently. Idempotent completed shutdown was restored; the unchanged existing test plus two closing tests passed (`/tmp/hot-cross-buns-safety-idempotent.log`, 3 tests).
+- The next complete run passed 155 tests in 48.757 seconds (`/tmp/hot-cross-buns-safety-full.log`). An additional independent-owner concurrency test and a real permission-denied write assertion were then added and passed under strict compilation (`/tmp/hot-cross-buns-safety-strict-tests.log`, 2 tests).
 
 Commands used for targeted runs:
 
 ```sh
-GATOR_TEST_BINARY=/tmp/gator-safety-runtime swift test --package-path macos --scratch-path /tmp/gator-safety-build --no-parallel --filter 'safety|shutdownEscalates|shutdownOfExternallyKilledOwner|independentUncertainAdmissions|attachmentDraftsShareSurfaces|firstWorkspaceAttachment|planUncertaintyPersists'
-GATOR_TEST_BINARY=/tmp/gator-safety-runtime swift test --package-path macos --scratch-path /tmp/gator-safety-build --no-parallel --filter 'realGoRestoredApprovedPlanDoesNotAutoStartAndExplicitStartExecutesOnce|safetyLateEdit|safetyAllOwners'
-GATOR_TEST_BINARY=/tmp/gator-safety-runtime swift test --package-path macos --scratch-path /tmp/gator-safety-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter 'safetyIndependentOwners|safetyFailedEncoding'
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-safety-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-safety-build --no-parallel --filter 'safety|shutdownEscalates|shutdownOfExternallyKilledOwner|independentUncertainAdmissions|attachmentDraftsShareSurfaces|firstWorkspaceAttachment|planUncertaintyPersists'
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-safety-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-safety-build --no-parallel --filter 'realGoRestoredApprovedPlanDoesNotAutoStartAndExplicitStartExecutesOnce|safetyLateEdit|safetyAllOwners'
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-safety-runtime swift test --package-path macos --scratch-path /tmp/hot-cross-buns-safety-build --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter 'safetyIndependentOwners|safetyFailedEncoding'
 ```
 
 ### Final full suite and strict compiler
 
 ```sh
-go build -o /tmp/gator-safety-runtime ./cmd/gator
-GATOR_TEST_BINARY=/tmp/gator-safety-runtime swift test --package-path macos \
-  --scratch-path /tmp/gator-native-build --no-parallel
-swift build --package-path macos --scratch-path /tmp/gator-safety-build \
+go build -o /tmp/hot-cross-buns-safety-runtime ./cmd/hot-cross-buns
+HOT_CROSS_BUNS_TEST_BINARY=/tmp/hot-cross-buns-safety-runtime swift test --package-path macos \
+  --scratch-path /tmp/hot-cross-buns-native-build --no-parallel
+swift build --package-path macos --scratch-path /tmp/hot-cross-buns-safety-build \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 ```
 
-The final complete Swift suite passed **156 tests in 50.241 seconds**, zero failures, including 23 new safety tests and the existing real-Go security/ownership tests (`/tmp/gator-safety-final-suite.log`). The Go runtime build and strict production build passed with no compiler warnings/errors. The strict targeted test invocation above also compiled both test targets with complete strict concurrency and warnings-as-errors.
+The final complete Swift suite passed **156 tests in 50.241 seconds**, zero failures, including 23 new safety tests and the existing real-Go security/ownership tests (`/tmp/hot-cross-buns-safety-final-suite.log`). The Go runtime build and strict production build passed with no compiler warnings/errors. The strict targeted test invocation above also compiled both test targets with complete strict concurrency and warnings-as-errors.
 
 ### Unchanged contract checks
 
 ```sh
-go test ./cmd/gator ./internal/workapp ./internal/attachment ./internal/worksession -run 'Test(UIBridge|BridgeUploads|DesktopApprovalCannot|ExecutionOwnerIsExclusive|DialogueAdmission|.*TaskPlan.*Reject|.*RequestRecovery.*|.*Upload.*)' -count=1
+go test ./cmd/hot-cross-buns ./internal/workapp ./internal/attachment ./internal/worksession -run 'Test(UIBridge|BridgeUploads|DesktopApprovalCannot|ExecutionOwnerIsExclusive|DialogueAdmission|.*TaskPlan.*Reject|.*RequestRecovery.*|.*Upload.*)' -count=1
 /Users/gongahkia/.local/share/fnm/node-versions/v26.7.0/installation/bin/node --test app-host/tests/backend.test.mjs app-host/tests/sessions.test.mjs app-host/tests/drafts.test.mjs app-host/tests/uploads.test.mjs app-host/tests/policy.test.mjs
 git diff --check
 ```
@@ -169,12 +169,12 @@ Unverified/operator-only: actual UI Quit confirmation/error presentation, IME co
 After all checks passed, the existing development bundling script ran successfully:
 
 ```sh
-GATOR_NATIVE_BUILD_DIR=/tmp/gator-native-build \
-GATOR_NATIVE_APP_PATH=/tmp/Gator-Native-Safety-Verified.app \
+HOT_CROSS_BUNS_NATIVE_BUILD_DIR=/tmp/hot-cross-buns-native-build \
+HOT_CROSS_BUNS_NATIVE_APP_PATH=/tmp/HotCrossBuns-Native-Safety-Verified.app \
 bash macos/scripts/build-dev-app.sh
 ```
 
-Candidate: `/tmp/Gator-Native-Safety-Verified.app`. Bundle plist validation passed; identifier `dev.gator.native`, minimum macOS `15.0`. Both executables and all three icon/image resources are present and nonempty. Packaged Swift executable bytes match the verified `/tmp/gator-native-build/arm64-apple-macosx/debug/GatorMac` build. The script built the bundled Go runtime from the unchanged current worktree. No signing, notarization, distribution or GUI launch was performed. Packaging log: `/tmp/gator-safety-package.log`.
+Candidate: `/tmp/HotCrossBuns-Native-Safety-Verified.app`. Bundle plist validation passed; identifier `dev.hot-cross-buns.native`, minimum macOS `15.0`. Both executables and all three icon/image resources are present and nonempty. Packaged Swift executable bytes match the verified `/tmp/hot-cross-buns-native-build/arm64-apple-macosx/debug/HotCrossBunsMac` build. The script built the bundled Go runtime from the unchanged current worktree. No signing, notarization, distribution or GUI launch was performed. Packaging log: `/tmp/hot-cross-buns-safety-package.log`.
 
 Final complete suite: **156 passed / 0 failed**, in **50.241 seconds**. Strict Swift 6 production and test compilation passed; targeted Go packages and **63 host tests** passed. The existing blocked-stdin test still passed at **5.521 seconds**, without raising its timeout. Independent-owner concurrent shutdown passed in **1.725 seconds** including its fixture setup/cleanup. `git diff --check` passed and HEAD remained unchanged. Existing tests were not removed or weakened.
 

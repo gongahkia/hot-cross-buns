@@ -1,18 +1,18 @@
 import SwiftUI
 import AppKit
-import GatorCore
+import HotCrossBunsCore
 
-@MainActor private var gatorAccent: Color { GatorTheme.accent }
+@MainActor private var hotCrossBunsAccent: Color { HotCrossBunsTheme.accent }
 
 struct ConversationView: View {
     @Environment(ManagedSessionCoordinator.self) private var sessions
     @Environment(NativeReadingPositions.self) private var readingPositions
-    private var application: GatorApplicationState { sessions.current }
+    private var application: HotCrossBunsApplicationState { sessions.current }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openWindow) private var openWindow
     let compact: Bool
     let quit: () -> Void
-    @AppStorage("gator.notch.enabled") private var notchEnabled = true
+    @AppStorage("hot-cross-buns.notch.enabled") private var notchEnabled = true
     @State private var contentSize = CGSize(width: 540, height: 480)
     @State private var sessionsExpanded = false
     @State private var connectionDetails = false
@@ -52,7 +52,7 @@ struct ConversationView: View {
             } else {
                 if application.transcript.isEmpty {
                     VStack(spacing: 12) {
-                        Image(systemName: "bubble.left.and.bubble.right").font(.system(size: 30, weight: .light)).foregroundStyle(gatorAccent).accessibilityHidden(true)
+                        Image(systemName: "bubble.left.and.bubble.right").font(.system(size: 30, weight: .light)).foregroundStyle(hotCrossBunsAccent).accessibilityHidden(true)
                         Text("What can I help with?").font(compact ? .title3.weight(.medium) : .title2.weight(.medium))
                         Text("Ask a question, make a plan, or pick up where you left off.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 330)
                     }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -90,13 +90,13 @@ struct ConversationView: View {
             }
         }
         .navigationSubtitle(compact ? "" : application.title)
-        .tint(gatorAccent)
+        .tint(hotCrossBunsAccent)
         .transaction { if reduceMotion { $0.animation = nil; $0.disablesAnimations = true } }
         .environment(\.openURL, OpenURLAction { url in
             guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.user == nil, url.password == nil else { return .discarded }
             NSWorkspace.shared.open(url); return .handled
         })
-        .accessibilityIdentifier(compact ? "gator.compact" : "gator.window")
+        .accessibilityIdentifier(compact ? "hot-cross-buns.compact" : "hot-cross-buns.window")
     }
 
     private func openFind() { find.open(scope: searchScope, messages: application.transcript) }
@@ -105,7 +105,7 @@ struct ConversationView: View {
     private var header: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Gator").font(.headline)
+                Text("Hot Cross Buns").font(.headline)
                 Text(application.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
@@ -133,7 +133,7 @@ struct ConversationView: View {
         conversationMenu
         if compact {
             Button { openWindow(id: "conversation"); NSApp.activate(ignoringOtherApps: true) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                .buttonStyle(.borderless).help("Expand this conversation").accessibilityLabel("Open full Gator window").focusable()
+                .buttonStyle(.borderless).help("Expand this conversation").accessibilityLabel("Open full Hot Cross Buns window").focusable()
         }
     }
     private var modelMenu: some View {
@@ -182,7 +182,7 @@ struct ConversationView: View {
             Button("Connection & Model Details") { connectionDetails = true }
             Divider()
             Button("Reconnect and Inspect") { Task { await sessions.reconnect() } }.disabled(application.connectionStatus != .disconnected)
-            Button("Quit Gator", role: .destructive, action: quit).keyboardShortcut("q")
+            Button("Quit Hot Cross Buns", role: .destructive, action: quit).keyboardShortcut("q")
         } label: { Image(systemName: "ellipsis.circle") }
         .menuStyle(.borderlessButton).fixedSize().help("Conversation controls").accessibilityLabel("More").focusable()
     }
@@ -207,12 +207,12 @@ struct ConversationView: View {
                                 }
                                 Spacer(minLength: 0)
                             }.padding(6).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(item.id == application.conversationID ? gatorAccent.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                                .background(item.id == application.conversationID ? hotCrossBunsAccent.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 6))
                         }.buttonStyle(.plain).disabled(sessions.switching)
                             .accessibilityLabel("Open chat: " + item.title + " · " + item.status)
-                            .accessibilityIdentifier("gator.chat." + item.id)
+                            .accessibilityIdentifier("hot-cross-buns.chat." + item.id)
                         Button { sessions.inspectTask(item.id) } label: { Image(systemName: "info.circle").frame(width: 24, height: 28) }
-                            .accessibilityLabel("Inspect task: " + item.title).accessibilityIdentifier("gator.inspect." + item.id).disabled(sessions.switching || sessions.owners[item.id] == nil)
+                            .accessibilityLabel("Inspect task: " + item.title).accessibilityIdentifier("hot-cross-buns.inspect." + item.id).disabled(sessions.switching || sessions.owners[item.id] == nil)
                         }
                     }
                 }
@@ -226,9 +226,9 @@ struct ConversationView: View {
     @ViewBuilder private var notices: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
-                Circle().fill(application.isConnected ? gatorAccent : .secondary).frame(width: 6, height: 6)
+                Circle().fill(application.isConnected ? hotCrossBunsAccent : .secondary).frame(width: 6, height: 6)
                 Text(application.isConnected ? "Connected" : application.connectionStatus.rawValue.capitalized)
-                    .help("Connection to Gator. This does not establish model-provider connectivity.")
+                    .help("Connection to Hot Cross Buns. This does not establish model-provider connectivity.")
                 Spacer(minLength: 8)
                 modelMenu
             }.font(.caption).foregroundStyle(.secondary)
@@ -272,16 +272,16 @@ struct ConversationView: View {
             }
             if application.connectionStatus == .disconnected { Button("Reconnect and Inspect") { Task { await sessions.reconnect() } } }
             if application.snapshot?.running == true && application.review == nil {
-                Text(application.snapshot?.value["dialogue_active"].bool == true ? "Work continues independently. You can keep talking here; Gator decides how to route your message." : "Preparing conversation during work… Your draft is kept.").font(.caption).foregroundStyle(.secondary)
+                Text(application.snapshot?.value["dialogue_active"].bool == true ? "Work continues independently. You can keep talking here; Hot Cross Buns decides how to route your message." : "Preparing conversation during work… Your draft is kept.").font(.caption).foregroundStyle(.secondary)
             }
             if sessions.inspection == nil, application.review == nil, let notice = application.snapshot?.unsupportedNotice, application.snapshot?.value["dialogue_dispatch"] == .null, application.snapshot?.value["session_request"] == .null { NativeStatusMessage(text: notice, severity: .information).font(.caption) }
             if application.readiness["state"].string != "configured", application.isConnected {
-                NativeStatusMessage(text: "\(application.readiness["issue"].string) Provider setup is available in Gator’s terminal app; your draft stays here.").font(.caption)
+                NativeStatusMessage(text: "\(application.readiness["issue"].string) Provider setup is available in Hot Cross Buns’s terminal app; your draft stays here.").font(.caption)
             }
         }.popover(isPresented: $connectionDetails, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Connection & Model Details").font(.headline)
-                Text(application.isConnected ? "Connected to Gator. Provider connectivity is verified only by an actual model request." : "Gator is disconnected. Saved drafts and original request identities are retained.")
+                Text(application.isConnected ? "Connected to Hot Cross Buns. Provider connectivity is verified only by an actual model request." : "Hot Cross Buns is disconnected. Saved drafts and original request identities are retained.")
                 Text(verbatim: application.modelLabel)
                 Text(verbatim: application.readiness["processing"]["description"].string)
                 if let notice = application.snapshot?.unsupportedNotice { Text(verbatim: notice) }
@@ -300,7 +300,7 @@ private struct MessageRow: View, Equatable {
         HStack(alignment: .top) {
             if message.isUser { Spacer(minLength: 40) }
             VStack(alignment: .leading, spacing: 6) {
-                if !message.text.isEmpty { Text(message.isUser ? "You" : "Gator").font(.caption.weight(.medium)).foregroundStyle(.secondary) }
+                if !message.text.isEmpty { Text(message.isUser ? "You" : "Hot Cross Buns").font(.caption.weight(.medium)).foregroundStyle(.secondary) }
                 let inputs = message.value["inputs"].array.map(\.string) + message.value["input_ids"].array.map { ($0.string as NSString).lastPathComponent }
                 if !inputs.isEmpty { ForEach(Array(Set(inputs)).sorted(), id: \.self) { name in Label { Text(verbatim: name) } icon: { Image(systemName: "paperclip") }.font(.caption) } }
                 if message.isStructured {
@@ -325,10 +325,10 @@ private struct MessageRow: View, Equatable {
                 }
             }
             .textSelection(.enabled).padding(message.isUser ? 12 : 4)
-            .background(message.isUser ? gatorAccent.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 12))
+            .background(message.isUser ? hotCrossBunsAccent.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 12))
             if !message.isUser { Spacer(minLength: 20) }
         }.frame(maxWidth: .infinity)
-            .overlay { if searchSelected { RoundedRectangle(cornerRadius: 8).strokeBorder(gatorAccent, lineWidth: 2).allowsHitTesting(false) } }
+            .overlay { if searchSelected { RoundedRectangle(cornerRadius: 8).strokeBorder(hotCrossBunsAccent, lineWidth: 2).allowsHitTesting(false) } }
     }
     private var validTaskLink: Bool {
         let id = message.result["preview"]["task_chat"].string
@@ -337,7 +337,7 @@ private struct MessageRow: View, Equatable {
 }
 
 private struct NativeTranscriptView: View {
-    @Environment(GatorApplicationState.self) private var application
+    @Environment(HotCrossBunsApplicationState.self) private var application
     @Environment(ManagedSessionCoordinator.self) private var sessions
     @Environment(NativeReadingPositions.self) private var positions
     @Environment(NativeTranscriptFind.self) private var find

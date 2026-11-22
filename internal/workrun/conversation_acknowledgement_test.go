@@ -6,7 +6,7 @@ import (
 )
 
 func TestQuickAcknowledgementWholeMessageAllowlist(t *testing.T) {
-	cases := map[string]string{"Thanks!": "appreciation", "Thanks Gator, that was helpful!": "appreciation", "Appreciate it!": "appreciation", "Hahaha": "laughter", "Haha that's hilarious": "laughter", "Nice, that's great!": "praise", "See you!": "farewell", "Hello Gator!": "greeting"}
+	cases := map[string]string{"Thanks!": "appreciation", "Thanks Hot Cross Buns!": "appreciation", "Thank you Hot Cross Buns!": "appreciation", "Thanks Hot Cross Buns, that was helpful!": "appreciation", "Appreciate it!": "appreciation", "Hahaha": "laughter", "Haha that's hilarious": "laughter", "Nice, that's great!": "praise", "See you!": "farewell", "Bye Hot Cross Buns!": "farewell", "Hello Hot Cross Buns!": "greeting", "Hey Hot Cross Buns!": "greeting"}
 	for text, kind := range cases {
 		t.Run(text, func(t *testing.T) {
 			d, ok := QuickAcknowledgement(ConversationRequest{Text: text})
@@ -49,7 +49,7 @@ func TestQuickAcknowledgementDecisionCannotBeForgedByModel(t *testing.T) {
 	}
 }
 func BenchmarkQuickAcknowledgement(b *testing.B) {
-	r := ConversationRequest{Text: "Thanks Gator, that was helpful!"}
+	r := ConversationRequest{Text: "Thanks Hot Cross Buns, that was helpful!"}
 	b.ReportAllocs()
 	for b.Loop() {
 		if _, ok := QuickAcknowledgement(r); !ok {

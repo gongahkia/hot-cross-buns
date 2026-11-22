@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gongahkia/gator/internal/usage"
+	"github.com/gongahkia/hot-cross-buns/internal/usage"
 )
 
 type metered struct {

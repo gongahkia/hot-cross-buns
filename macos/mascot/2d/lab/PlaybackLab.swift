@@ -29,12 +29,12 @@ import Darwin
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
         func arg(_ name: String, _ fallback: String) -> String { guard let i = args.firstIndex(of: name), i + 1 < args.count else { return fallback }; return args[i + 1] }
-        output = URL(fileURLWithPath: arg("--output", "/tmp/gator-2d-lab")); assets = Bundle.main.resourceURL!.appendingPathComponent("Mascot")
+        output = URL(fileURLWithPath: arg("--output", "/tmp/hot-cross-buns-2d-lab")); assets = Bundle.main.resourceURL!.appendingPathComponent("Mascot")
         do {
             try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
             let file = output.appendingPathComponent("samples.ndjson"); FileManager.default.createFile(atPath: file.path, contents: nil); samples = try FileHandle(forWritingTo: file)
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 650, height: 470), styleMask: [.titled,.closable,.resizable,.miniaturizable], backing: .buffered, defer: false)
-            window.title = "Gator 2D Playback — isolated"; window.isReleasedWhenClosed = false
+            window.title = "Hot Cross Buns 2D Playback — isolated"; window.isReleasedWhenClosed = false
             let stack = NSStackView(); stack.orientation = .vertical; stack.spacing = 12
             stack.addArrangedSubview(NSTextField(labelWithString: "Native PNG / Core Animation · no live 3D or backend"))
             slot.widthAnchor.constraint(equalToConstant: 280).isActive = true; slot.heightAnchor.constraint(equalToConstant: 120).isActive = true; stack.addArrangedSubview(slot)
@@ -85,7 +85,7 @@ import Darwin
         canvas?.request = NativeMascotRequest(owner:"fixture",style:style,expression:expression,revision:revision,animate:animate)
         await canvas?.player.settled()
         if animate, expression != .neutral, canvas?.player.current?.visible == true {
-            guard canvas?.player.layer.animation(forKey:"gator.expression") is CAKeyframeAnimation else { throw NSError(domain:"MissingLiveAnimation",code:1) }
+            guard canvas?.player.layer.animation(forKey:"hot-cross-buns.expression") is CAKeyframeAnimation else { throw NSError(domain:"MissingLiveAnimation",code:1) }
             animatedStyles.insert(style.rawValue); assertions += 1
         }
         results.append(["loadMilliseconds":Date().timeIntervalSince(began)*1000,"style":style.rawValue,"expression":expression.rawValue,"activeFrameBytes":canvas?.player.activeFrameBytes ?? 0])

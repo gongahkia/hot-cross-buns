@@ -29,7 +29,7 @@ func TestActionRecordAcceptsOnlyExecutedProviderEvidence(t *testing.T) {
 }
 
 func TestBatchRecordRequiresOrderedAndConsistentSteps(t *testing.T) {
-	proposal, err := NewProposal("action-batch", ConnectedMutate, "google", "batch", "https://google.example/gator/google-batch", "Edit two documents", []byte(`{}`))
+	proposal, err := NewProposal("action-batch", ConnectedMutate, "google", "batch", "https://google.example/hot-cross-buns/google-batch", "Edit two documents", []byte(`{}`))
 	if err != nil {
 		t.Fatal(err)
 	}

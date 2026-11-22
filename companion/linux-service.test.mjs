@@ -8,22 +8,22 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { userService, prepare } from './linux-service.mjs';
 
-const example = { node: '/usr/bin/node', entry: '/opt/gator/companion/main.mjs', runtime: '/opt/gator/runtime', workspace: '/home/gator/workspace', tokenFile: '/home/gator/private/access.token', configDir: '/home/gator/config', stateDir: '/home/gator/state', port: 7341 };
+const example = { node: '/usr/bin/node', entry: '/opt/hot-cross-buns/companion/main.mjs', runtime: '/opt/hot-cross-buns/runtime', workspace: '/home/hot-cross-buns/workspace', tokenFile: '/home/hot-cross-buns/private/access.token', configDir: '/home/hot-cross-buns/config', stateDir: '/home/hot-cross-buns/state', port: 7341 };
 test('Linux service preserves literal arguments, explicit profile and origin without token contents', () => {
   const unit = userService({ ...example, workspace: '/work %n ${HOME} "quoted" \\ ü', origin: 'https://host.example' });
   assert.ok(unit.includes('ExecStart=:"/usr/bin/node"'));
   assert.ok(unit.includes('"/work %%n ${HOME} \\"quoted\\" \\\\ ü"'));
-  assert.ok(unit.includes('Environment="GATOR_STATE_DIR=/home/gator/state"'));
-  assert.ok(unit.includes('Environment="GATOR_COMPANION_ORIGIN=https://host.example"'));
-  assert.ok(userService(example).includes('Environment="GATOR_COMPANION_ORIGIN="'));
+  assert.ok(unit.includes('Environment="HOT_CROSS_BUNS_STATE_DIR=/home/hot-cross-buns/state"'));
+  assert.ok(unit.includes('Environment="HOT_CROSS_BUNS_COMPANION_ORIGIN=https://host.example"'));
+  assert.ok(userService(example).includes('Environment="HOT_CROSS_BUNS_COMPANION_ORIGIN="'));
   assert.match(unit, /UMask=0077/); assert.match(unit, /KillMode=mixed/);
   for (const change of [{ port: 0 }, { port: '7341' }, { port: 65536 }, { node: '/bad:path/node' }, { runtime: 'relative' }, { workspace: '/work/../elsewhere' }, { tokenFile: '/path\0bad' }, { stateDir: '/path\n[Service]' }, { origin: '' }, { origin: 'http://remote.example' }, { origin: 'https://host.example/path' }, { secret: 'not-supported' }]) assert.throws(() => userService({ ...example, ...change }));
 });
 
 test('Linux service preparation checks files and token privacy before exclusive publication', { skip: process.platform === 'win32' }, async () => {
-  const root = await mkdtemp(join(tmpdir(), 'gator-systemd-plan-'));
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-systemd-plan-'));
   try {
-    const tokenFile = join(root, 'private/access.token'), output = join(root, 'gator-companion.service');
+    const tokenFile = join(root, 'private/access.token'), output = join(root, 'hot-cross-buns-companion.service');
     for (const name of ['private', 'workspace', 'config', 'state']) await mkdir(join(root, name), { mode: 0o700 });
     await writeFile(tokenFile, 'a'.repeat(64) + '\n', { mode: 0o600 });
     const config = { node: process.execPath, entry: resolve('companion/main.mjs'), runtime: process.execPath, workspace: join(root, 'workspace'), tokenFile, configDir: join(root, 'config'), stateDir: join(root, 'state'), port: 7341 };
@@ -47,11 +47,11 @@ test('Linux service preparation checks files and token privacy before exclusive 
 });
 
 test('native Linux user manager starts, restarts and removes an isolated companion with retained Go chats', {
-  skip: process.platform !== 'linux' || process.env.GATOR_COMPANION_SYSTEMD_TEST !== '1', timeout: 90000,
+  skip: process.platform !== 'linux' || process.env.HOT_CROSS_BUNS_COMPANION_SYSTEMD_TEST !== '1', timeout: 90000,
 }, async () => {
-  assert.ok(process.env.GATOR_TEST_BINARY, 'Set GATOR_TEST_BINARY to a Linux Go runtime.');
-  const root = await mkdtemp(join(tmpdir(), 'gator-systemd-'));
-  const name = `gator-companion-test-${randomUUID()}.service`, unitPath = join(root, name);
+  assert.ok(process.env.HOT_CROSS_BUNS_TEST_BINARY, 'Set HOT_CROSS_BUNS_TEST_BINARY to a Linux Go runtime.');
+  const root = await mkdtemp(join(tmpdir(), 'hot-cross-buns-systemd-'));
+  const name = `hot-cross-buns-companion-test-${randomUUID()}.service`, unitPath = join(root, name);
   const systemctl = (...args) => execFileSync('systemctl', ['--user', ...args], { encoding: 'utf8', timeout: 10000, stdio: 'pipe' });
   let linked = false;
   try {
@@ -60,7 +60,7 @@ test('native Linux user manager starts, restarts and removes an isolated compani
     for (const directory of [workspace, stateDir, configDir, join(root, 'private')]) await mkdir(directory, { mode: 0o700 });
     for (const name of ['main.mjs', 'server.mjs', 'auth.mjs', 'public']) await cp(new URL(`./${name}`, import.meta.url), join(root, 'companion', name), { recursive: true });
     await cp(new URL('../app-host/src', import.meta.url), join(root, 'app-host/src'), { recursive: true });
-    const runtime = join(root, 'gator-runtime'); await cp(resolve(process.env.GATOR_TEST_BINARY), runtime);
+    const runtime = join(root, 'hot-cross-buns-runtime'); await cp(resolve(process.env.HOT_CROSS_BUNS_TEST_BINARY), runtime);
     const tokenFile = join(root, 'private/access.token'), token = 'b'.repeat(64);
     await writeFile(tokenFile, token + '\n', { mode: 0o600 });
     const probe = createServer(); await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
@@ -84,8 +84,8 @@ test('native Linux user manager starts, restarts and removes an isolated compani
     };
     const firstPID = await ready();
     const environment = (await readFile(`/proc/${firstPID}/environ`, 'utf8')).split('\0');
-    assert.ok(environment.includes(`GATOR_CONFIG_DIR=${configDir}`));
-    assert.ok(environment.includes(`GATOR_STATE_DIR=${stateDir}`));
+    assert.ok(environment.includes(`HOT_CROSS_BUNS_CONFIG_DIR=${configDir}`));
+    assert.ok(environment.includes(`HOT_CROSS_BUNS_STATE_DIR=${stateDir}`));
     assert.equal((await fetch(`http://127.0.0.1:${port}/v1/chats`)).status, 401);
     const createdResponse = await request('/v1/chats', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ request_id: randomUUID() }) });
     assert.equal(createdResponse.status, 200);
@@ -101,7 +101,7 @@ test('native Linux user manager starts, restarts and removes an isolated compani
     assert.equal(systemctl('show', name, '--property=ActiveState', '--value').trim(), 'inactive');
     await assert.rejects(request('/v1/unknown'));
     for (const child of children) await assert.rejects(lstat(`/proc/${child}`), { code: 'ENOENT' });
-    const env = { ...process.env, GATOR_CONFIG_DIR: configDir, GATOR_STATE_DIR: stateDir, GATOR_COMPANION_CATALOG: '1' };
+    const env = { ...process.env, HOT_CROSS_BUNS_CONFIG_DIR: configDir, HOT_CROSS_BUNS_STATE_DIR: stateDir, HOT_CROSS_BUNS_COMPANION_CATALOG: '1' };
     const retained = JSON.parse(execFileSync(runtime, ['companion-catalog', '', 'active', ''], { cwd: workspace, env, encoding: 'utf8', timeout: 20000 }));
     assert.ok(retained.items.some(item => item.id === created.conversation_id));
   } finally {

@@ -7,7 +7,7 @@ import { once } from "node:events";
 import { Backend } from "../src/backend.mjs";
 
 test("host streams Go state and closes its child on exit", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "gator-desktop-bridge-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns-desktop-bridge-test-"));
   const executable = join(directory, "fixture.cjs");
   await writeFile(executable, `#!/usr/bin/env node\nconst readline = require('node:readline');\nconst send = (text) => process.stdout.write(JSON.stringify({ version: 1, type: 'state', state: { title: text, messages: [] } }) + '\\n');\nsend('🐊 connected');\nreadline.createInterface({ input: process.stdin }).on('line', line => { const frame = JSON.parse(line); if (frame.type === 'exit') process.exit(0); send(frame.text); });\n`, { mode: 0o700 });
   const backend = new Backend(process.execPath, directory, process.env, [executable]);
@@ -26,7 +26,7 @@ test("host streams Go state and closes its child on exit", async () => {
 });
 
 test("restart preparation waits for the canonical application and never forces a busy child to exit", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "gator-update-bridge-"));
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns-update-bridge-"));
   const executable = join(directory, "fixture.cjs");
   await writeFile(executable, `const readline = require('node:readline'); let busy = true; process.stdout.write(JSON.stringify({version:1,type:'state',state:{running:false,messages:[]}})+'\\n'); readline.createInterface({input:process.stdin}).on('line', line => { const f=JSON.parse(line); if(f.type==='prepare_update'){ process.stdout.write(JSON.stringify({version:1,type:'update_ready',nonce:f.nonce,ready:!busy,reason:'Actual work is busy'})+'\\n'); if(!busy) process.exit(0); } else if(f.type==='submit'){busy=false; process.stdout.write(JSON.stringify({version:1,type:'state',state:{title:'idle',messages:[]}})+'\\n');} else if(f.type==='exit') process.exit(0); });`);
   const backend = new Backend(process.execPath, directory, process.env, [executable]);
@@ -40,7 +40,7 @@ test("restart preparation waits for the canonical application and never forces a
 });
 
 test("dialogue reaction metadata preserves the legacy answered reply and exact turn", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "gator-reaction-protocol-"));
+  const directory = await mkdtemp(join(tmpdir(), "hot-cross-buns-reaction-protocol-"));
   const executable = join(directory, "fixture.cjs");
   const turn = { id: "turn-fixture", revision: 3, sequence: 1, text: "Thanks!", response: "You're welcome.", state: "answered",
     reaction: { version: 1, conversation_id: "chat-fixture", turn_id: "turn-fixture", revision: 3, kind: "appreciation", emoji: "❤️", level: "subtle" } };
@@ -54,5 +54,19 @@ test("dialogue reaction metadata preserves the legacy answered reply and exact t
     assert.equal(state.dialogue[0].reaction.turn_id, state.dialogue[0].id);
     assert.equal(state.dialogue_dispatch, undefined);
     assert.equal(state.pending_approval, undefined);
+  } finally { await backend.stop(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('recovery waits for its exact typed result and preserves receipt frame validation', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'hot-cross-buns-recovery-bridge-'));
+  const executable = join(directory, 'fixture.cjs');
+  await writeFile(executable, `const readline=require('node:readline');const state=s=>process.stdout.write(JSON.stringify({version:1,type:'state',state:s})+'\\n');state({messages:[]});readline.createInterface({input:process.stdin}).on('line',line=>{const f=JSON.parse(line);if(f.type==='exit')process.exit(0);const name=f.type;state({[name+'_result']:{request_id:'another-request',check:{status:'wrong'}}});setTimeout(()=>state({[name+'_result']:{request_id:f[name].request_id,check:{status:'unconfirmed'}}}),15);});`);
+  const backend = new Backend(process.execPath, directory, process.env, [executable]);
+  const receipt = { conversation_id: 'chat', run_id: 'run-fixture', action_id: 'action-' + 'a'.repeat(16), correlation_id: 'b'.repeat(32), manifest_sha256: 'c'.repeat(64), request_id: 'fixture-check', action: 'inspect' };
+  try {
+    await once(backend, 'state');
+    const result = await backend.recovery({ type: 'receipt', receipt }); assert.equal(result.check.status, 'unconfirmed'); assert.equal(result.request_id, 'fixture-check');
+    await assert.rejects(backend.recovery({ type: 'receipt', receipt: { ...receipt, action: 'resend' } }), /Invalid receipt/);
+    await assert.rejects(backend.recovery({ type: 'arbitrary' }), /Unsupported/);
   } finally { await backend.stop(); await rm(directory, { recursive: true, force: true }); }
 });

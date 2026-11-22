@@ -10,7 +10,7 @@
     "startedUTC": "2026-11-20T09:26:59.734887+00:00",
     "seconds": 8.695271165983286,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -23,12 +23,12 @@
       "./internal/workrun",
       "./internal/worksession",
       "./internal/workapp",
-      "./cmd/gator"
+      "./cmd/hot-cross-buns"
     ],
     "startedUTC": "2026-11-20T09:26:59.734677+00:00",
     "seconds": 61.606466291996185,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -46,7 +46,7 @@
     "startedUTC": "2026-11-20T09:28:01.363640+00:00",
     "seconds": 52.193161458999384,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -65,7 +65,7 @@
     "startedUTC": "2026-11-20T09:28:53.590458+00:00",
     "seconds": 4.9103729580238,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -76,12 +76,12 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build"
+      "/tmp/hot-cross-buns-native-build"
     ],
     "startedUTC": "2026-11-20T09:26:59.734396+00:00",
     "seconds": 1.389582125004381,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -92,13 +92,13 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel"
     ],
     "startedUTC": "2026-11-20T09:27:01.148620+00:00",
     "seconds": 174.9834228749969,
     "exit": 0,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -109,7 +109,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",
@@ -119,7 +119,7 @@
     "startedUTC": "2026-11-20T09:29:56.152416+00:00",
     "seconds": 17.23358704097336,
     "exit": 1,
-    "runtime": "/tmp/Gator-Native-P04E2-Reactions.app/Contents/Resources/gator-runtime",
+    "runtime": "/tmp/HotCrossBuns-Native-P04E2-Reactions.app/Contents/Resources/hot-cross-buns-runtime",
     "runtimeSHA256": "30ebddf63efb4d5c154fe3a97bb62efc7789c8e0f7e6cf116951f4341ab138e1"
   },
   {
@@ -130,7 +130,7 @@
       "--package-path",
       "macos",
       "--scratch-path",
-      "/tmp/gator-native-build",
+      "/tmp/hot-cross-buns-native-build",
       "--no-parallel",
       "-Xswiftc",
       "-strict-concurrency=complete",

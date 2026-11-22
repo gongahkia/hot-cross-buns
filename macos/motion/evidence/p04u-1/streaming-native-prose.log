@@ -2,10 +2,10 @@
 Building for debugging...
 [0/8] Write sources
 [2/8] Write swift-version--58304C5D6DBC2206.txt
-[4/11] Emitting module GatorMac
-[5/11] Compiling GatorMac NativeStreamingPresentation.swift
-[6/11] Compiling GatorMac NativeStreamingProse.swift
-/Users/gongahkia/Desktop/coding/projects/gator/macos/Sources/GatorMac/NativeStreamingProse.swift:23:142: error: ambiguous use of 'greatestFiniteMagnitude'
+[4/11] Emitting module HotCrossBunsMac
+[5/11] Compiling HotCrossBunsMac NativeStreamingPresentation.swift
+[6/11] Compiling HotCrossBunsMac NativeStreamingProse.swift
+/Users/gongahkia/Desktop/coding/projects/hot-cross-buns/macos/Sources/HotCrossBunsMac/NativeStreamingProse.swift:23:142: error: ambiguous use of 'greatestFiniteMagnitude'
 21 |         private var tail = NSRange(location: 0, length: 0)
 22 |         init() {
 23 |             let storage = NSTextStorage(), layout = NSLayoutManager(), container = NSTextContainer(containerSize: .init(width: 400, height: .greatestFiniteMagnitude))

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
-	"github.com/gongahkia/gator/internal/agent"
-	"github.com/gongahkia/gator/internal/artifact"
-	"github.com/gongahkia/gator/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 )
 
 func dynamicCall(name string, value any) agent.Turn {
@@ -57,7 +57,7 @@ func TestConversationCreatesSavesRunsAndReusesSpecialist(t *testing.T) {
 		t.Fatal("worker did not receive its own specialization/fresh context")
 	}
 	for _, tool := range child.requests[0].Tools {
-		if tool.Name == "create_agent" || tool.Name == "agent_profiles" || tool.Name == "gator_app_update" || strings.Contains(tool.Name, "gmail_send") {
+		if tool.Name == "create_agent" || tool.Name == "agent_profiles" || tool.Name == "hot_cross_buns_app_update" || strings.Contains(tool.Name, "gmail_send") {
 			t.Fatal("worker received manager authority", tool.Name)
 		}
 	}

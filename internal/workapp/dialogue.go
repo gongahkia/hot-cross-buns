@@ -12,8 +12,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gongahkia/gator/internal/workrun"
-	"github.com/gongahkia/gator/internal/worksession"
+	"github.com/gongahkia/hot-cross-buns/internal/workrun"
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
 // ConversationInput is the immutable envelope captured by admission. Public
@@ -168,7 +168,7 @@ func (m Model) conversationRecent() []workrun.ConversationMessage {
 	}
 	var entries []entry
 	for _, message := range m.messages {
-		if (message.role == "You" || message.role == "Gator") && message.text != "" {
+		if (message.role == "You" || message.role == "Hot Cross Buns") && message.text != "" {
 			role := "assistant"
 			if message.role == "You" {
 				role = "user"
@@ -312,7 +312,7 @@ func (m Model) retryDialogueAdmission(request BridgeUploadSubmission, text strin
 }
 func (m Model) admitConversation(request BridgeUploadSubmission, text string) (tea.Model, tea.Cmd) {
 	if len(m.dialogueQueue) >= 16 {
-		m.bridgeUploadResult.Error = "Gator has several messages to consider. Wait for a response before sending another."
+		m.bridgeUploadResult.Error = "Hot Cross Buns has several messages to consider. Wait for a response before sending another."
 		return m, nil
 	}
 	release := func() {}
@@ -435,7 +435,7 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 	current.CanStart = m.dialogueCanStart
 	current.AcknowledgementBlocked = current.AcknowledgementBlocked || m.acknowledgementBlocked()
 	if err := value.Decision.Validate(current); err != nil {
-		return m.failConversation(turn, "The task or available controls changed while Gator considered this message. Send a new message after reviewing its current state.")
+		return m.failConversation(turn, "The task or available controls changed while Hot Cross Buns considered this message. Send a new message after reviewing its current state.")
 	}
 	var controlID string
 	if value.Decision.Kind == "guide" || value.Decision.Kind == "stop" || value.Decision.Kind == "revise_plan" || value.Decision.Kind == "revise_action" {
@@ -454,7 +454,7 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 			}
 		}
 		if !matched {
-			return m.failConversation(turn, "That task's operation or reviewed plan changed while Gator considered your message. No task was changed. Review its current state before trying again.")
+			return m.failConversation(turn, "That task's operation or reviewed plan changed while Hot Cross Buns considered your message. No task was changed. Review its current state before trying again.")
 		}
 	}
 	decision, _ := json.Marshal(value.Decision)

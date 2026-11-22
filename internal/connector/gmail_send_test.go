@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gongahkia/gator/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
 
 func TestGmailSendPreparesPinnedPlainTextAndSendsOnce(t *testing.T) {

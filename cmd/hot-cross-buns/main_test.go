@@ -1,0 +1,286 @@
+package main
+
+import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
+)
+
+func TestRunHelp(t *testing.T) {
+	for _, command := range []string{"--help", "-h"} {
+		var output bytes.Buffer
+		if err := run([]string{command}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(output.String(), "Open the chat TUI") || !strings.Contains(output.String(), "hot-cross-buns work") {
+			t.Fatalf("help = %q", output.String())
+		}
+	}
+}
+
+func TestRunVersion(t *testing.T) {
+	for _, command := range []string{"--version", "-v"} {
+		var output bytes.Buffer
+		if err := run([]string{command}, &output); err != nil {
+			t.Fatalf("run %s: %v", command, err)
+		}
+		if !strings.Contains(output.String(), "hot-cross-buns ") {
+			t.Fatalf("version output = %q", output.String())
+		}
+	}
+}
+
+func TestRunRejectsUnknownCommand(t *testing.T) {
+	var output bytes.Buffer
+	err := run([]string{"ship"}, &output)
+	if err == nil || !strings.Contains(err.Error(), "unknown command") {
+		t.Fatalf("run error = %v, want unknown-command error", err)
+	}
+}
+
+func TestQuotedWorkRequestUsesTheWorkEntryPoint(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_PROVIDER", "not-a-provider")
+	var output bytes.Buffer
+	err := run([]string{"research release notes and produce a report"}, &output)
+	if err == nil || !strings.Contains(err.Error(), "unknown provider") || strings.Contains(err.Error(), "unknown command") {
+		t.Fatalf("quoted request error = %v", err)
+	}
+}
+
+func TestRunRejectsRemovedRootAliases(t *testing.T) {
+	for _, command := range []string{"tui", "help", "version", "connect", "login", "logout", "code", "run", "fork", "clone", "local", "learning", "rpc", "serve", "child", "delegate"} {
+		var output bytes.Buffer
+		err := run([]string{command}, &output)
+		if err == nil || !strings.Contains(err.Error(), "unknown command") || !strings.Contains(err.Error(), "hot-cross-buns --help") {
+			t.Fatalf("%s error = %v", command, err)
+		}
+	}
+}
+
+func TestLegacyProtocolAndDelegationCommandsAreRemoved(t *testing.T) {
+	for _, arguments := range [][]string{{"agent", "rpc"}, {"agent", "serve"}, {"agent", "child"}, {"agent", "delegate"}, {"--mode", "rpc"}} {
+		var output bytes.Buffer
+		err := run(arguments, &output)
+		if err == nil {
+			t.Fatalf("%s unexpectedly succeeded", strings.Join(arguments, " "))
+		}
+		for _, removed := range []string{"hot-cross-buns agent rpc", "hot-cross-buns agent serve", "hot-cross-buns agent child", "hot-cross-buns agent delegate"} {
+			if strings.Contains(err.Error(), removed) || strings.Contains(output.String(), removed) {
+				t.Fatalf("%s still exposes removed surface %q: error=%q output=%q", strings.Join(arguments, " "), removed, err, output.String())
+			}
+		}
+	}
+}
+
+func TestMovedRootCommandsExplainTheirCanonicalFamily(t *testing.T) {
+	for command, canonical := range map[string]string{
+		"hook": "hot-cross-buns config hook", "connector": "hot-cross-buns provider connector", "inbox": "hot-cross-buns job inbox", "snapshot": "hot-cross-buns work snapshot",
+		"inspect": "hot-cross-buns work inspect", "eval": "hot-cross-buns work eval",
+		"review": "hot-cross-buns work review", "export": "hot-cross-buns work export", "apply": "hot-cross-buns work apply",
+	} {
+		var output bytes.Buffer
+		err := run([]string{command}, &output)
+		if err == nil || !strings.Contains(err.Error(), "has moved") || !strings.Contains(err.Error(), canonical) {
+			t.Fatalf("%s error = %v, want migration to %s", command, err, canonical)
+		}
+	}
+}
+
+func TestACPCodeEntryPointsAreRetired(t *testing.T) {
+	for _, arguments := range [][]string{{"acp"}, {"agent", "acp"}, {"--mode", "acp"}} {
+		if err := run(arguments, io.Discard); err == nil || !strings.Contains(err.Error(), "ACP Code mode is retired") {
+			t.Fatalf("%v error = %v", arguments, err)
+		}
+	}
+}
+
+func TestInternalCommandAliasesRouteToTheirServices(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", t.TempDir())
+	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", t.TempDir())
+	var output bytes.Buffer
+	if err := run([]string{"-c"}, &output); err != nil || !strings.Contains(output.String(), "Settings\n") {
+		t.Fatalf("-c output = %q, err = %v", output.String(), err)
+	}
+	output.Reset()
+	if err := run([]string{"-p", "list"}, &output); err != nil || !strings.Contains(output.String(), "No custom providers configured") {
+		t.Fatalf("-p list output = %q, err = %v", output.String(), err)
+	}
+	if err := run([]string{"-u"}, &output); err != nil || !strings.Contains(output.String(), "complete terminal package") {
+		t.Fatalf("-u output = %q, err = %v", output.String(), err)
+	}
+	path := os.Getenv("PATH")
+	t.Setenv("PATH", t.TempDir())
+	if err := run([]string{"-d"}, io.Discard); err != nil {
+		t.Fatalf("-d error = %v", err)
+	}
+	t.Setenv("PATH", path)
+	output.Reset()
+	if err := run([]string{"-a", "--help"}, &output); err != nil || !strings.Contains(output.String(), "hot-cross-buns agent list") || strings.Contains(output.String(), "hot-cross-buns agent acp") {
+		t.Fatalf("-a output = %q, err = %v", output.String(), err)
+	}
+	if err := run([]string{"-e"}, io.Discard); err == nil || !strings.Contains(err.Error(), "extension") {
+		t.Fatalf("-e error = %v", err)
+	}
+	if err := run([]string{"-l"}, io.Discard); err == nil || !strings.Contains(err.Error(), "hot-cross-buns lsp") {
+		t.Fatalf("-l error = %v", err)
+	}
+	if err := run([]string{"-m"}, io.Discard); err == nil || !strings.Contains(err.Error(), "hot-cross-buns mcp") {
+		t.Fatalf("-m error = %v", err)
+	}
+	if err := run([]string{"-j", "inbox", "unexpected"}, io.Discard); err == nil || !strings.Contains(err.Error(), "hot-cross-buns job inbox") {
+		t.Fatalf("-j inbox error = %v", err)
+	}
+	if err := run([]string{"-b"}, io.Discard); err == nil || !strings.Contains(err.Error(), "hot-cross-buns browser") {
+		t.Fatalf("-b error = %v", err)
+	}
+	output.Reset()
+	if err := run([]string{"-t", "list"}, &output); err != nil || !strings.Contains(output.String(), "contrast") {
+		t.Fatalf("-t output = %q, err = %v", output.String(), err)
+	}
+	if err := run([]string{"-w", "code", "--help"}, io.Discard); err == nil || !strings.Contains(err.Error(), "direct Code mode is retired") {
+		t.Fatalf("-w code error = %v", err)
+	}
+}
+
+func TestNestedCommandFamiliesRouteToTheirHandlers(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", t.TempDir())
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", t.TempDir())
+	for _, test := range []struct {
+		arguments []string
+		contains  string
+	}{
+		{[]string{"agent", "acp", "unexpected"}, "ACP Code mode is retired"},
+		{[]string{"-a", "acp", "unexpected"}, "ACP Code mode is retired"},
+		{[]string{"config", "hook"}, "hot-cross-buns config hook status"},
+		{[]string{"-c", "hook"}, "hot-cross-buns config hook status"},
+		{[]string{"provider", "connector", "status"}, "connector ID"},
+		{[]string{"-p", "connector", "status"}, "connector ID"},
+		{[]string{"job", "inbox", "unexpected"}, "hot-cross-buns job inbox"},
+		{[]string{"work", "eval"}, "usage: hot-cross-buns work eval"},
+		{[]string{"-w", "eval"}, "usage: hot-cross-buns work eval"},
+		{[]string{"work", "snapshot", "show"}, "hot-cross-buns work snapshot show"},
+		{[]string{"work", "review"}, "usage: hot-cross-buns work review"},
+	} {
+		if err := run(test.arguments, io.Discard); err == nil || !strings.Contains(err.Error(), test.contains) {
+			t.Fatalf("%s error = %v, want %q", strings.Join(test.arguments, " "), err, test.contains)
+		}
+	}
+}
+
+func TestDirectCodeRouteIsRetired(t *testing.T) {
+	for _, args := range [][]string{{"work", "code", "task"}, {"work", "code", "--help"}, {"work", "code", "resume", "legacy-id"}} {
+		if err := run(args, io.Discard); err == nil || !strings.Contains(err.Error(), "direct Code mode is retired") {
+			t.Fatalf("%v error = %v", args, err)
+		}
+	}
+}
+
+func TestWorkRejectsRetiredCodePolicyFlags(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", t.TempDir())
+	for _, flag := range []string{"--require-code", "--verify", "--code-capability", "--code-browser-session", "--code-max-steps"} {
+		if err := run([]string{"work", flag, "task"}, io.Discard); err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+			t.Fatalf("work %s error = %v", flag, err)
+		}
+	}
+}
+
+func TestSupportedPlatforms(t *testing.T) {
+	for _, goos := range []string{"linux", "darwin", "windows"} {
+		if !supportedPlatform(goos) {
+			t.Fatalf("supported platform rejected: %s", goos)
+		}
+	}
+	for _, goos := range []string{"freebsd", "plan9"} {
+		if supportedPlatform(goos) {
+			t.Fatalf("unsupported platform accepted: %s", goos)
+		}
+	}
+}
+
+func TestLoginAndLogoutStoreOnlyHotCrossBunsCredential(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", stateDir)
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	var output bytes.Buffer
+	if err := run([]string{"-p", "login", "openai"}, &output); err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	if !strings.Contains(output.String(), "Stored a Hot Cross Buns credential for openai") || strings.Contains(output.String(), "test-key") {
+		t.Fatalf("login output = %q", output.String())
+	}
+	credentials, err := hotCrossBunsCredentials()
+	if err != nil {
+		t.Fatalf("credentials: %v", err)
+	}
+	credential, found, err := credentials.Read("openai")
+	if err != nil || !found || !credential.IsAPIKey() || credential.Key != "test-key" {
+		t.Fatalf("stored credential = %#v, found=%v, error=%v", credential, found, err)
+	}
+	output.Reset()
+	if err := run([]string{"provider", "logout", "openai"}, &output); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	if _, found, err := credentials.Read("openai"); err != nil || found {
+		t.Fatalf("credential after logout found=%v, error=%v", found, err)
+	}
+}
+
+func TestAPIKeyExecutorUsesDirectModelAdapter(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", t.TempDir())
+	t.Setenv("OPENAI_API_KEY", "test-api-key")
+	executor, err := newCodeExecutor("openai", "", "")
+	if err != nil {
+		t.Fatalf("new OpenAI executor: %v", err)
+	}
+	if executor.Model == nil {
+		t.Fatal("OpenAI did not resolve to a direct model adapter")
+	}
+}
+
+func TestExecutorReadsWebSearchKeyFromEnvironmentOnly(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", t.TempDir())
+	t.Setenv("OPENAI_API_KEY", "test-api-key")
+	t.Setenv("BRAVE_SEARCH_API_KEY", "do-not-print-this-search-token")
+	executor, err := newCodeExecutor("openai", "", "")
+	if err != nil {
+		t.Fatalf("new executor: %v", err)
+	}
+	if executor.HTTP.BraveSearchAPIKey != "do-not-print-this-search-token" {
+		t.Fatalf("web search key did not reach the in-memory executor options")
+	}
+}
+
+func TestVerificationFlagsParseArgv(t *testing.T) {
+	var flags verificationFlags
+	if err := flags.Set("go test ./..."); err != nil {
+		t.Fatalf("set verification: %v", err)
+	}
+	if got := strings.Join(flags[0], " "); got != "go test ./..." {
+		t.Fatalf("verification argv = %q", got)
+	}
+}
+
+func TestSuggestedVerificationCommands(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(directory+string(os.PathSeparator)+"go.mod", []byte("module example.com/test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := suggestedVerificationCommands(directory); len(got) != 1 || got[0] != "go test ./..." {
+		t.Fatalf("suggestions = %#v", got)
+	}
+}
+
+func TestEventPrinterGroupsStreamingText(t *testing.T) {
+	var output bytes.Buffer
+	printer := eventPrinter{out: &output}
+	printer.Print(agent.Event{Kind: agent.EventTextDelta, Step: 1, Text: "hello "})
+	printer.Print(agent.Event{Kind: agent.EventTextDelta, Step: 1, Text: "world"})
+	printer.Print(agent.Event{Kind: agent.EventToolCalled, Step: 1, ToolCall: &agent.ToolCall{Name: "git_status"}})
+	if got, want := output.String(), "[01] agent: hello world\n[01] tool → git_status\n"; got != want {
+		t.Fatalf("terminal output = %q, want %q", got, want)
+	}
+}

@@ -2,7 +2,7 @@
 import http from 'node:http';
 import {appendFile,access} from 'node:fs/promises';
 import {join} from 'node:path';
-const root=process.env.GATOR_FIXTURE_CONTROL;
+const root=process.env.HOT_CROSS_BUNS_FIXTURE_CONTROL;
 if(!root)throw Error('Disposable audit directory required');
 const record=v=>appendFile(join(root,'provider-trace.jsonl'),JSON.stringify(v)+'\n');
 const normal='# A little room in your day\n\nHere are three things to keep in view. **Nothing has been sent or booked.**\n\n1. **Finish** the project update.\n   - Check the _dates_ with the team.\n     4. Keep the `draft` for your review.\n       - Confirm the title and the long wrapped explanation before moving to the next step.\n\n2. Leave time for lunch.\n3. Compare the travel options.\n\n## A small example\n\n```swift\nlet plan = "Keep the afternoon clear"\nprint(plan)\n```\n\nYou can keep talking while another task runs. A [reference link](https://example.invalid/review) is included for layout only.';
@@ -15,7 +15,7 @@ const server=http.createServer(async(req,res)=>{
   const system=responses?body.instructions||'':messages.filter(m=>m.role==='system').map(m=>m.content).join('\n');
   const user=messages.filter(m=>m.role==='user').at(-1)?.content||'';
   const tools=(body.tools||[]).map(t=>t.name||t.function?.name);let text=normal,call;
-  if(system.includes('You handle the conversation with Gator')){
+  if(system.includes('You handle the conversation with Hot Cross Buns')){
    const context=JSON.parse(messages.at(-1).content);await record({kind:'dialogue',message:context.message});
    text=JSON.stringify(['Audit exact approval','Hold audit work','Audit recovery'].includes(context.message)?{kind:'task'}:{kind:'reply',text:context.message==='UIUX visual sample'?normal:'I am here. The original task continues independently.'});
   }else if(system.includes("Classify the user's immediate request")){text='{"mode":"inspect"}';}

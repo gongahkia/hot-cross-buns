@@ -3,7 +3,7 @@ package modelcatalog
 import (
 	"strings"
 
-	"github.com/gongahkia/gator/internal/uisnapshot"
+	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 )
 
 // UISnapshot exposes model-management state to the terminal and desktop.
@@ -22,13 +22,13 @@ func (p *ModelCatalogPanel) UISnapshot() uisnapshot.Panel {
 		return panel
 	}
 	if p.model.screen == chooseModelScreen {
-		panel.Subtitle = "Choose how Gator runs models"
+		panel.Subtitle = "Choose how Hot Cross Buns runs models"
 		panel.Rows = []uisnapshot.Row{
 			{Label: "Cloud API key", Detail: "Use your own provider account. Requests are sent to that provider and billed under its API plan."},
 			{Label: "Local model", Detail: "Download a reviewed model with Ollama. Chat processing runs here and uses this computer’s memory and storage."},
 		}
 		panel.Blocks = []uisnapshot.Block{
-			{Title: "Storage", Lines: []string{"Memories, notes, and Work records are saved in private local Gator storage."}},
+			{Title: "Storage", Lines: []string{"Memories, notes, and Work records are saved in private local Hot Cross Buns storage."}},
 			{Title: "Retrieval", Lines: []string{"Saved context is selected using basic matching or a separately configured embedding provider. /memory shows readiness and upload settings."}},
 			{Title: "Chat processing", Lines: []string{"A cloud chat model receives selected task sources and saved context. Local storage or local retrieval does not keep a cloud chat request on this computer.", "A local Ollama chat model processes its requests here; connected tools contact their selected services."}},
 		}
@@ -101,7 +101,7 @@ func (p *ModelCatalogPanel) focusedSnapshot(panel uisnapshot.Panel) uisnapshot.P
 		panel.Hints = []uisnapshot.Hint{{Shortcut: "Enter", Action: "confirm"}, {Shortcut: "Esc", Action: "cancel"}}
 		switch state.confirmation {
 		case localModelConfirmStart:
-			panel.Hints = []uisnapshot.Hint{{Shortcut: "Enter", Action: "start with Gator"}, {Shortcut: "Esc", Action: "start myself"}}
+			panel.Hints = []uisnapshot.Hint{{Shortcut: "Enter", Action: "start with Hot Cross Buns"}, {Shortcut: "Esc", Action: "start myself"}}
 		case localModelConfirmInstall:
 			panel.Hints = []uisnapshot.Hint{{Shortcut: "Enter", Action: "installation help"}, {Shortcut: "Esc", Action: "install myself"}}
 		case localModelConfirmRunInstallation:

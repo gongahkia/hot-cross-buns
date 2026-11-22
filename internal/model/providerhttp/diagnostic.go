@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/gongahkia/gator/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 )
 
 var opaqueID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
@@ -39,7 +39,7 @@ func NewError(provider, label, model, source string, request *http.Request, resp
 		Status: response.StatusCode, ElapsedMS: max(0, time.Since(started).Milliseconds()), Auth: "none",
 	}
 	switch source {
-	case "explicit", "gator-store", "environment", "none", "dynamic":
+	case "explicit", "hot-cross-buns-store", "environment", "none", "dynamic":
 		diagnostic.CredentialSource = source
 	default:
 		diagnostic.CredentialSource = "unspecified"

@@ -1,6 +1,6 @@
 {
-  "configPath": "/Users/gabrielongtemasek/.config/gator/config.json",
-  "authPath": "/Users/gabrielongtemasek/.local/state/gator/auth.json",
+  "configPath": "/Users/gabrielongtemasek/.config/hot-cross-buns/config.json",
+  "authPath": "/Users/gabrielongtemasek/.local/state/hot-cross-buns/auth.json",
   "defaults": {
     "provider": "gemini",
     "model": "gemini-3.5-flash"

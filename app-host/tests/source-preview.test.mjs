@@ -7,10 +7,10 @@ import { createHash } from "node:crypto";
 import { sourcePreview, sourceCatalog } from "../src/source-preview.mjs";
 const hash = text => createHash("sha256").update(text).digest("hex");
 async function fixture(run) {
-  const root = await mkdtemp(join(tmpdir(), "gator-source-preview-")), path = join(root, "bundle"), text = "Title\nOwner: Mina\nDeadline: Friday\nBudget: unapproved\n";
+  const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-source-preview-")), path = join(root, "bundle"), text = "Title\nOwner: Mina\nDeadline: Friday\nBudget: unapproved\n";
   const digest = hash(text), file = `evidence/${digest}.txt`, manifest = JSON.stringify({ run_id: "run-one", evidence: [{ locator: "source/project.md", sha256: digest, snapshot_path: file }] });
   const revision = { conversation_id: "chat-one", bundle_path: path, replay: { messages: [{ role: "user", content: "Read the project" }, { role: "tool", tool_name: "read_file", content: JSON.stringify({ ok: true, result: { path: "source/project.md", start_line: 2, end_line: 3, content: "Owner: Mina\nDeadline: Friday", truncated: false } }) }] } };
-  const revisions = join(root, "gator/conversations/chat-one/revisions"), history = join(root, "gator/work-history");
+  const revisions = join(root, "hot-cross-buns/conversations/chat-one/revisions"), history = join(root, "hot-cross-buns/work-history");
   await mkdir(join(path, "evidence"), { recursive: true }); await mkdir(revisions, { recursive: true }); await mkdir(history, { recursive: true });
   await writeFile(join(path, file), text); await writeFile(join(path, "manifest.json"), manifest);
   await writeFile(join(history, "run-one.json"), JSON.stringify({ id: "run-one", conversation_id: "chat-one", revision_id: "rev-one" }));

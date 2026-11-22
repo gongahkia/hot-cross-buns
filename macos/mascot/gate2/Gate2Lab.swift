@@ -39,8 +39,8 @@ import Metal
             return CommandLine.arguments[i + 1]
         }
         experiment = arg("--experiment", "direct96")
-        output = URL(fileURLWithPath: arg("--output", "/tmp/gator-gate2-run"))
-        asset = Bundle.main.resourceURL!.appendingPathComponent("Assets/Gator-B.usdz")
+        output = URL(fileURLWithPath: arg("--output", "/tmp/hot-cross-buns-gate2-run"))
+        asset = Bundle.main.resourceURL!.appendingPathComponent("Assets/HotCrossBuns-B.usdz")
         super.init()
     }
     static func main() {
@@ -83,7 +83,7 @@ import Metal
     func makeWindow() {
         _ = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 570), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "Gator Concept B — Gate 2 only"
+        window.title = "Hot Cross Buns Concept B — Gate 2 only"
         window.delegate = self; window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .aqua)
         let layout = NSStackView(); layout.orientation = .vertical; layout.spacing = 12
@@ -331,7 +331,7 @@ import Metal
     func openCompact() {
         if compactWindow == nil {
             let panel = NSWindow(contentRect: NSRect(x: 60, y: 80, width: 440, height: 340), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            panel.title = "Gator compact renderer fixture"; panel.isReleasedWhenClosed = false
+            panel.title = "Hot Cross Buns compact renderer fixture"; panel.isReleasedWhenClosed = false
             if let row = slots[1].superview as? NSStackView { row.removeArrangedSubview(slots[1]) }
             slots[1].removeFromSuperview()
             let container = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 340)); panel.contentView = container

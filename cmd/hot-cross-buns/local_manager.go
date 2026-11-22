@@ -1,0 +1,610 @@
+package main
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"reflect"
+	"runtime"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gongahkia/hot-cross-buns/internal/config"
+	"github.com/gongahkia/hot-cross-buns/internal/dependency"
+	"github.com/gongahkia/hot-cross-buns/internal/hostproc"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
+	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
+)
+
+// localModelManager is the application layer behind TUI model management.
+// It keeps the UI independent of Ollama's HTTP API while using
+// the same curated catalog, loopback validation, and provider configuration.
+type localModelManager struct {
+	store      config.Store
+	runtimeURL string
+	host       func() localmodel.Host
+	runtimeMu  sync.Mutex
+	runtime    *managedLocalRuntime
+	closed     bool
+	command    func(string, ...string) *exec.Cmd
+	lookPath   func(string) (string, error)
+}
+
+type managedLocalRuntime struct {
+	command *exec.Cmd
+	done    chan struct{}
+
+	mu      sync.Mutex
+	exitErr error
+}
+
+func newLocalModelManager(store config.Store) *localModelManager {
+	return &localModelManager{store: store}
+}
+
+func (manager *localModelManager) Status(ctx context.Context) (modelcatalog.LocalCatalog, error) {
+	settings, err := manager.store.Load()
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	client, err := localClient(manager.runtimeURL, settings)
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	host := manager.localHost()
+	catalog := manager.catalog(settings, client, nil, host)
+	if binary, lookupErr := manager.ollamaPath(); lookupErr == nil {
+		catalog.Executable = binary
+	}
+	version, err := client.Version(ctx)
+	if err != nil {
+		catalog.RuntimeError = err.Error()
+		return catalog, nil
+	}
+	catalog.RuntimeVersion = version
+	installed, err := client.Models(ctx)
+	if err != nil {
+		catalog.RuntimeError = "list installed models: " + err.Error()
+		return catalog, nil
+	}
+	catalog.Models = manager.catalog(settings, client, installed, host).Models
+	return catalog, nil
+}
+
+// Start launches `ollama serve` only after the TUI receives explicit user
+// confirmation. The child is retained by this interactive Hot Cross Buns session and
+// stopped by Close; an already-running Ollama process is never adopted or
+// stopped.
+func (manager *localModelManager) Start(ctx context.Context) (modelcatalog.LocalCatalog, error) {
+	settings, err := manager.store.Load()
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	client, err := localClient(manager.runtimeURL, settings)
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	if runtimeReachable(ctx, client) {
+		return manager.Status(ctx)
+	}
+	binary, err := manager.ollamaPath()
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, errors.New("Ollama executable was not found; open installation help with i in /model's Local section")
+	}
+	runtime, err := manager.startRuntime(binary)
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	readyContext, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if err := waitForLocalRuntime(readyContext, client, runtime); err != nil {
+		_ = manager.stopRuntime(runtime)
+		return modelcatalog.LocalCatalog{}, err
+	}
+	return manager.Status(ctx)
+}
+
+// Close stops only the Ollama child that this manager launched. It is called
+// when the interactive TUI exits, preserving a user-managed Ollama process.
+func (manager *localModelManager) Close() error {
+	manager.runtimeMu.Lock()
+	runtime := manager.runtime
+	manager.runtime = nil
+	manager.closed = true
+	manager.runtimeMu.Unlock()
+	return manager.stopRuntime(runtime)
+}
+
+func (manager *localModelManager) stopRuntime(runtime *managedLocalRuntime) error {
+	if runtime == nil || runtime.command.Process == nil {
+		return nil
+	}
+	select {
+	case <-runtime.done:
+		return nil
+	default:
+	}
+	if err := runtime.command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return fmt.Errorf("stop Hot Cross Buns-managed Ollama runtime: %w", err)
+	}
+	select {
+	case <-runtime.done:
+		return nil
+	case <-time.After(2 * time.Second):
+		return errors.New("timed out stopping Hot Cross Buns-managed Ollama runtime")
+	}
+}
+
+func (manager *localModelManager) ollamaPath() (string, error) {
+	if manager.lookPath != nil {
+		return manager.lookPath("ollama")
+	}
+	return exec.LookPath("ollama")
+}
+
+// InstallationPlan returns a platform-specific action from Ollama's official
+// download path. The TUI shows the exact command and requires a separate
+// confirmation before it runs. It deliberately does not guess a distribution
+// package manager or accept an arbitrary shell command from configuration.
+func (manager *localModelManager) InstallationPlan() (modelcatalog.LocalInstallationPlan, error) {
+	if binary, err := manager.ollamaPath(); err == nil {
+		return modelcatalog.LocalInstallationPlan{}, fmt.Errorf("Ollama is already installed at %s", binary)
+	}
+	plan, err := ollamaInstallationPlan(runtime.GOOS)
+	if err != nil {
+		return modelcatalog.LocalInstallationPlan{}, err
+	}
+	plan.RequiresElevation = plan.RefreshAfter && os.Geteuid() != 0
+	return plan, nil
+}
+
+// Install runs only the reviewed Linux plan and streams bounded installer
+// output back to the TUI. A command that needs interactive elevation reports
+// its own diagnostic instead of attempting to capture or fabricate a password.
+func (manager *localModelManager) Install(ctx context.Context, report func(modelcatalog.LocalProgress)) error {
+	plan, err := manager.InstallationPlan()
+	if err != nil {
+		return err
+	}
+	if !plan.RefreshAfter {
+		return errors.New("this platform uses Ollama's graphical installer; open the official download page instead")
+	}
+	command := hostproc.CommandContext(ctx, plan.Command, plan.Arguments...)
+	return streamOllamaInstaller(command, ctx, report)
+}
+
+func streamOllamaInstaller(command *exec.Cmd, ctx context.Context, report func(modelcatalog.LocalProgress)) error {
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("capture Ollama installer output: %w", err)
+	}
+	stderr, err := command.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("capture Ollama installer diagnostics: %w", err)
+	}
+	if err := command.Start(); err != nil {
+		return fmt.Errorf("start Ollama installer: %w", err)
+	}
+	if report != nil {
+		report(modelcatalog.LocalProgress{Status: "official installer started"})
+	}
+	lines := make(chan string, 32)
+	var scanners sync.WaitGroup
+	for _, output := range []io.Reader{stdout, stderr} {
+		scanners.Add(1)
+		go func(reader io.Reader) {
+			defer scanners.Done()
+			scanner := bufio.NewScanner(reader)
+			scanner.Buffer(make([]byte, 1024), 64*1024)
+			scanner.Split(splitOllamaInstallerOutput)
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" {
+					continue
+				}
+				select {
+				case lines <- line:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(output)
+	}
+	completed := make(chan error, 1)
+	go func() {
+		err := command.Wait()
+		scanners.Wait()
+		close(lines)
+		completed <- err
+	}()
+	for line := range lines {
+		if report != nil {
+			report(modelcatalog.LocalProgress{Status: line})
+		}
+	}
+	if err := <-completed; err != nil {
+		return fmt.Errorf("Ollama installer: %w", err)
+	}
+	return nil
+}
+
+func splitOllamaInstallerOutput(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for index, value := range data {
+		if value == '\n' || value == '\r' {
+			return index + 1, data[:index], nil
+		}
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
+func ollamaInstallationPlan(osName string) (modelcatalog.LocalInstallationPlan, error) {
+	switch osName {
+	case "linux":
+		return modelcatalog.LocalInstallationPlan{
+			Title:          "Run Ollama's official Linux installer?",
+			Detail:         "Downloads and runs Ollama's official Linux installer in this terminal.",
+			DisplayCommand: "curl -fsSL https://ollama.com/install.sh | sh",
+			Command:        "sh",
+			Arguments:      []string{"-c", "curl -fsSL https://ollama.com/install.sh | sh"},
+			RefreshAfter:   true,
+		}, nil
+	case "darwin":
+		return modelcatalog.LocalInstallationPlan{
+			Title:          "Open Ollama's official macOS download page?",
+			Detail:         "Opens Ollama's official macOS download page. Complete the system installer, then return to Hot Cross Buns.",
+			DisplayCommand: "open https://ollama.com/download/mac",
+			Command:        "open",
+			Arguments:      []string{"https://ollama.com/download/mac"},
+			RefreshAfter:   false,
+		}, nil
+	case "windows":
+		return modelcatalog.LocalInstallationPlan{
+			Title:          "Open Ollama's official Windows download page?",
+			Detail:         "Complete the system installer, then restart Hot Cross Buns to refresh the executable path.",
+			DisplayCommand: "https://ollama.com/download/windows",
+			Command:        "powershell.exe",
+			Arguments:      []string{"-NoProfile", "-NonInteractive", "-Command", "Start-Process -FilePath 'https://ollama.com/download/windows'"},
+			RefreshAfter:   false,
+		}, nil
+	default:
+		return modelcatalog.LocalInstallationPlan{}, fmt.Errorf("Hot Cross Buns's reviewed local-model catalog does not support %s; see https://ollama.com/download", osName)
+	}
+}
+
+func (manager *localModelManager) startRuntime(binary string) (*managedLocalRuntime, error) {
+	manager.runtimeMu.Lock()
+	defer manager.runtimeMu.Unlock()
+	if manager.closed {
+		return nil, errors.New("local model management session is closed")
+	}
+	if manager.runtime != nil {
+		return manager.runtime, nil
+	}
+	newCommand := manager.command
+	if newCommand == nil {
+		newCommand = exec.Command
+	}
+	command := newCommand(binary, "serve")
+	if err := command.Start(); err != nil {
+		return nil, fmt.Errorf("start Ollama: %w", err)
+	}
+	runtime := &managedLocalRuntime{command: command, done: make(chan struct{})}
+	manager.runtime = runtime
+	go manager.waitForManagedRuntime(runtime)
+	return runtime, nil
+}
+
+func (manager *localModelManager) waitForManagedRuntime(runtime *managedLocalRuntime) {
+	err := runtime.command.Wait()
+	runtime.mu.Lock()
+	runtime.exitErr = err
+	runtime.mu.Unlock()
+	close(runtime.done)
+	manager.runtimeMu.Lock()
+	if manager.runtime == runtime {
+		manager.runtime = nil
+	}
+	manager.runtimeMu.Unlock()
+}
+
+func (runtime *managedLocalRuntime) error() error {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	return runtime.exitErr
+}
+
+func runtimeReachable(parent context.Context, client localmodel.Client) bool {
+	context, cancel := context.WithTimeout(parent, time.Second)
+	defer cancel()
+	_, err := client.Version(context)
+	return err == nil
+}
+
+func waitForLocalRuntime(ctx context.Context, client localmodel.Client, runtime *managedLocalRuntime) error {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+	var lastErr error
+	for {
+		probeContext, cancel := context.WithTimeout(ctx, time.Second)
+		_, lastErr = client.Version(probeContext)
+		cancel()
+		if lastErr == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return fmt.Errorf("wait for Ollama to start: %w", lastErr)
+			}
+			return fmt.Errorf("wait for Ollama to start: %w", ctx.Err())
+		case <-runtime.done:
+			if err := runtime.error(); err != nil {
+				return fmt.Errorf("Ollama exited before becoming ready: %w", err)
+			}
+			return errors.New("Ollama exited before becoming ready")
+		case <-ticker.C:
+		}
+	}
+}
+
+func (manager *localModelManager) Pull(ctx context.Context, id string, report func(modelcatalog.LocalProgress)) (modelcatalog.LocalCatalog, error) {
+	model, found := localmodel.Resolve(id)
+	if !found {
+		return modelcatalog.LocalCatalog{}, fmt.Errorf("%q is not in Hot Cross Buns's curated local-model catalog", id)
+	}
+	if eligibility := localmodel.Assess(model, manager.localHost()); !eligibility.Allowed {
+		return modelcatalog.LocalCatalog{}, fmt.Errorf("%s is disabled on this host: %s", model.Name, eligibility.Reason)
+	}
+	settings, err := manager.store.Load()
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	client, err := localClient(manager.runtimeURL, settings)
+	if err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	if _, err := client.Version(ctx); err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	if err := client.Pull(ctx, model, func(progress localmodel.Progress) {
+		if report == nil {
+			return
+		}
+		report(modelcatalog.LocalProgress{
+			Status:    safeLocalDisplay(progress.Status),
+			Completed: progress.Completed,
+			Total:     progress.Total,
+		})
+	}); err != nil {
+		return modelcatalog.LocalCatalog{}, err
+	}
+	return manager.Status(ctx)
+}
+
+func (manager *localModelManager) Use(ctx context.Context, id string) (modelcatalog.LocalUpdate, error) {
+	return manager.use(ctx, id, nil)
+}
+
+type localSelectionExpectation struct {
+	Settings              config.Settings
+	Endpoint, Tag, Digest string
+}
+
+func (manager *localModelManager) use(ctx context.Context, id string, expected *localSelectionExpectation) (modelcatalog.LocalUpdate, error) {
+	model, found := localmodel.Resolve(id)
+	if !found {
+		return modelcatalog.LocalUpdate{}, fmt.Errorf("%q is not in Hot Cross Buns's curated local-model catalog", id)
+	}
+	if eligibility := localmodel.Assess(model, manager.localHost()); !eligibility.Allowed {
+		return modelcatalog.LocalUpdate{}, fmt.Errorf("%s is disabled on this host: %s", model.Name, eligibility.Reason)
+	}
+	settings, err := manager.store.Load()
+	if err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	client, err := localClient(manager.runtimeURL, settings)
+	if err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	if expected != nil && (!sameLocalSelectionSettings(settings, expected.Settings) || client.BaseURL() != expected.Endpoint || model.OllamaModel != expected.Tag) {
+		return modelcatalog.LocalUpdate{}, errProviderReviewChanged
+	}
+
+	installed, err := client.Models(ctx)
+	if err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	if !hasInstalledModel(installed, model.OllamaModel) {
+		return modelcatalog.LocalUpdate{}, fmt.Errorf("%s is not installed; pull it first", model.OllamaModel)
+	}
+	// Recheck the reviewed installed identity before publication, outside the settings lock.
+	verified, err := client.Models(ctx)
+	if err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	identity := func(items []localmodel.InstalledModel) localmodel.InstalledModel {
+		for _, item := range items {
+			if item.Name == model.OllamaModel {
+				return item
+			}
+		}
+		return localmodel.InstalledModel{}
+	}
+	if expected != nil {
+		digest, e := localmodel.ModelDigest(identity(verified).Digest)
+		if e != nil || digest != expected.Digest {
+			return modelcatalog.LocalUpdate{}, errors.New("reviewed model digest is no longer installed")
+		}
+	}
+
+	if identity(installed) != identity(verified) {
+		return modelcatalog.LocalUpdate{}, errors.New("installed model identity changed; inspect and select again")
+	}
+	reviewedProvider, reviewedFound := configuredCustomProvider(settings, localmodel.ProviderID)
+	reviewedDefaults := settings.Defaults
+	var committed config.Settings
+	err = manager.store.Update(func(current *config.Settings) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		provider, found := configuredCustomProvider(*current, localmodel.ProviderID)
+		if current.Defaults != reviewedDefaults || found != reviewedFound || !reflect.DeepEqual(provider, reviewedProvider) {
+			return errors.New("model configuration changed during inspection; review the new selection before retrying")
+		}
+		local := config.CustomProvider{ID: localmodel.ProviderID, BaseURL: client.ChatCompletionsURL(), Models: installedCatalogModels(verified), DefaultModel: model.OllamaModel, ModelDigests: cloneModelAliases(provider.ModelDigests)}
+		if expected != nil {
+			local.ModelDigests[model.OllamaModel] = expected.Digest
+		}
+		current.CustomProviders = setCustomProvider(current.CustomProviders, local)
+		current.Defaults.Provider = localmodel.ProviderID
+		current.Defaults.Model = model.OllamaModel
+		committed = *current
+		return nil
+	})
+	if err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	settings = committed
+	catalog, statusErr := manager.Status(ctx)
+	return modelcatalog.LocalUpdate{Published: true, Catalog: catalog, CustomProviders: cloneCustomProviders(settings.CustomProviders), ModelAliases: cloneModelAliases(settings.ModelAliases), Provider: settings.Defaults.Provider, Model: settings.Defaults.Model}, statusErr
+}
+
+func (manager *localModelManager) Remove(ctx context.Context, id string) (modelcatalog.LocalUpdate, error) {
+	if err := ctx.Err(); err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	if _, found := localmodel.Resolve(id); !found {
+		return modelcatalog.LocalUpdate{}, errors.New("model is not in the reviewed catalog")
+	}
+	return modelcatalog.LocalUpdate{}, errors.New("model removal not admitted: cross-process use leases and durable mutation receipts are not implemented; no delete request was sent")
+}
+
+func (manager *localModelManager) Rename(ctx context.Context, provider, model, alias string) (map[string]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	alias = strings.TrimSpace(alias)
+	if provider == "" || model == "" {
+		return nil, fmt.Errorf("provider and model are required to rename a display label")
+	}
+	var aliases map[string]string
+	err := manager.store.Update(func(settings *config.Settings) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if settings.ModelAliases == nil {
+			settings.ModelAliases = make(map[string]string)
+		}
+		key := config.ModelAliasKey(provider, model)
+		if alias == "" {
+			delete(settings.ModelAliases, key)
+		} else {
+			settings.ModelAliases[key] = alias
+		}
+		aliases = cloneModelAliases(settings.ModelAliases)
+		return nil
+	})
+	return aliases, err
+}
+
+func (manager *localModelManager) catalog(settings config.Settings, client localmodel.Client, installed []localmodel.InstalledModel, host localmodel.Host) modelcatalog.LocalCatalog {
+	installedNames := installedModelNames(installed)
+	models := make([]modelcatalog.LocalModel, 0, len(localmodel.Catalog()))
+	for _, model := range localmodel.Catalog() {
+		_, isInstalled := installedNames[model.OllamaModel]
+		eligibility := localmodel.Assess(model, host)
+		models = append(models, modelcatalog.LocalModel{
+			Category:      model.Category,
+			ID:            model.ID,
+			OllamaModel:   model.OllamaModel,
+			Name:          modelDisplayName(settings, localmodel.ProviderID, model.OllamaModel, model.Name),
+			DefaultName:   model.Name,
+			Download:      model.Download,
+			Context:       model.Context,
+			Summary:       model.Summary,
+			SourceURL:     model.SourceURL,
+			Installed:     isInstalled,
+			Requirement:   localModelRequirement(eligibility),
+			BlockedReason: eligibility.Reason,
+		})
+	}
+	hostSummary, hostAdvice := localModelHostSummary(host)
+	return modelcatalog.LocalCatalog{RuntimeURL: client.BaseURL(), HostSummary: hostSummary, HostAdvice: hostAdvice, Dependencies: localModelDependencies(manager), Models: models}
+}
+
+func localModelDependencies(manager *localModelManager) []modelcatalog.LocalDependency {
+	statuses := dependency.Detect()
+	dependencies := make([]modelcatalog.LocalDependency, 0, len(statuses))
+	for _, status := range statuses {
+		installed := status.Installed
+		if status.ID == "ollama" {
+			_, err := manager.ollamaPath()
+			installed = err == nil
+		}
+		instructions := []string(nil)
+		if status.Instructions != nil {
+			instructions = status.Instructions(runtime.GOOS)
+		}
+		dependencies = append(dependencies, modelcatalog.LocalDependency{
+			ID:           status.ID,
+			Name:         status.Name,
+			Purpose:      status.Purpose,
+			Required:     status.Required,
+			Installed:    installed,
+			HelpURL:      status.HelpURL,
+			Instructions: instructions,
+		})
+	}
+	return dependencies
+}
+
+func (manager *localModelManager) localHost() localmodel.Host {
+	if manager.host != nil {
+		return manager.host()
+	}
+	return inspectLocalModelHost()
+}
+
+func cloneCustomProviders(providers []config.CustomProvider) []config.CustomProvider {
+	result := make([]config.CustomProvider, 0, len(providers))
+	for _, provider := range providers {
+		provider.Models = append([]string(nil), provider.Models...)
+		provider.ModelDigests = cloneModelAliases(provider.ModelDigests)
+		result = append(result, provider)
+	}
+	return result
+}
+
+func cloneModelAliases(aliases map[string]string) map[string]string {
+	result := make(map[string]string, len(aliases))
+	for key, value := range aliases {
+		result[key] = value
+	}
+	return result
+}
+
+func modelDisplayName(settings config.Settings, provider, model, fallback string) string {
+	if alias := strings.TrimSpace(settings.ModelAliases[config.ModelAliasKey(provider, model)]); alias != "" {
+		return alias
+	}
+	return fallback
+}
+
+var _ modelcatalog.LocalManager = (*localModelManager)(nil)
+var _ modelcatalog.LocalInstaller = (*localModelManager)(nil)
+
+func sameLocalSelectionSettings(a, b config.Settings) bool {
+	x, xf := configuredCustomProvider(a, localmodel.ProviderID)
+	y, yf := configuredCustomProvider(b, localmodel.ProviderID)
+	return a.Defaults == b.Defaults && xf == yf && reflect.DeepEqual(x, y)
+}
