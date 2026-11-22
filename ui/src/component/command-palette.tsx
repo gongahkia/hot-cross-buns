@@ -18,6 +18,7 @@ export function CommandPaletteDialog() {
   return <Show when={section()} keyed fallback={<DialogSelect title="HOT CROSS BUNS COMMANDS" searchInTitle titlePlaceholder="Search Hot Cross Buns commands"
     onFilter={setQuery} options={[...roots(), ...(query().trim() ? options().filter(option => !commandGroups.some(group => group.toLowerCase() === option.title.toLowerCase())) : [])]} flat />}>
     {group => <DialogSelect title={`HOT CROSS BUNS › ${group.toUpperCase()}`} placeholder={`Search ${group.toLowerCase()}`} onCancel={() => { setQuery(""); setSection(undefined) }}
-      options={options().filter(option => option.category === group.toUpperCase())} flat />}
+      options={options().filter(option => option.category === group.toUpperCase()).sort((a, b) =>
+        Number(b.value.startsWith("hot-cross-buns.command.")) - Number(a.value.startsWith("hot-cross-buns.command.")))} flat />}
   </Show>
 }
