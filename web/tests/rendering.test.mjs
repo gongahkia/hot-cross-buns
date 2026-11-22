@@ -603,3 +603,11 @@ test('correction messages keep the user instruction readable without exposing ro
   assert.deepEqual(correctionText(raw), { label: 'Requested an action correction', text: 'Use a calmer subject.' });
   assert.equal(correctionText('Regarding an unrelated note'), null);
 });
+
+test('whole-response copy keeps exact Markdown available when clipboard permission is denied', async () => {
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async () => { throw new Error('denied'); } } } });
+  const raw = '**A quiet note**\n\n```html\n<button>Continue</button>\n```';
+  const response = turn(raw, false, 'Hot Cross Buns'); document.body.replaceChildren(response);
+  response.querySelector('.response-tools button').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  const fallback = response.querySelector('.response-tools textarea'); assert.equal(fallback.value, raw); assert.equal(fallback.readOnly, true); assert.equal(document.activeElement, fallback); assert.match(response.querySelector('.response-tools [role="status"]').textContent, /Ctrl\+C/);
+});
