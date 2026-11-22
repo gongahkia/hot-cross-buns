@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, outputPreview, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, outputPreview, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -554,4 +554,35 @@ test('recovery access stays disabled until an exact review and preparation requi
   byText('Confirm preparation').click(); await new Promise(resolve => setTimeout(resolve, 0));
   assert.deepEqual(requests.at(-1), { op: 'task-control', selection: 'original', action: 'prepare_access', connections: ['account-a'] });
   assert.match(pane.element.textContent, /Nothing has been approved or repeated/);
+});
+
+test('workspace browsing is explicit and activity badges update without replacing focused chat rows', async () => {
+  const requests = [], selected = [];
+  const workspace = workspaceView({ source: '/notes', request: async value => { requests.push(value); return { source: value.path, parent: '/', folders: [{ name: 'Reading', path: '/notes/reading' }], changed: true }; }, selected: value => selected.push(value) });
+  document.body.replaceChildren(workspace.element); await workspace.load(); assert.equal(requests[0].op, 'workspace-browse');
+  [...workspace.element.querySelectorAll('button')].find(node => node.textContent === 'Use this folder').click(); await new Promise(resolve => setTimeout(resolve, 0)); assert.equal(requests.at(-1).op, 'workspace-select'); assert.equal(selected.length, 1);
+  const menu = chatMenu({ request: async () => ({ items: [{ id: 'one', title: 'Notes', selection: 'one' }, { id: 'two', title: 'Dinner', selection: 'two' }] }), open() {} });
+  document.body.replaceChildren(menu.element); await menu.load('current'); menu.updateCurrent('one');
+  const row = menu.element.querySelector('.chat-row'); row.focus();
+  menu.updateActivity([{ id: 'two', status: 'Needs review' }], [{ id: 'one', state: 'running' }]);
+  assert.equal(document.activeElement, row); assert.equal(menu.element.querySelector('.chat-activity-summary').textContent, '1 needs you');
+  assert.match(menu.element.querySelectorAll('.chat-row')[1].getAttribute('aria-label'), /Needs review/);
+  menu.updateActivity(); assert.equal(menu.element.querySelector('.chat-state'), null);
+});
+
+test('streaming reveal keeps graphemes intact, bounds backlog, and copies the complete received source', async () => {
+  const cursor = new StreamingReveal(); cursor.receive('Hello', 'one'); cursor.receive('Hello 👩‍💻 quiet world', 'one');
+  assert.equal(cursor.text, 'Hello'); assert.ok(cursor.pending); cursor.tick(); assert.ok(!cursor.text.endsWith('\u200d'));
+  while (cursor.pending) cursor.tick(); assert.equal(cursor.text, 'Hello 👩‍💻 quiet world');
+  cursor.receive('A'.repeat(4000), 'one'); assert.equal(cursor.pending, 0);
+  cursor.receive('Replacement', 'two'); assert.equal(cursor.text, 'Replacement');
+  cursor.receive('Replacement now', 'two', false); assert.equal(cursor.text, 'Replacement now');
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  let copied; Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: { writeText: async text => { copied = text; } } } });
+  const stream = streamingResponse(); document.body.replaceChildren(stream.element);
+  stream.update('A quiet thought', 'run'); stream.update('A quiet thought about tomorrow.', 'run');
+  stream.element.querySelector('button').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(copied, 'A quiet thought about tomorrow.');
+  stream.update('## Structured\n\n```js\nconst x = 1\n```', 'run'); assert.ok(stream.element.querySelector('code')); stream.dispose();
+  const complete = turn('**Original** markdown', false, 'Hot Cross Buns'); complete.querySelector('.response-tools button').click(); await new Promise(resolve => setTimeout(resolve, 0)); assert.equal(copied, '**Original** markdown');
 });

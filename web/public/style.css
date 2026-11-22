@@ -482,3 +482,21 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .task-recovery-controls > div { width: 100%; }
 .task-recovery-controls button, .view-tools button, .progress-details { display: inline-flex; align-items: center; gap: .35rem; }
 .recovery-confirmation { border-left: 2px solid var(--line); padding-left: .7rem; margin-top: .5rem; }
+
+.workspace-folders { max-height: 18rem; overflow-y: auto; margin-top: .7rem; }
+.workspace-view form > button { display: inline-flex; align-items: center; gap: .3rem; }
+.chat-state { display: inline-flex; flex: 0 0 auto !important; color: var(--muted); }
+.chat-state .app-icon { width: .8rem; height: .8rem; }
+.chat-state[data-active="true"] .app-icon { animation: activity-orbit 2s linear infinite; }
+.chat-activity-summary { font-size: .7rem; margin: .25rem 0; }
+@media (prefers-reduced-motion: reduce) { .chat-state .app-icon { animation: none !important; } }
+
+.response-tools { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; opacity: 0; transition: opacity 140ms ease-out; }
+.turn:hover > .response-tools, .turn:focus-within > .response-tools { opacity: 1; }
+.response-tools textarea { width: 100%; min-height: 5rem; border: 1px solid var(--line); font: .8rem/1.6 ui-monospace, monospace; }
+.response-tools:has(textarea) { opacity: 1; }
+.stream-entering { animation: stream-reveal 160ms ease-out both; }
+@keyframes stream-reveal { from { opacity: .65; } to { opacity: 1; } }
+#streaming > .live-response { animation: none; }
+@media (hover: none) { .response-tools { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stream-entering { animation: none; } .response-tools { transition: none; } }

@@ -434,3 +434,30 @@ test('retained chat search and rename keep exact selections, reject stale names,
     assert.equal(app.payloads.length, 0);
   } finally { live.close(); await app.close(); }
 });
+
+test('workspace selection confirms canonical folders without moving existing drafts or doing model work', { timeout: 20000 }, async () => {
+  const app = await fixture({ chatCount: 1 }); const live = await stream(app.url);
+  const action = async body => {
+    const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body) });
+    return { status: response.status, value: await response.json() };
+  };
+  try {
+    const initial = await live.until(s => s.connection === 'connected', 'connection'), context = initial.context;
+    await action({ op: 'save', context, text: 'Keep my original draft' });
+    assert.equal((await action({ op: 'workspace-browse', context, path: 'relative' })).status, 400);
+    const folders = await action({ op: 'workspace-browse', context, path: app.seededChats[0].source_path });
+    assert.equal(folders.status, 200);
+    assert.equal((await action({ op: 'workspace-select', context, path: folders.value.source })).value.changed, false);
+    const changed = await action({ op: 'workspace-select', context, path: folders.value.parent });
+    assert.equal(changed.status, 200); assert.equal(changed.value.changed, true);
+    const next = await live.until(s => s.context !== context && !s.switching, 'new workspace owner');
+    assert.equal(next.state.source, folders.value.parent);
+    assert.equal((await action({ op: 'draft', context: next.context })).value.text, '');
+    assert.equal((await action({ op: 'workspace-select', context, path: folders.value.source })).status, 409);
+    const chats = await action({ op: 'chats', context: next.context }); const original = chats.value.items.find(item => item.id === initial.state.conversation_id);
+    await action({ op: 'open-chat', context: next.context, selection: original.selection });
+    const back = await live.until(s => s.state?.conversation_id === initial.state.conversation_id && !s.switching, 'original chat');
+    assert.equal((await action({ op: 'draft', context: back.context })).value.text, 'Keep my original draft');
+    assert.equal(app.payloads.length, 0);
+  } finally { live.close(); await app.close(); }
+});

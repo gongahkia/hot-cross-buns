@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { dirname, join, isAbsolute } from 'node:path';
 import { createServer } from "node:http";
 import { attachmentPreview } from "./attachment-preview.mjs";
 import { taskSummaries, delegatedSummaries } from "./task-summaries.mjs";
@@ -17,6 +18,8 @@ const assets = new Map([
   ["/reading.mjs", ["reading.mjs", "text/javascript; charset=utf-8"]],
   ["/reactions.mjs", ["reactions.mjs", "text/javascript; charset=utf-8"]],
   ["/task-details.mjs", ["task-details.mjs", "text/javascript; charset=utf-8"]],
+  ["/workspace.mjs", ["workspace.mjs", "text/javascript; charset=utf-8"]],
+  ["/streaming.mjs", ["streaming.mjs", "text/javascript; charset=utf-8"]],
   ["/views.mjs", ["views.mjs", "text/javascript; charset=utf-8"]],
   ["/local-models.mjs", ["local-models.mjs", "text/javascript; charset=utf-8"]],
   ["/fields.mjs", ["fields.mjs", "text/javascript; charset=utf-8"]],
@@ -88,6 +91,7 @@ function projection(host) {
     scheduled: { entries: state?.checks || [], running: !!state?.supervisor_running, issue: state?.checks_issue },
     state: state && {
       conversation_id: state.conversation_id, title: state.title, recent: state.recent_conversations,
+      source: state.source,
       recentId: state.recent_id, recentIssue: state.recent_issue, provider: state.provider, model: state.model,
       messages: state.messages, dialogue: state.dialogue, peers: state.dialogue_peers,
       dialogueMore: state.dialogue_more, dialogueActive: state.dialogue_active,
@@ -196,6 +200,22 @@ export async function startWeb(options, port = 4317) {
     }
     requireContext(context);
     switch (op) {
+      case 'workspace-browse':
+      case 'workspace-select': {
+        host.mutable();
+        if (typeof body.path !== 'string' || !isAbsolute(body.path) || Buffer.byteLength(body.path) > 8192 || /[\x00-\x1f\x7f]/.test(body.path)) throw new RequestError(400, 'Choose an absolute folder path.');
+        const owner = host.backend;
+        const result = await owner.workspace({ request_id: randomUUID(), path: body.path });
+        requireContext(context);
+        if (owner !== host.backend || result.conversation_id !== owner.state.conversation_id) throw new RequestError(409, 'The workspace owner changed. Choose the folder again.');
+        if (result.error || !isAbsolute(result.source || '')) throw new RequestError(409, result.error || 'The folder could not be verified.');
+        if (op === 'workspace-select') {
+          if (result.new) await host.sessions.open({ new: true, source: result.source });
+          return { source: result.source, changed: result.new };
+        }
+        const entries = (await readdir(result.source, { withFileTypes: true })).filter(entry => entry.isDirectory() && !entry.name.startsWith('.')).sort((a, b) => a.name.localeCompare(b.name));
+        return { source: result.source, parent: dirname(result.source), folders: entries.slice(0, 200).map(entry => ({ name: entry.name, path: join(result.source, entry.name) })), truncated: entries.length > 200 };
+      }
       case 'task-inspect':
         return inspection.inspect(body.id || host.backend.state.conversation_id);
       case 'task-control':

@@ -12,6 +12,8 @@ import { transcriptFind } from './find.mjs';
 import { readingPosition } from './reading.mjs';
 import { reactionFor, reactionChip, reactionPreference } from './reactions.mjs';
 import { taskDetailView } from './task-details.mjs';
+import { workspaceView } from './workspace.mjs';
+import { streamingResponse } from './streaming.mjs';
 import { icon } from "./icons.mjs";
 import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
 
@@ -50,6 +52,7 @@ const scheduled = scheduledPane({ embedded: true, request: body => call({ op: 's
 document.querySelector('.top-actions').prepend(scheduled.trigger);
 scheduled.trigger.addEventListener('click', () => void execute(() => navigate('/scheduled')));
 function renderProgress() {
+  chats.updateActivity(snapshot.activity, snapshot.tasks);
   const candidates = (snapshot.tasks || []).filter(task => task.current || task.parent === snapshot.state?.conversation_id);
   const current = candidates.find(task => task.active && task.current) || candidates.find(task => task.active) || candidates.find(task => task.current) || candidates[0];
   progress.update(current, { connected: online });
@@ -323,6 +326,11 @@ document.addEventListener("keydown", event => {
 async function navigate(route) {
   await flush();
   showHistory(false);
+  if (route === '/workspace') {
+    const context = snapshot.context;
+    const view = workspaceView({ source: snapshot.state?.source, request: body => call({ context, ...body }), selected: () => dialog.close() });
+    openDetail('Workspace', view.element); await view.load(); return;
+  }
   if (['/settings', '/memory', '/knowledge', '/model', '/scheduled', '/preview/outputs', '/preview/memory'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
   if (route === '/settings') {
     openDetail('Settings', settingsView({ state: snapshot.state, scheduled: snapshot.scheduled,
@@ -796,13 +804,16 @@ function renderLiveActivity(state) {
 }
 setInterval(() => { if (!$("live-activity").hidden) liveActivity.clock(); progress.tick(); inspector.tick(); }, 1000);
 
+const streamed = streamingResponse(); $('streaming').append(streamed.element);
 function renderStreaming(state) {
   const live = state.running && state.activity?.entries?.at(-1);
   const text = live?.kind === "text" ? live.text : "";
-  if (text === streamingText) return;
+  const identity = snapshot.context + ':' + (state.activity?.started_at || '') + ':' + (live?.id || '');
+  if (text === streamingText && text && streamed.element.dataset.identity === identity) return;
   reading.before(state.conversation_id || snapshot.context);
   streamingText = text;
-  $("streaming").replaceChildren(...(text ? [turn(text, false, "Live response", { previews: false })] : []));
+  streamed.element.dataset.identity = identity;
+  if (text) streamed.update(text, identity, { active: online && snapshot.connection === 'connected' }); else streamed.clear();
   reading.after();
 }
 const events = new EventSource("/api/events");

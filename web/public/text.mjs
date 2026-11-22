@@ -235,9 +235,28 @@ export function prose(text, { previews = true } = {}) {
   return result;
 }
 
+export function responseCopy(read) {
+  const tools = element('div', undefined, 'response-tools');
+  const copy = element('button', undefined, 'quiet icon-button'); copy.type = 'button'; copy.title = 'Copy response'; copy.setAttribute('aria-label', 'Copy response'); copy.append(icon('copy'));
+  const status = element('span', '', 'sr-only'); status.setAttribute('role', 'status');
+  tools.append(copy, status);
+  copy.addEventListener('click', async () => {
+    const text = read(); copy.disabled = true;
+    try { await navigator.clipboard.writeText(text); copy.replaceChildren(icon('check')); copy.title = 'Copied'; status.textContent = 'Response copied'; tools.querySelector('textarea')?.remove(); }
+    catch {
+      let fallback = tools.querySelector('textarea');
+      if (!fallback) { fallback = element('textarea'); fallback.readOnly = true; fallback.setAttribute('aria-label', 'Response source to copy'); tools.append(fallback); }
+      fallback.value = text; fallback.focus(); fallback.select(); status.textContent = 'Press Cmd+C or Ctrl+C to copy the selected source.';
+    } finally { copy.disabled = false; }
+    setTimeout(() => { copy.replaceChildren(icon('copy')); copy.title = 'Copy response'; }, 2000);
+  });
+  return tools;
+}
+
 export function turn(text, user, name, options) {
   const article = element("article", undefined, user ? "turn user" : "turn");
   article.setAttribute("aria-label", name);
   if (text) article.append(user ? element("p", text) : prose(text, options));
+  if (text && !user) article.append(responseCopy(() => text));
   return article;
 }

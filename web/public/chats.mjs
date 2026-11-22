@@ -5,12 +5,32 @@ export function chatMenu({ request, open, rename }) {
   const container = element('div', undefined, 'chat-menu');
   const search = element('input'); search.type = 'search'; search.placeholder = 'Search chats…'; search.maxLength = 512; search.setAttribute('aria-label', 'Search retained chats');
   const searchHelp = element('p', 'Titles, folders, and indexed work messages. Other dialogue is not indexed.', 'hint chat-search-help'); searchHelp.hidden = true;
+  const activitySummary = element('p', '', 'hint chat-activity-summary'); activitySummary.hidden = true; activitySummary.setAttribute('role', 'status');
   const root = element('div', undefined, 'chat-scroll');
   const list = element('nav'); list.id = 'chat-list'; list.setAttribute('aria-label', 'All chats');
   const issue = element('p', undefined, 'hint chat-list-issue'); issue.setAttribute('role', 'status'); issue.hidden = true;
   const editor = element('form', undefined, 'chat-rename'); editor.hidden = true;
-  root.append(list); container.append(search, searchHelp, root, issue, editor);
+  root.append(list); container.append(search, searchHelp, activitySummary, root, issue, editor);
   let context, current, next = '', busy = false, generation = 0, items = new Map(), query = '', timer;
+  let activity = new Map();
+  function activityState() {
+    let working = 0, waiting = 0;
+    for (const [id, value] of activity) if (id !== current) {
+      if (['Working', 'In progress', 'Stopping'].includes(value)) working++;
+      if (['Needs review', 'Needs attention', 'Needs you', 'New update'].includes(value) || /updates$/.test(value)) waiting++;
+    }
+    activitySummary.textContent = [working ? `${working} working` : '', waiting ? `${waiting} needs you` : ''].filter(Boolean).join(' · '); activitySummary.hidden = !activitySummary.textContent;
+    for (const wrapper of list.querySelectorAll('.chat-item')) {
+      const value = activity.get(wrapper.dataset.chat), row = wrapper.querySelector('.chat-row');
+      let badge = wrapper.querySelector('.chat-state');
+      if (!value) { badge?.remove(); row.removeAttribute('aria-label'); continue; }
+      if (!badge) { badge = element('span', '', 'chat-state'); row.prepend(badge); }
+      const working = ['Working', 'In progress', 'Stopping'].includes(value);
+      badge.replaceChildren(icon(working ? 'loader-circle' : ['Needs review', 'Needs attention', 'Needs you', 'Disconnected'].includes(value) ? 'circle-alert' : 'check'));
+      badge.dataset.active = String(working); badge.title = value; badge.setAttribute('aria-hidden', 'true');
+      row.setAttribute('aria-label', (items.get(wrapper.dataset.chat)?.title || 'New chat') + ' · ' + value);
+    }
+  }
   const more = element('button', 'Load more chats', 'quiet'); more.type = 'button';
   more.addEventListener('click', () => void load(context, false));
   function edges() {
@@ -41,6 +61,7 @@ export function chatMenu({ request, open, rename }) {
     const position = list.scrollTop, ownerContext = context;
     list.replaceChildren(...[...items.values()].map(item => {
       const wrapper = element('div', undefined, 'chat-item');
+      wrapper.dataset.chat = item.id;
       const row = element('button', undefined, 'quiet chat-row'); row.type = 'button';
       if (item.pinned) row.append(icon('bookmark'));
       const text = element('span'); text.append(element('span', item.title || 'New chat', 'chat-title'));
@@ -64,7 +85,7 @@ export function chatMenu({ request, open, rename }) {
     }));
     if (!items.size) list.append(element('p', query ? 'No matching chats.' : 'No chats yet.', 'hint'));
     if (next) list.append(more);
-    list.scrollTop = position; edges();
+    list.scrollTop = position; edges(); activityState();
   }
   async function load(value, reset = true) {
     if (!value || busy && value === context && !reset) return;
@@ -95,5 +116,10 @@ export function chatMenu({ request, open, rename }) {
     if (next && list.scrollHeight - list.clientHeight - list.scrollTop < 70) void load(context, false);
   }, { passive: true });
   if (globalThis.ResizeObserver) new ResizeObserver(edges).observe(list);
-  return { element: container, load, updateCurrent(id) { if (current !== id) { current = id; render(); } } };
+  return { element: container, load, updateActivity(values = [], tasks = []) {
+    activity = new Map(values.map(value => [value.id, value.status]));
+    const labels = { running: 'In progress', waiting: 'Needs you', stopping: 'Stopping', failed: 'Needs attention', disconnected: 'Disconnected', queued: 'Queued' };
+    for (const task of tasks) if (labels[task.state] && !activity.has(task.id)) activity.set(task.id, labels[task.state]);
+    activityState();
+  }, updateCurrent(id) { if (current !== id) { current = id; render(); } } };
 }
