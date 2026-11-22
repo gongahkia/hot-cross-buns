@@ -1,4 +1,0 @@
-Explicit native Jump to Latest
-normalized scroll position before=0.5107604017216643
-normalized scroll position after=1.0
-Retained note B-24 at (353.0, 27.5) size (139.0, 19.21428680419922)

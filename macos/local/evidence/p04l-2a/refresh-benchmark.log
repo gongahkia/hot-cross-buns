@@ -1,9 +1,0 @@
-goos: darwin
-goarch: arm64
-pkg: github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns
-cpu: Apple M3
-BenchmarkNativeLocalReadOnlyStatus-8   	      20	   2541985 ns/op	  334036 B/op	    3672 allocs/op
-BenchmarkNativeLocalReadOnlyStatus-8   	      20	   2524717 ns/op	  331949 B/op	    3667 allocs/op
-BenchmarkNativeLocalReadOnlyStatus-8   	      20	   2406742 ns/op	  333450 B/op	    3667 allocs/op
-PASS
-ok  	github.com/gongahkia/hot-cross-buns/cmd/hot-cross-buns	0.891s

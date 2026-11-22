@@ -1,3 +1,0 @@
-AXApplication | Hot Cross Buns |  |
-AXMenuBar |  |  | 
-AXMenuBarItem | Hot Cross Buns |  |

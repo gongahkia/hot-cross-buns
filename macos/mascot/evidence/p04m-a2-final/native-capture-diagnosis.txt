@@ -1,3 +1,0 @@
-fixture exited
-screenCapture= true
-dev.hot-cross-buns.mascot.gate2.validation /private/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app /private/tmp/HotCrossBuns-Mascot-P04M-A2-Final-Diagnostic.app/Contents/MacOS/Gate2Lab false

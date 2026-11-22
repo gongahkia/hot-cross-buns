@@ -1,7 +1,0 @@
-Another instance of SwiftPM is already running using '/tmp/hot-cross-buns-native-build', waiting until that process has finished execution...[0/1] Planning build
-Building for debugging...
-[0/3] Write swift-version--1AB21518FC5DEDBE.txt
-Build complete! (1.25s)
-/tmp/hot-cross-buns-native-app.0IadXD/HotCrossBuns.app/Contents/Info.plist: OK
-Built /tmp/HotCrossBuns-Native-Tranche08-Final-Repack.app
-Launch: open '/tmp/HotCrossBuns-Native-Tranche08-Final-Repack.app'

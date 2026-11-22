@@ -1,7 +1,0 @@
-Another instance of SwiftPM (PID: 55810) is already running using '/tmp/hot-cross-buns-native-build', waiting until that process has finished execution...[0/1] Planning build
-Building for debugging...
-[0/3] Write swift-version--58304C5D6DBC2206.txt
-Build complete! (0.13s)
-/tmp/hot-cross-buns-native-app.bsyz7d/HotCrossBuns.app/Contents/Info.plist: OK
-Built /tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app
-Launch: open '/tmp/HotCrossBuns-Native-Tranche08-Enhanced-Final.app'

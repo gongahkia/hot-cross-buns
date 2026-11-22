@@ -1,9 +1,0 @@
-B -> A -> B: both destination titles confirmed; B draft retained
-enabled=nil position=(349.0, 453.0) size=(492.0, 136.0) value=Eight-line continuity check for B
-2
-3
-4
-5
-6
-7
-8
