@@ -1,0 +1,34 @@
+{
+  "Contents/Info.plist": {
+    "bytes": 909,
+    "sha256": "c48db490e5d710cbe9bca13ec88b19f79e33ca89d590808fcaf1d2597b2e5b23"
+  },
+  "Contents/MacOS/GatorMac": {
+    "bytes": 12033936,
+    "sha256": "7dc537b594f38ac61548ef77e28a42eb286065c2d45104b0ca984cd89944a2cc"
+  },
+  "Contents/Resources/AppIcon.icns": {
+    "bytes": 109631,
+    "sha256": "0d91fafee3d8905a7f998be60beec9ac1342429d910bfd1d63fe9015075b1401"
+  },
+  "Contents/Resources/GatorHead.png": {
+    "bytes": 37995,
+    "sha256": "d9704498398ca69035883c5301b0428c8c1595f60c5b4e8d09edf0a2360a60ee"
+  },
+  "Contents/Resources/GatorMenuBar.png": {
+    "bytes": 701,
+    "sha256": "b4f33c2246fa8b0970de1913ee5aa56cef55f55450a0acf72d7986677e0f3b2c"
+  },
+  "Contents/Resources/Presence/attention.gif": {
+    "bytes": 2179,
+    "sha256": "bf00539083313e171ec47ab95a8253bcdfd5b5025c39e39b531d73caef0da07c"
+  },
+  "Contents/Resources/Presence/completed.gif": {
+    "bytes": 1818,
+    "sha256": "8855aa8b205539a33abe8fe1687a110dbc9ba7f12a2864d26fd85e328c7b9bbb"
+  },
+  "Contents/Resources/gator-runtime": {
+    "bytes": 42075170,
+    "sha256": "b03ffca962161912b84deb5684701322beae2fce1b27f6ba58ed34199253a01e"
+  }
+}

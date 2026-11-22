@@ -1,0 +1,112 @@
+[0/1] Planning build
+Building for debugging...
+[0/7] Write sources
+[1/7] Write swift-version--58304C5D6DBC2206.txt
+[3/29] Compiling GatorCore NativeMessageContent.swift
+[4/29] Compiling GatorCore NativeMessageReaction.swift
+[5/29] Compiling GatorCore NativePlanExecution.swift
+[6/31] Compiling GatorCore NativeRecoveryPreparation.swift
+[7/31] Compiling GatorCore NativeTaskReview.swift
+[8/31] Compiling GatorCore NativeTranscriptSearch.swift
+[9/31] Compiling GatorCore NativeDraftStore.swift
+[10/31] Compiling GatorCore NativeLocalSelection.swift
+[11/31] Compiling GatorCore NativeLocalStatus.swift
+[12/31] Compiling GatorCore NativeProviderProtocol.swift
+[13/31] Compiling GatorCore NativeProviderSetup.swift
+[14/31] Compiling GatorCore NativeRecovery.swift
+[15/31] Compiling GatorCore NativeUploadStore.swift
+[16/31] Compiling GatorCore NativeWorkspaceSelection.swift
+[17/31] Compiling GatorCore GoBridgeConnection.swift
+[18/31] Compiling GatorCore ManagedSessionCoordinator.swift
+[19/31] Compiling GatorCore ManagedSessionProtocol.swift
+[20/31] Compiling GatorCore NativeCatalogProtocol.swift
+[21/31] Compiling GatorCore NativeConversationCatalog.swift
+[22/31] Compiling GatorCore NativeDraftAttachments.swift
+[23/31] Emitting module GatorCore
+[24/31] Compiling GatorCore BridgePipeIO.swift
+[25/31] Compiling GatorCore BridgeProtocol.swift
+[26/31] Compiling GatorCore GatorApplicationState.swift
+[27/106] Compiling GatorMac NativeMessageBody.swift
+[28/106] Compiling GatorMac NativeMessageReactionView.swift
+[29/106] Compiling GatorMac NativeMotionPresentation.swift
+[30/106] Compiling GatorMac NativeMotionVisibility.swift
+[31/106] Compiling GatorMac NativeProviderSecretEntry.swift
+[32/106] Compiling GatorMac NativeReadingPositions.swift
+[33/106] Compiling GatorMac NativeStatusMessage.swift
+[34/106] Compiling GatorMac NativeStreamingPresentation.swift
+[35/106] Compiling GatorMac NativeStreamingReveal.swift
+[36/106] Compiling GatorMac NativeThinkingPulse.swift
+[37/111] Compiling GatorMac NativeAccessibilityStatus.swift
+[38/111] Compiling GatorMac NativeAttachmentActions.swift
+[39/111] Compiling GatorMac NativeComposer.swift
+[40/111] Compiling GatorMac NativeComposerPresentation.swift
+[41/111] Compiling GatorMac NativeDesktopPet.swift
+[42/111] Compiling GatorMac NativeDropInput.swift
+[43/111] Compiling GatorMac ExactDecisionButton.swift
+[44/111] Compiling GatorMac ExactReviewContent.swift
+[45/111] Compiling GatorMac GatorApp.swift
+[46/111] Compiling GatorMac LocalModelInspectionView.swift
+[47/111] Compiling GatorMac MenuBarVisibilityToggle.swift
+[48/111] Compiling GatorMac NativeAcceptanceDiagnostics.swift
+[54/116] Compiling GatorMac NativeTranscriptFind.swift
+[55/116] Compiling GatorMac NativeWindowConfiguration.swift
+[56/116] Compiling GatorMac NativeWorkspacePicker.swift
+[57/116] Compiling GatorMac NotchQuickAccess.swift
+[58/116] Compiling GatorMac PlanReviewContent.swift
+[59/116] Compiling GatorMac NativeErrorDisclosure.swift
+[60/116] Compiling GatorMac NativeMascotModel.swift
+[61/116] Compiling GatorMac NativeMascotPlayback.swift
+[62/116] Compiling GatorMac NativeMascotPreferences.swift
+[63/116] Compiling GatorMac NativeMascotView.swift
+[64/116] Compiling GatorMac ConversationView.swift
+[79/116] Emitting module GatorCoreTests
+[80/116] Compiling GatorMac AppDelegate.swift
+[81/116] Compiling GatorMac ApprovalReviewView.swift
+[82/116] Compiling GatorMac AttachmentSelectionView.swift
+[83/116] Compiling GatorMac ComposerView.swift
+[84/116] Compiling GatorMac ConversationCatalogView.swift
+[95/116] Compiling GatorCoreTests NativeWorkspaceTests.swift
+[96/116] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
+[97/116] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
+[98/116] Compiling GatorCoreTests RecoveryPreparationTests.swift
+[99/116] Compiling GatorCoreTests resource_bundle_accessor.swift
+[102/116] Compiling GatorMac RecoveryInspectorContent.swift
+[103/116] Compiling GatorMac RecoveryPreparationView.swift
+[104/116] Compiling GatorMac TaskInspectorView.swift
+[105/116] Emitting module GatorMac
+[111/115] Linking GatorMac
+[112/115] Applying GatorMac
+[114/129] Compiling GatorMacTests NativeWorkspacePickerTests.swift
+[115/129] Compiling GatorMacTests NativeReactionGoTests.swift
+[116/129] Compiling GatorMacTests NativeStreamingTests.swift
+[117/129] Compiling GatorMacTests NativeMessageReactionTests.swift
+[118/129] Compiling GatorMacTests NativeMotionGoTests.swift
+[119/129] Compiling GatorMacTests NativeTranscriptFindTests.swift
+[120/129] Compiling GatorMacTests NativeUIUXRemediationTests.swift
+[121/130] Compiling GatorMacTests NativeMotionRenderTests.swift
+[122/130] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
+[123/130] Compiling GatorMacTests LocalModelInspectionTests.swift
+[124/130] Compiling GatorMacTests NativeDesktopPetTests.swift
+[125/130] Compiling GatorMacTests NotchGeometryTests.swift
+[126/130] Emitting module GatorMacTests
+[127/130] Compiling GatorMacTests NativeInputTests.swift
+[128/130] Compiling GatorMacTests NativeMascotTests.swift
+[129/132] Emitting module GatorNativePackageTests
+[130/132] Compiling GatorNativePackageTests runner.swift
+[130/132] Write Objects.LinkFileList
+[131/132] Linking GatorNativePackageTests
+Build complete! (16.99s)
+Test Suite 'Selected tests' started at 2026-11-21 11:14:19.586.
+Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-21 11:14:19.587.
+Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-21 11:14:19.587.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-11-21 11:14:19.587.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test localSelectionDigestAndUnknownOutcomePresentation() started.
+✔ Test localSelectionDigestAndUnknownOutcomePresentation() passed after 0.001 seconds.
+◇ Test localOnboardingHostedMissingRuntimeAndReviewAreReadable() started.
+✔ Test localOnboardingHostedMissingRuntimeAndReviewAreReadable() passed after 0.072 seconds.
+✔ Test run with 2 tests in 0 suites passed after 0.073 seconds.

@@ -1,0 +1,22 @@
+{
+  "idle": {
+    "seconds": 1.0050710829964373,
+    "cpu_one_core_percent": 0.3630340243320814,
+    "rss_mib": 35.71875,
+    "physical_footprint_mib": 16.203857421875
+  },
+  "refresh_burst": {
+    "seconds": 0.08058708300814033,
+    "cpu_one_core_percent": 65.04516362095536,
+    "rss_mib": 40.34375,
+    "physical_footprint_mib": 19.625755310058594
+  },
+  "settled": {
+    "seconds": 2.0017858339997474,
+    "cpu_one_core_percent": 0.001215564601702695,
+    "rss_mib": 40.34375,
+    "physical_footprint_mib": 19.625755310058594
+  },
+  "get_requests": 60,
+  "normal_go_exit": true
+}

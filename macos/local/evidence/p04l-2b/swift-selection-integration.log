@@ -1,0 +1,34 @@
+[0/1] Planning build
+Building for debugging...
+[0/7] Write sources
+[1/7] Copying Fixtures
+[2/7] Write swift-version--58304C5D6DBC2206.txt
+[4/7] Emitting module GatorCoreTests
+[5/7] Compiling GatorCoreTests NativeLocalSelectionIntegrationTests.swift
+[5/7] Write Objects.LinkFileList
+[6/7] Linking GatorNativePackageTests
+Build complete! (1.73s)
+Test Suite 'Selected tests' started at 2026-11-21 11:05:45.750.
+Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-21 11:05:45.751.
+Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-21 11:05:45.751.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-11-21 11:05:45.751.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test localActualGoReadOnlyStatusKeepsDraftProviderAndOwner() started.
+✔ Test localActualGoReadOnlyStatusKeepsDraftProviderAndOwner() passed after 3.099 seconds.
+◇ Test localSelectionActualGoReviewSelectRestartAndReconcileWithoutInference() started.
+✔ Test localSelectionActualGoReviewSelectRestartAndReconcileWithoutInference() passed after 1.982 seconds.
+◇ Test localSelectionReviewedProtocolAndAPIParity() started.
+✔ Test localSelectionReviewedProtocolAndAPIParity() passed after 0.001 seconds.
+◇ Test localSelectionCancelAndUnconfirmedAckNeverClaimSuccess() started.
+✔ Test localSelectionCancelAndUnconfirmedAckNeverClaimSuccess() passed after 0.001 seconds.
+◇ Test localSelectionDismissalRejectsLatePublicationAndNoDuplicateRequest() started.
+✔ Test localSelectionDismissalRejectsLatePublicationAndNoDuplicateRequest() passed after 0.008 seconds.
+◇ Test localSelectionDigestAndUnknownOutcomePresentation() started.
+✔ Test localSelectionDigestAndUnknownOutcomePresentation() passed after 0.001 seconds.
+◇ Test providerProtocolCarriesSecretOnlyInExplicitSaveAndNeverChat() started.
+✔ Test providerProtocolCarriesSecretOnlyInExplicitSaveAndNeverChat() passed after 0.001 seconds.
+✔ Test run with 7 tests in 0 suites passed after 5.095 seconds.

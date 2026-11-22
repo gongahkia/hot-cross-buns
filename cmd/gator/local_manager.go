@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -389,6 +390,15 @@ func (manager *localModelManager) Pull(ctx context.Context, id string, report fu
 }
 
 func (manager *localModelManager) Use(ctx context.Context, id string) (modelcatalog.LocalUpdate, error) {
+	return manager.use(ctx, id, nil)
+}
+
+type localSelectionExpectation struct {
+	Settings              config.Settings
+	Endpoint, Tag, Digest string
+}
+
+func (manager *localModelManager) use(ctx context.Context, id string, expected *localSelectionExpectation) (modelcatalog.LocalUpdate, error) {
 	model, found := localmodel.Resolve(id)
 	if !found {
 		return modelcatalog.LocalUpdate{}, fmt.Errorf("%q is not in Gator's curated local-model catalog", id)
@@ -404,6 +414,10 @@ func (manager *localModelManager) Use(ctx context.Context, id string) (modelcata
 	if err != nil {
 		return modelcatalog.LocalUpdate{}, err
 	}
+	if expected != nil && (!sameLocalSelectionSettings(settings, expected.Settings) || client.BaseURL() != expected.Endpoint || model.OllamaModel != expected.Tag) {
+		return modelcatalog.LocalUpdate{}, errProviderReviewChanged
+	}
+
 	installed, err := client.Models(ctx)
 	if err != nil {
 		return modelcatalog.LocalUpdate{}, err
@@ -411,81 +425,66 @@ func (manager *localModelManager) Use(ctx context.Context, id string) (modelcata
 	if !hasInstalledModel(installed, model.OllamaModel) {
 		return modelcatalog.LocalUpdate{}, fmt.Errorf("%s is not installed; pull it first", model.OllamaModel)
 	}
-	settings.CustomProviders = setCustomProvider(settings.CustomProviders, config.CustomProvider{
-		ID:           localmodel.ProviderID,
-		BaseURL:      client.ChatCompletionsURL(),
-		Models:       installedCatalogModels(installed),
-		DefaultModel: model.OllamaModel,
-	})
-	settings.Defaults.Provider = localmodel.ProviderID
-	settings.Defaults.Model = model.OllamaModel
-	if err := manager.store.Save(settings); err != nil {
-		return modelcatalog.LocalUpdate{}, err
-	}
-	catalog, err := manager.Status(ctx)
+	// Recheck the reviewed installed identity before publication, outside the settings lock.
+	verified, err := client.Models(ctx)
 	if err != nil {
 		return modelcatalog.LocalUpdate{}, err
 	}
-	return modelcatalog.LocalUpdate{
-		Catalog:         catalog,
-		CustomProviders: cloneCustomProviders(settings.CustomProviders),
-		ModelAliases:    cloneModelAliases(settings.ModelAliases),
-		Provider:        settings.Defaults.Provider,
-		Model:           settings.Defaults.Model,
-	}, nil
+	identity := func(items []localmodel.InstalledModel) localmodel.InstalledModel {
+		for _, item := range items {
+			if item.Name == model.OllamaModel {
+				return item
+			}
+		}
+		return localmodel.InstalledModel{}
+	}
+	if expected != nil {
+		digest, e := localmodel.ModelDigest(identity(verified).Digest)
+		if e != nil || digest != expected.Digest {
+			return modelcatalog.LocalUpdate{}, errors.New("reviewed model digest is no longer installed")
+		}
+	}
+
+	if identity(installed) != identity(verified) {
+		return modelcatalog.LocalUpdate{}, errors.New("installed model identity changed; inspect and select again")
+	}
+	reviewedProvider, reviewedFound := configuredCustomProvider(settings, localmodel.ProviderID)
+	reviewedDefaults := settings.Defaults
+	var committed config.Settings
+	err = manager.store.Update(func(current *config.Settings) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		provider, found := configuredCustomProvider(*current, localmodel.ProviderID)
+		if current.Defaults != reviewedDefaults || found != reviewedFound || !reflect.DeepEqual(provider, reviewedProvider) {
+			return errors.New("model configuration changed during inspection; review the new selection before retrying")
+		}
+		local := config.CustomProvider{ID: localmodel.ProviderID, BaseURL: client.ChatCompletionsURL(), Models: installedCatalogModels(verified), DefaultModel: model.OllamaModel, ModelDigests: cloneModelAliases(provider.ModelDigests)}
+		if expected != nil {
+			local.ModelDigests[model.OllamaModel] = expected.Digest
+		}
+		current.CustomProviders = setCustomProvider(current.CustomProviders, local)
+		current.Defaults.Provider = localmodel.ProviderID
+		current.Defaults.Model = model.OllamaModel
+		committed = *current
+		return nil
+	})
+	if err != nil {
+		return modelcatalog.LocalUpdate{}, err
+	}
+	settings = committed
+	catalog, statusErr := manager.Status(ctx)
+	return modelcatalog.LocalUpdate{Published: true, Catalog: catalog, CustomProviders: cloneCustomProviders(settings.CustomProviders), ModelAliases: cloneModelAliases(settings.ModelAliases), Provider: settings.Defaults.Provider, Model: settings.Defaults.Model}, statusErr
 }
 
 func (manager *localModelManager) Remove(ctx context.Context, id string) (modelcatalog.LocalUpdate, error) {
-	model, found := localmodel.Resolve(id)
-	if !found {
-		return modelcatalog.LocalUpdate{}, fmt.Errorf("%q is not in Gator's curated local-model catalog", id)
-	}
-	settings, err := manager.store.Load()
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return modelcatalog.LocalUpdate{}, err
 	}
-	client, err := localClient(manager.runtimeURL, settings)
-	if err != nil {
-		return modelcatalog.LocalUpdate{}, err
+	if _, found := localmodel.Resolve(id); !found {
+		return modelcatalog.LocalUpdate{}, errors.New("model is not in the reviewed catalog")
 	}
-	if _, err := client.Version(ctx); err != nil {
-		return modelcatalog.LocalUpdate{}, err
-	}
-	if err := client.Remove(ctx, model); err != nil {
-		return modelcatalog.LocalUpdate{}, err
-	}
-	if localProvider, found := configuredCustomProvider(settings, localmodel.ProviderID); found {
-		localProvider.Models = removeLocalProviderModel(localProvider.Models, model.OllamaModel)
-		if len(localProvider.Models) == 0 {
-			settings.CustomProviders = removeCustomProvider(settings.CustomProviders, localmodel.ProviderID)
-			if settings.Defaults.Provider == localmodel.ProviderID {
-				settings.Defaults.Provider = ""
-				settings.Defaults.Model = ""
-			}
-		} else {
-			if localProvider.DefaultModel == model.OllamaModel {
-				localProvider.DefaultModel = localProvider.Models[0]
-			}
-			settings.CustomProviders = setCustomProvider(settings.CustomProviders, localProvider)
-			if settings.Defaults.Provider == localmodel.ProviderID && settings.Defaults.Model == model.OllamaModel {
-				settings.Defaults.Model = localProvider.DefaultModel
-			}
-		}
-		if err := manager.store.Save(settings); err != nil {
-			return modelcatalog.LocalUpdate{}, fmt.Errorf("removed %s but could not update Gator's local provider configuration: %w", model.OllamaModel, err)
-		}
-	}
-	catalog, err := manager.Status(ctx)
-	if err != nil {
-		return modelcatalog.LocalUpdate{}, err
-	}
-	return modelcatalog.LocalUpdate{
-		Catalog:         catalog,
-		CustomProviders: cloneCustomProviders(settings.CustomProviders),
-		ModelAliases:    cloneModelAliases(settings.ModelAliases),
-		Provider:        settings.Defaults.Provider,
-		Model:           settings.Defaults.Model,
-	}, nil
+	return modelcatalog.LocalUpdate{}, errors.New("model removal not admitted: cross-process use leases and durable mutation receipts are not implemented; no delete request was sent")
 }
 
 func (manager *localModelManager) Rename(ctx context.Context, provider, model, alias string) (map[string]string, error) {
@@ -498,23 +497,24 @@ func (manager *localModelManager) Rename(ctx context.Context, provider, model, a
 	if provider == "" || model == "" {
 		return nil, fmt.Errorf("provider and model are required to rename a display label")
 	}
-	settings, err := manager.store.Load()
-	if err != nil {
-		return nil, err
-	}
-	if settings.ModelAliases == nil {
-		settings.ModelAliases = make(map[string]string)
-	}
-	key := config.ModelAliasKey(provider, model)
-	if alias == "" {
-		delete(settings.ModelAliases, key)
-	} else {
-		settings.ModelAliases[key] = alias
-	}
-	if err := manager.store.Save(settings); err != nil {
-		return nil, err
-	}
-	return cloneModelAliases(settings.ModelAliases), nil
+	var aliases map[string]string
+	err := manager.store.Update(func(settings *config.Settings) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if settings.ModelAliases == nil {
+			settings.ModelAliases = make(map[string]string)
+		}
+		key := config.ModelAliasKey(provider, model)
+		if alias == "" {
+			delete(settings.ModelAliases, key)
+		} else {
+			settings.ModelAliases[key] = alias
+		}
+		aliases = cloneModelAliases(settings.ModelAliases)
+		return nil
+	})
+	return aliases, err
 }
 
 func (manager *localModelManager) catalog(settings config.Settings, client localmodel.Client, installed []localmodel.InstalledModel, host localmodel.Host) modelcatalog.LocalCatalog {
@@ -579,6 +579,7 @@ func cloneCustomProviders(providers []config.CustomProvider) []config.CustomProv
 	result := make([]config.CustomProvider, 0, len(providers))
 	for _, provider := range providers {
 		provider.Models = append([]string(nil), provider.Models...)
+		provider.ModelDigests = cloneModelAliases(provider.ModelDigests)
 		result = append(result, provider)
 	}
 	return result
@@ -601,3 +602,9 @@ func modelDisplayName(settings config.Settings, provider, model, fallback string
 
 var _ modelcatalog.LocalManager = (*localModelManager)(nil)
 var _ modelcatalog.LocalInstaller = (*localModelManager)(nil)
+
+func sameLocalSelectionSettings(a, b config.Settings) bool {
+	x, xf := configuredCustomProvider(a, localmodel.ProviderID)
+	y, yf := configuredCustomProvider(b, localmodel.ProviderID)
+	return a.Defaults == b.Defaults && xf == yf && reflect.DeepEqual(x, y)
+}

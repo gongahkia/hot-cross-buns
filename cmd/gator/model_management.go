@@ -89,15 +89,13 @@ func (backend *tuiModelManagementBackend) SaveCustomProvider(setup modelcatalog.
 	if err := reservedCustomProviderIDError(provider.ID); err != nil {
 		return nil, err
 	}
-	settings, err := backend.settings.Load()
-	if err != nil {
-		return nil, err
-	}
-	settings.CustomProviders = setCustomProvider(settings.CustomProviders, provider)
-	if err := backend.settings.Save(settings); err != nil {
-		return nil, err
-	}
-	return cloneCustomProviders(settings.CustomProviders), nil
+	var result []config.CustomProvider
+	err = backend.settings.Update(func(settings *config.Settings) error {
+		settings.CustomProviders = setCustomProvider(settings.CustomProviders, provider)
+		result = cloneCustomProviders(settings.CustomProviders)
+		return nil
+	})
+	return result, err
 }
 
 func (backend *tuiModelManagementBackend) RemoveCustomProvider(id string) ([]config.CustomProvider, error) {
@@ -105,19 +103,17 @@ func (backend *tuiModelManagementBackend) RemoveCustomProvider(id string) ([]con
 	if id == localmodel.ProviderID {
 		return nil, fmt.Errorf("custom provider ID %q is reserved for the Local section of /model", id)
 	}
-	settings, err := backend.settings.Load()
-	if err != nil {
-		return nil, err
-	}
-	if !hasCustomProvider(settings.CustomProviders, id) {
-		return nil, fmt.Errorf("custom provider %q is not configured", id)
-	}
-	settings.CustomProviders = removeCustomProvider(settings.CustomProviders, id)
-	clearDeletedCustomProviderReferences(&settings, id)
-	if err := backend.settings.Save(settings); err != nil {
-		return nil, err
-	}
-	return cloneCustomProviders(settings.CustomProviders), nil
+	var result []config.CustomProvider
+	err := backend.settings.Update(func(settings *config.Settings) error {
+		if !hasCustomProvider(settings.CustomProviders, id) {
+			return fmt.Errorf("custom provider %q is not configured", id)
+		}
+		settings.CustomProviders = removeCustomProvider(settings.CustomProviders, id)
+		clearDeletedCustomProviderReferences(settings, id)
+		result = cloneCustomProviders(settings.CustomProviders)
+		return nil
+	})
+	return result, err
 }
 
 func (backend *tuiModelManagementBackend) DiscoverCustomProvider(id string) (modelcatalog.CustomProviderDiscovery, error) {
@@ -152,27 +148,25 @@ func (backend *tuiModelManagementBackend) ApplyCustomProviderDiscovery(id string
 	if id == localmodel.ProviderID {
 		return nil, fmt.Errorf("custom provider ID %q is reserved for the Local section of /model", id)
 	}
-	settings, err := backend.settings.Load()
-	if err != nil {
-		return nil, err
-	}
-	provider, found := findCustomProvider(settings.CustomProviders, id)
-	if !found {
-		return nil, fmt.Errorf("custom provider %q is not configured", id)
-	}
-	cleaned, err := normalizeCustomProviderModels(models)
-	if err != nil {
-		return nil, err
-	}
-	provider.Models = cleaned
-	if !customProviderSupportsModel(provider, provider.DefaultModel) {
-		provider.DefaultModel = cleaned[0]
-	}
-	settings.CustomProviders = setCustomProvider(settings.CustomProviders, provider)
-	if err := backend.settings.Save(settings); err != nil {
-		return nil, err
-	}
-	return cloneCustomProviders(settings.CustomProviders), nil
+	var result []config.CustomProvider
+	err := backend.settings.Update(func(settings *config.Settings) error {
+		provider, found := findCustomProvider(settings.CustomProviders, id)
+		if !found {
+			return fmt.Errorf("custom provider %q is not configured", id)
+		}
+		cleaned, err := normalizeCustomProviderModels(models)
+		if err != nil {
+			return err
+		}
+		provider.Models = cleaned
+		if !customProviderSupportsModel(provider, provider.DefaultModel) {
+			provider.DefaultModel = cleaned[0]
+		}
+		settings.CustomProviders = setCustomProvider(settings.CustomProviders, provider)
+		result = cloneCustomProviders(settings.CustomProviders)
+		return nil
+	})
+	return result, err
 }
 
 func customProviderFromSetup(setup modelcatalog.CustomProviderSetup) (config.CustomProvider, error) {

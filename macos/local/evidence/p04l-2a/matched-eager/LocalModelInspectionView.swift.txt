@@ -1,0 +1,65 @@
+import SwiftUI
+import GatorCore
+
+struct LocalModelInspectionView: View {
+    let setup: NativeProviderSetup
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Local Models").font(.title2)
+                Text("Ollama inspection is independent of API-key setup. No inference, installation, download or selection change is performed.").foregroundStyle(.secondary)
+                if !setup.localIssue.isEmpty { NativeStatusMessage(text: setup.localIssue, severity: .warning) }
+                if setup.busy { ProgressView("Waiting for Go observation…").controlSize(.small) }
+                if let status = setup.localStatus {
+                    runtime(status)
+                    Divider()
+                    Text("Downloaded models").font(.headline)
+                    if !status.installedKnown { Text("Unknown · installed inventory could not be verified.") }
+                    else if status.installed.isEmpty { Text("The runtime reports no downloaded models.") }
+                    ForEach(status.installed) { model in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: model.tag).fontWeight(.medium)
+                            Text(model.loadedLabel).foregroundStyle(.secondary)
+                            Text("Size: \(model.size.map { bytes(UInt64($0)) } ?? "unknown") · Digest: \(model.digest.isEmpty ? "unknown" : model.digest)").font(.caption).textSelection(.enabled)
+                        }
+                    }
+                    Divider()
+                    Text("Reviewed catalog").font(.headline)
+                    Text("Eligibility is a conservative hardware check. It is not a live model test.").font(.caption).foregroundStyle(.secondary)
+                    ForEach(status.catalog) { model in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: model.name).fontWeight(.medium)
+                            Text(verbatim: model.tag).font(.callout).textSelection(.enabled)
+                            Text("\(model.downloadLabel) · \(model.loadedLabel)").font(.caption).foregroundStyle(.secondary)
+                            Text(model.eligible ? "Passes conservative hardware check" : model.reason).font(.caption)
+                            if let url = URL(string: model.source), url.scheme == "https", url.host == "ollama.com" { Link("Catalog source", destination: url).font(.caption) }
+                        }.padding(.vertical, 3)
+                    }
+                    Divider()
+                    Text(status.blocked).font(.callout).foregroundStyle(.secondary)
+                    Button("Select Local Model…") {}.disabled(true).help("Initial local selection awaits the reviewed lifecycle workflow. Existing configured choices remain available in the conversation model picker.")
+                } else if !setup.busy {
+                    Text("No current observation. Choose Refresh Status to inspect the local runtime.").foregroundStyle(.secondary)
+                }
+                Text("Configured, locally ready and live verified are distinct. This view never live-tests a model. Selected models affect future requests; an active request keeps its captured model.").font(.caption).foregroundStyle(.secondary)
+            }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+        }.accessibilityIdentifier("gator.models.local")
+    }
+    private func runtime(_ status: NativeLocalStatus) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Runtime").font(.headline)
+            Text(status.runtimePath.isEmpty ? "Executable not detected in the supported locations" : "Installed executable: \(status.runtimePath)")
+            Text(status.reachable ? "Running endpoint: reachable · Version: \(status.version)" : "Running endpoint: unverified / unavailable")
+            Text("Ownership: \(status.ownership)")
+            Text("Future selection: \(status.selectedProvider.isEmpty ? "none" : status.selectedProvider) / \(status.selectedModel.isEmpty ? "none" : status.selectedModel)")
+            Text("Live tested: not established by this observation")
+            if !status.issue.isEmpty { NativeStatusMessage(text: status.issue, severity: .warning) }
+            Text("Endpoint: \(status.endpoint.isEmpty ? "unavailable" : status.endpoint)").font(.caption).textSelection(.enabled)
+            Text("Checked: \(status.discovery)").font(.caption).foregroundStyle(.secondary)
+            Text("Total RAM: \(status.totalMemory == 0 ? "unknown" : bytes(status.totalMemory)) · Available memory: \(status.availableMemory.map(bytes) ?? "unknown") · Available disk: \(status.availableDisk.map(bytes) ?? "unknown")").font(.caption)
+            Text(status.hardwareNote).font(.caption).foregroundStyle(.secondary)
+            Text("Observed \(status.observedAt)").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func bytes(_ count: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .file) }
+}

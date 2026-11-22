@@ -1,0 +1,19 @@
+[0/1] Planning build
+Building for debugging...
+[0/5] Write sources
+[2/5] Write swift-version--58304C5D6DBC2206.txt
+[4/7] Emitting module GatorCore
+[5/7] Compiling GatorCore NativeLocalStatus.swift
+[6/10] Compiling GatorCore ManagedSessionCoordinator.swift
+[7/10] Compiling GatorCore NativeProviderSetup.swift
+[8/10] Compiling GatorCore NativeProviderProtocol.swift
+[9/14] Compiling GatorMac ProviderSetupView.swift
+[10/14] Emitting module GatorMac
+[11/14] Compiling GatorMac LocalModelInspectionView.swift
+[11/14] Write Objects.LinkFileList
+[12/14] Linking GatorMac
+[13/14] Applying GatorMac
+Build complete! (3.78s)
+/tmp/gator-native-app.4qrBjo/Gator.app/Contents/Info.plist: OK
+Built /tmp/Gator-Native-P04L2A-Models.app
+Launch: open '/tmp/Gator-Native-P04L2A-Models.app'

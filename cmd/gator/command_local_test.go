@@ -84,7 +84,7 @@ func testLocalManager(t *testing.T, runtimeURL string) *localModelManager {
 	return &localModelManager{store: store, runtimeURL: runtimeURL}
 }
 
-func TestLocalRemoveUpdatesSelectedProviderConfiguration(t *testing.T) {
+func TestLocalRemoveDoesNotMutateWithoutUseLeases(t *testing.T) {
 	useGenerousLocalModelHost(t)
 	t.Setenv("GATOR_CONFIG_DIR", t.TempDir())
 	server := newLocalModelServer(t)
@@ -92,8 +92,8 @@ func TestLocalRemoveUpdatesSelectedProviderConfiguration(t *testing.T) {
 	if _, err := testLocalManager(t, server.URL).Use(context.Background(), "qwen2.5-coder-7b"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := testLocalManager(t, server.URL).Remove(context.Background(), "qwen2.5-coder-7b"); err != nil {
-		t.Fatalf("local remove: %v", err)
+	if _, err := testLocalManager(t, server.URL).Remove(context.Background(), "qwen2.5-coder-7b"); err == nil || !strings.Contains(err.Error(), "not admitted") {
+		t.Fatalf("removal must be blocked: %v", err)
 	}
 	store, err := config.DefaultStore()
 	if err != nil {
@@ -103,7 +103,7 @@ func TestLocalRemoveUpdatesSelectedProviderConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, found := configuredCustomProvider(settings, localmodel.ProviderID); found || settings.Defaults.Provider != "" || settings.Defaults.Model != "" {
+	if _, found := configuredCustomProvider(settings, localmodel.ProviderID); !found || settings.Defaults.Provider != localmodel.ProviderID || settings.Defaults.Model != "qwen2.5-coder:7b" {
 		t.Fatalf("local settings after remove = %#v", settings)
 	}
 }
@@ -194,7 +194,7 @@ func TestLocalModelManagerSupportsTheTUICatalogLifecycle(t *testing.T) {
 		t.Fatalf("local manager use = %#v, err = %v", update, err)
 	}
 	update, err = manager.Remove(context.Background(), "qwen2.5-coder-7b")
-	if err != nil || update.Provider != "" || update.Model != "" || len(update.CustomProviders) != 0 {
+	if err == nil || !strings.Contains(err.Error(), "not admitted") {
 		t.Fatalf("local manager remove = %#v, err = %v", update, err)
 	}
 	aliases, err := manager.Rename(context.Background(), localmodel.ProviderID, "qwen2.5-coder:7b", "desk Qwen")

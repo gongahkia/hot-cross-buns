@@ -8,11 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -30,8 +29,10 @@ type Client struct {
 
 // InstalledModel is the bounded inventory returned by an Ollama runtime.
 type InstalledModel struct {
-	Name string
-	Size int64
+	Name      string
+	Size      int64
+	SizeKnown bool
+	Digest    string
 }
 
 // Progress describes one pull status update. Its content is supplied by the
@@ -49,28 +50,16 @@ func NewClient(rawURL string) (Client, error) {
 	if strings.TrimSpace(rawURL) == "" {
 		rawURL = DefaultBaseURL
 	}
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	parsed, err := LocalURL(rawURL)
 	if err != nil {
-		return Client{}, fmt.Errorf("parse local runtime URL: %w", err)
-	}
-	if parsed.Scheme != "http" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Host == "" {
-		return Client{}, errors.New("local runtime URL must be an absolute loopback http URL without credentials, query, or fragment")
-	}
-	host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
-	if host != "localhost" {
-		address := net.ParseIP(host)
-		if address == nil || !address.IsLoopback() {
-			return Client{}, errors.New("local runtime URL must use localhost or a loopback IP address")
-		}
-	}
-	if port := parsed.Port(); port != "" {
-		value, err := strconv.ParseUint(port, 10, 16)
-		if err != nil || value == 0 {
-			return Client{}, errors.New("local runtime URL has an invalid port")
-		}
+		return Client{}, err
 	}
 	parsed.Path = strings.TrimRight(parsed.Path, "/")
-	return Client{baseURL: parsed, client: http.DefaultClient}, nil
+	client, err := HTTPClient(parsed.String())
+	if err != nil {
+		return Client{}, err
+	}
+	return Client{baseURL: parsed, client: client}, nil
 }
 
 // NewClientFromChatCompletionsURL validates the endpoint persisted for the
@@ -78,7 +67,7 @@ func NewClient(rawURL string) (Client, error) {
 func NewClientFromChatCompletionsURL(rawURL string) (Client, error) {
 	parsed, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
-		return Client{}, fmt.Errorf("parse local Chat Completions URL: %w", err)
+		return Client{}, errors.New("invalid local Chat Completions URL")
 	}
 	const suffix = "/v1/chat/completions"
 	if !strings.HasSuffix(parsed.Path, suffix) {
@@ -143,6 +132,8 @@ func (c Client) Embed(ctx context.Context, model string, input []string) ([][]fl
 
 // Version verifies that the selected local runtime is reachable.
 func (c Client) Version(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	request, err := c.request(ctx, http.MethodGet, "/api/version", nil)
 	if err != nil {
 		return "", err
@@ -161,7 +152,7 @@ func (c Client) Version(ctx context.Context) (string, error) {
 	if err := decodeBounded(response.Body, &payload); err != nil {
 		return "", fmt.Errorf("decode local Ollama version: %w", err)
 	}
-	if strings.TrimSpace(payload.Version) == "" {
+	if strings.TrimSpace(payload.Version) == "" || len(payload.Version) > 128 || strings.ContainsAny(payload.Version, "\r\n") {
 		return "", errors.New("local Ollama runtime returned an empty version")
 	}
 	return payload.Version, nil
@@ -169,6 +160,8 @@ func (c Client) Version(ctx context.Context) (string, error) {
 
 // Models lists models installed in the selected local runtime.
 func (c Client) Models(ctx context.Context) ([]InstalledModel, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	request, err := c.request(ctx, http.MethodGet, "/api/tags", nil)
 	if err != nil {
 		return nil, err
@@ -183,25 +176,40 @@ func (c Client) Models(ctx context.Context) ([]InstalledModel, error) {
 	}
 	var payload struct {
 		Models []struct {
-			Name string `json:"name"`
-			Size int64  `json:"size"`
+			Name   string `json:"name"`
+			Size   *int64 `json:"size"`
+			Digest string `json:"digest"`
 		} `json:"models"`
 	}
 	if err := decodeBounded(response.Body, &payload); err != nil {
 		return nil, fmt.Errorf("decode local Ollama models: %w", err)
+	}
+	if payload.Models == nil {
+		return nil, errors.New("local model inventory missing")
+	}
+	if len(payload.Models) > 256 {
+		return nil, errors.New("installed inventory exceeds limit")
 	}
 	models := make([]InstalledModel, 0, len(payload.Models))
 	seen := make(map[string]struct{}, len(payload.Models))
 	for _, item := range payload.Models {
 		name := strings.TrimSpace(item.Name)
 		if name == "" || len(name) > 512 || strings.ContainsAny(name, "\r\n") {
-			continue
+			return nil, errors.New("invalid installed model identity")
 		}
 		if _, found := seen[name]; found {
 			continue
 		}
 		seen[name] = struct{}{}
-		models = append(models, InstalledModel{Name: name, Size: item.Size})
+		if item.Size != nil && *item.Size < 0 || len(item.Digest) > 128 || strings.ContainsAny(item.Digest, "\r\n") {
+			return nil, errors.New("invalid local model metadata")
+		}
+		entry := InstalledModel{Name: name, Digest: item.Digest}
+		if item.Size != nil {
+			entry.Size = *item.Size
+			entry.SizeKnown = true
+		}
+		models = append(models, entry)
 	}
 	return models, nil
 }
@@ -232,7 +240,13 @@ func (c Client) Pull(ctx context.Context, model Model, progress func(Progress)) 
 	scanner := bufio.NewScanner(response.Body)
 	scanner.Buffer(make([]byte, 1024), maxProgressBytes)
 	sawSuccess := false
+	records := 0
+	previous := make(map[string]int64)
 	for scanner.Scan() {
+		records++
+		if records > 100000 {
+			return errors.New("download progress exceeds record limit")
+		}
 		var update struct {
 			Status    string `json:"status"`
 			Digest    string `json:"digest"`
@@ -244,7 +258,16 @@ func (c Client) Pull(ctx context.Context, model Model, progress func(Progress)) 
 			return fmt.Errorf("decode local model download progress: %w", err)
 		}
 		if strings.TrimSpace(update.Error) != "" {
-			return fmt.Errorf("download local model: %s", strings.TrimSpace(update.Error))
+			return errors.New("local runtime reported a model download failure")
+		}
+		if update.Completed < 0 || update.Total < 0 || update.Total > 0 && update.Completed > update.Total || len(update.Status) > 512 || len(update.Digest) > 128 || sawSuccess {
+			return errors.New("invalid local download progress")
+		}
+		if update.Digest != "" {
+			if len(previous) > 256 || update.Completed < previous[update.Digest] {
+				return errors.New("invalid download progress sequence")
+			}
+			previous[update.Digest] = update.Completed
 		}
 		if strings.EqualFold(strings.TrimSpace(update.Status), "success") {
 			sawSuccess = true
@@ -300,21 +323,79 @@ func (c Client) httpClient() *http.Client {
 	if c.client != nil {
 		return c.client
 	}
-	return http.DefaultClient
+	return &http.Client{Timeout: time.Second, Transport: rejectLocalTransport{}}
 }
 
 func decodeBounded(source io.Reader, target any) error {
-	return json.NewDecoder(io.LimitReader(source, maxResponseBytes)).Decode(target)
+	contents, err := io.ReadAll(io.LimitReader(source, maxResponseBytes+1))
+	if err != nil {
+		return errors.New("read local response failed")
+	}
+	if len(contents) > maxResponseBytes {
+		return errors.New("local response exceeds limit")
+	}
+	if err := json.Unmarshal(contents, target); err != nil {
+		return errors.New("invalid local JSON response")
+	}
+	return nil
 }
 
 func requireSuccess(response *http.Response, action string) error {
 	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 		return nil
 	}
-	contents, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	message := strings.TrimSpace(string(contents))
-	if message == "" {
-		return fmt.Errorf("%s: local Ollama runtime returned HTTP %d", action, response.StatusCode)
+	return fmt.Errorf("%s: local Ollama runtime returned HTTP %d", action, response.StatusCode)
+}
+
+type rejectLocalTransport struct{}
+
+func (rejectLocalTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("local transport is not configured")
+}
+
+// Running inspects loaded weights; this GET does not load or unload a model.
+func (c Client) Running(ctx context.Context) ([]InstalledModel, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	request, err := c.request(ctx, http.MethodGet, "/api/ps", nil)
+	if err != nil {
+		return nil, err
 	}
-	return fmt.Errorf("%s: local Ollama runtime returned HTTP %d: %s", action, response.StatusCode, message)
+	response, err := c.httpClient().Do(request)
+	if err != nil {
+		return nil, errors.New("loaded model inspection unavailable")
+	}
+	defer response.Body.Close()
+	if err := requireSuccess(response, "inspect loaded models"); err != nil {
+		return nil, err
+	}
+	var payload struct {
+		Models []struct {
+			Name   string `json:"name"`
+			Size   *int64 `json:"size"`
+			Digest string `json:"digest"`
+		} `json:"models"`
+	}
+	if err := decodeBounded(response.Body, &payload); err != nil {
+		return nil, err
+	}
+	if payload.Models == nil {
+		return nil, errors.New("local model inventory missing")
+	}
+	if len(payload.Models) > 256 {
+		return nil, errors.New("loaded inventory exceeds limit")
+	}
+	result := make([]InstalledModel, 0, len(payload.Models))
+	for _, m := range payload.Models {
+		if m.Name == "" || len(m.Name) > 512 || len(m.Digest) > 128 || m.Size != nil && *m.Size < 0 || strings.ContainsAny(m.Name+m.Digest, "\r\n") {
+			return nil, errors.New("invalid loaded model metadata")
+		}
+		entry := InstalledModel{Name: m.Name, Digest: m.Digest}
+		if m.Size != nil {
+			entry.Size = *m.Size
+			entry.SizeKnown = true
+		}
+		result = append(result, entry)
+	}
+	return result, nil
 }

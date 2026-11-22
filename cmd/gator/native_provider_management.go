@@ -13,6 +13,7 @@ import (
 
 	"github.com/gongahkia/gator/internal/auth"
 	"github.com/gongahkia/gator/internal/config"
+	"github.com/gongahkia/gator/internal/localmodel"
 	"github.com/gongahkia/gator/internal/model"
 	"github.com/gongahkia/gator/internal/modelcatalog"
 )
@@ -28,10 +29,13 @@ type nativeProviderReview struct {
 	expires    time.Time
 }
 type nativeProviderBackend struct {
-	mu       sync.Mutex
-	settings config.Store
-	stateDir string
-	review   *nativeProviderReview
+	mu                sync.Mutex
+	settings          config.Store
+	stateDir          string
+	review            *nativeProviderReview
+	localReview       *nativeLocalSelectionExpectation
+	localGeneration   string
+	writeLocalReceipt func(*localmodel.SelectionReceiptLease, localmodel.SelectionReceipt) error
 }
 type reviewedCloudSettings struct {
 	store    config.Store
@@ -185,13 +189,20 @@ func (b *nativeProviderBackend) rows() ([]modelcatalog.NativeProviderRow, error)
 
 // Apply never returns raw callback errors or credential-bearing objects. The
 // review's expected credential/settings remain host-local and are single-use.
-func (b *nativeProviderBackend) Apply(a modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult {
+func (b *nativeProviderBackend) Apply(a modelcatalog.NativeProviderAction) (result modelcatalog.NativeProviderResult) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	defer func() { result.FutureSelection = b.futureLocalSelection() }()
 	r := modelcatalog.NativeProviderResult{RequestID: a.RequestID, Action: a.Action, Provider: ""}
 	fail := func(message string) modelcatalog.NativeProviderResult { r.Error = message; return r }
 	if a.Action != "save" && a.APIKey != "" {
 		return fail("Secret input is accepted only by an explicit reviewed Save.")
+	}
+	if strings.HasPrefix(a.Action, "local_") && a.Action != "local_status" {
+		return b.localSelectionAction(a)
+	}
+	if a.Action == "local_status" {
+		return b.localStatus(a)
 	}
 	if a.Action == "status" {
 		rows, err := b.rows()

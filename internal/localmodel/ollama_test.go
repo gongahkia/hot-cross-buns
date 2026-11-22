@@ -86,7 +86,7 @@ func TestClientRestrictsRuntimeToLoopbackHTTP(t *testing.T) {
 		}
 	}
 	client, err := NewClient("http://localhost:11434/")
-	if err != nil || client.BaseURL() != "http://localhost:11434" || client.ChatCompletionsURL() != "http://localhost:11434/v1/chat/completions" {
+	if err != nil || client.BaseURL() != "http://127.0.0.1:11434" || client.ChatCompletionsURL() != "http://127.0.0.1:11434/v1/chat/completions" {
 		t.Fatalf("client = %#v, err = %v", client, err)
 	}
 	if _, err := NewClientFromChatCompletionsURL("http://example.com/v1/chat/completions"); err == nil {

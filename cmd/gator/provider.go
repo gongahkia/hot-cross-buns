@@ -165,7 +165,40 @@ func newCustomExecutorConfiguration(settings config.Settings, provider config.Cu
 		ProviderName:     "custom provider " + provider.ID,
 	}}
 	if provider.ID == localmodel.ProviderID {
-		return executorConfigurationWithExtensions(localmodel.TextOnlyModel{Backend: backend}, settings, provider.ID+"/"+modelName)
+		if provider.APIKeyEnv != "" {
+			return nativeExecutorConfiguration{}, fmt.Errorf("managed local provider cannot use a credential environment variable")
+		}
+		endpoint, err := localmodel.LocalURL(baseURL)
+		if err != nil {
+			return nativeExecutorConfiguration{}, err
+		}
+		backend.Config.BaseURL = endpoint.String()
+		backend.Config.Client, err = localmodel.HTTPClient(endpoint.String())
+		if err != nil {
+			return nativeExecutorConfiguration{}, err
+		}
+		if provider.ModelDigests[modelName] == "" {
+			root, err := state.ResolveDir("")
+			if err != nil {
+				return nativeExecutorConfiguration{}, err
+			}
+			receipt, err := localmodel.NewSelectionReceipts(root).Read()
+			if err != nil {
+				return nativeExecutorConfiguration{}, fmt.Errorf("local selection receipt is unavailable; inspect and repair explicitly")
+			}
+			if receipt != nil && receipt.Tag == modelName && receipt.Endpoint == strings.TrimSuffix(endpoint.String(), "/v1/chat/completions") {
+				return nativeExecutorConfiguration{}, fmt.Errorf("native local digest binding is missing; review and select this model again")
+			}
+		}
+		var localBackend agent.Model = localmodel.TextOnlyModel{Backend: backend}
+		if digest := provider.ModelDigests[modelName]; digest != "" {
+			client, err := localmodel.NewClientFromChatCompletionsURL(endpoint.String())
+			if err != nil {
+				return nativeExecutorConfiguration{}, err
+			}
+			localBackend = localmodel.DigestCheckedModel{Backend: localBackend, Client: client, Tag: modelName, Digest: digest}
+		}
+		return executorConfigurationWithExtensions(localBackend, settings, provider.ID+"/"+modelName)
 	}
 	return executorConfigurationWithExtensions(backend, settings, provider.ID+"/"+modelName)
 }

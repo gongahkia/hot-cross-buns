@@ -1,0 +1,481 @@
+{
+  "runtime_sha256": "184c493f51b95532a5248d2e80c02bce003b458a747708eb7bb535cd1159e4b5",
+  "controller_pid": 35664,
+  "go_pid": 35669,
+  "cpu_counter_unit_ratio": 0.9999566729981005,
+  "mach_timebase_numer": 125,
+  "mach_timebase_denom": 3,
+  "kind": "pipe-level Go fixture; not native desktop acceptance",
+  "idle": {
+    "seconds": 1.0043627499835566,
+    "cpu_one_core_percent": 0.1672951331605547,
+    "rss_mib": 35.203125,
+    "physical_footprint_mib": 15.610084533691406
+  },
+  "refresh_burst": {
+    "seconds": 0.10048595801345073,
+    "cpu_one_core_percent": 71.3295354067338,
+    "rss_mib": 40.65625,
+    "physical_footprint_mib": 19.953834533691406
+  },
+  "settled": {
+    "seconds": 2.0100469999888446,
+    "cpu_one_core_percent": 0.00021765660206076178,
+    "rss_mib": 40.65625,
+    "physical_footprint_mib": 19.953834533691406
+  },
+  "refresh_latency_ms": [
+    11.15495798876509,
+    9.096124995267019,
+    6.768624996766448,
+    4.668292007409036,
+    4.928290989482775,
+    4.6540840121451765,
+    4.912457981845364,
+    4.199749993858859,
+    4.315583006246015,
+    5.43954101158306,
+    4.4464580132626,
+    4.714750015409663,
+    4.294459009543061,
+    4.265124996891245,
+    4.602583998348564,
+    3.803082974627614,
+    3.431082994211465,
+    3.474124998319894,
+    3.2545829890295863,
+    3.7737920065410435
+  ],
+  "samples": [
+    {
+      "wall": 196084.602221333,
+      "cpu_ns": 23959458,
+      "rss": 36585472,
+      "footprint": 16155368
+    },
+    {
+      "wall": 196085.606584083,
+      "cpu_ns": 25639708,
+      "rss": 36913152,
+      "footprint": 16368360
+    },
+    {
+      "wall": 196085.617813833,
+      "cpu_ns": 32216875,
+      "rss": 38141952,
+      "footprint": 16532200
+    },
+    {
+      "wall": 196085.626942291,
+      "cpu_ns": 39803416,
+      "rss": 39272448,
+      "footprint": 17662696
+    },
+    {
+      "wall": 196085.633730416,
+      "cpu_ns": 45391875,
+      "rss": 39927808,
+      "footprint": 18268904
+    },
+    {
+      "wall": 196085.63841275,
+      "cpu_ns": 48075666,
+      "rss": 40026112,
+      "footprint": 18367208
+    },
+    {
+      "wall": 196085.643352125,
+      "cpu_ns": 50623916,
+      "rss": 40140800,
+      "footprint": 18481896
+    },
+    {
+      "wall": 196085.648015666,
+      "cpu_ns": 53132875,
+      "rss": 40534016,
+      "footprint": 18875112
+    },
+    {
+      "wall": 196085.652937291,
+      "cpu_ns": 59265958,
+      "rss": 40894464,
+      "footprint": 19219176
+    },
+    {
+      "wall": 196085.657148083,
+      "cpu_ns": 61672666,
+      "rss": 40992768,
+      "footprint": 19317480
+    },
+    {
+      "wall": 196085.661473125,
+      "cpu_ns": 64092625,
+      "rss": 41009152,
+      "footprint": 19333864
+    },
+    {
+      "wall": 196085.666927833,
+      "cpu_ns": 71588833,
+      "rss": 41320448,
+      "footprint": 19645160
+    },
+    {
+      "wall": 196085.671391666,
+      "cpu_ns": 73997208,
+      "rss": 41320448,
+      "footprint": 19645160
+    },
+    {
+      "wall": 196085.676121708,
+      "cpu_ns": 76381083,
+      "rss": 41418752,
+      "footprint": 19743464
+    },
+    {
+      "wall": 196085.680431041,
+      "cpu_ns": 78716250,
+      "rss": 41484288,
+      "footprint": 19809000
+    },
+    {
+      "wall": 196085.684712375,
+      "cpu_ns": 81845166,
+      "rss": 41762816,
+      "footprint": 20054760
+    },
+    {
+      "wall": 196085.689329291,
+      "cpu_ns": 85728166,
+      "rss": 41943040,
+      "footprint": 20234984
+    },
+    {
+      "wall": 196085.69314125,
+      "cpu_ns": 87552583,
+      "rss": 41943040,
+      "footprint": 20234984
+    },
+    {
+      "wall": 196085.696579166,
+      "cpu_ns": 89426958,
+      "rss": 41975808,
+      "footprint": 20267752
+    },
+    {
+      "wall": 196085.700060833,
+      "cpu_ns": 91213250,
+      "rss": 42319872,
+      "footprint": 20611816
+    },
+    {
+      "wall": 196085.70332525,
+      "cpu_ns": 92906958,
+      "rss": 42336256,
+      "footprint": 20628200
+    },
+    {
+      "wall": 196085.707105208,
+      "cpu_ns": 97315875,
+      "rss": 42631168,
+      "footprint": 20923112
+    },
+    {
+      "wall": 196087.71715825,
+      "cpu_ns": 97320250,
+      "rss": 42631168,
+      "footprint": 20923112
+    }
+  ],
+  "events": [
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tags"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ps"
+    }
+  ],
+  "request_ids": [
+    "inspection-0",
+    "inspection-1",
+    "inspection-2",
+    "inspection-3",
+    "inspection-4",
+    "inspection-5",
+    "inspection-6",
+    "inspection-7",
+    "inspection-8",
+    "inspection-9",
+    "inspection-10",
+    "inspection-11",
+    "inspection-12",
+    "inspection-13",
+    "inspection-14",
+    "inspection-15",
+    "inspection-16",
+    "inspection-17",
+    "inspection-18",
+    "inspection-19"
+  ],
+  "result_ids": [
+    "69a8708f9d71281a0f7c46883d4ffaba3b0c7a655a30afd2",
+    "a93deb4315fa36225639428a0757541174b9d24c04b3d62e",
+    "0b7c4eb498873e9428e82ec95126ea663c3c7e819519a8ff",
+    "e2cfa82bc8006ce23ca7e12dc8fce8fcda7a55d60ec19afd",
+    "f22ab058c42869dfa8d9d06cbeffe17a88c6fba8fdaf60db",
+    "95de118665cf5cef2bd130eab9e393c8652cb72ac3b6556e",
+    "0aaa6dfb28f53b198dcd2afdbb515f18819675ae3517db84",
+    "01b095c646eb209dee76e3baff9b3063254985bb8113ed60",
+    "13e7acc260ab0cd6ce8d132280ea6672b8dcb7aec1c0c01a",
+    "1e69aff84d57cc994cd46ccd2e01b9c56dc592a13cf1c975",
+    "5bf3fc3655c6d31e60e181f4ddfee5b32c04c8e74e6d5880",
+    "c411ce5166455c02c27ac15cd6c6ccb04aa474374e73d158",
+    "63db52cbef7888e52e54b7cffaf55a83825f991a2347d6cb",
+    "dbaba3114a52be40e707bdd00928ce1c5b3f2c9a7f8df7a6",
+    "2881a7a417d6ab664532ae35df85dc08768eb17f2f9a5439",
+    "dfaf349e980457ac96de255229850d2831cc7fab7b635127",
+    "569cd2fab9cd1379ced020bab0a19feae31c0f5fee769002",
+    "86c233f33b7a8ffb71b6f8fad57a77c596f04cc26bbc6fee",
+    "c14a8fef5ca0094c2cc3d5c8ce32266950c92fb520d700ae",
+    "48847fb911470208f7b5f19532a79b50b8b83fd7349fa719"
+  ],
+  "config_sha256_before": "26e425542311a47ec100a5a449ddb9e8334e6c8d864db6569c85125e3560c329",
+  "config_sha256_after": "26e425542311a47ec100a5a449ddb9e8334e6c8d864db6569c85125e3560c329",
+  "normal_go_exit": true,
+  "external_model_calls": 0,
+  "model_mutations": 0,
+  "note": "CPU samples cover the Go process, excluding short sysctl children and the Python fake server/controller."
+}

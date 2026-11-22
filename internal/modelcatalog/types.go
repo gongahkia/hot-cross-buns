@@ -89,6 +89,7 @@ type LocalProgress struct {
 
 // LocalUpdate returns a fresh catalog and persisted selection state.
 type LocalUpdate struct {
+	Published       bool
 	Catalog         LocalCatalog
 	CustomProviders []config.CustomProvider
 	ModelAliases    map[string]string

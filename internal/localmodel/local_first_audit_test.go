@@ -19,7 +19,7 @@ func (t *localAuditTransport) RoundTrip(r *http.Request) (*http.Response, error)
 }
 
 // No socket or DNS operation occurs: the fake transport records redirect URLs.
-func TestLocalFirstAuditLoopbackClientFollowsAnOffHostRedirect(t *testing.T) {
+func TestLocalFirstAuditLoopbackClientRefusesOffHostRedirect(t *testing.T) {
 	c, err := NewClient("http://127.0.0.1:11434")
 	if err != nil {
 		t.Fatal(err)
@@ -29,8 +29,8 @@ func TestLocalFirstAuditLoopbackClientFollowsAnOffHostRedirect(t *testing.T) {
 	testClient.Transport = transport
 	c.client = &testClient
 	v, err := c.Version(context.Background())
-	if err != nil || v != "fixture" || len(transport.hosts) != 2 || transport.hosts[1] != "off-host.invalid" {
+	if err == nil || v != "" || len(transport.hosts) != 1 {
 		t.Fatal("redirect reproduction changed; re-evaluate LF-03", err)
 	}
-	t.Log("LF-03 reproduced without network: initial loopback validation does not constrain redirected requests")
+	t.Log("LF-03 regression: off-host redirect refused without a second request")
 }

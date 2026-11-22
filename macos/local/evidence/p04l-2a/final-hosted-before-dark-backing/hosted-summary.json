@@ -1,0 +1,36 @@
+{
+  "catalog_rows" : 64,
+  "cycles" : 12,
+  "idle_cpu_one_core_percent" : 0.027748624655164238,
+  "installed_rows" : 256,
+  "kind" : "hidden hosted component; not full-app or desktop performance",
+  "layout_ms" : [
+    10.270375,
+    4.0585000000000004,
+    8.8305419999999994,
+    7.3247920000000004,
+    4.7313749999999999,
+    10.426333,
+    7.5684589999999998,
+    4.2733749999999997,
+    7.5129999999999999,
+    6.8339999999999996,
+    4.5048329999999996,
+    5.602042
+  ],
+  "surviving_hosts_after_settle" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "visible_windows_after_cycles" : 0
+}

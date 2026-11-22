@@ -97,9 +97,10 @@ func customProviderCommand(arguments []string, out io.Writer) error {
 		if !hasCustomProvider(settings.CustomProviders, arguments[1]) {
 			return fmt.Errorf("custom provider %q is not configured", arguments[1])
 		}
-		settings.CustomProviders = removeCustomProvider(settings.CustomProviders, arguments[1])
-		clearDeletedCustomProviderReferences(&settings, arguments[1])
-		if err := store.Save(settings); err != nil {
+		if err := updateReviewedProvider(store, settings, arguments[1], func(current *config.Settings) {
+			current.CustomProviders = removeCustomProvider(current.CustomProviders, arguments[1])
+			clearDeletedCustomProviderReferences(current, arguments[1])
+		}); err != nil {
 			return err
 		}
 		_, err := fmt.Fprintf(out, "Removed custom provider %q. Its API key environment variable was not changed.\n", arguments[1])
@@ -135,8 +136,9 @@ func discoverCustomProvider(arguments []string, store config.Store, settings con
 	if !customProviderSupportsModel(provider, provider.DefaultModel) {
 		provider.DefaultModel = models[0]
 	}
-	settings.CustomProviders = setCustomProvider(settings.CustomProviders, provider)
-	if err := store.Save(settings); err != nil {
+	if err := updateReviewedProvider(store, settings, provider.ID, func(current *config.Settings) {
+		current.CustomProviders = setCustomProvider(current.CustomProviders, provider)
+	}); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(out, "Replaced the model catalog for %q (%d models; default %q).\n", provider.ID, len(models), provider.DefaultModel)
@@ -144,6 +146,27 @@ func discoverCustomProvider(arguments []string, store config.Store, settings con
 }
 
 func discoverModels(provider config.CustomProvider) ([]string, error) {
+	if provider.ID == localmodel.ProviderID {
+		if provider.APIKeyEnv != "" {
+			return nil, errors.New("managed local provider cannot use credential environment variables")
+		}
+		client, err := localmodel.NewClientFromChatCompletionsURL(provider.BaseURL)
+		if err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		installed, err := client.Models(ctx)
+		if err != nil {
+			return nil, err
+		}
+		models := make([]string, 0, len(installed))
+		for _, m := range installed {
+			models = append(models, m.Name)
+		}
+		return models, nil
+	}
+
 	endpoint, err := modelsEndpoint(provider.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("discover %q models: %w", provider.ID, err)
@@ -247,8 +270,9 @@ func addCustomProvider(arguments []string, store config.Store, settings config.S
 		return errors.New(providerUsage)
 	}
 	provider := config.CustomProvider{ID: id, BaseURL: strings.TrimSpace(*baseURL), APIKeyEnv: strings.TrimSpace(*apiKeyEnv), Models: models, DefaultModel: models[0]}
-	settings.CustomProviders = setCustomProvider(settings.CustomProviders, provider)
-	if err := store.Save(settings); err != nil {
+	if err := updateReviewedProvider(store, settings, provider.ID, func(current *config.Settings) {
+		current.CustomProviders = setCustomProvider(current.CustomProviders, provider)
+	}); err != nil {
 		return err
 	}
 	credential := "without an API key"

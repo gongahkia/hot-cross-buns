@@ -20,9 +20,8 @@ import (
 	"github.com/gongahkia/gator/internal/localmodel"
 )
 
-// Audit reproductions describe current gaps, not the desired L2 contract.
-// Revisit these expectations when the lifecycle corrections are implemented.
-func TestLocalFirstAuditUseOverwritesAConcurrentIndependentWriter(t *testing.T) {
+// These regressions retain the L1 barriers and now assert the repaired L2 boundary.
+func TestLocalFirstAuditUsePreservesConcurrentIndependentWriter(t *testing.T) {
 	directory := t.TempDir()
 	store, err := config.New(directory)
 	if err != nil {
@@ -80,10 +79,10 @@ func TestLocalFirstAuditUseOverwritesAConcurrentIndependentWriter(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Theme != "" || len(after.ExternalAgents) != 1 {
-		t.Fatal("audit reproduction changed: re-evaluate the lost-update finding")
+	if after.Theme != "mono" || len(after.ExternalAgents) != 0 {
+		t.Fatal("lost update: concurrent theme or CLI revocation was overwritten")
 	}
-	t.Log("LF-01 reproduced: independent process saved Theme=mono with Update; stale local Use returned success, reset Theme, and restored the disabled fake CLI configuration")
+	t.Log("LF-01 regression: independent process theme and CLI revocation survive local Use")
 }
 
 func TestLocalFirstAuditConfigWriterHelper(t *testing.T) {
@@ -108,7 +107,7 @@ func localFirstAuditHost() localmodel.Host {
 	return localmodel.Host{OS: "darwin", Architecture: "arm64", TotalMemoryBytes: 16 * 1024 * 1024 * 1024, AvailableDiskKnown: true, AvailableDiskBytes: 100 * 1024 * 1024 * 1024}
 }
 
-func TestLocalFirstAuditRemovalCanOutliveSettingsPublication(t *testing.T) {
+func TestLocalFirstAuditRemovalIsNotAdmittedWithoutReceiptsAndLeases(t *testing.T) {
 	store, err := config.New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -147,13 +146,17 @@ func TestLocalFirstAuditRemovalCanOutliveSettingsPublication(t *testing.T) {
 	m.runtimeURL = server.URL
 	m.host = localFirstAuditHost
 	_, err = m.Remove(context.Background(), "qwen3-4b")
-	if !deleted.Load() || err == nil || !strings.Contains(err.Error(), "removed qwen3:4b but could not update") {
+	if deleted.Load() || err == nil || !strings.Contains(err.Error(), "not admitted") {
 		t.Fatal("removal/publication reproduction changed", err)
 	}
-	if _, err := os.Stat(filepath.Clean(store.Path() + ".test-backup")); err != nil {
-		t.Fatal("original test settings not preserved", err)
+	if _, err := os.Stat(filepath.Clean(store.Path())); err != nil {
+		t.Fatal("original settings missing", err)
 	}
-	t.Log("LF-02 reproduced: fake Ollama confirmed DELETE, settings replacement failed; operation is partially committed")
+	after, e := store.Load()
+	if e != nil || after.Defaults != s.Defaults {
+		t.Fatal("blocked removal changed selection", e)
+	}
+	t.Log("LF-02 boundary: removal refused before HTTP or settings publication; no partial mutation")
 }
 
 func TestLocalFirstAuditExistingRuntimeIsNotAdoptedOrStopped(t *testing.T) {

@@ -25,19 +25,26 @@ public struct NativeProviderForm: Sendable, Equatable {
     var value: JSONValue { .object(["model": .string(model), "endpoint_mode": .string(endpointMode), "endpoint": .string(endpoint), "api_version": .string(apiVersion), "options": .object(options.mapValues(JSONValue.string))]) }
 }
 struct NativeProviderResult: Decodable, Sendable {
+    let futureSelection: NativeFutureSelection?
+    let localReview: NativeLocalSelectionReview?
+    let localReceipt: NativeLocalSelectionReceipt?
+    let local: NativeLocalStatus?
     let requestID, action: String
     let provider: String?
     let rows: [NativeProviderRow]?
     let review: NativeProviderReview?
     let confirmed, changed, conflict: Bool
     let error, notice: String?
-    enum CodingKeys: String, CodingKey { case action, provider, rows, review, confirmed, changed, conflict, error, notice; case requestID = "request_id" }
+    enum CodingKeys: String, CodingKey { case futureSelection = "future_selection", localReview = "local_review", localReceipt = "local_receipt"; case local, action, provider, rows, review, confirmed, changed, conflict, error, notice; case requestID = "request_id" }
     init(_ value: JSONValue) throws { self = try JSONDecoder().decode(Self.self, from: JSONEncoder().encode(value)) }
 }
 struct NativeProviderRequest: Sendable, CustomStringConvertible {
-    enum Action: String, Sendable { case status, review, review_remove, save, remove, cancel }
+    enum Action: String, Sendable { case local_review_select, local_select, local_reconcile, local_cancel_review, local_status, status, review, review_remove, save, remove, cancel }
     let id: String
     let action: Action
+    var modelID = ""
+    var generation = ""
+    var operationID = ""
     var provider = ""
     var reviewID = ""
     var form: NativeProviderForm?
@@ -47,6 +54,7 @@ struct NativeProviderRequest: Sendable, CustomStringConvertible {
     var description: String { "NativeProviderRequest(\(action.rawValue), credential redacted)" }
     var fields: [String: JSONValue] {
         var value: [String: JSONValue] = ["request_id": .string(id), "action": .string(action.rawValue), "provider": .string(provider), "review_id": .string(reviewID), "replace_key": .bool(replaceKey)]
+        if action.rawValue.hasPrefix("local_") { value["model_id"] = .string(modelID); value["generation"] = .string(generation); value["operation_id"] = .string(operationID) }
         if let form { value["input"] = form.value }
         if action == .save && !apiKey.isEmpty { value["api_key"] = .string(apiKey) }
         return value

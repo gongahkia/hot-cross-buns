@@ -25,7 +25,7 @@ func (m Model) ApplyNativeProvider(a modelcatalog.NativeProviderAction) (tea.Mod
 		return m, nil
 	}
 	switch a.Action {
-	case "status", "review", "review_remove", "save", "remove", "cancel":
+	case "local_review_select", "local_select", "local_reconcile", "local_cancel_review", "local_start", "local_download", "local_status", "status", "review", "review_remove", "save", "remove", "cancel":
 	default:
 		m.nativeProviderResult = &modelcatalog.NativeProviderResult{RequestID: a.RequestID, Action: a.Action, Error: "Unsupported provider operation."}
 		return m, nil

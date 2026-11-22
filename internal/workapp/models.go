@@ -3,6 +3,10 @@ package workapp
 import tea "github.com/charmbracelet/bubbletea"
 
 func (m Model) openModels() (tea.Model, tea.Cmd) {
+	if m.config.ManagedSessions {
+		m.status = "Open Models and Providers in the native window. Local inspection is read-only; lifecycle mutations await reviewed ownership and recovery support. Existing future-model choices remain in the conversation model picker."
+		return m, nil
+	}
 	if m.recallBusy {
 		m.sectionNotice = "Finish or cancel the recall model download before managing models."
 		return m, nil

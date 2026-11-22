@@ -225,12 +225,12 @@ func TestWorkTUIManagesLocalModelsAndUsesSelectionThroughService(t *testing.T) {
 	}
 	key("x")
 	key("y")
-	waitView("Local model removed")
+	waitView("model removal not admitted")
 	key("esc")
 	key("esc")
-	waitView("Choose a model with /model")
+	waitView("local model configured")
 	settings, err := store.Load()
-	if err != nil || installed.Load() || deletes.Load() != 1 || settings.Defaults.Provider != "" {
-		t.Fatalf("deleted model remained selected: %+v %v", settings.Defaults, err)
+	if err != nil || !installed.Load() || deletes.Load() != 0 || settings.Defaults.Provider != "gator-local" {
+		t.Fatalf("blocked deletion changed model or selection: %+v %v", settings.Defaults, err)
 	}
 }

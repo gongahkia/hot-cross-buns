@@ -1,0 +1,92 @@
+[0/1] Planning build
+Building for debugging...
+[0/8] Write sources
+[3/8] Write swift-version--58304C5D6DBC2206.txt
+[5/11] Compiling GatorCore NativeLocalStatus.swift
+[6/11] Compiling GatorCore NativeProviderSetup.swift
+[7/11] Emitting module GatorCore
+[8/13] Compiling GatorCore NativeProviderProtocol.swift
+[9/13] Compiling GatorCore ManagedSessionCoordinator.swift
+[10/54] Compiling GatorMac LocalModelInspectionView.swift
+[11/54] Compiling GatorMac GatorApp.swift
+[12/54] Compiling GatorMac ProviderSetupView.swift
+[13/54] Emitting module GatorMac
+[13/54] Write Objects.LinkFileList
+[14/54] Linking GatorMac
+[15/54] Applying GatorMac
+[17/68] Compiling GatorCoreTests NativeCatalogIntegrationTests.swift
+[18/68] Compiling GatorCoreTests NativeCatalogOwnerTests.swift
+[19/68] Compiling GatorCoreTests NativeCatalogTests.swift
+[20/68] Compiling GatorCoreTests NativeClosingSafetyTests.swift
+[21/68] Compiling GatorCoreTests NativeClosureAcceptanceTests.swift
+[22/72] Compiling GatorMacTests NativeMessageReactionTests.swift
+[23/72] Compiling GatorMacTests NativeMotionGoTests.swift
+[24/72] Compiling GatorMacTests NativeMotionRenderTests.swift
+[25/72] Compiling GatorMacTests NativeProviderSecretEntryTests.swift
+[26/72] Compiling GatorMacTests NativeTranscriptFindTests.swift
+[27/72] Compiling GatorMacTests NativeUIUXRemediationTests.swift
+[28/72] Emitting module GatorMacTests
+[29/72] Compiling GatorMacTests LocalModelInspectionTests.swift
+[30/72] Compiling GatorMacTests NativeDesktopPetTests.swift
+[31/72] Compiling GatorMacTests NativeInputTests.swift
+[32/72] Compiling GatorMacTests NativeMascotTests.swift
+[33/72] Compiling GatorMacTests NativeReactionGoTests.swift
+[34/72] Compiling GatorMacTests NativeStreamingTests.swift
+[35/72] Compiling GatorMacTests NativeWorkspacePickerTests.swift
+[36/73] Compiling GatorCoreTests NativeMessageContentTests.swift
+[37/73] Compiling GatorCoreTests NativePerformanceTests.swift
+[38/73] Compiling GatorCoreTests NativePlanAuthorizationTests.swift
+[39/73] Compiling GatorCoreTests NativePlanIntegrationTests.swift
+[40/73] Compiling GatorCoreTests NativeProviderIntegrationTests.swift
+[41/73] Compiling GatorMacTests NotchGeometryTests.swift
+[42/73] Compiling GatorCoreTests NativeTaskReviewTests.swift
+[43/73] Compiling GatorCoreTests NativeTranscriptSearchTests.swift
+[44/73] Compiling GatorCoreTests NativeUploadStoreTests.swift
+[45/73] Compiling GatorCoreTests NativeWorkspaceIntegrationTests.swift
+[46/73] Compiling GatorCoreTests NativeWorkspaceTests.swift
+[47/73] Compiling GatorCoreTests NativeDraftStoreTests.swift
+[48/73] Compiling GatorCoreTests NativeInertApprovalIntegrationTests.swift
+[49/73] Compiling GatorCoreTests NativeLocalIntegrationTests.swift
+[50/73] Compiling GatorCoreTests NativeLocalSelectionTests.swift
+[51/73] Compiling GatorCoreTests NativeLocalStatusTests.swift
+[52/73] Emitting module GatorCoreTests
+[60/73] Compiling GatorCoreTests NativeAttachmentDisconnectTests.swift
+[61/73] Compiling GatorCoreTests NativeAttachmentDraftTests.swift
+[62/73] Compiling GatorCoreTests NativeAttachmentIntegrationTests.swift
+[68/73] Compiling GatorCoreTests PresenceApprovalClosureTests.swift
+[69/73] Compiling GatorCoreTests RecoveryPreparationIntegrationTests.swift
+[70/73] Compiling GatorCoreTests RecoveryPreparationTests.swift
+[71/73] Compiling GatorCoreTests resource_bundle_accessor.swift
+[72/75] Compiling GatorNativePackageTests runner.swift
+[73/75] Emitting module GatorNativePackageTests
+[73/75] Write Objects.LinkFileList
+[74/75] Linking GatorNativePackageTests
+Build complete! (10.96s)
+Test Suite 'Selected tests' started at 2026-11-21 11:04:40.445.
+Test Suite 'GatorNativePackageTests.xctest' started at 2026-11-21 11:04:40.446.
+Test Suite 'GatorNativePackageTests.xctest' passed at 2026-11-21 11:04:40.446.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-11-21 11:04:40.446.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test localSelectionReviewedProtocolAndAPIParity() started.
+✔ Test localSelectionReviewedProtocolAndAPIParity() passed after 0.002 seconds.
+◇ Test localSelectionCancelAndUnconfirmedAckNeverClaimSuccess() started.
+✔ Test localSelectionCancelAndUnconfirmedAckNeverClaimSuccess() passed after 0.001 seconds.
+◇ Test localSelectionDismissalRejectsLatePublicationAndNoDuplicateRequest() started.
+✔ Test localSelectionDismissalRejectsLatePublicationAndNoDuplicateRequest() passed after 0.007 seconds.
+◇ Test localSelectionDigestAndUnknownOutcomePresentation() started.
+✔ Test localSelectionDigestAndUnknownOutcomePresentation() passed after 0.001 seconds.
+◇ Test localRefreshPreservesProviderFormsAndRejectsStaleIdentities() started.
+✔ Test localRefreshPreservesProviderFormsAndRejectsStaleIdentities() passed after 0.007 seconds.
+◇ Test localDismissalCancelsPublicationAndRepeatedRefreshIsBounded() started.
+✔ Test localDismissalCancelsPublicationAndRepeatedRefreshIsBounded() passed after 0.015 seconds.
+◇ Test providerProtocolCarriesSecretOnlyInExplicitSaveAndNeverChat() started.
+✔ Test providerProtocolCarriesSecretOnlyInExplicitSaveAndNeverChat() passed after 0.001 seconds.
+◇ Test providerReviewSaveRemoveCancelAndFailureRequireFreshExplicitIntent() started.
+✔ Test providerReviewSaveRemoveCancelAndFailureRequireFreshExplicitIntent() passed after 0.008 seconds.
+◇ Test providerReviewEscapeCancelsAfterSecureEditorRemoval() started.
+✔ Test providerReviewEscapeCancelsAfterSecureEditorRemoval() passed after 0.176 seconds.
+✔ Test run with 9 tests in 0 suites passed after 0.219 seconds.

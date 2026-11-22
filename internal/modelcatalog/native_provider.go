@@ -10,13 +10,16 @@ import (
 // NativeProviderAction is finite host input. APIKey is save-only transient data,
 // never a display model, request journal, command argument or completion field.
 type NativeProviderAction struct {
-	RequestID  string               `json:"request_id"`
-	Action     string               `json:"action"`
-	Provider   string               `json:"provider,omitempty"`
-	ReviewID   string               `json:"review_id,omitempty"`
-	Input      *NativeProviderInput `json:"input,omitempty"`
-	ReplaceKey bool                 `json:"replace_key,omitempty"`
-	APIKey     string               `json:"api_key,omitempty"`
+	ModelID     string               `json:"model_id,omitempty"`
+	OperationID string               `json:"operation_id,omitempty"`
+	Generation  string               `json:"generation,omitempty"`
+	RequestID   string               `json:"request_id"`
+	Action      string               `json:"action"`
+	Provider    string               `json:"provider,omitempty"`
+	ReviewID    string               `json:"review_id,omitempty"`
+	Input       *NativeProviderInput `json:"input,omitempty"`
+	ReplaceKey  bool                 `json:"replace_key,omitempty"`
+	APIKey      string               `json:"api_key,omitempty"`
 }
 type NativeProviderInput struct {
 	Model        string            `json:"model"`
@@ -53,16 +56,20 @@ type NativeProviderReview struct {
 	SetsDefaults     bool              `json:"sets_defaults"`
 }
 type NativeProviderResult struct {
-	RequestID string                `json:"request_id"`
-	Action    string                `json:"action"`
-	Provider  string                `json:"provider,omitempty"`
-	Rows      []NativeProviderRow   `json:"rows,omitempty"`
-	Review    *NativeProviderReview `json:"review,omitempty"`
-	Confirmed bool                  `json:"confirmed"`
-	Changed   bool                  `json:"changed"`
-	Conflict  bool                  `json:"conflict"`
-	Error     string                `json:"error,omitempty"`
-	Notice    string                `json:"notice,omitempty"`
+	FutureSelection *NativeFutureSelection       `json:"future_selection,omitempty"`
+	LocalReview     *NativeLocalSelectionReview  `json:"local_review,omitempty"`
+	LocalReceipt    *NativeLocalSelectionReceipt `json:"local_receipt,omitempty"`
+	Local           *NativeLocalStatus           `json:"local,omitempty"`
+	RequestID       string                       `json:"request_id"`
+	Action          string                       `json:"action"`
+	Provider        string                       `json:"provider,omitempty"`
+	Rows            []NativeProviderRow          `json:"rows,omitempty"`
+	Review          *NativeProviderReview        `json:"review,omitempty"`
+	Confirmed       bool                         `json:"confirmed"`
+	Changed         bool                         `json:"changed"`
+	Conflict        bool                         `json:"conflict"`
+	Error           string                       `json:"error,omitempty"`
+	Notice          string                       `json:"notice,omitempty"`
 }
 
 func NativeCloudFields(provider model.Provider) []string {

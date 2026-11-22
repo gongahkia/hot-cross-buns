@@ -145,11 +145,12 @@ type ExtensionTrust struct {
 // contains the key itself. An empty APIKeyEnv is the intended keyless route for
 // local servers such as Ollama, LM Studio, and vLLM when configured that way.
 type CustomProvider struct {
-	ID           string   `json:"id"`
-	BaseURL      string   `json:"base_url"`
-	APIKeyEnv    string   `json:"api_key_env,omitempty"`
-	Models       []string `json:"models"`
-	DefaultModel string   `json:"default_model"`
+	ModelDigests map[string]string `json:"model_digests,omitempty"`
+	ID           string            `json:"id"`
+	BaseURL      string            `json:"base_url"`
+	APIKeyEnv    string            `json:"api_key_env,omitempty"`
+	Models       []string          `json:"models"`
+	DefaultModel string            `json:"default_model"`
 }
 
 // ModelAliasKey identifies a model display alias. Provider IDs cannot contain
@@ -473,6 +474,15 @@ func validate(settings Settings) error {
 		if len(provider.Models) == 0 || len(provider.Models) > 128 || len(provider.DefaultModel) == 0 || len(provider.DefaultModel) > 512 {
 			return fmt.Errorf("custom provider %q requires 1-128 models and a default model", provider.ID)
 		}
+		if len(provider.ModelDigests) > 128 {
+			return errors.New("too many local model digest bindings")
+		}
+		for tag, digest := range provider.ModelDigests {
+			if provider.ID != "gator-local" || len(tag) == 0 || len(tag) > 512 || strings.ContainsAny(tag, "\x00\r\n") || !validSHA256(digest) {
+				return errors.New("invalid managed local model digest binding")
+			}
+		}
+
 		models := make(map[string]struct{}, len(provider.Models))
 		for _, name := range provider.Models {
 			if strings.TrimSpace(name) == "" || len(name) > 512 || strings.ContainsAny(name, "\r\n") {

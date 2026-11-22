@@ -114,9 +114,12 @@ func (m Model) Complete(ctx context.Context, turn agent.TurnRequest) (agent.Turn
 		return agent.Turn{}, fmt.Errorf("request %s response: %w", m.providerName(), err)
 	}
 	defer response.Body.Close()
-	contents, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+	contents, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
 		return agent.Turn{}, fmt.Errorf("read %s response: %w", m.providerName(), err)
+	}
+	if len(contents) > maxResponseBytes {
+		return agent.Turn{}, errors.New("Chat Completions response exceeds size limit")
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		source := m.Config.CredentialSource

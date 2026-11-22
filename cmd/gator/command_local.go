@@ -1,9 +1,7 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/gongahkia/gator/internal/config"
@@ -25,18 +23,11 @@ func localClient(override string, settings config.Settings) (localmodel.Client, 
 }
 
 func localRuntimeURL(chatCompletionsURL string) (string, error) {
-	parsed, err := url.Parse(chatCompletionsURL)
+	client, err := localmodel.NewClientFromChatCompletionsURL(chatCompletionsURL)
 	if err != nil {
 		return "", err
 	}
-	const suffix = "/v1/chat/completions"
-	if !strings.HasSuffix(parsed.Path, suffix) {
-		return "", errors.New("base URL must end in /v1/chat/completions")
-	}
-	parsed.Path = strings.TrimSuffix(parsed.Path, suffix)
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String(), nil
+	return client.BaseURL(), nil
 }
 
 func installedModelNames(models []localmodel.InstalledModel) map[string]struct{} {

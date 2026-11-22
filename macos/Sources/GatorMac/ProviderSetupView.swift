@@ -9,13 +9,14 @@ struct ModelsAndProvidersButton: View {
         Button("Models and Providers…", systemImage: "key.horizontal") {
             sessions.showProviders(); openWindow(id: "providers"); NSApp.activate(ignoringOtherApps: true)
         }.disabled(!sessions.current.isConnected || sessions.current.closing)
-            .help("Configure Gator-managed model API keys without making a model request")
+            .help("Inspect local models or configure API-key providers without inference")
             .accessibilityIdentifier("gator.providers.open")
     }
 }
 
 struct ProviderSetupView: View {
     let sessions: ManagedSessionCoordinator
+    @State private var area: NativeModelsArea = .api
     @Bindable private var setup: NativeProviderSetup
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
@@ -23,17 +24,23 @@ struct ProviderSetupView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Models and Providers").font(.headline)
+                VStack(alignment: .leading, spacing: 4) { Text("Models and Providers").font(.headline); Text(setup.futureSelectionLabel).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
                 Spacer()
-                Button("Refresh Status", systemImage: "arrow.clockwise") { Task { await setup.refresh() } }.disabled(setup.busy)
+                Button("Refresh Status", systemImage: "arrow.clockwise") { Task { if area == .local { await setup.refreshLocal() } else { await setup.refresh() } } }.disabled(setup.busy)
             }.padding(14)
             Divider()
+            Picker("Model source", selection: $area) {
+                ForEach(NativeModelsArea.allCases) { item in Text(item.rawValue).tag(item) }
+            }.pickerStyle(.segmented).padding(14).accessibilityIdentifier("gator.models.area")
+            if area == .local {
+                LocalModelInspectionView(setup: setup)
+            } else {
             HSplitView {
                 List(selection: $setup.selection) {
                     ForEach(setup.rows) { row in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(verbatim: row.id).fontWeight(.medium)
-                            if row.isDefault == true { Text("Future default").font(.caption).foregroundStyle(.secondary) }
+                            if setup.isFutureProvider(row) { Text("Future default").font(.caption).foregroundStyle(.secondary) }
                             Text(row.ready ? "Locally ready" : row.configured ? "Configured · needs attention" : "Not configured")
                                 .font(.caption).foregroundStyle(.secondary)
                         }.padding(.vertical, 4).tag(row.id)
@@ -52,23 +59,29 @@ struct ProviderSetupView: View {
                         if setup.busy { ProgressView("Waiting for Go confirmation…").controlSize(.small) }
                         Text("Configured means settings or credentials exist. Locally ready means local checks pass. Neither means live verified. This screen never makes an inference request.")
                             .font(.caption).foregroundStyle(.secondary)
-                        Text("This workflow supports built-in API-key providers. Vendor CLI sign-in, OAuth, custom provider definitions and local runtime installation are not supported here. It does not import another application's credentials.")
+                        Text("This workflow supports built-in API-key providers. Vendor CLI sign-in, OAuth and custom provider definitions are not supported by this editor. Local Models provides Ollama onboarding and reviewed future selection. It does not import another application's credentials.")
                             .font(.caption).foregroundStyle(.secondary)
                     }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(minWidth: 335)
             }
+            }
             Divider()
             HStack {
-                Text("Credentials stay in Gator’s private Go credential store.").font(.caption).foregroundStyle(.secondary)
+                Text(area == .api ? "Credentials stay in Gator’s private Go credential store." : "Reviewed future selection · no inference or weight loading.").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Return to Chat") { close() }.keyboardShortcut(setup.review == nil ? KeyboardShortcut.cancelAction : nil)
+                Button("Return to Chat") { close() }.keyboardShortcut(setup.review == nil && setup.localReview == nil ? KeyboardShortcut.cancelAction : nil)
             }.padding(14)
         }
         .background(NativeWindowConfiguration(compact: false, registersConversation: false).frame(width: 0, height: 0))
         .tint(GatorTheme.accent)
+        .environment(\.openURL, OpenURLAction { url in
+            guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.user == nil, url.password == nil else { return .discarded }
+            NSWorkspace.shared.open(url); return .handled
+        })
         .task { sessions.showProviders() }
+        .task(id: area) { if area == .local { await setup.refreshLocal() } }
         .onDisappear { setup.dismiss() }
-        .onExitCommand { if setup.review != nil && !setup.busy { setup.cancelReview() } else { close() } }
+        .onExitCommand { if setup.localReview != nil && !setup.busy { Task { await setup.cancelLocalSelection() } } else if setup.review != nil && !setup.busy { setup.cancelReview() } else { close() } }
         .accessibilityIdentifier("gator.providers.window")
     }
     private func close() { setup.dismiss(); dismissWindow(id: "providers"); openWindow(id: "conversation"); NSApp.activate(ignoringOtherApps: true) }
@@ -92,7 +105,7 @@ private struct ProviderCredentialEditor: View {
                 Text(row.ambient ? "Ambient credential source available" : "No ambient credential source detected").font(.callout).foregroundStyle(.secondary)
                 if row.expired { NativeStatusMessage(text: "The stored credential is expired.", severity: .warning) }
                 if !row.issue.isEmpty { NativeStatusMessage(text: row.issue, severity: .warning) }
-                Text("\(row.isDefault == true ? "Current default model" : "Suggested model for setup"): \(row.model.isEmpty ? "not selected" : row.model)").font(.callout).textSelection(.enabled)
+                Text("\(setup.isFutureProvider(row) ? "Current default model" : "Suggested model for setup"): \(row.model.isEmpty ? "not selected" : row.model)").font(.callout).textSelection(.enabled)
                 Text("Current processing destination: \(row.destination.isEmpty ? "not available" : row.destination)").font(.callout).textSelection(.enabled)
             }
             if !entryIssue.isEmpty { NativeStatusMessage(text: entryIssue, severity: .error) }

@@ -1,0 +1,79 @@
+Another instance of SwiftPM (PID: 35879) is already running using '/tmp/gator-native-build', waiting until that process has finished execution...[0/1] Planning build
+Building for debugging...
+[0/6] Write sources
+[2/6] Write swift-version--58304C5D6DBC2206.txt
+[4/28] Compiling GatorCore NativeMessageContent.swift
+[5/28] Compiling GatorCore NativeMessageReaction.swift
+[6/28] Compiling GatorCore NativePlanExecution.swift
+[7/30] Compiling GatorCore NativeRecoveryPreparation.swift
+[8/30] Compiling GatorCore NativeTaskReview.swift
+[9/30] Compiling GatorCore NativeTranscriptSearch.swift
+[10/30] Compiling GatorCore NativeDraftStore.swift
+[11/30] Compiling GatorCore NativeLocalSelection.swift
+[12/30] Compiling GatorCore NativeLocalStatus.swift
+[13/30] Compiling GatorCore NativeCatalogProtocol.swift
+[14/30] Compiling GatorCore NativeConversationCatalog.swift
+[15/30] Compiling GatorCore NativeDraftAttachments.swift
+[16/30] Compiling GatorCore NativeUploadStore.swift
+[17/30] Compiling GatorCore NativeWorkspaceSelection.swift
+[18/30] Emitting module GatorCore
+[19/30] Compiling GatorCore GoBridgeConnection.swift
+[20/30] Compiling GatorCore ManagedSessionCoordinator.swift
+[21/30] Compiling GatorCore ManagedSessionProtocol.swift
+[22/30] Compiling GatorCore NativeProviderProtocol.swift
+[23/30] Compiling GatorCore NativeProviderSetup.swift
+[24/30] Compiling GatorCore NativeRecovery.swift
+[25/30] Compiling GatorCore BridgePipeIO.swift
+[26/30] Compiling GatorCore BridgeProtocol.swift
+[27/30] Compiling GatorCore GatorApplicationState.swift
+[28/69] Compiling GatorMac NativeMessageBody.swift
+[29/69] Compiling GatorMac NativeMessageReactionView.swift
+[30/69] Compiling GatorMac NativeMotionPresentation.swift
+[31/69] Compiling GatorMac NativeMotionVisibility.swift
+[32/69] Compiling GatorMac NativeProviderSecretEntry.swift
+[33/74] Compiling GatorMac NativeReadingPositions.swift
+[34/74] Compiling GatorMac NativeStatusMessage.swift
+[35/74] Compiling GatorMac NativeStreamingPresentation.swift
+[36/74] Compiling GatorMac NativeStreamingReveal.swift
+[37/74] Compiling GatorMac NativeThinkingPulse.swift
+[38/74] Compiling GatorMac NativeErrorDisclosure.swift
+[39/74] Compiling GatorMac NativeMascotModel.swift
+[40/74] Compiling GatorMac NativeMascotPlayback.swift
+[41/74] Compiling GatorMac NativeMascotPreferences.swift
+[42/74] Compiling GatorMac NativeMascotView.swift
+[43/74] Compiling GatorMac NativeAccessibilityStatus.swift
+[44/74] Compiling GatorMac NativeAttachmentActions.swift
+[45/74] Compiling GatorMac NativeComposer.swift
+[46/74] Compiling GatorMac NativeComposerPresentation.swift
+[47/74] Compiling GatorMac NativeDesktopPet.swift
+[48/74] Compiling GatorMac NativeDropInput.swift
+[49/74] Emitting module GatorMac
+[50/74] Compiling GatorMac NativeTranscriptFind.swift
+[51/74] Compiling GatorMac NativeWindowConfiguration.swift
+[52/74] Compiling GatorMac NativeWorkspacePicker.swift
+[53/74] Compiling GatorMac NotchQuickAccess.swift
+[54/74] Compiling GatorMac PlanReviewContent.swift
+[55/74] Compiling GatorMac ProviderSetupView.swift
+[56/74] Compiling GatorMac RecentConversationsMenu.swift
+[57/74] Compiling GatorMac RecoveryInspectorContent.swift
+[58/74] Compiling GatorMac RecoveryPreparationView.swift
+[59/74] Compiling GatorMac TaskInspectorView.swift
+[60/74] Compiling GatorMac AppDelegate.swift
+[61/74] Compiling GatorMac ApprovalReviewView.swift
+[62/74] Compiling GatorMac AttachmentSelectionView.swift
+[63/74] Compiling GatorMac ComposerView.swift
+[64/74] Compiling GatorMac ConversationCatalogView.swift
+[65/74] Compiling GatorMac ConversationView.swift
+[66/74] Compiling GatorMac ExactDecisionButton.swift
+[67/74] Compiling GatorMac ExactReviewContent.swift
+[68/74] Compiling GatorMac GatorApp.swift
+[69/74] Compiling GatorMac LocalModelInspectionView.swift
+[70/74] Compiling GatorMac MenuBarVisibilityToggle.swift
+[71/74] Compiling GatorMac NativeAcceptanceDiagnostics.swift
+[71/74] Write Objects.LinkFileList
+[72/74] Linking GatorMac
+[73/74] Applying GatorMac
+Build complete! (11.16s)
+/tmp/gator-native-app.wsBBl8/Gator.app/Contents/Info.plist: OK
+Built /tmp/Gator-Native-P04L2B-Models.app
+Launch: open '/tmp/Gator-Native-P04L2B-Models.app'

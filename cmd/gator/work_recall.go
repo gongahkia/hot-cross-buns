@@ -89,12 +89,10 @@ func configureWorkRecall(provider string, allowUpload bool) error {
 	if err != nil {
 		return err
 	}
-	settings, err := store.Load()
-	if err != nil {
-		return err
-	}
-	settings.Embeddings = config.EmbeddingSettings{Provider: provider, CloudUploadApproved: provider != "ollama" && allowUpload}
-	return store.Save(settings)
+	return store.Update(func(settings *config.Settings) error {
+		settings.Embeddings = config.EmbeddingSettings{Provider: provider, CloudUploadApproved: provider != "ollama" && allowUpload}
+		return nil
+	})
 }
 
 func installWorkRecall(ctx context.Context, progress func(string)) error {
