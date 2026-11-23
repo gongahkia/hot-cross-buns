@@ -195,6 +195,7 @@ type Config struct {
 	BindConversationTask     func(conversation, turn, source string, revision uint64) (worksession.DialogueTurn, worksession.Conversation, bool, error)
 	PreparePlan              func(context.Context, worksession.Request) (worksession.PlanContent, error)
 	RevisePlan               func(context.Context, worksession.Request) (worksession.PlanContent, error)
+	ForkDialogueConversation func(parent, turn string, revision uint64, request string) (worksession.Conversation, error)
 	ForkConversation         func(parent, revision, run, request string) (worksession.Conversation, error)
 	ComposerSources          func() ([]ComposerSource, error)
 	SelectComposerSources    func(string, []string, []string) error

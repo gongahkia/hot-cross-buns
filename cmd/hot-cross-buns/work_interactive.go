@@ -528,6 +528,14 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 		RevisePlan: func(ctx context.Context, r worksession.Request) (worksession.PlanContent, error) {
 			return reviseDesktopTaskPlan(ctx, stateDir, r)
 		},
+		ForkDialogueConversation: func(parent, turn string, revision uint64, request string) (worksession.Conversation, error) {
+			release, err := state.Guard(stateDir, false)
+			if err != nil {
+				return worksession.Conversation{}, err
+			}
+			defer release()
+			return sessions.ForkDialogueOnce(parent, turn, revision, request, time.Now())
+		},
 		ForkConversation: func(parent, revision, run, request string) (worksession.Conversation, error) {
 			release, err := state.Guard(stateDir, false)
 			if err != nil {

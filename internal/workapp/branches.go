@@ -1,15 +1,18 @@
 package workapp
 
 import (
+	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 	"regexp"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type BranchAction struct {
+	TurnID         string `json:"turn_id,omitempty"`
+	TurnRevision   uint64 `json:"turn_revision,omitempty"`
 	ConversationID string `json:"conversation_id"`
-	RevisionID     string `json:"revision_id"`
-	RunID          string `json:"run_id"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	RunID          string `json:"run_id,omitempty"`
 	RequestID      string `json:"request_id"`
 }
 type BranchResult struct {
@@ -34,7 +37,7 @@ func (m Model) BranchConversation(a BranchAction) (tea.Model, tea.Cmd) {
 		m.bridgeNotice = text
 		return m, nil
 	}
-	if !branchRequestIdentity.MatchString(a.RequestID) || !branchIdentity.MatchString(a.ConversationID) || !branchIdentity.MatchString(a.RevisionID) || !branchIdentity.MatchString(a.RunID) || a.ConversationID != m.conversation {
+	if !branchRequestIdentity.MatchString(a.RequestID) || !branchIdentity.MatchString(a.ConversationID) || (a.TurnID == "" && (!branchIdentity.MatchString(a.RevisionID) || !branchIdentity.MatchString(a.RunID))) || (a.TurnID != "" && (!branchIdentity.MatchString(a.TurnID) || a.TurnRevision == 0 || a.RevisionID != "" || a.RunID != "")) || a.ConversationID != m.conversation {
 		return fail("This branch belongs to another conversation or has an invalid boundary.")
 	}
 	if m.background || m.section != "" || m.launcher || m.models != nil || m.controlBusy || m.followupSaving || m.recallBusy || m.bridgeExternal != nil || m.pendingBundleAction != nil || m.receiptBusy || m.catalogSaving != 0 || m.running && !m.config.ManagedSessions {
@@ -47,10 +50,25 @@ func (m Model) BranchConversation(a BranchAction) (tea.Model, tea.Cmd) {
 			break
 		}
 	}
-	if !eligible || m.config.ForkConversation == nil {
+	if a.TurnID != "" {
+		eligible = false
+		for _, turn := range m.dialogueTurns {
+			if turn.ID == a.TurnID && turn.Revision == a.TurnRevision && (turn.State == "answered" || turn.State == "clarification") && turn.Response != "" && turn.Issue == "" {
+				eligible = true
+				break
+			}
+		}
+	}
+	if !eligible || (a.TurnID == "" && m.config.ForkConversation == nil) || (a.TurnID != "" && m.config.ForkDialogueConversation == nil) {
 		return fail("Only completed, retained answers in this conversation can be branched.")
 	}
-	c, err := m.config.ForkConversation(a.ConversationID, a.RevisionID, a.RunID, a.RequestID)
+	var c worksession.Conversation
+	var err error
+	if a.TurnID != "" {
+		c, err = m.config.ForkDialogueConversation(a.ConversationID, a.TurnID, a.TurnRevision, a.RequestID)
+	} else {
+		c, err = m.config.ForkConversation(a.ConversationID, a.RevisionID, a.RunID, a.RequestID)
+	}
 	if err != nil {
 		return fail("Could not create the branch: " + err.Error())
 	}

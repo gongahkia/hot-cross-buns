@@ -116,7 +116,9 @@ export function validateFrame(frame) {
   }
   if (frame.type === "branch") {
     const v=frame.branch;
-    if(!v || typeof v!=="object" || Array.isArray(v) || Object.keys(v).some(key=>!["conversation_id","revision_id","run_id","request_id"].includes(key)) || ["conversation_id","revision_id","run_id"].some(key=>typeof v[key]!=="string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(v[key])) || typeof v.request_id!=="string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{15,63}$/.test(v.request_id)) throw new Error("Invalid branch boundary");
+    const identity=value=>typeof value==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(value);
+    const dialogue=v?.turn_id!==undefined;
+    if(!v || typeof v!=="object" || Array.isArray(v) || Object.keys(v).some(key=>!["conversation_id","revision_id","run_id","request_id","turn_id","turn_revision"].includes(key)) || !identity(v.conversation_id) || (dialogue ? !/^[a-f0-9]{64}$/.test(v.turn_id)||!Number.isSafeInteger(v.turn_revision)||v.turn_revision<1||v.revision_id!==undefined||v.run_id!==undefined : !identity(v.revision_id)||!identity(v.run_id)||v.turn_revision!==undefined) || typeof v.request_id!=="string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{15,63}$/.test(v.request_id)) throw new Error("Invalid branch boundary");
   }
   if (frame.type === "sources") {
     const v = frame.sources;

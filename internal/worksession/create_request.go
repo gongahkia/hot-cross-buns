@@ -60,6 +60,9 @@ func (s Store) createChatOnce(source, requestID string, now time.Time, fork *for
 	binding := source
 	if fork != nil {
 		binding += "\x00branch\x00" + fork.info.ParentConversationID + "\x00" + fork.info.ParentRevisionID + "\x00" + fork.digest
+		if fork.info.ParentTurnID != "" {
+			binding += "\x00dialogue\x00" + fork.info.ParentTurnID
+		}
 	}
 	sourceSum := sha256.Sum256([]byte(binding))
 	sourceHash := hex.EncodeToString(sourceSum[:])

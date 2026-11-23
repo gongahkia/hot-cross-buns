@@ -36,3 +36,23 @@ func TestBranchOwnerPreservesRunningParentAndRequiresExactBoundary(t *testing.T)
 		t.Fatal("background stale action created branch")
 	}
 }
+
+func TestDialogueBranchRequiresExactRetainedResponseAndPreservesParent(t *testing.T) {
+	id := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	calls := 0
+	m := Model{conversation: "work-parent", dialogueTurns: []worksession.DialogueTurn{{ID: id, Revision: 3, State: "answered", Response: "Retained reply"}}, config: Config{ManagedSessions: true, ForkDialogueConversation: func(parent, turn string, revision uint64, request string) (worksession.Conversation, error) {
+		calls++
+		return worksession.Conversation{ID: "work-child"}, nil
+	}}}
+	a := BranchAction{ConversationID: "work-parent", TurnID: id, TurnRevision: 2, RequestID: "dialogue-branch-request-123456"}
+	next, _ := m.BranchConversation(a)
+	if calls != 0 || next.(Model).branchResult.Error == "" {
+		t.Fatal("stale response was forked")
+	}
+	a.TurnRevision = 3
+	next, _ = m.BranchConversation(a)
+	child := next.(Model)
+	if calls != 1 || child.branchResult.ConversationID != "work-child" || child.conversation != "work-parent" || child.sessionRequest.ConversationID != "work-child" {
+		t.Fatal("dialogue fork did not retain independent ownership")
+	}
+}

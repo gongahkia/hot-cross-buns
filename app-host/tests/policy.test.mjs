@@ -203,3 +203,9 @@ test("task access review carries selected account identities but cannot grant ra
  for(const change of [{connections:["../other"]},{access_token:"old"},{approved:true},{scope_digest:"x"},{processing_digest:"x"},{credential_pins:{}},{options:{}},{action:"prepare_retry"},{connections:new Array(17).fill("reports")}])assert.throws(()=>validateFrame({type:"request_recovery",request_recovery:{...prepare,...change}}));
  assert.throws(()=>validateFrame({type:"request_recovery",request_recovery:{...base,access_token:"c".repeat(64)}}));
 });
+
+test('dialogue forks bind one response revision and cannot mix work or permission fields',()=>{
+ const branch={conversation_id:'work-one',turn_id:'a'.repeat(64),turn_revision:3,request_id:'response-branch-request-123456'};
+ assert.doesNotThrow(()=>validateFrame({type:'branch',branch}));
+ for(const change of [{turn_revision:0},{turn_revision:Number.MAX_SAFE_INTEGER+1},{revision_id:'rev-one'},{run_id:'run-one'},{turn_id:'../private'},{permissions:['all']}])assert.throws(()=>validateFrame({type:'branch',branch:{...branch,...change}}),/Invalid branch/);
+});

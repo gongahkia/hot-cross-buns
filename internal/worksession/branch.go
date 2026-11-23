@@ -20,6 +20,8 @@ import (
 type BranchInfo struct {
 	Version              int                 `json:"version"`
 	ParentConversationID string              `json:"parent_conversation_id"`
+	ParentTurnID         string              `json:"parent_turn_id,omitempty"`
+	Dialogue             []InheritedDialogue `json:"dialogue,omitempty"`
 	ParentRevisionID     string              `json:"parent_revision_id"`
 	CreatedAt            time.Time           `json:"created_at"`
 	Revisions            []InheritedRevision `json:"revisions"`
@@ -32,9 +34,11 @@ type InheritedRevision struct {
 	RunID            string `json:"run_id"`
 }
 type forkSeed struct {
-	info   BranchInfo
-	turns  []Revision
-	digest string
+	info     BranchInfo
+	turns    []Revision
+	dialogue []DialogueTurn
+	digest   string
+	bytes    int
 }
 
 // ForkChatOnce uses the existing cross-process creation receipt and atomic
@@ -53,25 +57,36 @@ func (s Store) ForkChatOnce(parent, revision, run, requestID string, now time.Ti
 	if selected.Status != "completed" || selected.FinalText == "" || filepath.Base(selected.BundlePath) != run {
 		return Conversation{}, errors.New("branching requires an exact completed retained answer")
 	}
-	inherited, err := s.Branch(parent)
+	seed, err := s.revisionForkSeed(parent, revision, turns)
 	if err != nil {
 		return Conversation{}, err
+	}
+	if err := s.seedDialogue(seed, parent, 0, selected.CreatedAt); err != nil {
+		return Conversation{}, err
+	}
+	return s.createChatOnce(c.SourcePath, requestID, now, seed)
+}
+
+func (s Store) revisionForkSeed(parent, revision string, turns []Revision) (*forkSeed, error) {
+	inherited, err := s.Branch(parent)
+	if err != nil {
+		return nil, err
 	}
 	seed := &forkSeed{turns: turns, info: BranchInfo{Version: 1, ParentConversationID: parent, ParentRevisionID: revision}}
 	root, err := workspace.Open(s.root)
 	if err != nil {
-		return Conversation{}, err
+		return nil, err
 	}
 	digest := sha256.New()
 	total := 0
 	for _, turn := range turns {
 		raw, err := root.ReadRegularFile(filepath.Join(parent, "revisions", turn.ID+".json"), 8*1024*1024)
 		if err != nil {
-			return Conversation{}, fmt.Errorf("retained branch context unavailable: %w", err)
+			return nil, fmt.Errorf("retained branch context unavailable: %w", err)
 		}
 		total += len(raw)
 		if total > 32*1024*1024 {
-			return Conversation{}, errors.New("branch context exceeds 32 MiB")
+			return nil, errors.New("branch context exceeds 32 MiB")
 		}
 		digest.Write(raw)
 		sum := sha256.Sum256(raw)
@@ -88,13 +103,15 @@ func (s Store) ForkChatOnce(parent, revision, run, requestID string, now time.Ti
 		seed.info.Revisions = append(seed.info.Revisions, origin)
 	}
 	seed.digest = hex.EncodeToString(digest.Sum(nil))
-	return s.createChatOnce(c.SourcePath, requestID, now, seed)
+	seed.bytes = total
+	return seed, nil
 }
 
 func (f *forkSeed) write(root *os.Root, stage string, c *Conversation) error {
 	info := f.info
 	info.CreatedAt = c.CreatedAt
 	info.Revisions = append([]InheritedRevision(nil), f.info.Revisions...)
+	info.Dialogue = append([]InheritedDialogue(nil), f.info.Dialogue...)
 	parent := ""
 	for i, original := range f.turns {
 		sum := sha256.Sum256([]byte(c.ID + "\x00" + original.ID))
@@ -133,7 +150,29 @@ func (f *forkSeed) write(root *os.Root, stage string, c *Conversation) error {
 		c.SnapshotID = turn.SnapshotID
 	}
 	c.HeadRevision = parent
-	c.Title = "Branch · " + chatRequestTitle(f.turns[len(f.turns)-1].Objective)
+	if len(f.dialogue) > 0 {
+		if err := creationDirectory(root, filepath.Join(stage, "dialogue")); err != nil {
+			return err
+		}
+		for i, original := range f.dialogue {
+			turn := cleanBranchDialogue(original, c.ID)
+			if err := validateDialogueTurn(turn); err != nil {
+				return err
+			}
+			if err := writeCreationJSON(root, filepath.Join(stage, "dialogue", dialogueFilename(turn)), turn); err != nil {
+				return err
+			}
+			info.Dialogue[i].TurnID = turn.ID
+		}
+	}
+	title := "Conversation"
+	if len(f.turns) > 0 {
+		title = f.turns[len(f.turns)-1].Objective
+	}
+	if f.info.ParentTurnID != "" && len(f.dialogue) > 0 {
+		title = f.dialogue[len(f.dialogue)-1].Text
+	}
+	c.Title = "Branch · " + chatRequestTitle(title)
 	if len(c.Title) > 256 {
 		c.Title = "Branch"
 	}
@@ -162,7 +201,7 @@ func (s Store) Branch(id string) (*BranchInfo, error) {
 		return nil, err
 	}
 	var info BranchInfo
-	if json.Unmarshal(raw, &info) != nil || info.Version != 1 || !catalogIdentity.MatchString(info.ParentConversationID) || !catalogIdentity.MatchString(info.ParentRevisionID) || info.CreatedAt.IsZero() || len(info.Revisions) == 0 || len(info.Revisions) > 256 {
+	if json.Unmarshal(raw, &info) != nil || (info.Version != 1 && info.Version != 2) || !catalogIdentity.MatchString(info.ParentConversationID) || (info.ParentRevisionID == "" && info.ParentTurnID == "") || (info.ParentRevisionID != "" && !catalogIdentity.MatchString(info.ParentRevisionID)) || (info.ParentTurnID != "" && !validDialogueID(info.ParentTurnID)) || info.CreatedAt.IsZero() || len(info.Revisions)+len(info.Dialogue) == 0 || len(info.Revisions)+len(info.Dialogue) > 256 {
 		return nil, errors.New("invalid retained branch provenance")
 	}
 	seen := map[string]bool{}
@@ -171,6 +210,12 @@ func (s Store) Branch(id string) (*BranchInfo, error) {
 			return nil, errors.New("invalid inherited revision provenance")
 		}
 		seen[origin.RevisionID] = true
+	}
+	for _, origin := range info.Dialogue {
+		if !validDialogueID(origin.TurnID) || !validDialogueID(origin.SourceTurnID) || !catalogIdentity.MatchString(origin.ConversationID) || len(origin.SHA256) != 64 || strings.Trim(origin.SHA256, "0123456789abcdef") != "" || seen[origin.TurnID] {
+			return nil, errors.New("invalid inherited dialogue provenance")
+		}
+		seen[origin.TurnID] = true
 	}
 	return &info, nil
 }
