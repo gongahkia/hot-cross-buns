@@ -127,7 +127,7 @@ type ContinuitySummary struct {
 func validContinuity(v ContinuitySummary, id string) bool {
 	_, epochErr := hex.DecodeString(v.Epoch)
 	_, digestErr := hex.DecodeString(v.Digest)
-	return epochErr == nil && digestErr == nil && v.Version == 1 && v.Revision > 0 && v.ConversationID == id && v.Covered >= 0 && v.Covered <= MaxContextTurns && len(v.Epoch) == 64 && len(v.Digest) == 64 && utf8.ValidString(v.Text) && len(v.Text) <= 12*1024 && !v.UpdatedAt.IsZero()
+	return epochErr == nil && digestErr == nil && v.Version == 1 && v.Revision > 0 && v.ConversationID == id && v.Covered >= 0 && len(v.Epoch) == 64 && len(v.Digest) == 64 && utf8.ValidString(v.Text) && len(v.Text) <= 12*1024 && !v.UpdatedAt.IsZero()
 }
 
 func (s Store) ReadContinuity(id string) (ContinuitySummary, error) {

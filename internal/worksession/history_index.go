@@ -56,59 +56,67 @@ func (s Store) indexContextTurn(ctx context.Context, t ContextTurn, parent, path
 	if !info.Mode().IsRegular() {
 		return errors.New("history source must be regular")
 	}
-	chat := strings.Split(filepath.ToSlash(path), "/")[0]
 	return s.HistoryCache(ctx, func(db *sql.DB) error {
-		digest := ContextDigest([]ContextTurn{t})
-		var old string
-		err := db.QueryRowContext(ctx, `SELECT digest FROM history_sources WHERE chat=? AND key=?`, chat, t.ID).Scan(&old)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		if old == digest {
-			_, err = db.ExecContext(ctx, `UPDATE history_sources SET size=?,mtime=? WHERE chat=? AND key=?`, info.Size(), info.ModTime().UnixNano(), chat, t.ID)
-			return err
-		}
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-		if err = invalidateHistory(ctx, tx, chat, "source", t.ID); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `DELETE FROM semantic_vectors WHERE id IN(SELECT id FROM history_chunks WHERE chat=? AND key=?)`, chat, t.ID); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `DELETE FROM history_fts WHERE id IN(SELECT id FROM history_chunks WHERE chat=? AND key=?)`, chat, t.ID); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `DELETE FROM history_chunks WHERE chat=? AND key=?`, chat, t.ID); err != nil {
-			return err
-		}
-		data, err := json.Marshal(t)
-		if err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO history_sources VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(chat,key) DO UPDATE SET parent=excluded.parent,seq=excluded.seq,at=excluded.at,updated=excluded.updated,path=excluded.path,size=excluded.size,mtime=excluded.mtime,digest=excluded.digest,body=excluded.body`, chat, t.ID, parent, t.Sequence, t.At.UnixNano(), updated.UnixNano(), filepath.ToSlash(path), info.Size(), info.ModTime().UnixNano(), digest, string(data)); err != nil {
-			return err
-		}
-		text := []rune(t.User + "\n" + t.Assistant)
-		for part, start := 0, 0; start < len(text); part, start = part+1, start+1200 {
-			end := min(start+1500, len(text))
-			body := string(text[start:end])
-			id := ContextDigest([]ContextTurn{{ID: chat + ":" + t.ID, User: fmt.Sprint(part)}})
-			if _, err = tx.ExecContext(ctx, `INSERT INTO history_chunks VALUES(?,?,?,?,?,?)`, id, chat, t.ID, part, body, digest); err != nil {
-				return err
-			}
-			if _, err = tx.ExecContext(ctx, `INSERT INTO history_fts(id,text) VALUES(?,?)`, id, body); err != nil {
-				return err
-			}
-			if end == len(text) {
-				break
-			}
-		}
-		return tx.Commit()
+		return putHistorySource(ctx, db, t, parent, path, updated, info)
 	})
+}
+
+func putHistorySource(ctx context.Context, db *sql.DB, t ContextTurn, parent, path string, updated time.Time, info os.FileInfo) error {
+	chat := strings.Split(filepath.ToSlash(path), "/")[0]
+	digest := ContextDigest([]ContextTurn{t})
+	var old string
+	var oldUpdated int64
+	err := db.QueryRowContext(ctx, `SELECT digest,updated FROM history_sources WHERE chat=? AND key=?`, chat, t.ID).Scan(&old, &oldUpdated)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if oldUpdated > updated.UnixNano() {
+		return nil
+	}
+	if old == digest {
+		_, err = db.ExecContext(ctx, `UPDATE history_sources SET size=?,mtime=? WHERE chat=? AND key=?`, info.Size(), info.ModTime().UnixNano(), chat, t.ID)
+		return err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err = invalidateHistory(ctx, tx, chat, "source", t.ID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM semantic_vectors WHERE id IN(SELECT id FROM history_chunks WHERE chat=? AND key=?)`, chat, t.ID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_fts WHERE id IN(SELECT id FROM history_chunks WHERE chat=? AND key=?)`, chat, t.ID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_chunks WHERE chat=? AND key=?`, chat, t.ID); err != nil {
+		return err
+	}
+	data, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO history_sources VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(chat,key) DO UPDATE SET parent=excluded.parent,seq=excluded.seq,at=excluded.at,updated=excluded.updated,path=excluded.path,size=excluded.size,mtime=excluded.mtime,digest=excluded.digest,body=excluded.body`, chat, t.ID, parent, t.Sequence, t.At.UnixNano(), updated.UnixNano(), filepath.ToSlash(path), info.Size(), info.ModTime().UnixNano(), digest, string(data)); err != nil {
+		return err
+	}
+	text := []rune(t.User + "\n" + t.Assistant)
+	for part, start := 0, 0; start < len(text); part, start = part+1, start+1200 {
+		end := min(start+1500, len(text))
+		body := string(text[start:end])
+		id := ContextDigest([]ContextTurn{{ID: chat + ":" + t.ID, User: fmt.Sprint(part)}})
+		if _, err = tx.ExecContext(ctx, `INSERT INTO history_chunks VALUES(?,?,?,?,?,?)`, id, chat, t.ID, part, body, digest); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO history_fts(id,text) VALUES(?,?)`, id, body); err != nil {
+			return err
+		}
+		if end == len(text) {
+			break
+		}
+	}
+	return tx.Commit()
 }
 
 func (s Store) indexDialogue(t DialogueTurn) {
@@ -126,6 +134,25 @@ func (s Store) indexRevision(chat string, r Revision) {
 }
 func (s Store) putRevisionContext(ctx context.Context, chat string, r Revision) error {
 	return s.indexContextTurn(ctx, ContextTurn{ID: "work:" + r.ID, User: r.Objective, Assistant: r.FinalText, State: r.Status, At: r.CreatedAt}, r.ParentRevisionID, filepath.Join(chat, "revisions", r.ID+".json"), r.CreatedAt)
+}
+
+func (s Store) putDialoguePage(ctx context.Context, turns []DialogueTurn) error {
+	return s.HistoryCache(ctx, func(db *sql.DB) error {
+		for _, t := range turns {
+			path := filepath.Join(t.ConversationID, "dialogue", dialogueFilename(t))
+			info, err := os.Lstat(filepath.Join(s.root, path))
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return errors.New("history source must be regular")
+			}
+			if err := putHistorySource(ctx, db, ContextTurn{ID: "dialogue:" + t.ID, Sequence: t.Sequence, User: t.Text, Assistant: t.Response, State: t.State, TaskChat: t.TaskChat, At: t.CreatedAt}, "", path, t.UpdatedAt, info); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // SyncHistory backfills one bounded page. New native writes are indexed directly;
@@ -163,10 +190,8 @@ func (s Store) SyncHistory(ctx context.Context, chat string, limit int) (bool, e
 	if err != nil {
 		return false, err
 	}
-	for _, t := range latest {
-		if err := s.putDialogueContext(ctx, t); err != nil {
-			return false, err
-		}
+	if err := s.putDialoguePage(ctx, latest); err != nil {
+		return false, err
 	}
 	if oldest == 0 && len(latest) > 0 {
 		oldest = latest[0].Sequence
@@ -177,10 +202,8 @@ func (s Store) SyncHistory(ctx context.Context, chat string, limit int) (bool, e
 			if err != nil {
 				return false, err
 			}
-			for _, t := range page {
-				if err := s.putDialogueContext(ctx, t); err != nil {
-					return false, err
-				}
+			if err := s.putDialoguePage(ctx, page); err != nil {
+				return false, err
 			}
 			budget -= len(page)
 			if len(page) > 0 {
@@ -216,6 +239,9 @@ func (s Store) SyncHistory(ctx context.Context, chat string, limit int) (bool, e
 		_, err := db.ExecContext(ctx, `INSERT INTO history_progress VALUES(?,?,?,?,?,?) ON CONFLICT(chat) DO UPDATE SET oldest=excluded.oldest,dialogue_done=excluded.dialogue_done,head=excluded.head,work_cursor=excluded.work_cursor,work_done=excluded.work_done`, chat, oldest, done, head, cursor, workDone)
 		return err
 	})
+	if err == nil {
+		err = s.AuditHistory(ctx, chat)
+	}
 	return done == 0 || workDone == 0, err
 }
 

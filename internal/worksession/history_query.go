@@ -60,7 +60,8 @@ func (s Store) ReadHistory(ctx context.Context, q HistoryQuery) (HistoryPage, er
 		}
 		where, order := "", ` ORDER BY at DESC,seq DESC,key DESC`
 		if q.Uncovered {
-			where = ` WHERE NOT EXISTS(SELECT 1 FROM history_dependencies d JOIN history_nodes n ON n.chat=d.chat AND n.id=d.node WHERE d.chat=selected.chat AND d.kind='source' AND d.key=selected.key AND d.digest=selected.digest AND n.level=0 AND n.dirty=0)`
+			where = ` WHERE NOT EXISTS(SELECT 1 FROM history_dependencies d JOIN history_nodes n ON n.chat=d.chat AND n.id=d.node WHERE d.chat=selected.chat AND d.kind='source' AND d.key=selected.key AND d.digest=selected.digest AND n.level=0 AND n.dirty=0 AND n.maxseq<? AND n.source_updated<=? AND(n.anchor='' OR 'work:'||n.anchor IN(SELECT key FROM ancestry)))`
+			args = append(args, before, at)
 			order = ` ORDER BY at,seq,key`
 		}
 		if q.Tasks {
@@ -115,6 +116,17 @@ func (s Store) ReadHistory(ctx context.Context, q HistoryQuery) (HistoryPage, er
 		}
 	}
 	return result, nil
+}
+
+func (s Store) HistoryIsPast(ctx context.Context, q HistoryQuery) (bool, error) {
+	if q.Before == 0 || q.At.IsZero() {
+		return false, nil
+	}
+	var past bool
+	err := s.HistoryCache(ctx, func(db *sql.DB) error {
+		return db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM history_sources WHERE chat=? AND(seq>? OR(seq=0 AND at>?)))`, q.Chat, q.Before, q.At.UnixNano()).Scan(&past)
+	})
+	return past, err
 }
 
 func (s Store) ReadHistoryTurn(ctx context.Context, chat, key string) (ContextTurn, string, error) {
