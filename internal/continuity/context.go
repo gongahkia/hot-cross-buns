@@ -18,6 +18,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
@@ -25,6 +26,7 @@ const recentTurns = 8
 const maxBatchBytes = 48 * 1024
 
 type Options struct {
+	Embedder                           retrieval.Embedder
 	AdmittedRecent                     []Message
 	Reports                            []Report
 	ConversationID, GoalID, Query      string
@@ -101,7 +103,7 @@ func hash(value any) string {
 }
 
 // Build refreshes owning stores on every request. Summaries are disposable
-// caches: source changes or memory withdrawals invalidate their covered prefix.
+// source-linked sections: changes invalidate the affected section and ancestors.
 func Build(ctx context.Context, stateDir string, model agent.Model, options Options) (Context, error) {
 	options.Main = options.Main && options.GoalID == ""
 	result := Context{AsOf: time.Now().UTC()}
@@ -109,10 +111,6 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 		return result, err
 	}
 	sessions, err := worksession.Open(stateDir)
-	if err != nil {
-		return result, err
-	}
-	turns, err := sessions.ContextHistory(options.ConversationID, options.BeforeSequence, options.BeforeTime)
 	if err != nil {
 		return result, err
 	}
@@ -137,71 +135,18 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 		Goal         string
 		Refer, Learn bool
 	}{all, rules, options.Excluded, options.GoalID, options.ReferToChats, options.LearnFromChats})
-	saved, err := sessions.ReadContinuity(options.ConversationID)
+	archive, err := prepareArchive(ctx, sessions, memories, model, all, rules, options)
 	if err != nil {
 		return result, err
 	}
-	expected := saved.Revision
-	valid := saved.Revision > 0 && saved.Epoch == epoch && saved.Covered <= len(turns) && saved.Digest == worksession.ContextDigest(turns[:saved.Covered])
-	persist := valid || options.BeforeTime.IsZero() || !saved.UpdatedAt.After(options.BeforeTime)
-	if !valid {
-		clear := persist || saved.Epoch != epoch
-		saved = worksession.ContinuitySummary{ConversationID: options.ConversationID, Epoch: epoch, UpdatedAt: time.Now().UTC(), Digest: worksession.ContextDigest(nil)}
-		if expected > 0 && clear {
-			// Clear stale derived text before attempting any model call.
-			if err := sessions.SaveContinuity(saved, expected); err != nil {
-				return result, err
-			}
-			expected++
-		}
-	}
-	split := max(0, len(turns)-recentTurns)
-	if split >= saved.Covered && split-saved.Covered < 4 {
-		bytes := 0
-		for _, turn := range turns[saved.Covered:] {
-			bytes += len(turn.User) + len(turn.Assistant)
-		}
-		if bytes <= 48*1024 {
-			split = saved.Covered
-		}
-	}
-	for batch := 0; batch < 2 && saved.Covered < split; batch++ {
-		end, bytes := saved.Covered, 0
-		for end < split && end-saved.Covered < 32 {
-			n := len(turns[end].User) + len(turns[end].Assistant)
-			if end > saved.Covered && bytes+n > maxBatchBytes {
-				break
-			}
-			bytes += min(n, 16*1024)
-			end++
-		}
-		older, screenErr := screen(ctx, memories, model, options.GoalID, turns[saved.Covered:end])
-		if screenErr != nil {
-			return result, screenErr
-		}
-		summary, summaryErr := summarize(ctx, model, saved.Text, older)
-		if summaryErr != nil {
-			result.Notices = append(result.Notices, "Earlier conversation summarization is temporarily unavailable; this response has incomplete older context.")
-			break
-		}
-		saved.Text, saved.Covered, saved.Digest, saved.UpdatedAt = summary, end, worksession.ContextDigest(turns[:end]), time.Now().UTC()
-		if persist {
-			if err := sessions.SaveContinuity(saved, expected); err != nil {
-				return result, err
-			}
-			expected++
-		}
-	}
-	result.Summary, result.Covered = saved.Text, saved.Covered
+	result.Summary, result.Covered = archive.summary, archive.covered
+	result.Notices = append(result.Notices, archive.notices...)
 	result.Reports = options.Reports[:min(8, len(options.Reports))]
 	result.Reports = slices.Clone(result.Reports)
 	for i := range result.Reports {
 		result.Reports[i].CanGuide, result.Reports[i].CanStop, result.Reports[i].CanCorrectAction = false, false, false
 	}
-	if saved.Covered < split {
-		result.Notices = append(result.Notices, fmt.Sprintf("%d earlier turns are not yet summarized. Original messages remain available; do not imply complete recall.", split-saved.Covered))
-	}
-	recent, err := screen(ctx, memories, model, options.GoalID, turns[split:])
+	recent, err := screen(ctx, memories, model, options.GoalID, archive.recent)
 	if err != nil {
 		return result, err
 	}
@@ -253,7 +198,7 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	if err != nil {
 		return result, err
 	}
-	result.Tasks, result.Results, err = taskRecords(sessions, options.ConversationID, turns)
+	result.Tasks, result.Results, err = taskRecords(sessions, options.ConversationID, archive.tasks)
 	if err != nil {
 		return result, err
 	}
@@ -264,13 +209,11 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	if len(result.Commitments) == 6 || len(result.Tasks) == 12 || len(result.Schedules) == 6 {
 		result.Notices = append(result.Notices, "Commitment, task, or schedule context reached its bounded limit and may be incomplete. Inspect the owning views for the complete list.")
 	}
-	if options.ReferToChats {
-		result.Notices = append(result.Notices, "Earlier-chat recall uses lexical matches within at most 24 other retained chats, plus older turns in this conversation. It is not exhaustive or semantic recall.")
-	}
+
 	if err := screenReferences(ctx, memories, model, options.GoalID, &result); err != nil {
 		return Context{}, err
 	}
-	result.Recalled, err = recall(ctx, stateDir, sessions, memories, model, options, turns[:split], &result.Notices)
+	result.Recalled, err = recall(ctx, stateDir, sessions, memories, model, options, &result.Notices)
 	if err != nil {
 		return result, err
 	}

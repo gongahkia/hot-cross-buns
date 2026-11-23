@@ -128,8 +128,8 @@ func TestSummaryPersistsAcrossRestartExtendsWithoutGapsAndKeepsRecentDetail(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Covered != 16 || len(model.requests) != 1 || !strings.Contains(model.requests[0].Messages[0].Content, first.Summary) {
-		t.Fatal("did not extend prior summary")
+	if next.Covered != 16 || len(model.requests) != 2 || strings.Contains(model.requests[0].Messages[0].Content, "Message 0:") || !strings.Contains(model.requests[0].Messages[0].Content, "Message 12:") || !strings.Contains(model.requests[1].Messages[0].Content, "Launch marker SAFFRON") {
+		t.Fatal("did not build independent section and parent overview")
 	}
 	if err := s.SaveContinuity(prior, prior.Revision); err == nil {
 		t.Fatal("stale summary overwrote newer context")

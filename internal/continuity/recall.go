@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
@@ -32,110 +31,98 @@ func terms(query string) []string {
 	return result
 }
 
-func recall(ctx context.Context, stateDir string, sessions worksession.Store, memories memory.Store, model agent.Model, options Options, older []worksession.ContextTurn, notices *[]string) ([]Recall, error) {
+func recall(ctx context.Context, stateDir string, sessions worksession.Store, memories memory.Store, model agent.Model, options Options, notices *[]string) ([]Recall, error) {
 	words := terms(options.Query)
 	if len(words) == 0 {
 		return nil, nil
 	}
-	type match struct {
-		ref   Recall
-		score int
+	goals, err := goal.Open(stateDir)
+	if err != nil {
+		return nil, err
 	}
-	var matches []match
-	less := func(i, j int) bool {
-		if matches[i].score == matches[j].score {
-			if matches[i].ref.Turn.At.Equal(matches[j].ref.Turn.At) {
-				return matches[i].ref.Turn.ID < matches[j].ref.Turn.ID
-			}
-			return matches[i].ref.Turn.At.After(matches[j].ref.Turn.At)
-		}
-		return matches[i].score > matches[j].score
+	records, err := goals.List()
+	if err != nil {
+		return nil, err
 	}
-	add := func(chat string, turns []worksession.ContextTurn) {
-		for _, turn := range turns {
-			text := strings.ToLower(turn.User + "\n" + turn.Assistant)
-			score := 0
-			for _, word := range words {
-				if strings.Contains(text, word) {
-					score++
-				}
-			}
-			if score >= min(2, len(words)) {
-				matches = append(matches, match{Recall{chat, turn}, score})
-			}
+	denied := map[string]bool{}
+	for _, g := range records {
+		if g.ID != options.GoalID && g.ConversationID != "" {
+			denied[g.ConversationID] = true
 		}
-		sort.SliceStable(matches, less)
-		matches = matches[:min(8, len(matches))]
 	}
-	add(options.ConversationID, older)
-	if options.ReferToChats {
-		goals, err := goal.Open(stateDir)
-		if err != nil {
-			return nil, err
+	candidates, err := sessions.SearchHistory(ctx, words, 64)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		records, err := goals.List()
-		if err != nil {
-			return nil, err
+		*notices = append(*notices, "Indexed archive recall is unavailable; this reply uses recent messages and current memory.")
+		return nil, nil
+	}
+	// Eligibility is also checked BEFORE embedding, so disallowed source text
+	// cannot be sent to a local or cloud embedding endpoint.
+	eligibility := func(m worksession.HistoryMatch) (bool, error) {
+		if m.Chat != options.ConversationID && !options.ReferToChats || denied[m.Chat] {
+			return false, nil
 		}
-		denied := map[string]bool{}
-		for _, g := range records {
-			if g.ID != options.GoalID && g.ConversationID != "" {
-				denied[g.ConversationID] = true
-			}
+		allowed, err := historyScope(sessions, m.Chat, denied)
+		if err != nil || !allowed {
+			return false, nil
 		}
-		chats, err := sessions.List(0)
-		if err != nil {
-			return nil, err
-		}
-		for _, chat := range chats[:min(24, len(chats))] {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			if chat.ID == options.ConversationID || denied[chat.ID] {
-				continue
-			}
-			allowed, err := historyScope(sessions, chat.ID, denied)
+		if m.Chat != options.ConversationID {
+			blocked, err := memories.HistorySuppressed(m.Chat, options.GoalID)
 			if err != nil {
-				*notices = append(*notices, "Some earlier chats have unavailable ancestry and were omitted from recall.")
-				continue
-			}
-			if !allowed {
-				continue
-			}
-			blocked, err := memories.HistorySuppressed(chat.ID, options.GoalID)
-			if err != nil {
-				return nil, err
+				return false, err
 			}
 			if blocked {
-				continue
+				if err := sessions.DropHistoryVectors(ctx, m.Chat, ""); err != nil {
+					return false, err
+				}
+				return false, nil
 			}
-			turns, err := sessions.ContextHistory(chat.ID, 0, time.Time{})
-			if err != nil {
-				*notices = append(*notices, "Some earlier chat text could not be read and was omitted from recall.")
-				continue
+		}
+		q := worksession.HistoryQuery{Chat: m.Chat, At: options.BeforeTime}
+		if m.Chat == options.ConversationID {
+			q.Before = options.BeforeSequence
+		}
+		return sessions.HistoryMatchEligible(ctx, q, m)
+	}
+	if options.Embedder != nil {
+		semantic, err := semanticHistory(ctx, sessions, memories, model, options, eligibility)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
 			}
-			add(chat.ID, turns)
+			*notices = append(*notices, "Semantic archive recall is unavailable; exact-word search remains active.")
+		} else {
+			candidates = fuseHistory(candidates, semantic)
+			*notices = append(*notices, "Archive recall combines exact words and available semantic matches. Embeddings catch up in bounded pages; recall is selective, not exhaustive.")
 		}
 	}
-	sort.SliceStable(matches, func(i, j int) bool {
-		if matches[i].score == matches[j].score {
-			if matches[i].ref.Turn.At.Equal(matches[j].ref.Turn.At) {
-				return matches[i].ref.Turn.ID < matches[j].ref.Turn.ID
-			}
-			return matches[i].ref.Turn.At.After(matches[j].ref.Turn.At)
-		}
-		return matches[i].score > matches[j].score
-	})
 	var result []Recall
-	for _, m := range matches[:min(8, len(matches))] {
-		t := m.ref.Turn
-		t.User, t.Assistant = Clip(t.User, 2048), Clip(t.Assistant, 2048)
+	seen := map[string]bool{}
+	for _, m := range candidates {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		allowed, err := eligibility(m)
+		if err != nil || !allowed {
+			continue
+		}
+		t, err := sessions.ReadHistoryMatch(ctx, m)
+		if err != nil {
+			continue
+		}
+		key := m.Chat + ":" + m.Key
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		checked, err := screen(ctx, memories, model, options.GoalID, []worksession.ContextTurn{t})
 		if err != nil {
 			return nil, err
 		}
 		if len(checked) > 0 {
-			result = append(result, Recall{m.ref.ConversationID, checked[0]})
+			result = append(result, Recall{m.Chat, checked[0]})
 		}
 		if len(result) == 4 {
 			break

@@ -32,7 +32,7 @@ test('main chat carries durable summaries and current editable memories through 
   context=JSON.parse(routed(app).at(-1).continuity_context);
   assert.ok(context.current_memories.some(memory=>memory.text==='I prefer detailed interfaces.'));
   assert.ok(!context.current_memories.some(memory=>memory.text==='I prefer quiet interfaces.'));
-  assert.ok(summaryCalls()>1);
+  assert.equal(summaryCalls(),1);
   item=catalog.entries.find(entry=>entry.id===item.id);
   await action(app,{op:'memory',action:'forget',context:state.context,id:item.id,revision:item.revision});
   await say(app,live,state.context,'What do you know about my interface preference now?');
