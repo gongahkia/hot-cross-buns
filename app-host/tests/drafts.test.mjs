@@ -121,3 +121,16 @@ test("draft requests reject arbitrary fields, large text, and malformed stores r
     assert.deepEqual((await store.request({ action: "clear" })).drafts, []);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('response quotes survive quote-only drafts and reject oversized or malformed references',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'hcb-response-draft-'));
+ try{
+  const file=join(root,'drafts.json'),store=new DraftStore(file);
+  const quote={id:'dialogue:one:response',digest:'a'.repeat(64),text:'Selected context'};
+  const draft={context:'conversation:one',title:'One',source:'/project',text:'',uploads:[],response_quote:quote};
+  await store.request({action:'save',draft});const saved=await new DraftStore(file).request({action:'list'});assert.deepEqual(saved.drafts[0].response_quote,quote);
+  await assert.rejects(store.request({action:'save',draft:{...draft,response_quote:{...quote,text:'x'.repeat(17000)}}}),/Invalid draft/);
+  await assert.rejects(store.request({action:'save',draft:{...draft,response_quote:{...quote,authority:'grant'}}}),/Invalid draft/);
+  await store.request({action:'configure',enabled:false});assert.equal((await store.request({action:'list'})).drafts.length,0);
+ }finally{await rm(root,{recursive:true,force:true});}
+});

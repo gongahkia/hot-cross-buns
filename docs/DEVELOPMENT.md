@@ -234,3 +234,20 @@ logos and request categories from the shared local usage ledger. Missing days
 show zero recorded usage. Estimated usage is labeled, unknown cost is not shown
 as zero, and CLI subprocess billing remains separate. Limits and pause/resume
 controls retain the existing reviewed backend actions under Limits & controls.
+
+Text selection uses a soft gray highlight. Selecting text within one completed
+model response exposes Quote; the composer keeps a removable quote card and a
+link back to its source. Reply attaches an excerpt of the response. Quotes and
+ordinary draft text are saved together, and the host rechecks the retained
+response identity, digest and excerpt before submission. The model receives the
+reference as quoted conversation context. The transcript displays it as a quote,
+without showing the transport envelope.
+
+Response controls include Fork, Reply and React. Right-click model text for the
+emoji panel; Shift+right-click keeps the browser menu. Reactions are display-only
+and stored in this browser, bounded to the most recent 256 selections; they are
+not provider feedback. Fork creates a new retained conversation through the
+chosen response, including earlier completed conversational replies. Later
+messages, pending dispatches, captured account scopes and approvals are not
+inherited. The parent's unsent draft stays with its original chat. Fork creation
+uses a durable request receipt so matching retries do not create another branch.

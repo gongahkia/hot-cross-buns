@@ -47,7 +47,7 @@ export function correctionDrafts(host, reviewFor) {
   }
   function overlay(draft) {
     const value = current(); if (!value) return draft;
-    return { ...draft, text: value.text, uploads: [], correction: { id: value.id, kind: value.kind, owner: value.owner.state.conversation_id, label: value.kind === 'action' ? 'Request an action correction' : 'Request a plan revision', issue: fresh(value) ? '' : 'This proposal changed or disconnected. Your text is kept. Cancel this correction and inspect the current proposal.', noExecution: true } };
+    return { ...draft, response_quote: undefined, text: value.text, uploads: [], correction: { id: value.id, kind: value.kind, owner: value.owner.state.conversation_id, label: value.kind === 'action' ? 'Request an action correction' : 'Request a plan revision', issue: fresh(value) ? '' : 'This proposal changed or disconnected. Your text is kept. Cancel this correction and inspect the current proposal.', noExecution: true } };
   }
   function edit(id, text) {
     const value = current(); if (!value || value.id !== id) fail('This correction draft is no longer selected.');

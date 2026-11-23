@@ -1,3 +1,4 @@
+import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs";
 import { brandIcon, setBrandIcon, providerBrand } from './brands.mjs';
 import { animateSurfaceHeight, viewTransition } from './surface-motion.mjs';
 import { element, prose, turn } from "./text.mjs";
@@ -38,6 +39,22 @@ const previewCache = new Map();
 const correctionBar = element('div', undefined, 'correction-context'); correctionBar.hidden = true;
 document.querySelector('#composer').prepend(correctionBar);
 const draftTextKey = value => ':text:' + value?.context + (value?.correction ? ':correction:' + value.correction.id : '');
+const quoteCard=element('div',undefined,'composer-quote');quoteCard.hidden=true;document.querySelector('#composer').prepend(quoteCard);
+const interaction= responseInteractions({transcript:$('transcript'),
+ reply:ref=>respondTo(ref,'reply'), quote:(ref,text)=>respondTo(ref,'quote',text),
+ fork:ref=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before forking.');await flush();await call({op:'response',action:'fork',context:ref.context,id:ref.id,digest:ref.digest,requestId:ref.requestId ||= crypto.randomUUID()});}),
+});
+async function respondTo(ref,action,text){
+  let focusContext;
+  await execute(async()=>{
+    if(pending)throw new Error('Resolve the pending message before adding a quote.');
+    await flush();
+    const next=await call({op:'response',action,context:ref.context,id:ref.id,digest:ref.digest,...(text!==undefined?{text}:{})});
+    if(next.context===snapshot.context){showDraft(next);window.getSelection()?.removeAllRanges();focusContext=next.context;}
+  });
+  if(focusContext===snapshot.context&&!input.disabled)input.focus();
+}
+function quotedTurn(text,name){const parsed=parseQuotedRequest(text);const article=turn(parsed?.text??text,true,name);if(parsed){const quote=element('blockquote',parsed.quote.text,'message-quote');quote.prepend(element('small','In reply to Hot Cross Buns'));article.prepend(quote);}return article;}
 const reading = readingPosition({ transcript: $('transcript'), streaming: $('streaming') });
 document.querySelector('.composer-wrap').prepend(reading.element);
 const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
@@ -165,6 +182,12 @@ async function call(data, binary = false) {
 
 function showDraft(value) {
   draft = value;
+  quoteCard.replaceChildren();quoteCard.hidden=!value?.response_quote;
+  if(value?.response_quote){
+    const text=element('div');
+    const origin=button('Replying to Hot Cross Buns',()=>void execute(()=>{const source=[...$('transcript').querySelectorAll('[data-response-id]')].find(node=>node.dataset.responseId===value.response_quote.id);if(!source)throw new Error('Load the earlier response to view the source.');reading.moved();source.scrollIntoView({block:'center',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});source.classList.add('quoted-source');setTimeout(()=>source.classList.remove('quoted-source'),1600);}), 'quiet quote-origin');origin.title='Show quoted response';text.append(origin,element('blockquote',value.response_quote.text));
+    const close=button('',()=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before changing the quote.');await flush();const next=await call({op:'response',action:'clear',context:value.context});if(next.context===snapshot.context)showDraft(next);}), 'quiet icon-button');close.append(icon('x'));close.setAttribute('aria-label','Remove quote');close.title='Remove quote';quoteCard.append(icon('quote'),text,close);
+  }
   if (value?.correction) remember(':correction:' + value.context, { ...value.correction, text: value.text });
   input.value = value?.text || "";
   const files = value?.uploads || [];
@@ -237,7 +260,7 @@ function acceptMessage(id) {
   remember(":pending", null);
   remember(draftTextKey({ context, ...(correction ? { correction: { id: correction } } : {}) }), null);
   if (correction) { remember(':correction:' + context, null); void loadDraft(); }
-  else if (draft?.context === context) showDraft({ ...draft, text: "", uploads: [] });
+  else if (draft?.context === context) showDraft({ ...draft, text: "", uploads: [], response_quote: undefined });
 }
 pending = restore(":pending");
 
@@ -250,7 +273,8 @@ $("composer").addEventListener("submit", event => {
     if (pending && pending.context !== draft.context) {
       throw new Error("A message in another conversation is unconfirmed. Return there to review it.");
     }
-    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(draft.correction ? { correction: draft.correction.id } : {}) };
+    if (!pending && draft.response_quote) await call({op:'response',action:'validate',context:draft.context});
+    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(draft.correction ? { correction: draft.correction.id } : {}), ...(draft.response_quote ? {response_quote:draft.response_quote} : {}) };
     if (!next.text.trim() && !next.files.length) return;
     pending = next;
     remember(":pending", pending);
@@ -726,6 +750,9 @@ function renderTranscript(state) {
   const key = JSON.stringify([context, messages, talks, updates, state.peers, state.dialogueMore]);
   if (key === transcriptKey) return;
   transcriptKey = key;
+  interaction.reset();
+  const references=new Map((snapshot.responses||[]).map(ref=>[ref.message_id||ref.id,{...ref,context,conversation:state.conversation_id}]));
+  const decorate=(article)=>{const ref=references.get(article.dataset.messageId);if(ref)interaction.decorate(article,ref);};
   reading.before(state.conversation_id || context);
   const time = value => Math.max(0, Date.parse(value) || 0);
   let lastMessageTime = 0;
@@ -745,7 +772,7 @@ function renderTranscript(state) {
     if (type === "talk") {
       response = undefined;
       const correction = correctionText(value.text);
-      const request = turn(correction?.text ?? value.text, true, "You");
+      const request = quotedTurn(correction?.text ?? value.text, "You");
       if (correction) request.prepend(element('small', correction.label, 'hint'));
       request.dataset.messageId = 'dialogue:' + value.id + ':user';
       const reaction = reactionFor(value, state.conversation_id, reactionMode);
@@ -756,7 +783,7 @@ function renderTranscript(state) {
         request.append(files);
       }
       nodes.push(request);
-      if (value.response && !reaction) { const answer = turn(value.response, false, "Hot Cross Buns"); answer.dataset.messageId = 'dialogue:' + value.id + ':response'; nodes.push(answer); }
+      if (value.response && !reaction) { const answer = turn(value.response, false, "Hot Cross Buns"); answer.dataset.messageId = 'dialogue:' + value.id + ':response'; decorate(answer); nodes.push(answer); }
       if (value.issue) nodes.push(element("p", value.issue, "hint"));
       if (value.task_chat) {
         const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat);
@@ -776,8 +803,9 @@ function renderTranscript(state) {
       continue;
     }
     if (value.result?.kind === "approval" || !value.text && !value.result && !value.bundle && !value.activity) continue;
-    const article = turn(value.text, value.role === "You", value.role), meta = element("div", undefined, "meta");
+    const article = value.role === "You" ? quotedTurn(value.text,value.role) : turn(value.text,false,value.role), meta = element("div", undefined, "meta");
     article.dataset.messageId = 'message:' + (value.revision_id || value.run_id || value.created_at || '') + ':' + messages.indexOf(value);
+    decorate(article);
     if (value.result) meta.append(button(value.result.title || "Details", () => openDetail(value.result.title || "Details", describeResult(value.result))));
     for (const file of value.bundle?.Artifacts || []) if (file.Valid) meta.append(download(file.Path, { kind: "output", bundle: value.bundle.Path, path: file.Path }, context));
     for (const id of value.input_ids || []) meta.append(download(id.split("/").at(-1), { kind: "upload", id }, context));

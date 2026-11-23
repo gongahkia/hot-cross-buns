@@ -1,3 +1,5 @@
+import { responseReferences, selectedResponse, quoteResponse, checkQuote } from "./responses.mjs";
+import { validResponseQuote, quotedRequest } from "../app-host/src/response-reference.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join, isAbsolute } from 'node:path';
@@ -22,6 +24,7 @@ const assets = new Map([
   ["/find.mjs", ["find.mjs", "text/javascript; charset=utf-8"]],
   ["/usage.mjs", ["usage.mjs", "text/javascript; charset=utf-8"]],
   ["/reading.mjs", ["reading.mjs", "text/javascript; charset=utf-8"]],
+  ["/response-actions.mjs", ["response-actions.mjs", "text/javascript; charset=utf-8"]],
   ["/reactions.mjs", ["reactions.mjs", "text/javascript; charset=utf-8"]],
   ["/task-details.mjs", ["task-details.mjs", "text/javascript; charset=utf-8"]],
   ["/workspace.mjs", ["workspace.mjs", "text/javascript; charset=utf-8"]],
@@ -93,6 +96,7 @@ function projection(host, corrections) {
     tasks: taskSummaries(host),
     helpers: delegatedSummaries(host),
     scheduled: { entries: state?.checks || [], running: !!state?.supervisor_running, issue: state?.checks_issue },
+    responses: responseReferences(state),
     state: state && {
       conversation_id: state.conversation_id, title: state.title, recent: state.recent_conversations,
       source: state.source,
@@ -132,7 +136,7 @@ export async function startWeb(options, port = 4317) {
     const { drafts } = await host.drafts.request({ action: "list" });
     const saved = drafts.find(item => item.context === context);
     const { title = "", source = "" } = host.backend.state;
-    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(saved?.plan_first ? { plan_first: true } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
+    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(saved?.plan_first ? { plan_first: true } : {}), ...(saved?.response_quote ? { response_quote: saved.response_quote } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
   }
   async function saveDraft(value) {
     await host.drafts.request({ action: "save", draft: value });
@@ -174,7 +178,7 @@ export async function startWeb(options, port = 4317) {
     const { context, op } = body;
     if (op === "send") {
       if (typeof body.id !== "string" || !/^[a-f0-9-]{36}$/.test(body.id) || typeof body.text !== "string" || Buffer.byteLength(body.text) > 128 * 1024 || !Array.isArray(body.files)) throw new RequestError(400, "Invalid message.");
-      const signature = digest([context, body.text, body.files, !!body.queueOnly, body.correction || '']);
+      const signature = digest([context, body.text, body.files, body.response_quote, !!body.queueOnly, body.correction || '']);
       const accepted = admissions.get(body.id);
       if (accepted) {
         if (accepted !== signature) throw new RequestError(409, "This message identity has already been used.");
@@ -185,7 +189,10 @@ export async function startWeb(options, port = 4317) {
       if ((saved.correction?.id || '') !== (body.correction || '')) throw new RequestError(409, 'The selected correction draft changed. Review the composer before sending.');
       const files = saved.uploads.map(file => file.id);
       if (JSON.stringify(files) !== JSON.stringify(body.files)) throw new RequestError(409, "The attachments changed. Review the draft before sending.");
-      let text = body.text;
+      if (!validResponseQuote(body.response_quote) || ['id','digest','text'].some(key=>saved.response_quote?.[key]!==body.response_quote?.[key])) throw new RequestError(409, "The quoted response changed. Review the composer before sending.");
+      if (saved.response_quote) {try {checkQuote(host.backend.state, saved.response_quote);} catch(error){throw new RequestError(409,error.message);}}
+      let text = quotedRequest(saved.response_quote, body.text);
+      if (Buffer.byteLength(text)>128*1024) throw new RequestError(400, "Shorten the message or quoted text before sending.");
       if (saved.correction) {
         if (body.queueOnly || body.files.length) throw new RequestError(409, 'A correction is a text request for this exact proposal.');
         text = corrections.prepare(body.correction, body.text);
@@ -273,6 +280,22 @@ export async function startWeb(options, port = 4317) {
         }
         await host.sessions.open({ conversation_id: chosen.id, catalog_version: chosen.version });
         return {};
+      }
+      case "response": {
+        const state=host.backend.state;
+        if (!['reply','quote','clear','fork','validate'].includes(body.action)) throw new RequestError(400,'Choose an available response action.');
+        const saved=await draft();
+        if (saved.correction) throw new RequestError(409,'Finish or cancel the correction before responding to a message.');
+        if (body.action==='validate') {if(saved.response_quote){try{checkQuote(state,saved.response_quote);}catch(error){throw new RequestError(409,error.message);}}return {};}
+        if (body.action==='clear') { delete saved.response_quote; return saveDraft(saved); }
+        let response;try{response=selectedResponse(state,body.id,body.digest);}catch(error){throw new RequestError(409,error.message);}
+        if (body.action==='fork') {
+          if (!response.boundary) throw new RequestError(409,'Only completed retained responses can be forked.');
+          if (typeof body.requestId!=='string' || !/^[a-f0-9-]{36}$/.test(body.requestId)) throw new RequestError(400,'Invalid fork request.');
+          return host.branch({conversation_id:state.conversation_id,...response.boundary,request_id:body.requestId});
+        }
+        try{saved.response_quote=quoteResponse(response,body.action==='quote'?body.text:undefined);}catch(error){throw new RequestError(400,error.message);}
+        return saveDraft(saved);
       }
       case "draft":
         return draft();

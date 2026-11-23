@@ -256,7 +256,10 @@ export function responseCopy(read) {
 export function turn(text, user, name, options) {
   const article = element("article", undefined, user ? "turn user" : "turn");
   article.setAttribute("aria-label", name);
-  if (text) article.append(user ? element("p", text) : prose(text, options));
+  if (text) {
+    if (user) article.append(element("p", text));
+    else { const content=element("div",undefined,"response-content");content.append(prose(text,options));article.append(content); }
+  }
   if (text && !user) article.append(responseCopy(() => text));
   return article;
 }

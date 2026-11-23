@@ -4,13 +4,13 @@ import {
   Table, Presentation, ChartNoAxesCombined, CalendarDays, Mail, Brain,
   Lightbulb, ListChecks, BookOpen, Check, CircleDashed, CircleAlert, Pause,
   Square, WifiOff, Copy, LoaderCircle, Link, Bookmark, Settings, Eye, History,
-  Cpu, Trash2, RotateCcw, RefreshCw, Play, ArrowDown, ChevronUp, Power, Download,
+  Quote, Reply, GitFork, Smile, Cpu, Trash2, RotateCcw, RefreshCw, Play, ArrowDown, ChevronUp, Power, Download,
 } from 'lucide';
 export { default as brandCatalog } from '../internal/branding/catalog.json' with { type: 'json' };
 import activityIcons from '../internal/workactivity/icon-names.json' with { type: 'json' };
 
 const catalog = {
-  plus: Plus, 'arrow-up': ArrowUp, x: X, 'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevron-left': ChevronLeft,
+  quote: Quote, reply: Reply, 'git-fork': GitFork, smile: Smile, plus: Plus, 'arrow-up': ArrowUp, x: X, 'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevron-left': ChevronLeft,
   clock: Clock, workflow: Workflow, 'file-text': FileText, 'folder-search': FolderSearch,
   search: Search, globe: Globe, terminal: Terminal, code: Code, pencil: Pencil,
   'notebook-pen': NotebookPen, table: Table, presentation: Presentation,

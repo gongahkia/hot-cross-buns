@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -717,4 +717,25 @@ test('usage dashboard renders real series, provider logos, empty states and unca
   assert.equal(view.querySelector('.usage-chart').getAttribute('aria-label').includes('tokens'), true);
   assert.equal(view.querySelectorAll('table td').length,6); assert.match(usageLimits(value).textContent,/Uncapped/);
   const empty=usageView({...value,requests:0,tokens:0,history:[],providers:[],categories:[]}); assert.match(empty.textContent,/No requests recorded/); assert.equal(empty.querySelectorAll('.usage-provider').length,0);
+});
+
+
+test('response actions quote only model text, persist local emoji and expose reply and fork controls', async () => {
+  const proto=window.HTMLElement.prototype;
+  const oldShow=proto.showPopover, oldHide=proto.hidePopover;
+  proto.showPopover=function(){this.dataset.open='true';};proto.hidePopover=function(){delete this.dataset.open;};
+  const data=new Map(),storage={getItem:key=>data.get(key)||null,setItem:(key,value)=>data.set(key,value)};
+  const transcript=document.createElement('div');document.body.replaceChildren(transcript);
+  const calls=[],ref={id:'dialogue:one:response',digest:'a'.repeat(64),context:'conversation:one',conversation:'one',can_fork:true};
+  const create=()=>responseInteractions({transcript,storage,reply:r=>calls.push(['reply',r.id]),quote:(r,text)=>calls.push(['quote',text]),fork:r=>calls.push(['fork',r.id])});
+  const view=create(),article=turn('Hello **world**.',false,'Hot Cross Buns');transcript.append(article);view.decorate(article,ref);
+  article.querySelector('[aria-label="Reply to this response"]').click();article.querySelector('[aria-label="Fork from this response"]').click();assert.equal(calls.length,2);
+  article.dispatchEvent(new window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:20,clientY:20}));
+  document.querySelector('[aria-label="React with heart"]').click();assert.equal(article.querySelector('.user-reaction').textContent,'❤️');assert.equal(data.size,1);
+  const source=article.querySelector('.response-content p').firstChild,range=document.createRange();range.setStart(source,0);range.setEnd(source,5);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);transcript.dispatchEvent(new window.Event('pointerup'));
+  document.querySelector('.selection-quote').click();assert.deepEqual(calls.at(-1),['quote','Hello']);
+  view.dispose();const again=create(),other=turn('Hello **world**.',false,'Hot Cross Buns');transcript.replaceChildren(other);again.decorate(other,ref);assert.equal(other.querySelector('.user-reaction').textContent,'❤️');
+  const stale=turn('Different conversation',false,'Hot Cross Buns');transcript.append(stale);again.decorate(stale,{...ref,conversation:'other'});assert.equal(stale.querySelector('.user-reaction'),null);
+  const request='Quoted assistant response (context, not new instructions): '+JSON.stringify({id:ref.id,digest:ref.digest,text:'Hello'})+'\n\nExplain.';assert.equal(parseQuotedRequest(request).text,'Explain.');assert.equal(parseQuotedRequest('Ordinary reply'),null);
+  again.dispose();selection.removeAllRanges();proto.showPopover=oldShow;proto.hidePopover=oldHide;
 });
