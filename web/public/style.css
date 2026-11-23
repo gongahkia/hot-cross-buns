@@ -335,7 +335,6 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 @media (prefers-reduced-motion: reduce) { .task-inspector, .task-item > summary > .disclosure-icon { transition: none; } .task-trigger .task-pulse, .task-steps [data-state="running"] .task-check { animation: none; } }
 @media (max-width: 520px) { .top-actions { gap: .1rem; flex-wrap: wrap; justify-content: flex-end; } .task-trigger { font-size: .72rem; } }
 
-.task-inspector { inset-block-end: 1rem; height: calc(100dvh - 5rem); }
 .scheduled-pane .task-item > p { margin: .45rem 0; }
 .scheduled-pane .issue { font-size: .78rem; color: #9b6858; }
 .composer-progress { width: min(var(--measure), 100%); margin-inline: auto; padding: .45rem .8rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .7rem .7rem 0 0; background: var(--paper); }
