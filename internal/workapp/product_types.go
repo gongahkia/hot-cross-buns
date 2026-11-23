@@ -2,6 +2,7 @@ package workapp
 
 type RecallStatus struct {
 	PersonalSummary          []string
+	HistoryEmbeddings        bool
 	LearnFromChats           bool
 	ReferToChats             bool
 	Provider, State, Detail  string

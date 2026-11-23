@@ -36,7 +36,8 @@ func (c hotCrossBunsAppController) prepareSettings(ctx context.Context, change w
 		return c.prepareRetention(change)
 	case "retrieval":
 		var next struct {
-			Provider string `json:"provider"`
+			Provider          string `json:"provider"`
+			ChatHistoryUpload *bool  `json:"chat_history_upload"`
 		}
 		if err := workrun.DecodeAppArguments(change.Value, &next); err != nil {
 			return workrun.AppMutation{}, err
@@ -45,9 +46,18 @@ func (c hotCrossBunsAppController) prepareSettings(ctx context.Context, change w
 			return workrun.AppMutation{}, errors.New("retrieval provider must be ollama, openai or gemini")
 		}
 		embeddings := config.EmbeddingSettings{Provider: next.Provider, CloudUploadApproved: next.Provider != "ollama"}
+		if next.Provider == prior.Embeddings.Provider {
+			embeddings.ChatHistoryUploadApproved = prior.Embeddings.ChatHistoryUploadApproved
+		}
+		if next.ChatHistoryUpload != nil {
+			embeddings.ChatHistoryUploadApproved = *next.ChatHistoryUpload && next.Provider != "ollama"
+		}
 		effect := "Uses local Ollama embeddings when installed, with basic matching as fallback. No model is downloaded and the chat model stays the same."
 		if embeddings.CloudUploadApproved {
 			effect = "Uploads eligible saved memory, note text, and search queries to " + next.Provider + " for embedding on subsequent runs. Requires its configured API key. Local storage and the chat model stay the same."
+		}
+		if embeddings.ChatHistoryUploadApproved {
+			effect += " Separately allows conversation excerpts, retained task output and search queries to be uploaded for chat-history embeddings."
 		}
 		return workrun.AppMutation{Review: true, AfterRun: true, Summary: "Retrieval preference saved: " + next.Provider + ".", Preview: map[string]any{"before": prior.Embeddings, "after": embeddings, "effect": effect}, Apply: func(context.Context) (any, error) {
 			err := c.settings.Update(func(current *config.Settings) error {

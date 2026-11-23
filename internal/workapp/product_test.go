@@ -223,3 +223,33 @@ func TestFollowupShortcutsReturnToTheSameDraft(t *testing.T) {
 		t.Fatal("returning from shortcuts lost the current draft")
 	}
 }
+
+func TestHistoryEmbeddingControlReviewsUploadAndAllowsImmediateRevocation(t *testing.T) {
+	calls := 0
+	enabled := false
+	m := New(Config{ConfigureHistoryEmbeddings: func(provider string, v bool) error { calls++; enabled = v; return nil }})
+	m.section = "memory"
+	m.recall = RecallStatus{Provider: "openai", State: "Enhanced recall configured"}
+	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	if calls != 0 || m.recallConfirm != "history-upload" {
+		t.Fatal("history upload bypassed review")
+	}
+	p := m.recallPanel()
+	if !strings.Contains(strings.Join(p.Blocks[0].Lines, " "), "conversation excerpts") {
+		t.Fatal("review omitted data class")
+	}
+	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyEsc})
+	if calls != 0 {
+		t.Fatal("cancelled upload review saved permission")
+	}
+	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyEnter})
+	if calls != 1 || !enabled {
+		t.Fatal("reviewed permission not applied")
+	}
+	m.recall.HistoryEmbeddings = true
+	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	if calls != 2 || enabled || m.recallConfirm != "" {
+		t.Fatal("revocation was not immediate")
+	}
+}

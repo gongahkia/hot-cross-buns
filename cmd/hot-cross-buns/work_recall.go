@@ -38,6 +38,7 @@ func workRecallStatus(ctx context.Context, stateDir string) (workapp.RecallStatu
 	} else if readErr != nil {
 		return status, readErr
 	}
+	status.HistoryEmbeddings = settings.Embeddings.ChatHistoryUploadApproved
 	status.LearnFromChats = settings.Desktop.LearnsFromChats()
 	status.ReferToChats = settings.Desktop.RefersToChats()
 	status.Retrieval = "Basic word matching works without a download. Enhanced recall uses " + provider + "; unavailable embeddings fall back to basic matching."
@@ -50,6 +51,11 @@ func workRecallStatus(ctx context.Context, stateDir string) (workapp.RecallStatu
 		status.Chat += fmt.Sprintf(" Selected: %s / %s. Cloud providers process supplied context remotely even if storage and retrieval are local; custom endpoints follow their configured destination.", settings.Defaults.Provider, settings.Defaults.Model)
 	}
 	if provider != "ollama" {
+		if settings.Embeddings.ChatHistoryUploadApproved {
+			status.Retrieval += " Chat-history embedding upload is separately enabled."
+		} else {
+			status.Retrieval += " Chat history uses lexical recall until its separate cloud upload is enabled."
+		}
 		status.Retrieval += " Your cloud retrieval opt-in uploads eligible saved text and search queries to " + provider + " for embedding."
 		if _, err := configuredEmbedder(stateDir); err != nil {
 			status.Detail = "Cloud retrieval unavailable; check the upload setting and API key. Use /model → Cloud to configure that provider's key without selecting it as the chat model. Basic matching remains available."
@@ -109,5 +115,31 @@ func installWorkRecall(ctx context.Context, progress func(string)) error {
 		if p.Status != "" {
 			progress(p.Status)
 		}
+	})
+}
+
+// Chat history is a separate data class from saved memories and notes. Selecting
+// a cloud chat model or saved-knowledge embedder does not consent to this upload.
+func configuredHistoryEmbedder(stateDir string, settings config.Settings) (retrieval.Embedder, error) {
+	if settings.Embeddings.Provider != "" && settings.Embeddings.Provider != "ollama" && !settings.Embeddings.ChatHistoryUploadApproved {
+		return nil, errors.New("cloud chat-history embedding upload is not approved")
+	}
+	return configuredEmbedderWithSettings(stateDir, settings)
+}
+
+func configureHistoryEmbeddings(provider string, enabled bool) error {
+	store, err := config.DefaultStore()
+	if err != nil {
+		return err
+	}
+	return store.Update(func(s *config.Settings) error {
+		if enabled && provider != s.Embeddings.Provider {
+			return errors.New("retrieval provider changed; reopen the history upload review")
+		}
+		if enabled && (s.Embeddings.Provider == "" || s.Embeddings.Provider == "ollama" || !s.Embeddings.CloudUploadApproved) {
+			return errors.New("choose and review a cloud retrieval provider first")
+		}
+		s.Embeddings.ChatHistoryUploadApproved = enabled
+		return nil
 	})
 }

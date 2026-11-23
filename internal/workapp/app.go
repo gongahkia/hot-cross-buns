@@ -187,6 +187,8 @@ type ModelStatus struct {
 type GoalState struct{ Title, SourcePath, ConversationID string }
 
 type Config struct {
+	ConfigureHistoryEmbeddings func(provider string, enabled bool) error
+
 	PersonalMemory           func(personalization.CatalogAction) personalization.CatalogResult
 	NativeProviders          func(modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult
 	ReviewRequestAccess      func(worksession.Request, []string) (RequestAccessReview, error)

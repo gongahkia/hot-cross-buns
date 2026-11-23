@@ -88,8 +88,9 @@ func (s SearchSettings) Validate() error {
 // conversational model. CloudUploadApproved is set only after an explicit
 // acknowledgement that saved memory and note text leaves the device.
 type EmbeddingSettings struct {
-	Provider            string `json:"provider"`
-	CloudUploadApproved bool   `json:"cloud_upload_approved,omitempty"`
+	ChatHistoryUploadApproved bool   `json:"chat_history_upload_approved,omitempty"`
+	Provider                  string `json:"provider"`
+	CloudUploadApproved       bool   `json:"cloud_upload_approved,omitempty"`
 }
 
 // TUISettings contains display-only terminal preferences. Status lines are

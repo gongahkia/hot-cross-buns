@@ -422,6 +422,10 @@ func configuredEmbedder(stateDir string) (retrieval.Embedder, error) {
 	if err != nil {
 		return nil, err
 	}
+	return configuredEmbedderWithSettings(stateDir, settings)
+}
+
+func configuredEmbedderWithSettings(stateDir string, settings config.Settings) (retrieval.Embedder, error) {
 	provider := settings.Embeddings.Provider
 	if provider == "" || provider == "ollama" {
 		e, err := retrieval.NewEmbedder("ollama", "")

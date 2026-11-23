@@ -384,8 +384,8 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 			}
 			return store.ReviewChat(a.ID, a.ConversationID, activeGoal, a.Updated, a.Action, a.Text)
 		},
-		RecallStatus:    func(ctx context.Context) (workapp.RecallStatus, error) { return workRecallStatus(ctx, stateDir) },
-		ConfigureRecall: configureWorkRecall,
+		RecallStatus:               func(ctx context.Context) (workapp.RecallStatus, error) { return workRecallStatus(ctx, stateDir) },
+		ConfigureHistoryEmbeddings: configureHistoryEmbeddings, ConfigureRecall: configureWorkRecall,
 		ConfigureChatLearning: func(enabled bool) error {
 			return settingsStore.Update(func(settings *config.Settings) error { settings.Desktop.LearnFromChats = &enabled; return nil })
 		},

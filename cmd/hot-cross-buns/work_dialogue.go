@@ -85,7 +85,7 @@ func captureConversationSetup(input workapp.ConversationInput, allowMissing bool
 	}
 	// These settings can change execution authority or processing destination.
 	// Cosmetic preferences/default-model changes do not invalidate captured work.
-	scope := map[string]any{"connectors": selected, "grants": grants, "permissions": settings.ConnectorPermissions, "endpoints": settings.ProviderEndpoints, "provider_options": settings.ProviderOptions, "custom_providers": settings.CustomProviders, "extensions": settings.Extensions, "extension_trusts": settings.ExtensionTrusts, "hooks": settings.HookTrusts, "lsp": settings.LSPTrusts, "mcp": settings.MCPTrusts, "execution": settings.Execution, "roles": settings.WorkRoles, "external_agents": settings.ExternalAgents}
+	scope := map[string]any{"embeddings": settings.Embeddings, "connectors": selected, "grants": grants, "permissions": settings.ConnectorPermissions, "endpoints": settings.ProviderEndpoints, "provider_options": settings.ProviderOptions, "custom_providers": settings.CustomProviders, "extensions": settings.Extensions, "extension_trusts": settings.ExtensionTrusts, "hooks": settings.HookTrusts, "lsp": settings.LSPTrusts, "mcp": settings.MCPTrusts, "execution": settings.Execution, "roles": settings.WorkRoles, "external_agents": settings.ExternalAgents}
 	if len(missing) > 0 {
 		scope["missing_sources"] = missing
 	}
@@ -173,6 +173,9 @@ func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent
 		return continuity.Context{}, err
 	}
 	defer release()
+	if err := verifyConversationScopeFor(input, true); err != nil {
+		return continuity.Context{}, err
+	}
 	settings, err := loadSettings()
 	if err != nil {
 		return continuity.Context{}, err
@@ -200,8 +203,9 @@ func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent
 	for _, task := range input.TaskContext {
 		reports = append(reports, continuity.Report{ID: task.ID, Title: continuity.Clip(task.Title, 256), State: task.State, Summary: continuity.Clip(task.Summary, 1024)})
 	}
+	embedder, _ := configuredHistoryEmbedder(stateDir, settings)
 	result, err := continuity.Build(sharedusage.WithState(sharedusage.WithCategory(ctx, "retrieval"), stateDir), stateDir, model, continuity.Options{
-		AdmittedRecent: recent, Reports: reports,
+		Embedder: embedder, AdmittedRecent: recent, Reports: reports,
 		ConversationID: input.ConversationID, GoalID: input.GoalID, Query: text, BeforeSequence: input.BeforeSequence, BeforeTime: input.BeforeTime,
 		Excluded: input.RunOptions.ExcludedKnowledgeIDs, Main: main == input.ConversationID, ReferToChats: settings.Desktop.RefersToChats(), LearnFromChats: settings.Desktop.LearnsFromChats(),
 	})

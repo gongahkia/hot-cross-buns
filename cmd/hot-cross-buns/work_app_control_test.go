@@ -200,3 +200,58 @@ func TestHotCrossBunsAppInspectionReadsUsageAndOmitsEndpointSecrets(t *testing.T
 		t.Fatal("unknown inspection accepted")
 	}
 }
+
+func TestHotCrossBunsHistoryEmbeddingConsentIsIndependentAndProviderBound(t *testing.T) {
+	c := appControllerForTest(t)
+	ctx := context.Background()
+	for _, provider := range []string{"openai", "gemini"} {
+		mutation, err := c.Prepare(ctx, workrun.AppChange{Setting: "retrieval", Value: json.RawMessage(`{"provider":"` + provider + `"}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := mutation.Apply(ctx); err != nil {
+			t.Fatal(err)
+		}
+		settings, _ := c.settings.Load()
+		if settings.Embeddings.ChatHistoryUploadApproved {
+			t.Fatal("saved-knowledge permission silently included chat history")
+		}
+		if _, err := configuredHistoryEmbedder(c.stateDir, settings); err == nil {
+			t.Fatal("cloud history available without separate approval")
+		}
+		mutation, err = c.Prepare(ctx, workrun.AppChange{Setting: "retrieval", Value: json.RawMessage(`{"provider":"` + provider + `","chat_history_upload":true}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview, _ := json.Marshal(mutation.Preview)
+		if !mutation.Review || !strings.Contains(string(preview), "conversation excerpts") {
+			t.Fatal("missing separate upload review", string(preview))
+		}
+		before, _ := c.settings.Load()
+		if before.Embeddings.ChatHistoryUploadApproved {
+			t.Fatal("preparation changed consent")
+		}
+		if _, err := mutation.Apply(ctx); err != nil {
+			t.Fatal(err)
+		}
+		settings, _ = c.settings.Load()
+		if !settings.Embeddings.ChatHistoryUploadApproved {
+			t.Fatal("reviewed permission not saved")
+		}
+	}
+	mutation, err := c.Prepare(ctx, workrun.AppChange{Setting: "retrieval", Value: json.RawMessage(`{"provider":"ollama"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mutation.Apply(ctx); err != nil {
+		t.Fatal(err)
+	}
+	settings, _ := c.settings.Load()
+	if settings.Embeddings.ChatHistoryUploadApproved || settings.Embeddings.CloudUploadApproved {
+		t.Fatal("cloud permission transferred to local provider")
+	}
+	e, err := configuredHistoryEmbedder(c.stateDir, settings)
+	if err != nil || !strings.HasPrefix(e.ID(), "ollama/") {
+		t.Fatal("local default unavailable", err)
+	}
+}

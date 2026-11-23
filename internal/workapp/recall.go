@@ -41,7 +41,7 @@ func (m *Model) openRecall() tea.Cmd {
 func (m Model) updateRecallKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.recallChecking > 0 || m.config.RecallStatus != nil && m.recall.State == "" {
 		switch key.String() {
-		case "a", "h", "i", "l", "o", "g", "enter":
+		case "a", "h", "u", "i", "l", "o", "g", "enter":
 			m.sectionNotice = "Memory settings are not ready. Wait for loading to finish, or press R to retry."
 			return m, nil
 		}
@@ -60,6 +60,18 @@ func (m Model) updateRecallKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			choice := m.recallConfirm
 			m.recallConfirm = ""
+			if choice == "history-upload" {
+				if m.config.ConfigureHistoryEmbeddings == nil {
+					m.sectionNotice = "History embedding settings are unavailable."
+					return m, nil
+				}
+				if err := m.config.ConfigureHistoryEmbeddings(m.recall.Provider, true); err != nil {
+					m.sectionNotice = err.Error()
+					return m, nil
+				}
+				m.sectionNotice = "Cloud chat-history embeddings enabled for future requests."
+				return m, m.recallStatusCommand()
+			}
 			if choice == "install" {
 				return m.startRecallInstall()
 			}
@@ -111,6 +123,25 @@ func (m Model) updateRecallKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sectionNotice = "Earlier-chat retrieval updated for new requests. Current chats and saved memories are kept. Requests already running retain their supplied context."
 		command := m.recallStatusCommand()
 		return m, command
+	case "u":
+		if m.config.ConfigureHistoryEmbeddings == nil {
+			m.sectionNotice = "History embedding settings are unavailable."
+			return m, nil
+		}
+		if m.recall.Provider == "" || m.recall.Provider == "ollama" {
+			m.sectionNotice = "Local history embeddings stay on this computer. Choose a cloud retrieval provider to configure its separate upload."
+			return m, nil
+		}
+		if !m.recall.HistoryEmbeddings {
+			m.recallConfirm = "history-upload"
+			return m, nil
+		}
+		if err := m.config.ConfigureHistoryEmbeddings(m.recall.Provider, false); err != nil {
+			m.sectionNotice = err.Error()
+			return m, nil
+		}
+		m.sectionNotice = "Cloud history embedding upload disabled. Lexical chat recall remains available."
+		return m, m.recallStatusCommand()
 	case "i":
 		m.recallConfirm = "install"
 	case "l":
@@ -159,13 +190,15 @@ func (m Model) recallPanel() uisnapshot.Panel {
 		lines := []string{}
 		if m.recallConfirm == "install" {
 			lines = []string{"Download embeddinggemma:latest from Ollama's model library (about 622 MB).", "Ollama must be installed and running on this computer.", "Enhanced recall runs locally. Esc can cancel the download; basic word matching stays available.", "This does not change the selected chat model or where that model processes supplied context."}
+		} else if m.recallConfirm == "history-upload" {
+			lines = []string{"Allow chat-history embeddings with " + m.recall.Provider + ".", "This separately uploads eligible conversation excerpts, retained task output, and search queries to the selected embedding provider in bounded batches.", "Saved history remains local. Turning this off stops future history embedding calls; selected excerpts still go to your chosen chat model.", "Existing embedding caches can be cleared in Data & backups."}
 		} else if m.recallConfirm == "ollama" {
 			lines = []string{"Use local Ollama for enhanced retrieval when available, with basic word matching as fallback.", "Saved knowledge remains in local Hot Cross Buns storage. Selected context still goes to your configured chat model."}
 		} else {
 			lines = []string{fmt.Sprintf("Use %s for enhanced retrieval.", m.recallConfirm), "This uploads eligible saved memory and note text, plus search queries, to that embedding provider.", "A separate API key is required. Local Hot Cross Buns storage remains on this computer.", "Chat processing uses the model chosen in /model and may use a different provider."}
 		}
 		p.Blocks = []uisnapshot.Block{{Title: "Data and processing", Lines: lines}}
-		label := map[string]string{"install": "download local recall model", "ollama": "use local recall", "openai": "use OpenAI retrieval", "gemini": "use Gemini retrieval"}[m.recallConfirm]
+		label := map[string]string{"history-upload": "allow chat-history upload", "install": "download local recall model", "ollama": "use local recall", "openai": "use OpenAI retrieval", "gemini": "use Gemini retrieval"}[m.recallConfirm]
 		p.Hints = []uisnapshot.Hint{{Shortcut: "Enter", Action: label}, {Shortcut: "Esc", Action: "cancel"}}
 		return p
 	}
@@ -192,7 +225,7 @@ func (m Model) recallPanel() uisnapshot.Panel {
 	if m.recallChecking > 0 && m.recall.State == "" {
 		learning, history = "Checking…", "Checking…"
 	}
-	p.Summary = []uisnapshot.Field{{Label: "Recall readiness", Value: valueOrDefault(m.recall.State, fallback)}, {Label: "Learn from chats", Value: learning}, {Label: "Refer to earlier chats", Value: history}}
+	p.Summary = []uisnapshot.Field{{Label: "Cloud history embeddings", Value: map[bool]string{true: "On", false: "Off"}[m.recall.HistoryEmbeddings]}, {Label: "Recall readiness", Value: valueOrDefault(m.recall.State, fallback)}, {Label: "Learn from chats", Value: learning}, {Label: "Refer to earlier chats", Value: history}}
 	p.Blocks[0].Lines = []string{m.recall.Detail}
 	if len(m.recall.PersonalSummary) != 0 {
 		p.Blocks = append(p.Blocks, uisnapshot.Block{Title: "What Hot Cross Buns knows about you", Collapsible: true, Lines: append(append([]string{}, m.recall.PersonalSummary...), "Press K to inspect, correct or forget saved knowledge; R rebuilds this summary.")})
@@ -200,7 +233,7 @@ func (m Model) recallPanel() uisnapshot.Panel {
 	if m.recallBusy {
 		p.Hints = []uisnapshot.Hint{{Shortcut: "Esc", Action: "cancel download"}}
 	} else {
-		p.Hints = []uisnapshot.Hint{{Shortcut: "A", Action: map[bool]string{true: "turn chat learning off", false: "turn chat learning on"}[m.recall.LearnFromChats]}, {Shortcut: "H", Action: map[bool]string{true: "turn earlier-chat retrieval off", false: "turn earlier-chat retrieval on"}[m.recall.ReferToChats]}, {Shortcut: "I", Action: "install local recall", Group: "more"}, {Shortcut: "L", Action: "use local"}, {Shortcut: "O", Action: "use OpenAI", Group: "more"}, {Shortcut: "G", Action: "use Gemini", Group: "more"}, {Shortcut: "K", Action: "saved knowledge"}, {Shortcut: "C", Action: "chat model", Group: "more"}, {Shortcut: "R", Action: "refresh"}, {Shortcut: "Esc", Action: "back"}}
+		p.Hints = []uisnapshot.Hint{{Shortcut: "U", Action: map[bool]string{true: "stop cloud history upload", false: "review cloud history upload"}[m.recall.HistoryEmbeddings], Group: "more"}, {Shortcut: "A", Action: map[bool]string{true: "turn chat learning off", false: "turn chat learning on"}[m.recall.LearnFromChats]}, {Shortcut: "H", Action: map[bool]string{true: "turn earlier-chat retrieval off", false: "turn earlier-chat retrieval on"}[m.recall.ReferToChats]}, {Shortcut: "I", Action: "install local recall", Group: "more"}, {Shortcut: "L", Action: "use local"}, {Shortcut: "O", Action: "use OpenAI", Group: "more"}, {Shortcut: "G", Action: "use Gemini", Group: "more"}, {Shortcut: "K", Action: "saved knowledge"}, {Shortcut: "C", Action: "chat model", Group: "more"}, {Shortcut: "R", Action: "refresh"}, {Shortcut: "Esc", Action: "back"}}
 	}
 	return p
 }
