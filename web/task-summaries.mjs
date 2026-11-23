@@ -1,3 +1,5 @@
+import brands from "../internal/branding/catalog.json" with { type: "json" };
+
 // Read only the public projections of already-owned sessions. Inspection never
 // starts a replacement owner or exposes tool arguments, output, or reasoning.
 export function taskSummaries(host) {
@@ -21,7 +23,7 @@ export function taskSummaries(host) {
       summary: !active && !waiting && !state.queued ? String(state.dialogue_task?.summary || retained?.text || '').slice(0, 700) : '',
       started_at: trace?.started_at, finished_at: trace?.finished_at,
       steps: (trace?.entries || []).filter(entry => entry.kind === 'tool' || entry.kind === 'status').map(entry => ({
-        id: entry.id, tool: entry.tool, icon: entry.icon, text: entry.kind === 'status' ? entry.text : undefined,
+        id: entry.id, tool: entry.tool, icon: entry.icon, brand: entry.brand, text: entry.kind === 'status' ? entry.text : undefined,
         state: entry.state, started_at: entry.started_at, finished_at: entry.finished_at,
       })),
       truncated: !!trace?.truncated,
@@ -42,7 +44,7 @@ export function delegatedSummaries(host) {
       const status = owner.closed ? 'disconnected' : statuses[card.status] || 'idle';
       result.push({ id: state.conversation_id + ':' + card.id, conversation: state.conversation_id,
         title: String(card.assignment || card.description || card.name).slice(0, 180),
-        engine: names[card.name] || 'Hot Cross Buns', assignment: card.assignment || card.description,
+        engine: names[card.name] || 'Hot Cross Buns', brand: brands.find(brand => brand.specialists.includes(card.name))?.id || '', assignment: card.assignment || card.description,
         state: status, active: !owner.closed && ['running', 'waiting', 'queued'].includes(status), current: false,
         canOpen: owner === host.backend || host.sessions.canOpen(state.conversation_id), steps: [],
       });

@@ -1,3 +1,4 @@
+import { brandIcon, setBrandIcon, providerBrand } from './brands.mjs';
 import { animateSurfaceHeight, viewTransition } from './surface-motion.mjs';
 import { element, prose, turn } from "./text.mjs";
 import { activityView } from "./activity.mjs";
@@ -104,6 +105,7 @@ function controls() {
   const model = state?.composer?.models?.find(row => row.provider === state.provider && row.model === state.model);
   const modelLabel = model?.label || state?.model || "Choose model";
   $("model-label").textContent = modelLabel;
+  setBrandIcon($("model-brand"), providerBrand(state?.provider), "cpu");
   $("model-picker").setAttribute("aria-label", "Model · " + modelLabel);
   $("model-picker").title = state?.composer?.disabled || state?.composer?.readiness?.issue || modelLabel;
   $("model-picker").disabled = !enabled || !state?.composer || !!state.composer.disabled || !!state?.external;
@@ -448,6 +450,7 @@ function showModels() {
       } }, context);
       dialog.close();
     }), "quiet option");
+    choice.prepend(brandIcon(providerBrand(model.provider)));
     choice.disabled = !!model.unavailable || !!composer.disabled;
     choice.setAttribute("aria-pressed", String(model.provider === state.provider && model.model === state.model));
     if (choice.getAttribute('aria-pressed') === 'true') choice.append(icon('check'));
@@ -466,7 +469,9 @@ function showModels() {
       const item = element("option", row.id);
       item.value = row.id; select.append(item);
     }
-    label.append(select);
+    const mark = brandIcon(providerBrand(select.value));
+    select.addEventListener("change", () => setBrandIcon(mark, providerBrand(select.value)));
+    const field = element("div", undefined, "brand-select"); field.append(mark, select); label.append(field);
     openDetail("Provider setup", label, button("Continue", () => {
       const row = rows?.find(item => item.id === select.value);
       if (row) editProvider(row, context);
@@ -515,7 +520,9 @@ function editProvider(row, context) {
         if (!saved.confirmed) throw new Error("Provider setup was not confirmed. Review the current settings.");
         dialog.close();
       }), "send"));
+    $("detail-title").prepend(brandIcon(providerBrand(review.provider)));
   }), "send"));
+  $("detail-title").prepend(brandIcon(providerBrand(row.id)));
 }
 
 function renderPanel(panel) {
@@ -576,7 +583,8 @@ function renderPanel(panel) {
     if (!item.input) {
       if (item.label === 'Local tracking' && panel.kind === 'followup-form') { nodes.push(element('p', item.detail, 'hint')); continue; }
       const option = button(item.label, () => void execute(() => act("activate", { row })), "quiet option");
-      if (item.icon) option.prepend(icon(item.icon));
+      if (item.brand) option.prepend(brandIcon(item.brand, item.icon || "link"));
+      else if (item.icon) option.prepend(icon(item.icon));
       if (item.detail) option.append(element("small", item.detail));
       if (item.state_label || item.state) option.append(element('small', item.state_label || item.state, 'view-state'));
       for (const field of item.metadata || []) option.append(element('small', field.label + ' · ' + field.value));
@@ -629,6 +637,7 @@ function renderPanel(panel) {
   if (!nodes.length) nodes.push(element('p', 'This view has no items yet.', 'hint'));
   const title = panel.title === 'Follow-up checks' ? 'Scheduled tasks' : panel.title === 'Set up a follow-up check' ? 'Set up a scheduled task' : panel.title === 'Following' ? 'Ongoing responsibilities' : panel.title;
   showDetail(title, ...nodes);
+  if (panel.brand) $("detail-title").prepend(brandIcon(panel.brand, "link"));
   $('back-detail').hidden = false; $('back-detail').title = panel.back_label || 'Back';
   $('back-detail').onclick = () => void execute(() => act('key', {}, 'esc'));
 }
@@ -892,6 +901,7 @@ export function paletteCommands() {
     { label: 'Jump to latest', action: reading.latest },
     { label: 'Task details & recovery', action: () => void execute(() => showTaskDetails()) },
     { label: 'Delegated work', action: inspector.open },
+    { label: 'Scheduled tasks', action: scheduled.open },
   ];
   for (const node of document.querySelectorAll("[data-route], #chat-list .chat-row")) {
     if (!node.disabled) commands.push({

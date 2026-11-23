@@ -1,5 +1,6 @@
+import { setBrandIcon } from './brands.mjs';
 import { element } from './text.mjs';
-import { icon as libraryIcon, setIcon, activityIcon } from './icons.mjs';
+import { icon as libraryIcon, activityIcon } from './icons.mjs';
 
 const toolNames = {
   read_file: 'Reading a file', code_read_file: 'Reading code', list_files: 'Browsing files',
@@ -69,7 +70,7 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
     duration.textContent = active ? time : '';
     root.dataset.state = disconnected ? 'disconnected' : stopping ? 'stopping' : paused ? 'waiting' : active ? 'running' : latest.state || 'completed';
     icon.dataset.active = String(active && !paused && !stopping && !disconnected);
-    setIcon(icon, disconnected ? 'wifi-off' : stopping ? 'square' : paused ? 'pause' : active ? current ? activityIcon(current.tool, current.icon) : 'brain' : latest.state === 'failed' ? 'circle-alert' : latest.state === 'stopped' ? 'square' : 'check');
+    setBrandIcon(icon, active && !paused && !stopping && !disconnected ? current?.brand : "", disconnected ? 'wifi-off' : stopping ? 'square' : paused ? 'pause' : active ? current ? activityIcon(current.tool, current.icon) : 'brain' : latest.state === 'failed' ? 'circle-alert' : latest.state === 'stopped' ? 'square' : 'check');
   }
   function update(activity = {}, state = {}) {
     latest = activity;
@@ -102,7 +103,7 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
       row.status.textContent = entry.kind === 'tool' ? entry.state : '';
       row.node.dataset.state = options.active ? entry.state : entry.state === 'running' ? 'stopped' : entry.state;
       row.mark.dataset.active = String(options.active && entry.state === 'running' && !options.disconnected);
-      setIcon(row.mark, activityIcon(entry.tool, entry.icon));
+      setBrandIcon(row.mark, entry.brand, activityIcon(entry.tool, entry.icon));
       const bodyKey = JSON.stringify([entry.tool, entry.details, entry.partial]);
       if (bodyKey !== row.bodyKey) {
         row.bodyKey = bodyKey;

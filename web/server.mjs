@@ -10,7 +10,11 @@ import { buildBrowserDependencies } from "./build.mjs";
 import { Application } from "../app-host/src/application.mjs";
 import { attachmentLimit, uploadLimits } from "../app-host/src/attachment-limits.mjs";
 
+import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
+
 const assets = new Map([
+  ["/brands.mjs", ["brands.mjs", "text/javascript; charset=utf-8"]],
+  ...brandCatalog.map(brand => ["/brands/" + brand.file, ["brands/" + brand.file, "image/png"]]),
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/style.css", ["style.css", "text/css; charset=utf-8"]],
   ["/client.mjs", ["client.mjs", "text/javascript; charset=utf-8"]],

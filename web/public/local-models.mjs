@@ -1,3 +1,4 @@
+import { brandIcon } from './brands.mjs';
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
@@ -55,7 +56,7 @@ export function localModelsView({ request }) {
   }
   function renderRuntime() {
     const section = element('section', undefined, 'view-section local-runtime'); section.setAttribute('aria-label', 'App-owned runtime');
-    section.append(element('h3', 'App-owned runtime'));
+    const heading = element('h3', 'App-owned runtime'); heading.prepend(brandIcon('ollama')); section.append(heading);
     if (!runtime) { section.append(element('p', 'Refresh to inspect the installed runtime.', 'hint')); return section; }
     const labels = { running: 'Running', stopped: 'Stopped', starting: 'Starting…', stopping: 'Stopping…', uncertain: 'Needs attention' };
     const line = element('p', labels[runtime.state] || 'Not verified', 'hint'); line.setAttribute('role', 'status');

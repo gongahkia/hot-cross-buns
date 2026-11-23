@@ -24,7 +24,6 @@
       <button class="quiet" data-route="/connections" data-ui-icon="link">Connections</button>
       <button class="quiet" data-route="/memory" data-ui-icon="brain">Memory</button>
       <button class="quiet" data-route="/knowledge" data-ui-icon="bookmark">Saved</button>
-      <button class="quiet" data-route="/scheduled" data-ui-icon="calendar-days">Scheduled tasks</button>
       <button class="quiet" data-route="/settings" data-ui-icon="settings">Settings</button>
       <button class="quiet" data-route="/workspace" data-ui-icon="folder-search">Workspace</button>
     </div>
@@ -47,7 +46,7 @@
           <button id="attach" type="button" class="quiet icon-button" aria-label="Attach files" title="Attach files" data-ui-icon="plus"></button>
           <input id="files" type="file" multiple hidden>
           <div class="compose-trailing">
-            <button id="model-picker" type="button" class="quiet model-picker" aria-label="Choose model" aria-haspopup="dialog" aria-controls="detail"><span id="model-label">Choose model</span></button>
+            <button id="model-picker" type="button" class="quiet model-picker" aria-label="Choose model" aria-haspopup="dialog" aria-controls="detail"><span id="model-brand" aria-hidden="true"></span><span id="model-label">Choose model</span></button>
             <select id="effort" class="quiet composer-select" aria-label="Effort" title="Task effort" disabled>
               <option value="low">Low</option>
               <option value="standard" selected>Standard</option>

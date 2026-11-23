@@ -1,3 +1,4 @@
+import { brandIcon, setBrandIcon } from './brands.mjs';
 import { element } from './text.mjs';
 
 export function panelField(field, name) {
@@ -59,7 +60,13 @@ export function panelField(field, name) {
     }
     if (field.limit) control.maxLength = field.limit;
     if (field.placeholder) control.placeholder = field.placeholder;
-    root.append(control); read = () => field.kind === 'datetime' && control.value ? new Date(control.value).toISOString() : control.value;
+    if (field.options?.some(option => option.brand)) {
+      const current = () => field.options.find(option => option.value === control.value)?.brand;
+      const mark = brandIcon(current(), 'link'), group = element('div', undefined, 'brand-select');
+      control.addEventListener('change', () => setBrandIcon(mark, current(), 'link'));
+      group.append(mark, control); root.append(group);
+    } else root.append(control);
+    read = () => field.kind === 'datetime' && control.value ? new Date(control.value).toISOString() : control.value;
   }
   if (field.read_only) for (const input of root.querySelectorAll('input, select, textarea, button')) input.disabled = true;
   if (field.help) root.append(element('small', field.help));

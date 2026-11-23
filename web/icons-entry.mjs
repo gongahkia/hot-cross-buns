@@ -6,6 +6,7 @@ import {
   Square, WifiOff, Copy, LoaderCircle, Link, Bookmark, Settings, Eye, History,
   Cpu, Trash2, RotateCcw, RefreshCw, Play, ArrowDown, ChevronUp, Power, Download,
 } from 'lucide';
+export { default as brandCatalog } from '../internal/branding/catalog.json' with { type: 'json' };
 import activityIcons from '../internal/workactivity/icon-names.json' with { type: 'json' };
 
 const catalog = {

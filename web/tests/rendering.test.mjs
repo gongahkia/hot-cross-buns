@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -643,4 +643,48 @@ test('local runtime activity blocks stop and download while source changes stay 
   find('Configured runtime').click(); await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(calls.at(-1).app_owned, false); assert.equal(find('Download'), undefined);
   pane.element.remove();
+});
+
+
+test('local PNG branding resolves catalog identities and fails back to Lucide without losing accessible text', () => {
+  assert.equal(providerBrand('azure-openai-responses'), 'azure');
+  assert.equal(providerBrand('opencode-go'), 'opencode');
+  for (const id of ['fixture', 'openai-compatible', '__proto__', 'https://example.com']) assert.equal(providerBrand(id), '');
+  const node = brandIcon('slack', 'link'), image = node.querySelector('img');
+  assert.equal(image.getAttribute('src'), '/brands/slack.png');
+  assert.equal(image.alt, ''); assert.equal(image.getAttribute('aria-hidden'), 'true');
+  setBrandIcon(node, 'slack', 'link'); assert.equal(node.querySelector('img'), image);
+  image.dispatchEvent(new dom.window.Event('error'));
+  assert.equal(node.querySelector('img'), null); assert.equal(node.querySelector('svg').dataset.icon, 'link');
+  setBrandIcon(node, 'codex', 'workflow'); assert.equal(node.querySelector('img').getAttribute('src'), '/brands/codex.png');
+  setBrandIcon(node, '../../secret.png', 'link'); assert.equal(node.querySelector('img'), null);
+});
+
+test('tool logos remain visible beside waiting and completed states in traces and composer steps', () => {
+  const trace = activityView('logos', { remember: false });
+  const activity = { state: 'running', started_at: '2026-11-22T00:00:00Z', entries: [{ id:'search', kind:'tool', tool:'web_search', brand:'tavily', state:'running' }] };
+  trace.update(activity);
+  assert.equal(trace.element.querySelector('.activity-tool-icon img').getAttribute('src'), '/brands/tavily-color.png');
+  trace.update({ ...activity, entries:[{...activity.entries[0], state:'waiting'}] }, { waiting:true });
+  assert.equal(trace.element.querySelector('.activity-indicator svg').dataset.icon, 'pause');
+  assert.match(trace.element.querySelector('.activity-entry-status').textContent, /waiting/);
+  assert.ok(trace.element.querySelector('.activity-tool-icon img'));
+  const progress = composerProgress();
+  progress.update({id:'work', state:'running',active:true,steps:[{id:'call',tool:'start_agent',brand:'codex',state:'running'}]});
+  assert.ok(progress.element.querySelector('.progress-body img'));
+  progress.update({id:'work',state:'completed',active:false,steps:[{id:'call',tool:'start_agent',brand:'codex',state:'completed'}]});
+  assert.equal(progress.element.querySelector('.task-check svg').dataset.icon, 'check');
+  assert.equal(progress.element.querySelector('.progress-body img').getAttribute('src'), '/brands/codex.png');
+  const inspector = taskInspector({openChat:async()=>{}});
+  inspector.update([{id:'worker',brand:'claude-code',engine:'Claude Code',title:'Check notes',state:'waiting',active:true,steps:[]}]);
+  assert.ok(inspector.element.querySelector('.task-name img'));
+  assert.match(inspector.element.textContent,/Claude Code · Check notes/);
+  assert.match(inspector.element.textContent,/Needs you/);
+});
+
+test('service select fields update the displayed logo while keeping native select values', () => {
+  const field = panelField({kind:'select',value:'brave',options:[{value:'brave',label:'Brave',brand:'brave'},{value:'exa',label:'Exa',brand:'exa'}]}, 'Search service');
+  assert.equal(field.element.querySelector('img').getAttribute('src'), '/brands/brave-color.png');
+  const select = field.element.querySelector('select'); select.value = 'exa'; select.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(field.value,'exa'); assert.equal(field.element.querySelector('img').getAttribute('src'),'/brands/exa-color.png');
 });

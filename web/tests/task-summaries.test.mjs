@@ -16,6 +16,7 @@ test('delegated sidebar names external engines while keeping private session sta
   ] } };
   const cards = delegatedSummaries(fixture([owner]));
   assert.deepEqual(cards.map(card => card.engine), ['Codex', 'Claude Code']);
+  assert.deepEqual(cards.map(card => card.brand), ['codex', 'claude-code']);
   assert.deepEqual(cards.map(card => card.state), ['running', 'waiting']);
   assert.equal(cards[0].conversation, 'chat');
   assert.doesNotMatch(JSON.stringify(cards), /private|token|credentials/);
@@ -33,7 +34,7 @@ test('task inspection projects public outcomes across owned chats without privat
   const idle = { state: { conversation_id: 'current', title: 'New chat' } };
   const working = { state: { conversation_id: 'background', title: 'Read my notes', running: true,
     activity: { ...finished, state: 'running', finished_at: undefined, entries: [
-      { ...finished.entries[0], icon: 'book-open', arguments: 'private arguments', output: 'private result', details: [{ text: 'private details' }] },
+      { ...finished.entries[0], icon: 'book-open', brand: 'slack', arguments: 'private arguments', output: 'private result', details: [{ text: 'private details' }] },
       { id: 'text', kind: 'text', text: 'Public narration is already in the chat', state: 'running' },
     ] }, pending_approval: { token: 'secret approval token' }, private: 'private state',
   } };
@@ -47,6 +48,7 @@ test('task inspection projects public outcomes across owned chats without privat
   assert.equal(tasks[0].current, false);
   assert.equal(tasks[0].steps[0].state, 'completed');
   assert.equal(tasks[0].steps[0].icon, 'book-open');
+  assert.equal(tasks[0].steps[0].brand, 'slack');
   assert.doesNotMatch(JSON.stringify(tasks), /private|secret approval|Public narration/);
   assert.equal(JSON.stringify(working), before);
 });

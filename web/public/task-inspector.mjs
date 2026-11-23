@@ -1,3 +1,4 @@
+import { brandIcon } from './brands.mjs';
 import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
 import { elapsed, toolLabel } from './activity.mjs';
@@ -71,6 +72,7 @@ export function taskInspector({ openChat, inspect, description = '', title: head
         row = { node, name, status, time, body, key: '' }; rows.set(task.id, row); list.append(node);
       }
       row.name.textContent = task.engine ? task.engine + ' · ' + task.title : task.title;
+      if (task.brand) row.name.prepend(brandIcon(task.brand, 'workflow'));
       row.status.textContent = (!connected ? 'Updates paused' : labels[task.state] || 'Waiting') + (task.current ? ' · This chat' : ' · In the background');
       row.node.dataset.state = !connected ? 'disconnected' : task.state;
       const key = JSON.stringify([task, connected]);
@@ -84,7 +86,7 @@ export function taskInspector({ openChat, inspect, description = '', title: head
           const mark = element('span', undefined, 'task-check'); mark.append(icon(stepIcon(step, state))); mark.setAttribute('aria-hidden', 'true');
           const text = element('span', step.text || toolLabel(step.tool));
           const status = element('span', state === 'completed' ? 'Done' : labels[state] || 'Waiting', 'sr-only');
-          item.append(mark, text, status); steps.append(item);
+          item.append(mark, ...(step.brand ? [brandIcon(step.brand, 'workflow')] : []), text, status); steps.append(item);
         }
         if (steps.childNodes.length) nodes.push(steps);
         if (task.engine) nodes.push(element('p', task.assignment || 'Working independently on your request.', 'hint'));
@@ -147,6 +149,8 @@ export function composerProgress({ inspect } = {}) {
     const current = task.steps?.findLast(step => step.state === 'running');
     label.textContent = state === 'running' ? current?.text || (current?.tool && toolLabel(current.tool)) || 'Working on it' : labels[state] || 'Working on it';
     setIcon(mark, stepIcon(current, state));
+    summary.querySelector(".brand-mark")?.remove();
+    if (current?.brand) label.before(brandIcon(current.brand, "workflow"));
     const contentKey = JSON.stringify([task.steps, task.plans, state, task.active]);
     if (contentKey !== rendering) {
       rendering = contentKey;
@@ -155,7 +159,7 @@ export function composerProgress({ inspect } = {}) {
         const status = ['running', 'waiting'].includes(step.state) && (!connected || task.state === 'disconnected') ? 'disconnected' : ['running', 'waiting'].includes(step.state) && !task.active ? 'stopped' : step.state;
         const item = element('li'); item.dataset.state = status;
         const dot = element('span', undefined, 'task-check'); dot.append(icon(stepIcon(step, status))); dot.setAttribute('aria-hidden', 'true');
-        item.append(dot, element('span', step.text || toolLabel(step.tool)), element('span', labels[status] || status, 'sr-only')); list.append(item);
+        item.append(dot, ...(step.brand ? [brandIcon(step.brand, 'workflow')] : []), element('span', step.text || toolLabel(step.tool)), element('span', labels[status] || status, 'sr-only')); list.append(item);
       }
       const proposed = (task.plans || []).filter(plan => ['review', 'approved', 'preparing', 'revising'].includes(plan.phase));
       for (const plan of proposed) for (const text of plan.steps || []) {

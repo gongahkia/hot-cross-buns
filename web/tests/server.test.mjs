@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { get } from "node:http";
 import test from "node:test";
+import brands from "../../internal/branding/catalog.json" with { type: "json" };
 import { fixture } from "./fixture.mjs";
 import { pngFixture, pdfFixture } from "../../app-host/tests/pdf-fixture.mjs";
 
@@ -56,6 +57,16 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
     const page = await fetch(app.url);
     const html = await page.text();
     assert.match(html, /Hot Cross Buns/);
+    assert.doesNotMatch(html, /data-route="\/scheduled"/);
+    for (const file of new Set(brands.map(brand => brand.file))) {
+      const response = await fetch(app.url + '/brands/' + file);
+      assert.equal(response.status, 200, file);
+      assert.equal(response.headers.get('content-type'), 'image/png');
+      const png = Buffer.from(await response.arrayBuffer());
+      assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+      assert.ok(png.readUInt32BE(16) >= 16 && png.readUInt32BE(20) >= 16);
+    }
+    for (const file of ['unknown.png', 'catalog.json', 'README.md']) assert.equal((await fetch(app.url + '/brands/' + file)).status, 404);
     assert.doesNotMatch(html, /Output preview|Memory preview|\/preview\//);
     for (const path of ['/preview.mjs', '/memory-preview.mjs', '/output-samples.mjs', '/memory-samples.mjs', '/preview.gif']) assert.equal((await fetch(app.url + path)).status, 404);
     assert.match(page.headers.get("content-security-policy"), /frame-ancestors 'none'/);
