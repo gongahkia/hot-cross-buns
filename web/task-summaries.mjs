@@ -34,7 +34,7 @@ export function taskSummaries(host) {
 }
 
 export function delegatedSummaries(host) {
-  const names = { cli_codex: 'Codex', cli_claude: 'Claude Code', cli_pi: 'Pi' };
+  const names = { cli_codex: 'Codex', cli_claude: 'Claude Code', cli_pi: 'Pi', cli_opencode: 'OpenCode', cli_gemini: 'Gemini CLI', cli_copilot: 'GitHub Copilot' };
   const statuses = { queued: 'queued', running: 'running', answering: 'running', awaiting_input: 'waiting', completed: 'completed', failed: 'failed', cancelled: 'stopped', stopped: 'stopped' };
   const result = [];
   for (const owner of host.sessions.workers) {

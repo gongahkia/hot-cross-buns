@@ -6,6 +6,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
@@ -228,5 +229,49 @@ func TestExternalPatchEntersVerifiedIntegration(t *testing.T) {
 	original, err := os.ReadFile(filepath.Join(source, "note.txt"))
 	if err != nil || string(original) != "before\n" {
 		t.Fatal("source changed", err)
+	}
+}
+
+func TestHeadlessWorkerUsesAppCredentialWithoutEnvironment(t *testing.T) {
+	if _, err := sandbox.StrictAvailability(); err != nil {
+		t.Skip(err)
+	}
+	t.Setenv("OPENAI_API_KEY", "")
+	root := t.TempDir()
+	source := filepath.Join(root, "source")
+	if err := os.Mkdir(source, 0700); err != nil {
+		t.Fatal(err)
+	}
+	state := filepath.Join(root, "state")
+	store, err := auth.New(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Put("openai", auth.Credential{Type: "api_key", Key: "stored-fixture-secret"}); err != nil {
+		t.Fatal(err)
+	}
+	executable := filepath.Join(root, "worker")
+	script := `#!/bin/sh
+set -eu
+cat >/dev/null
+test "$OPENAI_API_KEY" = stored-fixture-secret
+printf '%s\n' '{"type":"text","part":{"text":"done"}}' '{"type":"step_finish","part":{"reason":"stop"}}'
+`
+	if err := os.WriteFile(executable, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	work, err := workspace.CreateWork(source, state, "credential-test", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := Request{StateDir: state, Mode: action.Inspect}
+	worker := (Executor{}).externalCLISpecialist(request, work, cliagent.Config{Kind: "opencode", Executable: executable, APIKeyEnv: "OPENAI_API_KEY", TimeoutSeconds: 10})
+	result, err := worker.Run(context.Background(), orchestrator.Invocation{ID: "worker", Task: "Inspect"})
+	if err != nil || result.Summary != "done" {
+		t.Fatalf("stored-credential worker failed: %v", err)
+	}
+	data, _ := json.Marshal(request)
+	if strings.Contains(string(data), "stored-fixture-secret") {
+		t.Fatal("stored key leaked into request")
 	}
 }

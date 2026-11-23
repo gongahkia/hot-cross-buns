@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,7 +35,7 @@ var workRoleNames = []string{"source_researcher", "artifact_reviewer", "claim_ve
 func ValidateDisabledRoles(roles []string) error {
 	seen := map[string]bool{}
 	for _, role := range roles {
-		if (!slices.Contains(workRoleNames, role) && role != "cli_codex" && role != "cli_claude" && role != "cli_pi") || seen[role] {
+		if (!slices.Contains(workRoleNames, role) && (!strings.HasPrefix(role, "cli_") || !cliagent.Supported(strings.TrimPrefix(role, "cli_")))) || seen[role] {
 			return fmt.Errorf("invalid or repeated disabled role %q", role)
 		}
 		seen[role] = true

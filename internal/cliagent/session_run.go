@@ -53,7 +53,10 @@ func RunSession(ctx context.Context, r SessionRequest) (result Result, err error
 	if r.Config.Kind != "codex" && r.Config.Kind != "pi" && r.Config.Kind != "claude" {
 		return result, errors.New("persistent sessions unavailable for this adapter")
 	}
-	key := os.Getenv(r.Config.APIKeyEnv)
+	key, credentialErr := r.Config.credential()
+	if credentialErr != nil {
+		return result, credentialErr
+	}
 	if key == "" {
 		return result, errors.New("CLI credential environment is missing")
 	}
@@ -323,7 +326,11 @@ func exportSession(ctx context.Context, s *sessionLease, r Request) (payload []b
 		return nil, nil
 	}
 	payload, err = patch.Export(ctx, directory, s.record.Base)
-	if err == nil && bytes.Contains(payload, []byte(os.Getenv(r.Config.APIKeyEnv))) {
+	key, keyErr := r.Config.credential()
+	if keyErr != nil {
+		return nil, keyErr
+	}
+	if err == nil && key != "" && bytes.Contains(payload, []byte(key)) {
 		return nil, errors.New("CLI patch contains its credential; result rejected")
 	}
 	return payload, err

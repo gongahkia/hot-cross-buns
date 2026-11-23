@@ -165,7 +165,7 @@ func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
 		effects := []string{"read"}
 		for _, task := range args.Tasks {
 			switch task.Agent {
-			case "code", "cli_codex", "cli_claude", "cli_pi":
+			case "code", "cli_codex", "cli_claude", "cli_pi", "cli_opencode", "cli_gemini", "cli_copilot":
 				effects = []string{"read", "code", "checks"}
 			case "source_researcher", "artifact_reviewer", "claim_verifier", "connected_researcher", "spreadsheet_analyst", "goal_reviewer":
 			default:

@@ -17,6 +17,9 @@ type streamState struct {
 }
 
 func (s *streamState) accept(kind string, line []byte) error {
+	if kind == "opencode" || kind == "gemini" || kind == "copilot" {
+		return s.acceptHeadless(kind, line)
+	}
 	var event struct {
 		Type    string          `json:"type"`
 		Subtype string          `json:"subtype"`

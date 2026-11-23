@@ -2,6 +2,7 @@ package cliagent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -124,5 +125,61 @@ func TestRunnerRejectsFailedAndSecretResults(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(r.Scratch, r.ID+"-cli")); !os.IsNotExist(err) {
 			t.Fatal("private working files not cleaned up")
 		}
+	}
+}
+
+func TestAppCredentialIsTransientAndRedacted(t *testing.T) {
+	r := fixtureRequest(t, `printf '%s' "$CODEX_API_KEY" > note.txt`)
+	r.Edit = true
+	r.Config.Credential = func() (string, error) { return "app-store-only-secret", nil }
+	encoded, err := json.Marshal(r.Config)
+	if err != nil || strings.Contains(string(encoded), "app-store-only-secret") {
+		t.Fatal("credential persisted in configuration")
+	}
+	_, err = Run(context.Background(), r)
+	if err == nil || strings.Contains(err.Error(), "app-store-only-secret") {
+		t.Fatal("credential patch was not rejected/redacted")
+	}
+}
+
+func TestHeadlessAdaptersKeepOuterSandboxAndPrivateSettings(t *testing.T) {
+	for _, kind := range []string{"opencode", "gemini", "copilot"} {
+		t.Run(kind, func(t *testing.T) {
+			r := fixtureRequest(t, "")
+			script := `#!/bin/sh
+set -eu
+cat >/dev/null
+if printf bad > note.txt 2>/dev/null; then exit 9; fi
+`
+			terminal := ""
+			switch kind {
+			case "opencode":
+				script += `test "$OPENCODE_DISABLE_PROJECT_CONFIG" = true
+test "$OPENAI_API_KEY" = synthetic-private-key-value
+`
+				terminal = `{"type":"text","part":{"text":"done"}}` + "\n" + `{"type":"step_finish","part":{"reason":"stop"}}`
+			case "gemini":
+				script += `test -f "$GEMINI_CLI_SYSTEM_SETTINGS_PATH"
+test "$GEMINI_API_KEY" = synthetic-private-key-value
+`
+				terminal = `{"type":"message","role":"assistant","content":"done"}` + "\n" + `{"type":"result","status":"success"}`
+			case "copilot":
+				script += `test "$COPILOT_PROVIDER_WIRE_API" = responses
+test "$COPILOT_PROVIDER_API_KEY" = synthetic-private-key-value
+test "$COPILOT_PLUGIN_DIR_ONLY" = true
+test "$(cat "$COPILOT_HOME/settings.json")" = '{"disableAllHooks":true}'
+`
+				terminal = `{"type":"assistant.message","data":{"content":"done"}}` + "\n" + `{"type":"result","exitCode":0}`
+			}
+			script += "cat <<'RESULT'\n" + terminal + "\nRESULT\n"
+			if err := os.WriteFile(r.Config.Executable, []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			r.Config.Kind = kind
+			value, err := Run(context.Background(), r)
+			if err != nil || value.Summary != "done" {
+				t.Fatalf("sandboxed %s: %+v %v", kind, value, err)
+			}
+		})
 	}
 }

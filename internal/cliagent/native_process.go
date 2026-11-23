@@ -55,7 +55,10 @@ func openNativeProcess(ctx context.Context, cfg Config, directory, home, threadI
 			return nil, err
 		}
 	}
-	key := os.Getenv(cfg.APIKeyEnv)
+	key, credentialErr := cfg.credential()
+	if credentialErr != nil {
+		return nil, credentialErr
+	}
 	if key == "" {
 		return nil, errors.New("native session credential environment is missing")
 	}

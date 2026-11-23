@@ -17,9 +17,9 @@ import (
 
 const agentCLIUsage = `usage:
   hot-cross-buns agent cli list
-  hot-cross-buns agent cli enable codex|claude|pi [--executable PATH] [--model ID] [--base-url HTTPS_URL] [--provider ID] [--api-key-env NAME] [--timeout SECONDS] [--allow-edits] [--runtime-root PATH]
-  hot-cross-buns agent cli disable codex|claude|pi
-  hot-cross-buns agent cli doctor codex|claude|pi`
+  hot-cross-buns agent cli enable codex|claude|pi|opencode|gemini|copilot [--executable PATH] [--model ID] [--base-url HTTPS_URL] [--provider ID] [--api-key-env NAME] [--timeout SECONDS] [--allow-edits] [--runtime-root PATH]
+  hot-cross-buns agent cli disable codex|claude|pi|opencode|gemini|copilot
+  hot-cross-buns agent cli doctor codex|claude|pi|opencode|gemini|copilot`
 
 func agentCLICommand(args []string, out io.Writer) error {
 	if len(args) == 0 {
@@ -34,7 +34,7 @@ func agentCLICommand(args []string, out io.Writer) error {
 		return err
 	}
 	if len(args) == 1 && args[0] == "list" {
-		for _, kind := range []string{"codex", "claude", "pi"} {
+		for _, kind := range []string{"codex", "claude", "pi", "opencode", "gemini", "copilot"} {
 			status := "disabled"
 			configuredPath := ""
 			for _, c := range settings.ExternalAgents {
@@ -60,7 +60,7 @@ func agentCLICommand(args []string, out io.Writer) error {
 		return errors.New(agentCLIUsage)
 	}
 	kind := args[1]
-	if kind != "codex" && kind != "claude" && kind != "pi" {
+	if !cliagent.Supported(kind) {
 		return errors.New(agentCLIUsage)
 	}
 	switch args[0] {
@@ -74,6 +74,9 @@ func agentCLICommand(args []string, out io.Writer) error {
 		defaultKey := "OPENAI_API_KEY"
 		if kind == "claude" {
 			defaultKey = "ANTHROPIC_API_KEY"
+		}
+		if kind == "gemini" {
+			defaultKey = "GEMINI_API_KEY"
 		}
 		key := flags.String("api-key-env", defaultKey, "credential environment name, never value")
 		timeout := flags.Int("timeout", 300, "seconds per invocation")

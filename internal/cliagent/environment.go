@@ -85,6 +85,9 @@ func prepareCLI(ctx context.Context, cfg Config, directory, home string, argv []
 		}
 		cmd.Env = append(cmd.Env, "PI_CODING_AGENT_DIR="+agentDir)
 	}
+	if err := prepareHeadlessEnvironment(cmd, cfg, edit); err != nil {
+		return sandbox.Prepared{}, err
+	}
 	// Inject exactly one explicitly selected credential into the child, never argv
 	// or config. All user config/home discovery is disabled or isolated.
 	if certificate != "" {

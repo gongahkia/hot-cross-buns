@@ -48,12 +48,12 @@ func TestCatalogMatchesImplementedAdapters(t *testing.T) {
 			t.Errorf("missing connector %q", kind)
 		}
 	}
-	for _, role := range []string{"cli_codex", "cli_claude", "cli_pi"} {
+	for _, role := range []string{"cli_codex", "cli_claude", "cli_pi", "cli_opencode", "cli_gemini", "cli_copilot"} {
 		if branding.Specialist(role) == "" {
 			t.Errorf("missing specialist %q", role)
 		}
 	}
-	for _, unknown := range []string{"", "https://example.com/logo.png", "../../secret", "__proto__", "cli_opencode", "cli_gemini", "http_json", "remote_mcp", "openai-compatible"} {
+	for _, unknown := range []string{"", "https://example.com/logo.png", "../../secret", "__proto__", "cli_unknown", "http_json", "remote_mcp", "openai-compatible"} {
 		if branding.Valid(unknown) || branding.Connector(unknown) != "" || branding.Specialist(unknown) != "" {
 			t.Errorf("invented brand %q", unknown)
 		}

@@ -99,8 +99,9 @@ times, timezones, and the existing revision-checked pause, resume, details, and 
 responsibilities and schedule creation open their canonical management views.
 The branching icon opens **Delegated work**, a separate sidebar showing public
 specialist assignments, status, engine, and the owning chat. Codex, Claude Code,
-and Pi use the existing opt-in isolated CLI adapters. Gemini and OpenCode do not
-have adapters yet. See [CLI delegation setup](SUBAGENTS_AND_CLI_INTEROP.md).
+Pi, OpenCode, Gemini CLI and GitHub Copilot use opt-in isolated CLI adapters.
+OpenCode and Copilot use retained-result handoff; Gemini live verification is
+currently blocked by missing credentials. See [CLI delegation setup](SUBAGENTS_AND_CLI_INTEROP.md).
 No CLI is enabled or launched by opening the sidebar.
 
 The app-name menu uses the same native popover, subtle slide/fade, and measured

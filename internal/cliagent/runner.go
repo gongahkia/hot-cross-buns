@@ -60,7 +60,10 @@ func Run(ctx context.Context, r Request) (result Result, err error) {
 	if err := (sandbox.Policy{Mode: sandbox.Strict, WritablePaths: r.Scopes}).Validate(); err != nil {
 		return result, err
 	}
-	key := os.Getenv(r.Config.APIKeyEnv)
+	key, credentialErr := r.Config.credential()
+	if credentialErr != nil {
+		return result, credentialErr
+	}
 	if key == "" {
 		return result, fmt.Errorf("CLI credential environment %s is not set", r.Config.APIKeyEnv)
 	}
@@ -177,10 +180,10 @@ func Run(ctx context.Context, r Request) (result Result, err error) {
 		return result, parseErr
 	}
 	if ctx.Err() != nil {
-		return result, ctx.Err()
+		return result, fmt.Errorf("%w: %s", ctx.Err(), redact(stream.diagnostic+" "+stderr.String()))
 	}
 	if waitErr != nil {
-		return result, fmt.Errorf("CLI failed: %w: %s", waitErr, redact(stderr.String()))
+		return result, fmt.Errorf("CLI failed: %w: %s", waitErr, redact(stream.diagnostic+" "+stderr.String()))
 	}
 	if !stream.complete || stream.failed || strings.TrimSpace(stream.summary) == "" {
 		return result, fmt.Errorf("CLI did not report a successful terminal result: %s", redact(stream.diagnostic))

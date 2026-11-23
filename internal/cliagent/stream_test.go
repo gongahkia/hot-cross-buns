@@ -53,3 +53,34 @@ func TestAdapterArgumentsDisableNestedAgentsAndExtraTools(t *testing.T) {
 		}
 	}
 }
+
+func TestHeadlessAdapterTerminalContracts(t *testing.T) {
+	for _, fixture := range []struct {
+		kind  string
+		lines []string
+	}{
+		{"opencode", []string{`{"type":"text","part":{"text":"done"}}`, `{"type":"step_finish","part":{"reason":"stop","tokens":{"input":10,"output":2}}}`}},
+		{"gemini", []string{`{"type":"message","role":"assistant","content":"done","delta":false}`, `{"type":"result","status":"success","stats":{"input_tokens":10,"output_tokens":2}}`}},
+		{"copilot", []string{`{"type":"assistant.message","data":{"content":"done"}}`, `{"type":"result","exitCode":0}`}},
+	} {
+		t.Run(fixture.kind, func(t *testing.T) {
+			state := streamState{}
+			if err := state.accept(fixture.kind, []byte(fixture.lines[0])); err != nil || state.complete {
+				t.Fatal("assistant text mistaken for completion")
+			}
+			if err := state.accept(fixture.kind, []byte(fixture.lines[1])); err != nil || !state.complete || state.failed || state.summary != "done" {
+				t.Fatalf("invalid terminal projection: %+v %v", state, err)
+			}
+		})
+	}
+	for _, fixture := range []struct{ kind, line string }{{"opencode", `{"type":"error"}`}, {"gemini", `{"type":"result","status":"error"}`}, {"copilot", `{"type":"session.error"}`}} {
+		state := streamState{}
+		if err := state.accept(fixture.kind, []byte(fixture.line)); err != nil || !state.failed {
+			t.Errorf("%s hid an error", fixture.kind)
+		}
+		terminal := map[string]string{"opencode": `{"type":"step_finish","part":{"reason":"stop"}}`, "gemini": `{"type":"result","status":"success"}`, "copilot": `{"type":"result","exitCode":0}`}
+		if err := state.accept(fixture.kind, []byte(terminal[fixture.kind])); err != nil || !state.failed {
+			t.Errorf("%s cleared a previous error", fixture.kind)
+		}
+	}
+}

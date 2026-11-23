@@ -41,7 +41,9 @@
       "gemini"
     ],
     "connectors": [],
-    "specialists": [],
+    "specialists": [
+      "cli_gemini"
+    ],
     "searches": []
   },
   {
@@ -282,7 +284,9 @@
       "opencode-go"
     ],
     "connectors": [],
-    "specialists": [],
+    "specialists": [
+      "cli_opencode"
+    ],
     "searches": []
   },
   {
@@ -425,5 +429,16 @@
     "searches": [
       "tinyfish"
     ]
+  },
+  {
+    "id": "github-copilot",
+    "label": "GitHub Copilot",
+    "file": "githubcopilot.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [
+      "cli_copilot"
+    ],
+    "searches": []
   }
 ]

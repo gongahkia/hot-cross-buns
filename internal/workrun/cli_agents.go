@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
+	"github.com/gongahkia/hot-cross-buns/internal/auth"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/workspace"
+	"os"
 	"path/filepath"
 )
 
@@ -29,11 +31,45 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 		description += "; read-only for this run."
 	}
 	specialist := orchestrator.HostedSpecialist(cfg.Role(), description, func(ctx context.Context, i orchestrator.Invocation) (orchestrator.Result, error) {
+		// pin the selected credential for this invocation, including native redaction.
+		invocationConfig := cfg
+		key := os.Getenv(cfg.APIKeyEnv)
+		if key == "" && request.StateDir != "" {
+			provider := ""
+			switch cfg.APIKeyEnv {
+			case "OPENAI_API_KEY":
+				if cfg.Kind == "codex" || cfg.Kind == "opencode" || cfg.Kind == "copilot" || cfg.Kind == "pi" && (cfg.Provider == "" || cfg.Provider == "openai") {
+					provider = "openai"
+				}
+			case "ANTHROPIC_API_KEY":
+				if cfg.Kind == "claude" {
+					provider = "anthropic"
+				}
+			case "GEMINI_API_KEY":
+				if cfg.Kind == "gemini" {
+					provider = "gemini"
+				}
+			}
+			if provider != "" {
+				store, err := auth.New(request.StateDir)
+				if err != nil {
+					return orchestrator.Result{}, err
+				}
+				credential, found, err := store.Read(provider)
+				if err != nil {
+					return orchestrator.Result{}, fmt.Errorf("cannot read the configured CLI credential")
+				}
+				if found && credential.IsAPIKey() {
+					key = credential.Key
+				}
+			}
+		}
+		invocationConfig.Credential = func() (string, error) { return key, nil }
 		baseline, err := request.integration.baseline(i.Baseline)
 		if err != nil {
 			return orchestrator.Result{}, err
 		}
-		assignment := cliagent.Request{Config: cfg, Source: work.Source.Path(), Scratch: work.Scratch.Path(), ID: i.ID, Task: i.Task, Edit: edit, Scopes: request.Code.Scopes, Baseline: baseline, OnEvent: i.OnEvent}
+		assignment := cliagent.Request{Config: invocationConfig, Source: work.Source.Path(), Scratch: work.Scratch.Path(), ID: i.ID, Task: i.Task, Edit: edit, Scopes: request.Code.Scopes, Baseline: baseline, OnEvent: i.OnEvent}
 		var value cliagent.Result
 		if persistent {
 			owner := request.ConversationID

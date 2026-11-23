@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"time"
 
@@ -17,7 +16,7 @@ func cliFailure(cfg Config, operation, phase string, started time.Time, cause, e
 	if agent.ProviderDiagnosticFrom(cause) != nil {
 		return cause
 	}
-	secret := os.Getenv(cfg.APIKeyEnv)
+	secret, _ := cfg.credential()
 	d := agent.ProviderDiagnostic{
 		Provider: providerhttp.SafeValue(cfg.Kind, secret), Model: providerhttp.SafeValue(cfg.Model, secret),
 		Transport: "cli", Phase: phase, Method: operation, Endpoint: providerhttp.SafeEndpoint(cfg.BaseURL, secret),

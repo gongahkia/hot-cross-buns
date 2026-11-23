@@ -51,3 +51,4 @@ SHA-256 of checked-in PNGs:
 - `vercel.png`: `a26e1ae39160377b7b64efdaa0182ef0c4d3f0ca9d67106eb7e0a9b1778cdcde`
 - `xiaomimimo.png`: `04f78ad5b2ebd628ddaa59261c3696971dc54799c1ae3401454977810ca1f63b`
 - `zai.png`: `e53c9c5bfac0971024d08ab812ec13682f22f12247fcc4f134b6a0f2c988fee7`
+- `githubcopilot.png`: `984fc3fb2708c83fcc870eabfb2a9a4cd4a2a059ac18f78200119dc37f95ce8c`

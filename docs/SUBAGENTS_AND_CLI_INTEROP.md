@@ -116,27 +116,35 @@ Delegation is optional; read-only specialists remain read-only. See
 full-file review gate, continuity, UI evidence and current evaluation limits.
 
 The local web app uses the shared Go runtime. Build it with `make runtime`.
-The administration commands below configure that runtime's CLI adapters.
+The private administration commands below configure that runtime's CLI adapters;
+they do not restore the retired terminal frontend.
 
 ## Configure an installed CLI
 
 ```sh
-./ui/runtime/hot-cross-buns-runtime agent cli list
-./ui/runtime/hot-cross-buns-runtime agent cli enable codex
-./ui/runtime/hot-cross-buns-runtime agent cli enable pi --provider openai
-./ui/runtime/hot-cross-buns-runtime agent cli enable claude --api-key-env ANTHROPIC_API_KEY
-./ui/runtime/hot-cross-buns-runtime agent cli doctor codex
-./ui/runtime/hot-cross-buns-runtime agent cli disable codex
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli list
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli enable codex
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli enable pi --provider openai
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli enable claude --api-key-env ANTHROPIC_API_KEY
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli doctor codex
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli disable codex
 ```
 
 Adapters are off until enabled. Install the CLI separately. Export the selected
-API key variable in the environment that launches Hot Cross Buns. Configuration stores
-only the variable name. Saved CLI logins and OAuth sessions are not imported.
-`doctor` checks prerequisites, not provider authentication or protocol compatibility.
+API key variable in the environment that launches Hot Cross Buns, or use the
+provider key saved through Models in the browser. For the standard names
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, foreground workers can
+resolve the matching app credential when the environment variable is absent.
+Configuration stores only the variable name; the credential is injected per
+invocation and excluded from task/configuration serialization. Saved CLI logins
+and OAuth sessions are not imported. `doctor` checks executable, sandbox and
+launch-environment credentials only; an app-stored key is checked at invocation.
+It does not verify provider authentication or protocol compatibility.
 Restart an existing Hot Cross Buns session after changing adapter settings.
 
 For a regional OpenAI project, add `--base-url https://us.api.openai.com/v1` to
-Codex/Pi setup. Other HTTPS API base URLs are supported. They are explicit
+Codex/Pi setup. Copilot also accepts an explicit HTTPS API base URL.
+OpenCode and Gemini endpoint overrides are currently rejected. They are explicit
 credential destinations, so configure only a provider endpoint you trust.
 
 `--executable PATH` selects a custom installation. `--runtime-root PATH` adds a
@@ -150,10 +158,30 @@ Hot Cross Buns's `integrate_code` checks selected patches together before subseq
 assignments can use the verified candidate. Nothing applies to live source
 merely because an external CLI reports success.
 
+OpenCode and Copilot currently use OpenAI API keys, with a bare model ID such
+as `gpt-5-mini`. Copilot uses its OpenAI BYOK Responses protocol; this does not
+import a GitHub Copilot subscription. Gemini uses `GEMINI_API_KEY` and a Gemini
+model ID. Choose the actual installed executable rather than a package-manager
+shim; JavaScript installations also need their Node runtime and package roots.
+For example:
+
+```sh
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli enable opencode --executable /absolute/path/to/opencode --model gpt-5-mini
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime agent cli enable copilot --executable /absolute/path/to/copilot --model gpt-5-mini
+```
+
+These three headless adapters disable plugins, hooks, MCP discovery and shell
+execution, expose finite read/edit tools, and run inside the existing OS sandbox.
+They have no live steering or native session resumption. A `continue` assignment
+receives the selected prior result as untrusted context in a fresh invocation.
+It does not inherit hidden native conversation state. See the
+[23 November live verification](verification/orchestration-2026-11-23.md) for
+versions, results and the Codex/Gemini blockers.
+
 ## Use from Hot Cross Buns
 
-Enabled adapters appear as `cli_codex`, `cli_claude` and `cli_pi` in foreground
-chat. For example:
+Enabled adapters appear as `cli_codex`, `cli_claude`, `cli_pi`, `cli_opencode`,
+`cli_gemini` and `cli_copilot` in foreground chat, according to local configuration. For example:
 
 > Ask cli_codex to review this project's error handling and source_researcher to
 > check the documentation. Run them independently, then compare their findings.
@@ -161,14 +189,14 @@ chat. For example:
 Noninteractive Work requires a separate opt-in:
 
 ```sh
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work --source ./project --mode inspect --external-agents \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work --source ./project --mode inspect --external-agents \
   'Use cli_pi to inspect project.md and report the owner and deadline.'
 ```
 
 For patch creation, enable `--allow-edits` and use a draft/act Work run:
 
 ```sh
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work --source ./project --external-agents \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work --source ./project --external-agents \
   'Ask cli_codex to fix the parser. Integrate its patch and write report.md with verification evidence.'
 ```
 
@@ -178,10 +206,10 @@ budgets cannot account for an external CLI's internal provider calls.
 Inspect or control running tasks using the existing task commands:
 
 ```sh
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work tasks RUN_ID
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work tasks RUN_ID TASK_ID
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work cancel-task RUN_ID TASK_ID
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work steer-task RUN_ID TASK_ID 'Focus on the parsing failure.'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work tasks RUN_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work tasks RUN_ID TASK_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work cancel-task RUN_ID TASK_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work steer-task RUN_ID TASK_ID 'Focus on the parsing failure.'
 ```
 
 Live steering works for internal LLM specialists and Codex/Pi. Codex/Pi/Claude
@@ -197,7 +225,7 @@ Codex/Claude clarification requests appear in task details as `native.questions`
 from another terminal (replace QUESTION_ID with that exact current token):
 
 ```sh
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work answer-task RUN_ID TASK_ID QUESTION_ID '{"format":["Markdown"]}'
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work answer-task RUN_ID TASK_ID QUESTION_ID '{"format":["Markdown"]}'
 # Use - instead of the JSON argument to read answers from stdin.
 ```
 
@@ -228,11 +256,11 @@ separate from Hot Cross Buns's model-request budget.
 For example, after enabling an adapter with `--allow-edits`:
 
 ```sh
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work --source ./project --external-agents --mode draft \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work --source ./project --external-agents --mode draft \
   --scope src --acceptance-check 'python3 -B verify.py' \
   'Use complete_code with cli_codex to fix the parser; require all verifier cases to pass and review the result.'
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work completions RUN_ID
-HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./desktop/runtime/hot-cross-buns-runtime work completions RUN_ID COMPLETION_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work completions RUN_ID
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work completions RUN_ID COMPLETION_ID
 ```
 
 `--acceptance-check` and `--scope` are repeatable host grants. Check arguments are

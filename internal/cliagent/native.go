@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +44,12 @@ type nativeClient struct {
 }
 
 func newNativeClient(ctx context.Context, kind string, w *rpcWire, cfg Config, cwd, threadID string) (*nativeClient, error) {
-	c := &nativeClient{wire: w, kind: kind, state: NativeState{ThreadID: threadID, Status: "starting"}, secret: os.Getenv(cfg.APIKeyEnv)}
+	secret, credentialErr := cfg.credential()
+	if credentialErr != nil {
+		w.Close()
+		return nil, credentialErr
+	}
+	c := &nativeClient{wire: w, kind: kind, state: NativeState{ThreadID: threadID, Status: "starting"}, secret: secret}
 	go c.events()
 	fail := func(err error) (*nativeClient, error) { w.Close(); return nil, err }
 	if kind == "codex" {
