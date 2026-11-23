@@ -217,8 +217,9 @@ func streamOllamaInstaller(command *exec.Cmd, ctx context.Context, report func(m
 	}
 	completed := make(chan error, 1)
 	go func() {
-		err := command.Wait()
+		// drain both pipes before Wait closes them, including for fast installers.
 		scanners.Wait()
+		err := command.Wait()
 		close(lines)
 		completed <- err
 	}()
