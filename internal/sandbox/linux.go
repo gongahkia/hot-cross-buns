@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 // prepareLinux uses Bubblewrap. It exposes standard runtime directories
@@ -19,6 +21,17 @@ func prepareLinux(ctx context.Context, root, scratch string, argv, environment [
 		return nil, err
 	}
 	readRoots = append(readRoots, commandRuntimeRoots(argv)...)
+	// systemd-resolved keeps the resolver behind /etc/resolv.conf in /run.
+	// mount only its target file, never the surrounding runtime directory.
+	if policy.Network == AllowNetwork {
+		resolver, err := filepath.EvalSymlinks("/etc/resolv.conf")
+		if err != nil {
+			return nil, err
+		}
+		if resolver != "/etc/resolv.conf" && !strings.HasPrefix(resolver, "/etc/") {
+			readRoots = append(readRoots, resolver)
+		}
+	}
 	readRoots = removeWritableRoots(readRoots, writeRoots)
 	arguments := []string{"--die-with-parent", "--new-session", "--unshare-all", "--proc", "/proc", "--dev", "/dev"}
 	// --unshare-all includes the network namespace. AllowNetwork must undo

@@ -290,16 +290,17 @@ func processEnvironment(policy Policy) ([]string, string, func(), error) {
 	scratch = canonicalScratch
 	cleanup := func() { _ = os.RemoveAll(scratch) }
 	values := map[string]string{
-		"PATH":    safeEnvironment("PATH"),
-		"GOROOT":  runtime.GOROOT(),
-		"TMPDIR":  scratch,
-		"TMP":     scratch,
-		"TEMP":    scratch,
-		"HOME":    scratch,
-		"GOCACHE": filepath.Join(scratch, "go-build"),
-		"LANG":    safeEnvironment("LANG"),
-		"LC_ALL":  safeEnvironment("LC_ALL"),
-		"TERM":    safeEnvironment("TERM"),
+		"PATH":       safeEnvironment("PATH"),
+		"GOMAXPROCS": fmt.Sprint(min(runtime.GOMAXPROCS(0), 2)),
+		"GOROOT":     runtime.GOROOT(),
+		"TMPDIR":     scratch,
+		"TMP":        scratch,
+		"TEMP":       scratch,
+		"HOME":       scratch,
+		"GOCACHE":    filepath.Join(scratch, "go-build"),
+		"LANG":       safeEnvironment("LANG"),
+		"LC_ALL":     safeEnvironment("LC_ALL"),
+		"TERM":       safeEnvironment("TERM"),
 	}
 	if runtime.GOOS == "windows" {
 		// Windows runtimes need their system directory even for explicitly

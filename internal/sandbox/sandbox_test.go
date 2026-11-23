@@ -3,10 +3,12 @@ package sandbox
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -48,6 +50,9 @@ func TestStrictSandboxRunsAStandardGoVerifier(t *testing.T) {
 		t.Fatalf("prepare strict command: %v", err)
 	}
 	defer prepared.Cleanup()
+	if !slices.Contains(prepared.Command.Env, fmt.Sprintf("GOMAXPROCS=%d", min(runtime.GOMAXPROCS(0), 2))) {
+		t.Fatal("sandboxed Go verifier lacks its concurrency bound")
+	}
 	var output bytes.Buffer
 	prepared.Command.Stdout = &output
 	prepared.Command.Stderr = &output
