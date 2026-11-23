@@ -162,6 +162,10 @@ func uniqueExistingRoots(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
 	for _, value := range values {
+		// trimmed Go binaries can have no GOROOT; never turn it into a cwd mount.
+		if !filepath.IsAbs(value) {
+			continue
+		}
 		clean := filepath.Clean(value)
 		info, err := osStat(clean)
 		if err != nil || (!info.IsDir() && !info.Mode().IsRegular()) {

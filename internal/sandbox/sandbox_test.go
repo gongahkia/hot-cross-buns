@@ -27,6 +27,14 @@ func TestPolicyRejectsBroadAndMalformedGrants(t *testing.T) {
 	}
 }
 
+func TestSandboxRootsExcludeEmptyAndRelativeRuntimePaths(t *testing.T) {
+	root := t.TempDir()
+	roots := uniqueExistingRoots([]string{"", ".", root})
+	if len(roots) != 1 || roots[0] != root {
+		t.Fatalf("invalid runtime mounts: %v", roots)
+	}
+}
+
 func TestStrictSandboxRunsAStandardGoVerifier(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("strict sandbox has no implementation on this platform")
