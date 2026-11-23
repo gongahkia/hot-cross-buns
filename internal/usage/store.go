@@ -55,6 +55,8 @@ type Snapshot struct {
 	Tokens                                              int64
 	Categories                                          map[string]int
 	KnownCostUSD                                        *float64
+	History                                             []DayUsage
+	Providers                                           []ProviderUsage
 }
 type Store struct{ root string }
 type Reservation struct {
@@ -245,6 +247,9 @@ func (s Store) Snapshot(now time.Time) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	defer unlock()
+	return s.snapshot(now)
+}
+func (s Store) snapshot(now time.Time) (Snapshot, error) {
 	d, err := s.day(now.UTC().Format("2006-01-02"))
 	if err != nil {
 		return Snapshot{}, err

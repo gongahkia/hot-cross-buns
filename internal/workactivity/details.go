@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -24,6 +25,8 @@ type Detail struct {
 	Status      string `json:"status,omitempty"`
 	ExitCode    *int   `json:"exit_code,omitempty"`
 	TimedOut    bool   `json:"timed_out,omitempty"`
+	Agent       string `json:"agent,omitempty"`
+	TaskID      string `json:"task_id,omitempty"`
 }
 
 func displayPath(value string) bool {
@@ -60,7 +63,12 @@ func (d Detail) Valid() bool {
 	if !displayID(d.EvidenceID) || !displayID(d.CandidateID) {
 		return false
 	}
+	if d.Kind != "specialist" && (d.Agent != "" || d.TaskID != "") {
+		return false
+	}
 	switch d.Kind {
+	case "specialist":
+		return d.Agent != "" && displayID(d.Agent) && d.TaskID != "" && displayID(d.TaskID) && slices.Contains([]string{"queued", "running", "answering", "awaiting_input", "completed", "failed", "cancelled", "stopped"}, d.Status) && d.Path == "" && d.Domain == "" && d.EvidenceID == "" && d.CandidateID == "" && d.ExitCode == nil && !d.TimedOut
 	case "searched", "fetched":
 		return d.Path == "" && d.Domain != "" && displayDomain("https://"+d.Domain) == d.Domain && d.CandidateID == "" && d.ExitCode == nil && d.Status == "" && !d.TimedOut
 	case "read_file", "read_code", "changed_file":
@@ -91,6 +99,9 @@ func toolDetails(name, content string) ([]Detail, bool) {
 		data = envelope.Result
 	}
 	var value struct {
+		ID               string   `json:"id"`
+		Role             string   `json:"role"`
+		Status           string   `json:"status"`
 		Path             string   `json:"path"`
 		Applied          bool     `json:"applied"`
 		ChangedPaths     []string `json:"changed_paths"`
@@ -134,6 +145,8 @@ func toolDetails(name, content string) ([]Detail, bool) {
 		details = append(details, d)
 	}
 	switch name {
+	case "start_agent", "await_agent", "inspect_agent", "cancel_agent", "steer_agent", "answer_agent":
+		add(Detail{Kind: "specialist", Agent: value.Role, TaskID: value.ID, Status: value.Status})
 	case "web_search":
 		for _, result := range value.Results {
 			if domain := displayDomain(result.URL); domain != "" {

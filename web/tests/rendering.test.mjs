@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -519,7 +519,7 @@ test('reading positions survive updates, chat switches, and reloads without pull
   Object.defineProperty(window, 'scrollY', { configurable: true, get: () => scroll });
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
   Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 3200 });
-  const oldScroll = window.scrollTo; window.scrollTo = value => { scroll = Math.max(0, Math.min(2400, value.top)); };
+  let scrollBehavior; const oldScroll = window.scrollTo; window.scrollTo = value => { scrollBehavior = value.behavior; scroll = Math.max(0, Math.min(2400, value.top)); };
   document.body.innerHTML = '<div id="transcript"><article data-message-id="first"></article><article data-message-id="middle"></article><article data-message-id="last"></article></div>';
   const transcript = document.querySelector('#transcript');
   for (const [index, node] of [...transcript.children].entries()) node.getBoundingClientRect = () => ({ top: index * 600 + 100 - scroll, bottom: index * 600 + 500 - scroll });
@@ -530,7 +530,11 @@ test('reading positions survive updates, chat switches, and reloads without pull
   reading.before('chat-a'); reading.after(); flushFrames(); assert.equal(scroll, 700);
   reading.dispose(); scroll = 0;
   reading = readingPosition({ transcript, storage }); reading.before('chat-a'); reading.after(); flushFrames(); assert.equal(scroll, 700);
-  reading.element.click(); assert.equal(scroll, 2400); assert.equal(reading.element.hidden, true);
+  reading.element.click(); assert.equal(scroll, 2400); assert.equal(reading.element.hidden, true); assert.equal(scrollBehavior, 'smooth');
+  reading.after(); flushFrames(); assert.equal(scrollBehavior, 'smooth');
+  window.dispatchEvent(new window.Event('scrollend'));
+  const oldMotion = window.matchMedia; window.matchMedia = () => ({ matches: true }); reading.latest(); assert.equal(scrollBehavior, 'instant'); window.matchMedia = oldMotion;
+  scroll = 700; let attempts = 0; window.scrollTo = () => { attempts++; }; reading.latest(); window.dispatchEvent(new window.Event('scrollend')); assert.equal(attempts, 1); assert.equal(reading.element.hidden, false);
   reading.dispose(); window.scrollTo = oldScroll; delete globalThis.requestAnimationFrame; delete globalThis.cancelAnimationFrame;
 });
 
@@ -688,4 +692,29 @@ test('service select fields update the displayed logo while keeping native selec
   assert.equal(field.element.querySelector('img').getAttribute('src'), '/brands/brave-color.png');
   const select = field.element.querySelector('select'); select.value = 'exa'; select.dispatchEvent(new dom.window.Event('change'));
   assert.equal(field.value,'exa'); assert.equal(field.element.querySelector('img').getAttribute('src'),'/brands/exa-color.png');
+});
+
+
+test('composer steps disclose public facts and preserve expansion while outcomes update', () => {
+  const progress = composerProgress(); document.body.replaceChildren(progress.element);
+  const task = { id: 'one', state: 'running', active: true, started_at: '2026-11-23T00:00:00Z', steps: [{ id: 'step', tool: 'await_agent', brand: 'opencode', state: 'running', started_at: '2026-11-23T00:00:00Z', details: [{ kind: 'specialist', agent: 'cli_opencode', task_id: 'subagent-001', status: 'running' }] }] };
+  progress.update(task);
+  const row = progress.element.querySelector('.step-disclosure'); row.open = true; row.querySelector('summary').focus();
+  assert.match(row.textContent, /cli_opencode.*subagent-001/);
+  assert.ok(row.querySelector('.brand-logo'));
+  progress.update({ ...task, steps: [{ ...task.steps[0], state: 'completed', finished_at: '2026-11-23T00:00:05Z' }] });
+  assert.equal(progress.element.querySelector('.step-disclosure'), row); assert.equal(row.open, true); assert.equal(document.activeElement,row.querySelector('summary'));
+  assert.match(row.textContent, /5s/); assert.equal(progress.element.querySelector('.progress-details'), null);
+});
+
+test('usage dashboard renders real series, provider logos, empty states and uncapped limits', () => {
+  const value = { day: '2026-11-23', requests: 4, tokens: 1200, active_requests: 1, failed_requests: 0, estimated_requests: 1, history: [{ day:'2026-11-22', requests:0, tokens:0 }, { day:'2026-11-23', requests:4, tokens:1200 }], providers:[{ name:'openai/gpt-5-mini', requests:4, tokens:1200 }], categories:[{name:'chat',requests:3},{name:'routing',requests:1}] };
+  const view = usageView(value); document.body.replaceChildren(view);
+  assert.equal(view.querySelectorAll('.usage-day').length, 2); assert.match(view.textContent,/gpt-5-mini/);
+  assert.equal(view.querySelector('.brand-logo').getAttribute('src'), '/brands/openai.png');
+  assert.match(view.querySelector('.usage-metric').textContent,/4/);
+  [...view.querySelectorAll('button')].find(button=>button.textContent==='Tokens').click();
+  assert.equal(view.querySelector('.usage-chart').getAttribute('aria-label').includes('tokens'), true);
+  assert.equal(view.querySelectorAll('table td').length,6); assert.match(usageLimits(value).textContent,/Uncapped/);
+  const empty=usageView({...value,requests:0,tokens:0,history:[],providers:[],categories:[]}); assert.match(empty.textContent,/No requests recorded/); assert.equal(empty.querySelectorAll('.usage-provider').length,0);
 });

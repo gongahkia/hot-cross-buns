@@ -20,6 +20,7 @@ const assets = new Map([
   ["/client.mjs", ["client.mjs", "text/javascript; charset=utf-8"]],
   ["/chats.mjs", ["chats.mjs", "text/javascript; charset=utf-8"]],
   ["/find.mjs", ["find.mjs", "text/javascript; charset=utf-8"]],
+  ["/usage.mjs", ["usage.mjs", "text/javascript; charset=utf-8"]],
   ["/reading.mjs", ["reading.mjs", "text/javascript; charset=utf-8"]],
   ["/reactions.mjs", ["reactions.mjs", "text/javascript; charset=utf-8"]],
   ["/task-details.mjs", ["task-details.mjs", "text/javascript; charset=utf-8"]],

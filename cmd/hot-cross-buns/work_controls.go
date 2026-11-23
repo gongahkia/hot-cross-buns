@@ -86,7 +86,7 @@ func usageControl(stateDir, action string, args []string) (workapp.ControlScreen
 		}
 	}
 	now := time.Now().UTC()
-	view, err := s.Snapshot(now)
+	view, err := s.Dashboard(now)
 	if err != nil {
 		return workapp.ControlScreen{}, err
 	}
@@ -96,7 +96,7 @@ func usageControl(stateDir, action string, args []string) (workapp.ControlScreen
 		Paused: p.Paused, Requests: view.Requests, Tokens: view.Tokens,
 		ActiveRequests: view.ActiveRequests, FailedRequests: view.Failed, EstimatedRequests: view.EstimatedRequests,
 		DailyRequestLimit: p.DailyRequests, DailyTokenLimit: p.DailyTokens, ConcurrentLimit: p.ConcurrentRequests,
-		KnownCostUSD: view.KnownCostUSD,
+		KnownCostUSD: view.KnownCostUSD, History: view.History, Providers: view.Providers,
 	}
 	previous, _ := json.Marshal(p)
 	status := "Requests allowed within the shared limits"

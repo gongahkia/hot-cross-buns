@@ -116,3 +116,17 @@ func TestLongRunBoundsObservedDetailBytes(t *testing.T) {
 		t.Fatal("long run escaped display budget", trace.detailBytes)
 	}
 }
+
+func TestSpecialistDetailsExposeOnlyFiniteTaskIdentity(t *testing.T) {
+	details, partial := toolDetails("await_agent", `{"id":"subagent-001","role":"cli_opencode","status":"completed","assignment":"private prompt","result":{"Summary":"private output"},"native":{"token":"secret"}}`)
+	if partial || len(details) != 1 || details[0].Agent != "cli_opencode" || details[0].TaskID != "subagent-001" || details[0].Status != "completed" {
+		t.Fatalf("missing public specialist outcome: %+v", details)
+	}
+	details, _ = toolDetails("await_agent", `{"id":"../../private","role":"cli_opencode","status":"completed"}`)
+	if len(details) != 0 {
+		t.Fatal("invalid task identity exposed")
+	}
+	if (Detail{Kind: "specialist", Agent: "cli_opencode", TaskID: "subagent-001", Status: "running|answering"}).Valid() {
+		t.Fatal("non-enumerated specialist status accepted")
+	}
+}

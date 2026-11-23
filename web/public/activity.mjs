@@ -1,4 +1,4 @@
-import { setBrandIcon } from './brands.mjs';
+import { setBrandIcon, brandLabel } from './brands.mjs';
 import { element } from './text.mjs';
 import { icon as libraryIcon, activityIcon } from './icons.mjs';
 
@@ -29,7 +29,20 @@ function detailLabel(value) {
   if (value.domain) return value.domain;
   if (value.kind === 'command') return value.timed_out ? 'Command timed out' : 'Exit code ' + value.exit_code;
   if (value.candidate_id) return value.candidate_id + ' · ' + value.status;
-  return value.kind.replaceAll('_', ' ');
+  if (value.kind === 'specialist') return [value.agent, value.task_id, value.status].filter(Boolean).join(' · ');
+  return String(value.kind || '').replaceAll('_', ' ');
+}
+export function activityFacts(entry) {
+  const body = element('div', undefined, 'step-facts');
+  const facts = element('dl');
+  const duration = elapsed(entry.started_at, entry.finished_at);
+  for (const [name, value] of [['Tool', entry.tool], ['Provider', brandLabel(entry.brand)], ['Status', entry.state], ['Time', duration]]) {
+    if (value) facts.append(element('dt', name), element('dd', value));
+  }
+  body.append(facts);
+  for (const detail of entry.details || []) body.append(element('div', detailLabel(detail), 'activity-fact'));
+  if (entry.partial) body.append(element('p', 'Some activity details were omitted.', 'hint'));
+  return body;
 }
 const expanded = new Map();
 export function activityView(key = '', { remember = true, autoExpand = true } = {}) {
@@ -104,13 +117,10 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
       row.node.dataset.state = options.active ? entry.state : entry.state === 'running' ? 'stopped' : entry.state;
       row.mark.dataset.active = String(options.active && entry.state === 'running' && !options.disconnected);
       setBrandIcon(row.mark, entry.brand, activityIcon(entry.tool, entry.icon));
-      const bodyKey = JSON.stringify([entry.tool, entry.details, entry.partial]);
+      const bodyKey = JSON.stringify(entry);
       if (bodyKey !== row.bodyKey) {
         row.bodyKey = bodyKey;
-        const nodes = entry.tool ? [element('code', entry.tool)] : [];
-        for (const detail of entry.details || []) nodes.push(element('div', detailLabel(detail), 'activity-fact'));
-        if (entry.partial) nodes.push(element('p', 'Some activity details were omitted.', 'hint'));
-        row.body.replaceChildren(...nodes);
+        row.body.replaceChildren(activityFacts(entry));
       }
     }
     for (const [id, row] of rows) if (!ids.has(id)) { row.node.remove(); rows.delete(id); }

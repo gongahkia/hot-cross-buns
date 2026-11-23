@@ -12,6 +12,20 @@ export function readingPosition({ transcript, streaming, storage }) {
   const jump = element('button', undefined, 'quiet jump-latest'); jump.type = 'button'; jump.hidden = true;
   jump.append(icon('arrow-down'), element('span', 'Jump to latest'));
   const anchors = () => [...transcript.querySelectorAll('[data-message-id]')];
+  let jumping = false, jumpTimer, jumpTarget;
+  function finishJump() {
+    if (!jumping) return;
+    jumping = false; clearTimeout(jumpTimer);
+    if (document.documentElement.scrollHeight !== jumpTarget && document.documentElement.scrollHeight - window.innerHeight - window.scrollY > 2) { latest(); return; }
+    onScroll();
+  }
+  function interruptJump(event) {
+    if (event.type === 'keydown' && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) return;
+    if (!jumping) return;
+    jumping = false; clearTimeout(jumpTimer);
+    window.scrollTo({ top: window.scrollY, behavior: 'instant' });
+    following = false; jump.hidden = false; save();
+  }
   function save() {
     if (!current || restoring || scheduled) return;
     const edge = document.querySelector('.top')?.getBoundingClientRect().bottom || 60;
@@ -23,9 +37,14 @@ export function readingPosition({ transcript, streaming, storage }) {
   }
   function latest() {
     following = true; jump.hidden = true;
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }); save();
+    cancelAnimationFrame(frame); cancelAnimationFrame(settled); scheduled = false; restoring = false;
+    jumping = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    jumpTarget = document.documentElement.scrollHeight;
+    window.scrollTo({ top: jumpTarget, behavior: jumping ? 'smooth' : 'instant' }); save();
+    if (jumping) { clearTimeout(jumpTimer); jumpTimer = setTimeout(finishJump, 180); }
   }
   function restore() {
+    if (jumping) return;
     cancelAnimationFrame(frame);
     scheduled = true;
     frame = requestAnimationFrame(() => {
@@ -46,11 +65,14 @@ export function readingPosition({ transcript, streaming, storage }) {
   }
   jump.addEventListener('click', latest);
   const onScroll = () => {
+    if (jumping) { clearTimeout(jumpTimer); jumpTimer = setTimeout(finishJump, 180); return; }
     if (restoring) return;
     following = document.documentElement.scrollHeight - window.innerHeight - window.scrollY < 170;
     jump.hidden = following || !anchors().length; save();
   };
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('scrollend', finishJump);
+  for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) window.addEventListener(type, interruptJump, { passive: true });
   window.addEventListener('pagehide', save);
   if (globalThis.ResizeObserver) {
     observer = new ResizeObserver(() => { if (current) restore(); });
@@ -63,7 +85,7 @@ export function readingPosition({ transcript, streaming, storage }) {
       if (id !== current) { current = id; following = positions.find(item => item.id === id)?.following ?? true; }
     },
     after: restore,
-    moved() { restoring = false; following = false; jump.hidden = false; save(); },
-    dispose() { save(); cancelAnimationFrame(frame); cancelAnimationFrame(settled); observer?.disconnect(); window.removeEventListener('scroll', onScroll); window.removeEventListener('pagehide', save); },
+    moved() { interruptJump({ type: 'find' }); restoring = false; following = false; jump.hidden = false; save(); },
+    dispose() { save(); clearTimeout(jumpTimer); cancelAnimationFrame(frame); cancelAnimationFrame(settled); observer?.disconnect(); window.removeEventListener('scroll', onScroll); window.removeEventListener('scrollend', finishJump); for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) window.removeEventListener(type, interruptJump); window.removeEventListener('pagehide', save); },
   };
 }

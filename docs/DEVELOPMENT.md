@@ -221,3 +221,16 @@ Plan reviews display outcomes, ordered steps, effects, sources, changed inputs,
 remaining and original budgets, prior attempts, and current state. Exact raw
 review data remains in a closed disclosure. Backend revision/digest checks remain
 the execution boundary.
+
+Jump to latest uses a smooth scroll, with immediate movement when reduced motion
+is requested. Reading-position restoration does not interrupt that animation.
+Each observed composer step has its own disclosure for recorded tool, provider,
+timing and finite outcome details; opening a step does not run a tool. Expanded
+steps survive status updates. Task recovery remains in Settings and the command
+palette rather than a generic Details button on the composer.
+
+Usage shows today's totals, seven UTC days of requests or tokens, provider/model
+logos and request categories from the shared local usage ledger. Missing days
+show zero recorded usage. Estimated usage is labeled, unknown cost is not shown
+as zero, and CLI subprocess billing remains separate. Limits and pause/resume
+controls retain the existing reviewed backend actions under Limits & controls.

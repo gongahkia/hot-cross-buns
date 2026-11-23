@@ -2,6 +2,11 @@ import brands from "../internal/branding/catalog.json" with { type: "json" };
 
 // Read only the public projections of already-owned sessions. Inspection never
 // starts a replacement owner or exposes tool arguments, output, or reasoning.
+function publicDetails(values) {
+  const fields = ['kind', 'path', 'domain', 'evidence_id', 'candidate_id', 'status', 'exit_code', 'timed_out', 'agent', 'task_id'];
+  return (values || []).filter(value => ['read_file', 'read_code', 'changed_file', 'searched', 'fetched', 'command', 'candidate', 'specialist'].includes(value.kind)).slice(0, 12)
+    .map(value => Object.fromEntries(fields.filter(key => ['string', 'number', 'boolean'].includes(typeof value[key])).map(key => [key, value[key]])));
+}
 export function taskSummaries(host) {
   const visible = new Set(host.sessions.activity().map(item => item.id));
   const tasks = [];
@@ -24,7 +29,7 @@ export function taskSummaries(host) {
       started_at: trace?.started_at, finished_at: trace?.finished_at,
       steps: (trace?.entries || []).filter(entry => entry.kind === 'tool' || entry.kind === 'status').map(entry => ({
         id: entry.id, tool: entry.tool, icon: entry.icon, brand: entry.brand, text: entry.kind === 'status' ? entry.text : undefined,
-        state: entry.state, started_at: entry.started_at, finished_at: entry.finished_at,
+        state: entry.state, started_at: entry.started_at, finished_at: entry.finished_at, details: publicDetails(entry.details), partial: entry.partial === true,
       })),
       truncated: !!trace?.truncated,
       plans: plans.slice(-4).map(plan => ({ id: plan.id, task: plan.task, phase: plan.phase, steps: (plan.steps || []).map(step => step.text) })),

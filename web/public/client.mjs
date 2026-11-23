@@ -12,6 +12,7 @@ import { panelField } from './fields.mjs';
 import { transcriptFind } from './find.mjs';
 import { readingPosition } from './reading.mjs';
 import { reactionFor, reactionChip, reactionPreference } from './reactions.mjs';
+import { usageView, usageLimits } from './usage.mjs';
 import { taskDetailView } from './task-details.mjs';
 import { workspaceView } from './workspace.mjs';
 import { streamingResponse } from './streaming.mjs';
@@ -49,9 +50,9 @@ $('chat-menu').append(chats.element);
 $("attach").replaceChildren(icon("plus"));
 $("send").replaceChildren(icon("send"));
 $("model-picker").append(icon("chevron"));
-const progress = composerProgress({ inspect: () => void execute(() => showTaskDetails()) });
+const progress = composerProgress();
 document.querySelector('.composer-wrap').prepend(progress.element);
-const inspector = taskInspector({ iconName: 'helpers', showEmpty: true, inspect: id => void execute(() => showTaskDetails(id)), openChat: async id => {
+const inspector = taskInspector({ iconName: 'helpers', showEmpty: true, openChat: async id => {
   await flush();
   if (id !== snapshot.state?.conversation_id) await call({ op: 'open-work', id });
 } });
@@ -404,7 +405,7 @@ function showDetail(title, ...nodes) {
   detailGeneration++;
   $('back-detail').hidden = true; $('back-detail').onclick = null;
   dialog.classList.toggle("memory-pane", nodes.some(node => node.classList?.contains("memory-pane-content")));
-  dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view')));
+  dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view') || node.classList?.contains('usage-dashboard')));
   $("detail-title").textContent = title;
   detail.replaceChildren(...nodes);
   if (previousTitle !== title) dialog.scrollTop = 0;
@@ -423,7 +424,7 @@ async function showTaskDetails(id = snapshot.state?.conversation_id) {
     reviewPlans: () => { dialog.close(); $('active-work').scrollIntoView({ block: 'center' }); },
     profileRecovery: () => void execute(() => backendRoute('/recovery')),
   });
-  openDetail('Task details', view.element); await view.load();
+  openDetail('Task recovery', view.element); await view.load();
 }
 dialog.addEventListener("cancel", event => { event.preventDefault(); $("close-detail").click(); });
 $("close-detail").addEventListener("click", () => {
@@ -537,6 +538,9 @@ function renderPanel(panel) {
   panelKey = key;
   panelMode = true;
   const context = snapshot.context, id = panel.id, nodes = [], fields = new Map();
+  const customUsage = panel.kind === 'usage' && panel.usage;
+  if (customUsage) nodes.push(usageView(panel.usage));
+  const controlStart = nodes.length;
   const act = (action, rest = {}, key) => frame({ type: "panel", ...(key ? { key } : {}), panel: { id, action, ...rest } }, context);
   if (panel.subtitle) nodes.push(element("p", panel.subtitle, "hint"));
   if (panel.notice) nodes.push(element("p", panel.notice, "hint"));
@@ -548,7 +552,7 @@ function renderPanel(panel) {
     }
     nodes.push(summary);
   }
-  for (const block of panel.blocks || []) {
+  for (const block of customUsage ? [] : panel.blocks || []) {
     const section = element(block.collapsible ? 'details' : 'section', undefined, 'view-section');
     if (block.title) section.append(element(block.collapsible ? 'summary' : 'h3', block.title));
     for (const line of block.lines || []) section.append(element('p', panel.kind === 'followup' ? line.replace('Press N to choose sources', 'Choose New check to select sources') : line));
@@ -634,8 +638,14 @@ function renderPanel(panel) {
   for (const link of panel.links || []) if (/^https?:\/\//.test(link.url)) {
     const node = element('a', link.label); node.href = link.url; node.target = '_blank'; node.rel = 'noopener noreferrer'; nodes.push(node);
   }
+  if (customUsage) {
+    const controls = element('details', undefined, 'usage-controls');
+    controls.append(element('summary', 'Limits & controls'), usageLimits(panel.usage), ...nodes.splice(controlStart));
+    controls.append(element('p', 'Limits are shared across this computer and reset at midnight UTC. Token counts include estimates until reported. They are admission limits, not a billing ceiling.', 'hint'));
+    nodes.push(controls);
+  }
   if (!nodes.length) nodes.push(element('p', 'This view has no items yet.', 'hint'));
-  const title = panel.title === 'Follow-up checks' ? 'Scheduled tasks' : panel.title === 'Set up a follow-up check' ? 'Set up a scheduled task' : panel.title === 'Following' ? 'Ongoing responsibilities' : panel.title;
+  const title = customUsage ? 'Usage' : panel.title === 'Follow-up checks' ? 'Scheduled tasks' : panel.title === 'Set up a follow-up check' ? 'Set up a scheduled task' : panel.title === 'Following' ? 'Ongoing responsibilities' : panel.title;
   showDetail(title, ...nodes);
   if (panel.brand) $("detail-title").prepend(brandIcon(panel.brand, "link"));
   $('back-detail').hidden = false; $('back-detail').title = panel.back_label || 'Back';
@@ -899,7 +909,7 @@ export function paletteCommands() {
     { label: 'All chats', action: () => showHistory(true) },
     { label: 'Find in this chat', action: find.open },
     { label: 'Jump to latest', action: reading.latest },
-    { label: 'Task details & recovery', action: () => void execute(() => showTaskDetails()) },
+    { label: 'Task recovery', action: () => void execute(() => showTaskDetails()) },
     { label: 'Delegated work', action: inspector.open },
     { label: 'Scheduled tasks', action: scheduled.open },
   ];

@@ -39,6 +39,9 @@ func TestUsageDisplayUsesSharedAccountingAndKeepsReviewedPolicy(t *testing.T) {
 	if u == nil || u.Requests != 2 || u.Tokens != 140 || u.ActiveRequests != 1 || u.FailedRequests != 1 || u.EstimatedRequests != 1 || u.KnownCostUSD != nil {
 		t.Fatalf("display lost real accounting: %+v", u)
 	}
+	if len(u.History) != 7 || len(u.Providers) != 1 || u.Providers[0].Requests != 2 {
+		t.Fatalf("missing usage chart data: %+v", u)
+	}
 	if u.DailyRequestLimit != 100 || u.DailyTokenLimit != 10000 || u.ConcurrentLimit != 2 || u.Paused {
 		t.Fatalf("display lost policy: %+v", u)
 	}
