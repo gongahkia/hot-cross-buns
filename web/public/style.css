@@ -302,14 +302,15 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .task-trigger { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; font-size: .8rem; }
 .task-pulse { width: .4rem; height: .4rem; border-radius: 50%; background: #a8aea0; }
 .task-trigger[data-active="true"] .task-pulse { animation: activity-breathe 1.6s ease-in-out infinite; }
-.task-inspector { position: fixed; inset: 3.8rem 1rem auto auto; width: min(23rem, calc(100vw - 2rem)); max-height: calc(100dvh - 5rem); margin: 0; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--paper); color: #37352f; overflow-y: auto; box-shadow: 0 .4rem 1.8rem #35271910; opacity: 0; translate: 0 4px; transition: opacity 140ms ease-out, translate 180ms cubic-bezier(.2,0,0,1), display 140ms allow-discrete, overlay 140ms allow-discrete; }
+.task-inspector { position: fixed; inset: 3.8rem 1rem auto auto; width: min(23rem, calc(100vw - 2rem)); max-height: calc(100dvh - 5rem); margin: 0; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--paper); color: #37352f; overflow-y: auto; scrollbar-gutter: stable; box-shadow: 0 .4rem 1.8rem #35271910; opacity: 0; translate: 0 4px; transition: height 220ms cubic-bezier(.2,0,0,1), opacity 140ms ease-out, translate 180ms cubic-bezier(.2,0,0,1), display 140ms allow-discrete, overlay 140ms allow-discrete; }
+.task-popover-content { display: flow-root; }
 .task-inspector:popover-open { opacity: 1; translate: 0 0; }
 .task-inspector::backdrop { background: transparent; }
 .task-inspector .section-head { align-items: center; }
 .task-inspector .section-head h2 { font-size: .9rem; font-weight: 500; }
 .task-inspector .icon-button { width: 1.6rem; height: 1.6rem; }
 .task-inspector .icon-button svg { width: 1rem; height: 1rem; }
-.task-inspector > .hint, .task-body .hint { font-size: .76rem; }
+.task-popover-content > .hint, .task-body .hint { font-size: .76rem; }
 .task-item { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .35rem; }
 .task-item > summary { display: flex; align-items: center; gap: .7rem; padding-block: .5rem; list-style: none; }
 .task-item > summary::-webkit-details-marker { display: none; }

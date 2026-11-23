@@ -306,6 +306,10 @@ test('scheduled task actions use the displayed digest and expose stale errors wi
   assert.deepEqual(calls[0], { action: 'pause', id: task.id, digest: 'original' });
   assert.match(pane.element.querySelector('[role="alert"]').textContent, /Schedule changed/);
   assert.equal(task.enabled, true);
+  pane.element.querySelector('.task-item').open = true;
+  pane.update({ entries: [task, { ...task, id: 'another', title: 'Evening notes' }], running: true });
+  assert.equal(pane.element.querySelector('[data-task-id="job-sample"]').open, true);
+  assert.equal(pane.element.querySelector('[data-task-id="another"]').open, false);
 });
 
 test('live chat activity can remain collapsed while its status updates', () => {

@@ -92,8 +92,10 @@ out of the composer. Connection loss pauses its display.
 
 The clock icon, app menu, and Settings open the same **Scheduled tasks** dropdown.
 It shares Delegated work’s right-side popover layout, opening/closing motion,
-light dismissal, and reduced-motion behavior. It contains next-run times, timezones, and
-the existing revision-checked pause, resume, details, and timing controls. Ongoing
+light dismissal, and reduced-motion behavior. Both dropdowns ease content-height
+changes over 220ms, retain their viewport cap and internal scrolling, and keep
+expanded scheduled tasks open across list updates. The dropdown contains next-run
+times, timezones, and the existing revision-checked pause, resume, details, and timing controls. Ongoing
 responsibilities and schedule creation open their canonical management views.
 The branching icon opens **Delegated work**, a separate sidebar showing public
 specialist assignments, status, engine, and the owning chat. Codex, Claude Code,

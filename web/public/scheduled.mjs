@@ -1,3 +1,4 @@
+import { animatePopoverHeight } from './popover-height.mjs';
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
@@ -31,6 +32,7 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
   function update(value = {}) {
     const next = JSON.stringify(value); if (next === fingerprint) return; fingerprint = next;
     health.textContent = value.issue || (value.running === false ? 'Local scheduler is stopped.' : ''); health.hidden = !health.textContent;
+    const expanded = new Set([...list.children].filter(row => row.open).map(row => row.dataset.taskId));
     list.replaceChildren();
     for (const task of value.entries || []) {
       const row = element('details', undefined, 'task-item'), head = element('summary'), heading = element('span', undefined, 'task-heading');
@@ -39,6 +41,7 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
         try { due = new Date(task.next_due).toLocaleString(undefined, { timeZone: task.timezone || undefined, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { due = task.next_due; }
       }
       heading.append(element('span', task.title, 'task-name'), element('span', task.enabled ? (due ? 'Next · ' + due + ' · ' + task.timezone : task.state || 'Scheduled') : 'Paused', 'task-status'));
+      row.dataset.taskId = task.id; row.open = expanded.has(task.id);
       const chevron = icon('chevron-right'); chevron.classList.add('disclosure-icon');
       head.append(heading, chevron); row.append(head);
       if (task.outcome) row.append(element('p', task.outcome, 'hint'));
@@ -53,5 +56,6 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
   root.addEventListener('toggle', event => { if (event.newState === 'open') void perform({ action: 'refresh' }); });
   function open() { root.showPopover(); }
   update();
+  animatePopoverHeight(root);
   return { element: root, trigger, update, open };
 }
