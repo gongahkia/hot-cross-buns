@@ -6,7 +6,7 @@ import { Markdown } from "../src/hot-cross-buns/markdown"
 
 test("Markdown styles prose and preserves code, lists, links and tables at narrow widths", async () => {
   const text = '# Plan\n\n**Bold** and *italic* with `inline code`.\n\n1. First item\n2. Second item\n\n> A useful quote\n\n[Reference](https://example.com/help)\n\n```text\nconst value = "**literal**"\n```\n\n| Name | State |\n| --- | --- |\n| Report | Ready |\n\n\x1b[31mSafe text\x1b[0m'
-  const setup = await testRender(() => <ThemeProvider theme="dark"><Markdown text={text} /></ThemeProvider>, { width: 70, height: 35 })
+  const setup = await testRender(() => <ThemeProvider theme="terminal"><Markdown text={text} /></ThemeProvider>, { width: 70, height: 35 })
   try {
     // The bundled parser highlights asynchronously; wait for semantic rendering.
     for (let n = 0; n < 30; n++) {
