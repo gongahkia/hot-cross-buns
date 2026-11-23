@@ -1,4 +1,4 @@
-import { animatePopoverHeight } from './popover-height.mjs';
+import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
 import { elapsed, toolLabel } from './activity.mjs';
 import { icon, setIcon, activityIcon } from './icons.mjs';
@@ -115,7 +115,7 @@ export function taskInspector({ openChat, inspect, description = '', title: head
     if (!tasks.length) list.append(element('p', 'Nothing delegated right now. Work I hand off will appear here.', 'task-empty hint'));
     tick();
   }
-  animatePopoverHeight(root);
+  animateSurfaceHeight(root);
   return { element: root, trigger, update, tick, open };
 }
 

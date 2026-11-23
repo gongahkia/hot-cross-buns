@@ -26,12 +26,13 @@ button { border: 0; border-radius: .35rem; background: transparent; padding: .3r
   padding: .65rem clamp(.8rem, 3.5vw, 2.8rem);
   background: var(--paper);
 }
-.wordmark { display: flex; align-items: center; gap: .4rem; font-weight: 500; color: #37352f; }
+.wordmark { transition: background-color 140ms ease-out, color 140ms ease-out; display: flex; align-items: center; gap: .4rem; font-weight: 500; color: #37352f; }
+.wordmark[aria-expanded="true"] { background: var(--wash); }
 .new span { color: var(--accent); padding-inline-end: .25rem; }
 .history {
   position: fixed; z-index: 3; inset: 3.7rem auto auto clamp(.7rem, 3vw, 2.5rem);
   width: min(18rem, calc(100vw - 1.4rem)); max-height: calc(100dvh - 5rem);
-  overflow: auto; padding: .8rem; background: var(--paper);
+  margin: 0; overflow: auto; scrollbar-gutter: stable; padding: .8rem; background: var(--paper);
   border: 1px solid var(--line); border-radius: .55rem;
   box-shadow: 0 .4rem 1.8rem #35271910;
 }
@@ -72,8 +73,14 @@ textarea { display: block; width: 100%; max-height: 12rem; min-height: 1.75rem; 
 .send:hover:not(:disabled) { background: #55534e; }
 .attachments { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .3rem; }
 .attachments button { background: var(--wash); overflow-wrap: anywhere; }
-dialog { border: 1px solid var(--line); border-radius: .65rem; color: inherit; background: var(--paper); padding: 1.2rem; width: min(37rem, calc(100% - 1.5rem)); max-height: min(85dvh, 48rem); }
-dialog::backdrop { background: #25201835; }
+dialog { opacity: 0; translate: 0 4px; overflow-y: auto; scrollbar-gutter: stable; transition: height 220ms cubic-bezier(.2,0,0,1), width 220ms cubic-bezier(.2,0,0,1), opacity 140ms ease-out, translate 180ms cubic-bezier(.2,0,0,1), display 140ms allow-discrete, overlay 140ms allow-discrete; border: 1px solid var(--line); border-radius: .65rem; color: inherit; background: var(--paper); padding: 1.2rem; width: min(37rem, calc(100% - 1.5rem)); max-height: min(85dvh, 48rem); }
+dialog[open] { opacity: 1; translate: 0 0; }
+dialog:not([open]) { pointer-events: none; }
+dialog::backdrop { background: #25201835; opacity: 0; transition: opacity 140ms ease-out, display 140ms allow-discrete, overlay 140ms allow-discrete; }
+dialog[open]::backdrop { opacity: 1; }
+@starting-style { dialog[open] { opacity: 0; translate: 0 6px; } dialog[open]::backdrop { opacity: 0; } }
+:is(.history, #detail) button { transition: background-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .wordmark, :is(.history, #detail) button, dialog, dialog::backdrop { transition: none; } }
 #detail-body { margin-top: .8rem; }
 #detail-body > :first-child { margin-top: 0; }
 #detail-body ul { padding-inline-start: 1.15rem; }
@@ -302,15 +309,17 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .task-trigger { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; font-size: .8rem; }
 .task-pulse { width: .4rem; height: .4rem; border-radius: 50%; background: #a8aea0; }
 .task-trigger[data-active="true"] .task-pulse { animation: activity-breathe 1.6s ease-in-out infinite; }
-.task-inspector { position: fixed; inset: 3.8rem 1rem auto auto; width: min(23rem, calc(100vw - 2rem)); max-height: calc(100dvh - 5rem); margin: 0; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--paper); color: #37352f; overflow-y: auto; scrollbar-gutter: stable; box-shadow: 0 .4rem 1.8rem #35271910; opacity: 0; translate: 0 4px; transition: height 220ms cubic-bezier(.2,0,0,1), opacity 140ms ease-out, translate 180ms cubic-bezier(.2,0,0,1), display 140ms allow-discrete, overlay 140ms allow-discrete; }
-.task-popover-content { display: flow-root; }
-.task-inspector:popover-open { opacity: 1; translate: 0 0; }
-.task-inspector::backdrop { background: transparent; }
+.task-inspector { position: fixed; inset: 3.8rem 1rem auto auto; width: min(23rem, calc(100vw - 2rem)); max-height: calc(100dvh - 5rem); margin: 0; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--paper); color: #37352f; overflow-y: auto; scrollbar-gutter: stable; box-shadow: 0 .4rem 1.8rem #35271910; }
+.surface-content { display: flow-root; }
+.history, .task-inspector { opacity: 0; translate: 0 4px; transition: height 220ms cubic-bezier(.2,0,0,1), opacity 140ms ease-out, translate 180ms cubic-bezier(.2,0,0,1), display 140ms allow-discrete, overlay 140ms allow-discrete; }
+.history:not(:popover-open) { pointer-events: none; }
+.history:popover-open, .task-inspector:popover-open { opacity: 1; translate: 0 0; }
+.history::backdrop, .task-inspector::backdrop { background: transparent; }
 .task-inspector .section-head { align-items: center; }
 .task-inspector .section-head h2 { font-size: .9rem; font-weight: 500; }
 .task-inspector .icon-button { width: 1.6rem; height: 1.6rem; }
 .task-inspector .icon-button svg { width: 1rem; height: 1rem; }
-.task-popover-content > .hint, .task-body .hint { font-size: .76rem; }
+.surface-content > .hint, .task-body .hint { font-size: .76rem; }
 .task-item { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .35rem; }
 .task-item > summary { display: flex; align-items: center; gap: .7rem; padding-block: .5rem; list-style: none; }
 .task-item > summary::-webkit-details-marker { display: none; }
@@ -332,8 +341,8 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .task-proposal ol { padding-inline-start: 1.2rem; }
 .task-links { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .55rem; }
 .task-links button { font-size: .75rem; padding-inline: 0; }
-@starting-style { .task-inspector:popover-open { opacity: 0; translate: 0 6px; } }
-@media (prefers-reduced-motion: reduce) { .task-inspector, .task-item > summary > .disclosure-icon { transition: none; } .task-trigger .task-pulse, .task-steps [data-state="running"] .task-check { animation: none; } }
+@starting-style { .history:popover-open, .task-inspector:popover-open { opacity: 0; translate: 0 6px; } }
+@media (prefers-reduced-motion: reduce) { .history, .task-inspector, .task-item > summary > .disclosure-icon { transition: none; } .task-trigger .task-pulse, .task-steps [data-state="running"] .task-check { animation: none; } }
 @media (max-width: 520px) { .top-actions { gap: .1rem; flex-wrap: wrap; justify-content: flex-end; } .task-trigger { font-size: .72rem; } }
 
 .scheduled-pane .task-item > p { margin: .45rem 0; }

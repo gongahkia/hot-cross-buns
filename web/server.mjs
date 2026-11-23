@@ -33,7 +33,7 @@ const assets = new Map([
   ["/caret.mjs", ["caret.mjs", "text/javascript; charset=utf-8"]],
   ["/activity.mjs", ["activity.mjs", "text/javascript; charset=utf-8"]],
   ["/task-inspector.mjs", ["task-inspector.mjs", "text/javascript; charset=utf-8"]],
-  ["/popover-height.mjs", ["popover-height.mjs", "text/javascript; charset=utf-8"]],
+  ["/surface-motion.mjs", ["surface-motion.mjs", "text/javascript; charset=utf-8"]],
   ["/scheduled.mjs", ["scheduled.mjs", "text/javascript; charset=utf-8"]],
   ["/palette.mjs", ["palette.mjs", "text/javascript; charset=utf-8"]],
 ]);

@@ -10,12 +10,12 @@
 </head>
 <body>
   <header class="top">
-    <button id="history-toggle" class="wordmark quiet" type="button" aria-expanded="false" aria-controls="history">
+    <button id="history-toggle" class="wordmark quiet" type="button" aria-expanded="false" aria-controls="history" popovertarget="history">
       <span class="bread" aria-hidden="true">🍞</span> Hot Cross Buns
     </button>
     <div class="top-actions"></div>
   </header>
-  <aside id="history" class="history" aria-label="Conversation history" hidden>
+  <aside id="history" class="history" aria-label="Conversation history" popover="auto">
     <button id="new-chat" class="quiet new" type="button" data-ui-icon="plus">New chat</button>
     <div class="section-head"><h2>Chats</h2></div>
     <div id="chat-menu"></div>

@@ -1,4 +1,4 @@
-import { animatePopoverHeight } from './popover-height.mjs';
+import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
@@ -56,6 +56,6 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
   root.addEventListener('toggle', event => { if (event.newState === 'open') void perform({ action: 'refresh' }); });
   function open() { root.showPopover(); }
   update();
-  animatePopoverHeight(root);
+  animateSurfaceHeight(root);
   return { element: root, trigger, update, open };
 }

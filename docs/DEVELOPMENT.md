@@ -103,6 +103,13 @@ and Pi use the existing opt-in isolated CLI adapters. Gemini and OpenCode do not
 have adapters yet. See [CLI delegation setup](SUBAGENTS_AND_CLI_INTEROP.md).
 No CLI is enabled or launched by opening the sidebar.
 
+The app-name menu uses the same native popover, subtle slide/fade, and measured
+height transitions as the task dropdowns. Its management dialogs share animated
+opening/closing, a fading backdrop, bounded height changes, and a short incoming
+view transition. Switching retained chats uses the same quiet content reveal.
+Closing releases focus and interaction immediately, and reduced-motion
+preferences disable these effects.
+
 The app-name menu contains New chat and an internally scrolling **Chats** list.
 The list pages through all retained chats, including archived chats, using the
 Go native catalog rather than the 24-item recent projection. Fading edges show

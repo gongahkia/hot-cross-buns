@@ -1,3 +1,4 @@
+import { animateSurfaceHeight, viewTransition } from './surface-motion.mjs';
 import { element, prose, turn } from "./text.mjs";
 import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
@@ -19,6 +20,13 @@ import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
 
 const $ = id => document.getElementById(id);
 const input = $("message"), dialog = $("detail"), detail = $("detail-body");
+animateSurfaceHeight($('history'));
+animateSurfaceHeight(dialog);
+const detailMotion = viewTransition(detail);
+const chatMotion = viewTransition(document.querySelector('.paper'));
+dialog.addEventListener('beforetoggle', event => {
+  if (event.target === dialog && event.newState === 'closed') detailMotion.cancel();
+});
 const storage = "hot-cross-buns.web.v1";
 let snapshot = {}, draft, pending, revision = 0, saveTimer, busy = false, online = false, issue = "";
 let transcriptKey = "", streamingText = "", historyKey = "", panelKey = "", workKey = "", panelMode = false;
@@ -338,16 +346,15 @@ async function openAttachment(file, context, page = 1) {
 $("model-picker").addEventListener("click", () => void execute(() => navigate("/model")));
 
 function showHistory(open) {
-  $("history").hidden = !open;
-  $("history-toggle").setAttribute("aria-expanded", String(open));
-  if (open) void chats.load(snapshot.context);
+  const history = $('history');
+  if (open === history.matches(':popover-open')) return;
+  if (open) history.showPopover(); else history.hidePopover();
 }
-$("history-toggle").addEventListener("click", () => showHistory($("history").hidden));
-document.addEventListener("pointerdown", event => {
-  if (!$("history").contains(event.target) && !$("history-toggle").contains(event.target)) showHistory(false);
-});
-document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !dialog.open && !$("history").hidden) { showHistory(false); $("history-toggle").focus(); }
+$('history').addEventListener('toggle', event => {
+  if (event.target !== $('history')) return;
+  const open = event.newState === 'open';
+  $('history-toggle').setAttribute('aria-expanded', String(open));
+  if (open) void chats.load(snapshot.context);
 });
 async function navigate(route) {
   await flush();
@@ -386,17 +393,21 @@ for (const node of document.querySelectorAll("[data-route]")) node.addEventListe
 function renderHistory(state) {
   chats.updateCurrent(state.conversation_id);
   const key = JSON.stringify([snapshot.context, state.recentId]);
-  if (key !== historyKey && !$('history').hidden) void chats.load(snapshot.context);
+  if (key !== historyKey && $('history').matches(':popover-open')) void chats.load(snapshot.context);
   historyKey = key;
 }
 function showDetail(title, ...nodes) {
+  const changingView = dialog.open;
+  const previousTitle = $('detail-title').textContent;
   detailGeneration++;
   $('back-detail').hidden = true; $('back-detail').onclick = null;
   dialog.classList.toggle("memory-pane", nodes.some(node => node.classList?.contains("memory-pane-content")));
   dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view')));
   $("detail-title").textContent = title;
   detail.replaceChildren(...nodes);
+  if (previousTitle !== title) dialog.scrollTop = 0;
   if (!dialog.open) dialog.showModal();
+  else if (changingView) detailMotion.reveal();
 }
 function openDetail(title, ...nodes) {
   panelMode = false;
@@ -867,6 +878,7 @@ events.onmessage = ({ data }) => {
   renderStreaming(state);
   renderWork(state);
   renderPanel(state.panel);
+  if (online && previous.state?.conversation_id && state.conversation_id && previous.state.conversation_id !== state.conversation_id) chatMotion.reveal();
   controls();
   status();
   if (previous.context !== snapshot.context || previous.connection !== "connected" && snapshot.connection === "connected" || previous.switching && !snapshot.switching && draft?.context !== snapshot.context) void loadDraft();
