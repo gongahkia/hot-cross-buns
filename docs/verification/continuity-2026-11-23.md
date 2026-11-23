@@ -2,6 +2,9 @@
 
 Verified on Linux using the private Go runtime and the real browser gateway.
 
+The scan ceilings and lexical-only recall limitations below describe the first
+implementation. They are superseded by [incremental archive verification](continuity-archive-2026-11-23.md).
+
 ## Automated checks
 
 `TMPDIR=/var/tmp GOMAXPROCS=1 GOFLAGS=-p=1 GOMEMLIMIT=768MiB make check`

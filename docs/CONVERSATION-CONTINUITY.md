@@ -1,106 +1,139 @@
 # Continuing personal conversation
 
-Main chat uses conversational routing from its first message. Simple replies can
-use the current context without starting Work. Requests needing tools, memory
-changes, investigation, or execution still enter separately scoped Work. The
-interface keeps the same composer, thinking trace, and background-task controls.
+Main chat uses conversational routing from its first message. Simple replies use
+current context without starting Work. Requests needing tools or execution still
+enter separately scoped Work. The composer and background-task controls stay the
+same; archive maintenance adds no new chat dashboard.
 
 ## Context prepared for each request
 
-- Recent public user/assistant text is retained in detail: normally eight turns,
-  with up to three additional turns while waiting for the next summary batch.
-  The text budget is 48 KiB; a single message is bounded to 8 KiB, with an explicit
-  shortened-excerpt label. Original text remains in the conversation store.
-- A rolling summary preserves objectives, decisions, corrections, open questions,
-  promised follow-ups, reported outcomes, and source-turn identifiers. It is
-  historical reference, not a personal profile or an authorization record.
-- Current saved preferences and query-relevant memories are loaded from the
-  existing memory store, respecting exclusions, expiry, conflicts and source
-  validity. Memory remains editable in the normal Memory view.
-- Lexical recall supplies up to four source-linked excerpts from older turns in
-  the current chat and, when earlier-chat retrieval is enabled, at most 24 other
-  retained chats. It includes dialogue as well as Work revisions. Goal-bound
-  histories and their task/branch ancestry remain scoped. These bounded matches
-  do not establish that everything relevant has been found.
-- Main chat receives bounded active responsibilities and unfinished plan steps,
-  retained pending/recovery requests, and enabled schedule definitions. Side
-  chats receive only their selected goal's responsibilities. Retained running
-  state explicitly needs inspection; it is not a liveness check. A configured
-  schedule does not prove that the supervisor ran or an external action occurred.
-  Recent completed/failed/stopped task outcomes are reread from their retained
-  journals and public revisions, so discussing a result does not depend on its
-  worker remaining open. Those results still carry no action-control authority.
+- Recent public user/assistant text stays in detail: normally eight turns, plus
+  up to three while waiting for a section batch. The text budget is 48 KiB;
+  individual message excerpts are bounded to 8 KiB with a shortening label.
+- Earlier discussion is represented by source-linked section summaries and
+  higher-level overviews. These preserve historical decisions, corrections,
+  unresolved questions and reported outcomes, rather than becoming a profile or
+  an authorization record. Current memory and task records take precedence.
+- Current preferences and query-relevant memories come from the existing editable
+  memory store, respecting exclusions, expiry, conflicts and source validity.
+- Up to four original excerpts are recalled from indexed dialogue and public
+  Work output. Full-text search covers every indexed chat, independently of chat
+  recency. When embeddings are available, reciprocal rank fusion combines word
+  matches with semantic matches. Scope, branch ancestry, admission time and
+  withdrawal rules are checked before embedding and again before disclosure.
+- Main chat receives bounded active responsibilities, unfinished plan steps,
+  pending/recovery requests and enabled schedule definitions. Side chats receive
+  their goal's responsibilities. Retained state needs inspection; a schedule
+  definition does not establish that it ran or that an external action occurred.
+  Completed/failed/stopped task outcomes are reread from journals and public
+  revisions, including after a worker closes. They carry no control authority.
 
-The router can send a request to existing history tools when bounded recall is
-insufficient and the user's earlier-chat setting permits that search. Durable
-facts/preferences can enter existing memory tools when learning is enabled.
-Explicit remember/edit/forget requests also use those tools. Only the current
-user message can supply fresh evidence for a passive memory save; summaries and
-retrieved excerpts cannot. Recognition still depends on the model's decision.
+Only the current user message can provide fresh evidence for passive memory
+learning. Summaries and retrieved text cannot save themselves as personal facts,
+approve actions, expand tool/account/workspace access, start schedules or replay
+interrupted work. Earlier-chat opt-out keeps current-chat recall and saved memory
+available. Goal-bound histories and their task/branch ancestry stay scoped.
 
-## Durable summaries
+## Incremental local archive
 
-`internal/worksession` prepares a public timeline from the selected Work ancestry
-and the same chat's dialogue. Equal-time dialogue uses sequence order. Captured
-options, tool replay, credentials, files, action tokens and live control rights
-are excluded. Admission boundaries exclude the current message and later text.
+Canonical conversation/revision JSON remains authoritative. A private, disposable
+SQLite cache at `hot-cross-buns/cache/conversations-v1.sqlite` contains public
+history sources, overlapping 1,500-character chunks, FTS5 search, summary nodes,
+dependencies, embedding vectors and progress checkpoints. Captured options,
+credentials, attachment bytes, tool replay and action tokens are excluded.
 
-The derived `conversations/<id>/continuity.json` stores the summary, exact covered
-prefix count/digest, memory-policy epoch, optimistic revision and update time.
-Publication is private, bounded and atomic; concurrent writers use a process
-lock and revision check. Publication cannot recreate a deleted conversation.
-Forks build their own summary from their selected visible history. Preparing an
-older task cannot replace a newer incompatible main-chat summary.
+Native writes update the index. Foreground preparation attempts at most 128
+sources with a separate two-second backfill deadline; background maintenance
+visits four chats per sweep with 32-source pages and a four-second deadline.
+Discovery rotates across all chat directory identities, rather than the latest
+24. Checkpoints survive restarts. A rotating 32-source stat audit also discovers
+external edits/deletions. Selected excerpts are reread from canonical files;
+changed or missing candidates are withheld and repaired.
 
-Older context is summarized in groups, normally after four additional old turns
-or when its text budget fills. A request performs at most two summary calls;
-each batch has at most 32 source turns and 48 KiB of excerpt text, plus the prior
-summary. Summaries are limited to 12 KiB. Calls use the selected chat model and
-the existing shared provider-usage accounting; they can incur provider charges.
-No embeddings or separate service are required.
+Preparation no longer calls the legacy full-history scanner with its 4,096-turn /
+16 MiB ceiling. Index errors or unfinished backfill produce context notices and
+recent canonical dialogue remains usable. Backfill neither starts inference nor
+changes canonical history. Large archives catch up over time; partial indexing
+is not complete recall.
 
-Original transcripts are never deleted by compaction. A changed source prefix,
-memory edit/withdrawal, exclusion or processing setting invalidates the cache.
-Withdrawn historical topics are screened by the existing privacy filter before
-they can enter a new summary, recent context, recall, or commitment reference.
-Known forgotten source chats remain excluded from cross-chat recall. A memory
-change during preparation rejects that prepared snapshot. This preserves the
-existing distinction between forgetting agent memory and deleting user-visible
-transcripts; it is not a claim of universal semantic deletion.
+## Source-linked summary layers
 
-Planning and execution rebuild continuity from owning stores under their original
-captured scope. Historical task reports carry false control capabilities;
-summaries and memories cannot approve actions, expand accounts/workspaces, start
-schedules, or replay interrupted work. Current user corrections and current
-memory/task records take precedence over historical summaries.
+Each level-zero node summarizes at most 32 older turns from originals, keeping
+recent turns separate. A new section is normally created after four additional
+old turns or when its text budget fills. Two disjoint frontier nodes of the same
+level can form a parent overview. Originals and lower-level sections remain
+available; the whole growing history is not repeatedly compressed into one
+mutable summary.
 
-## Failure and verification boundaries
+Dependencies retain exact source digests, child-node digests and linked memory
+versions. A source mutation invalidates its section and ancestors. A linked
+memory correction/deletion invalidates only dependent sections and ancestors;
+an unrelated memory edit preserves the existing summaries. Memory owners send
+best-effort cache notifications, and preparation also reconciles versions.
+Withdrawal-policy changes re-screen selected sections and source excerpts; known
+forgotten source chats remain excluded from cross-chat retrieval. A memory change
+during preparation rejects that prepared snapshot. This is selective withdrawal,
+not universal semantic deletion of user-visible transcripts.
 
-A failed or malformed summarizer leaves its prior valid cache and original
-history intact. The next request can retry summarization. Partial coverage and
-unavailable older history are explicit context notices; the router must not
-claim complete recall. Invalid cache files, unavailable current history and
-privacy-filter failures are reported instead of trusting questionable context.
-Current-history preparation has a hard scan ceiling of 4,096 public turns and
-16 MiB; reaching it reports a limit rather than silently dropping old state.
+Nodes publish transactionally after source-digest checks. Forks build from their
+own selected history. An older admitted task cannot replace the newer main-chat
+summary view. `conversations/<id>/continuity.json` is now a bounded derived view;
+SQLite source-linked nodes are the reusable summary cache.
 
-Tests cover summary reuse/extension/restart, recent text without batching gaps,
-source boundaries, private-input exclusion, stale writes, forks, deleted chats,
-correction/exclusion/forgetting, concurrent memory changes, opt-out and goal
-boundaries, current commitments, schedule changes, and the real browser gateway
-through the Go runtime. Deterministic fixtures verify these mechanisms; they do
-not measure longitudinal recall quality or a live model's semantic judgments.
+A request makes at most two summary calls, each limited to 48 KiB of source
+excerpt text and a 12 KiB result. Summary text supplied to the conversation is
+also capped at 12 KiB. Calls use the selected chat model and shared usage
+accounting, so a cloud chat model can charge for summarization. Failed or malformed
+summaries leave originals and unrelated valid sections available for retry.
 
-An opt-in live check is available using the configured provider and its existing
-credential store:
+## Semantic recall and permission
+
+The default embedder is local Ollama `embeddinggemma:latest` when installed and
+running. Nothing is installed, downloaded or started automatically. An unavailable
+runtime, failed embedding, invalid vector or embedding deadline falls back to
+word matching. One request examines one checkpointed page of 32 pending chunks,
+embeds at most 15 eligible chunks plus its query, and has a three-second semantic
+budget. Vector search streams from SQLite and retains only the best candidates;
+it has no 4,096-document in-memory limit.
+
+Cloud embedding adapters reuse existing OpenAI/Gemini support. Saved-knowledge
+upload permission alone does **not** authorize conversation embedding. Memory &
+privacy has a separate reviewed cloud-history upload control; reviewed app
+retrieval changes can also set `chat_history_upload`. Changing provider resets
+that permission. Chat model selection/API-key presence never enables it.
+Processing scope pins the embedding settings so prepared work cannot silently
+switch its embedding destination. Revocation stops future history embedding
+calls; already supplied context cannot be withdrawn from a running provider call.
+
+Source mutations and dependent memory changes remove affected vectors. Forgetting
+also removes vectors for known suppressed source chats. Canonical checks and
+privacy screening remain authoritative if a cache notification is interrupted.
+The source text remains in user-visible history until the user deletes it.
+
+## Practical limits and verification
+
+Recall is selective. It evaluates bounded candidate windows, supplies at most four
+excerpts, and may miss relevant material. Embeddings fill incrementally during
+requests, so a large legacy archive initially relies more on word matching.
+Vector comparison is linear disk I/O, not an approximate-nearest-neighbor index.
+The existing private SQLite cache ceiling is 512 MiB; reaching it degrades to
+recent canonical context rather than rejecting a new message. Very large
+installations may eventually need sharding or a dedicated vector index.
+
+Tests cover large legacy backfill beyond 4,096 turns, text beyond 16 MiB, restart
+checkpoints, chats outside the old recency window, semantic-only matches, exact
+matching during outages, admission/goal/opt-out/withdrawal checks before upload,
+vector validation and compare-and-set publication, targeted invalidation,
+unchanged-section reuse, malformed summaries, deletion, cache failure, forks,
+commitments and the real browser gateway. Deterministic tests verify mechanisms,
+not longitudinal recall quality. See [verification](verification/continuity-archive-2026-11-23.md).
+
+An opt-in synthetic model check uses the configured provider and credential store:
 
 ```sh
 HOT_CROSS_BUNS_LIVE_CONTINUITY=1 go test ./cmd/hot-cross-buns -run '^TestLiveConversationContinuity$' -count=1 -v -timeout=100s
 ```
 
-On 23 November 2026 this passed with OpenAI `gpt-5.6`: a corrected synthetic
-deadline and the distinction between a comparison draft and an unconfirmed
-booking survived 16 summarized turns. The probe used temporary synthetic state,
-made no external account actions, and left real conversations unchanged. It
-exercises one summary and one conversational answer, uses provider usage, and is
-skipped by ordinary checks. This single case is not longitudinal quality evidence.
+It uses temporary state and no connected-account actions. It tests a correction
+and an unconfirmed booking across a summary and a subsequent answer; this is one
+semantic case, not months-long personal-agent evidence.
