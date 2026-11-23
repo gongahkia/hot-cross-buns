@@ -114,8 +114,11 @@ destination owner before focusing it. No arbitrary renderer chat ID is trusted.
 Models, Connections, Memory, Saved, Scheduled tasks, and Settings use modals.
 Local models use the native provider API for inventory and exact reviewed future
 selection, including selection receipts and reconciliation. The web host's old
-`/model` screen remains blocked; runtime start/stop and downloads are not enabled
-there. The terminal frontend and its packaging have been retired.
+`/model` screen remains blocked. **Models → Local models** offers reviewed
+Start/Stop for a separate app-owned Ollama process and curated missing-model
+downloads with progress/cancellation. Other runtime processes stay read-only.
+See [runtime ownership](WEB-ONLY-RUNTIME.md). The terminal frontend and its
+packaging have been retired.
 Settings is a hub for real model, connection, privacy, usage, data, and recovery
 controls; backend forms keep their view identity and explicit review step.
 Saved contains global notes rather than a second personal-memory list.

@@ -295,13 +295,21 @@ export async function startWeb(options, port = 4317) {
         return providers(body);
       case 'local-models': {
         host.mutable();
-        if (!['local_status', 'local_review_select', 'local_select', 'local_cancel_review', 'local_reconcile'].includes(body.action)) throw new RequestError(400, 'This local model action is unavailable.');
-        const fields = { local_review_select: ['model_id'], local_select: ['model_id', 'review_id', 'generation'], local_cancel_review: ['review_id', 'generation'], local_reconcile: ['operation_id'], local_status: [] }[body.action];
+        const fields = {
+          local_review_select: ['model_id'], local_select: ['model_id', 'review_id', 'generation'], local_cancel_review: ['review_id', 'generation'], local_reconcile: ['operation_id'], local_status: [],
+          runtime_status: [], runtime_review_start: [], runtime_review_stop: [], runtime_review_download: ['model_id'],
+          runtime_start: ['review_id', 'generation'], runtime_stop: ['review_id', 'generation'], runtime_download: ['model_id', 'review_id', 'generation'],
+          runtime_cancel_review: ['review_id', 'generation'], runtime_cancel_download: ['review_id', 'generation'],
+        }[body.action];
+        if (!Array.isArray(fields)) throw new RequestError(400, 'This local model action is unavailable.');
+        if (body.app_owned !== undefined && (typeof body.app_owned !== 'boolean' || !['local_status', 'local_review_select', 'local_select', 'local_cancel_review', 'local_reconcile'].includes(body.action))) throw new RequestError(400, 'Invalid local model source.');
         const action = { request_id: randomUUID(), action: body.action };
         for (const name of fields) {
-          if (typeof body[name] !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(body[name])) throw new RequestError(400, 'Refresh local models and review this selection again.');
+          const valid = name === 'model_id' ? /^[a-zA-Z0-9_.-]{1,128}$/ : /^[a-zA-Z0-9_-]{1,128}$/;
+          if (typeof body[name] !== 'string' || !valid.test(body[name])) throw new RequestError(400, 'Refresh local models and review this selection again.');
           action[name] = body[name];
         }
+        if (body.app_owned !== undefined) action.app_owned = body.app_owned;
         const owner = host.backend, result = await owner.nativeProvider(action);
         requireContext(context);
         if (owner !== host.backend) throw new RequestError(409, 'The conversation changed. Reopen local models.');

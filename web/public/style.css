@@ -509,3 +509,8 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .plan-review p, .plan-review li { white-space: pre-wrap; overflow-wrap: anywhere; }
 .plan-review p { margin: 0; }
 .plan-review ol { padding-left: 1.25rem; margin-top: .3rem; }
+.local-runtime-controls { display: flex; align-items: center; gap: .4rem; margin-block: .6rem; }
+.local-models-view button > svg { width: .9rem; height: .9rem; margin-right: .35rem; vertical-align: -.12rem; }
+.local-runtime details { color: var(--muted); font-size: .82rem; }
+.local-runtime-review { border-left: 1px solid var(--line); padding-left: .85rem; }
+.local-models-view .view-facts dd { overflow-wrap: anywhere; }

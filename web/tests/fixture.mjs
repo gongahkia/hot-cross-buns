@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0 } = {}) {
+export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -51,7 +51,7 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0 
   }));
   const binary = process.env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL(
     "../../runtime/hot-cross-buns-runtime" + (process.platform === "win32" ? ".exe" : ""), import.meta.url));
-  const env = { ...process.env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1", HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: join(root, "state") };
+  const env = { ...process.env, ...(runtimePath ? { PATH: runtimePath + ":" + process.env.PATH } : {}), XDG_CACHE_HOME: join(root, "cache"), HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1", HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: join(root, "state") };
   const seededChats = [];
   for (let i = 0; i < chatCount; i++) {
     const id = 'work-fixture-' + String(i).padStart(3, '0'), at = new Date(Date.now() - (i + 1) * 60000).toISOString();

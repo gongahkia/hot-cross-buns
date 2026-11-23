@@ -429,14 +429,14 @@ test('local model selection binds the displayed review and never repeats an unco
     calls.push(action);
     if (action.action === 'local_review_select') return { local_review: review };
     if (action.action === 'local_select') throw new Error('Publication could not be confirmed. Refresh and reconcile.');
-    return { local };
+    return { local, runtime: { state: "running", available: true } };
   } });
   document.body.replaceChildren(pane.element); await pane.load();
   const find = text => [...pane.element.querySelectorAll('button')].find(node => node.textContent === text);
   find('Review selection').click(); await new Promise(resolve => setTimeout(resolve, 0));
   assert.match(pane.element.querySelector('.local-selection-review').textContent, /Future requests only/);
   find('Confirm future selection').click(); await new Promise(resolve => setTimeout(resolve, 0));
-  assert.deepEqual(calls.at(-1), { action: 'local_select', model_id: 'local', review_id: 'review', generation: 'generation' });
+  assert.deepEqual(calls.at(-1), { action: 'local_select', model_id: 'local', review_id: 'review', generation: 'generation', app_owned: true });
   assert.equal(find('Confirm future selection'), undefined);
   assert.match(pane.element.querySelector('[role="alert"]').textContent, /could not be confirmed/);
   assert.equal(calls.filter(call => call.action === 'local_select').length, 1);
@@ -610,4 +610,41 @@ test('whole-response copy keeps exact Markdown available when clipboard permissi
   const response = turn(raw, false, 'Hot Cross Buns'); document.body.replaceChildren(response);
   response.querySelector('.response-tools button').click(); await new Promise(resolve => setTimeout(resolve, 0));
   const fallback = response.querySelector('.response-tools textarea'); assert.equal(fallback.value, raw); assert.equal(fallback.readOnly, true); assert.equal(document.activeElement, fallback); assert.match(response.querySelector('.response-tools [role="status"]').textContent, /Ctrl\+C/);
+});
+
+test('local runtime controls review exact operations and never replay a lost confirmation', async () => {
+  const calls = [], runtime = { state: 'stopped', available: true, generation: 'g', binary: '/installed/ollama' };
+  const review = { id: 'review', generation: 'g', action: 'runtime_start', binary: '/installed/ollama', storage: '/private/models', notice: 'Separate model storage. No inference.' };
+  const pane = localModelsView({ request: async action => {
+    calls.push(action);
+    if (action.action === 'runtime_review_start') return { runtime, runtime_review: review };
+    if (action.action === 'runtime_start') throw new Error('Confirmation unavailable. Refresh before retrying.');
+    return { local: { catalog: [] }, runtime };
+  } });
+  document.body.replaceChildren(pane.element); await pane.load();
+  const find = label => [...pane.element.querySelectorAll('button')].find(button => button.textContent === label);
+  assert.equal(find('Start').querySelector('svg').dataset.icon, 'power');
+  find('Start').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(pane.element.querySelector('.local-runtime-review').textContent, /Separate model storage/);
+  assert.equal(calls.filter(call => call.action === 'runtime_start').length, 0);
+  find('Confirm start').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(calls.at(-1), { action: 'runtime_start', review_id: 'review', generation: 'g' });
+  assert.equal(pane.element.querySelector('.local-runtime-review'), null);
+  assert.match(pane.element.querySelector('[role="alert"]').textContent, /Confirmation unavailable/);
+  assert.equal(calls.filter(call => call.action === 'runtime_start').length, 1);
+});
+
+test('local runtime activity blocks stop and download while source changes stay read-only', async () => {
+  const calls = [], pane = localModelsView({ request: async action => {
+    calls.push(action);
+    return { runtime: { state: 'running', available: true, generation: 'g', active: 1 }, local: { reachable: true, catalog: [{ id: 'qwen3-4b', name: 'Qwen3 4B', eligible: true, downloaded: false }] } };
+  } });
+  document.body.replaceChildren(pane.element); await pane.load();
+  const find = label => [...pane.element.querySelectorAll('button')].find(button => button.textContent === label);
+  assert.equal(find('Stop').disabled, true); assert.equal(find('Download').disabled, true);
+  assert.equal(find('Download').querySelector('svg').dataset.icon, 'download');
+  assert.match(pane.element.querySelector('.local-runtime').textContent, /1 active request/);
+  find('Configured runtime').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(calls.at(-1).app_owned, false); assert.equal(find('Download'), undefined);
+  pane.element.remove();
 });

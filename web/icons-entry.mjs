@@ -4,7 +4,7 @@ import {
   Table, Presentation, ChartNoAxesCombined, CalendarDays, Mail, Brain,
   Lightbulb, ListChecks, BookOpen, Check, CircleDashed, CircleAlert, Pause,
   Square, WifiOff, Copy, LoaderCircle, Link, Bookmark, Settings, Eye, History,
-  Cpu, Trash2, RotateCcw, RefreshCw, Play, ArrowDown, ChevronUp,
+  Cpu, Trash2, RotateCcw, RefreshCw, Play, ArrowDown, ChevronUp, Power, Download,
 } from 'lucide';
 import activityIcons from '../internal/workactivity/icon-names.json' with { type: 'json' };
 
@@ -18,7 +18,7 @@ const catalog = {
   check: Check, 'circle-dashed': CircleDashed, 'circle-alert': CircleAlert, pause: Pause,
   square: Square, 'wifi-off': WifiOff, copy: Copy, 'loader-circle': LoaderCircle,
   link: Link, bookmark: Bookmark, settings: Settings, eye: Eye, history: History,
-  cpu: Cpu, 'trash-2': Trash2, 'rotate-ccw': RotateCcw, 'refresh-cw': RefreshCw, play: Play, 'arrow-down': ArrowDown, 'chevron-up': ChevronUp,
+  power: Power, download: Download, cpu: Cpu, 'trash-2': Trash2, 'rotate-ccw': RotateCcw, 'refresh-cw': RefreshCw, play: Play, 'arrow-down': ArrowDown, 'chevron-up': ChevronUp,
 };
 const aliases = { send: 'arrow-up', close: 'x', chevron: 'chevron-down', helpers: 'workflow', file: 'file-text' };
 export const activityIconNames = Object.freeze(activityIcons);
