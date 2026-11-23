@@ -3,10 +3,13 @@ package worksession
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 )
@@ -108,5 +111,82 @@ func TestHistoryIndexNeverReturnsDeletedOrChangedCanonicalCandidates(t *testing.
 	matches, err = s.SearchHistory(context.Background(), []string{"quince"}, 8)
 	if err != nil || len(matches) != 0 {
 		t.Fatal("deleted candidate stayed searchable", matches, err)
+	}
+}
+
+func TestHistoryFailedHookRepairsExactSourceBeforeSummaryReuse(t *testing.T) {
+	ctx := context.Background()
+	s, _ := Open(t.TempDir())
+	chat, _ := s.CreateChat(t.TempDir(), time.Now())
+	turn, err := s.AdmitDialogue(chat.ID, "failed-hook-message-001", "Known public source", json.RawMessage(`{}`), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, digest, err := s.ReadHistoryTurn(ctx, chat.ID, "dialogue:"+turn.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveHistoryNode(ctx, HistoryNode{ID: "affected", Chat: chat.ID, Text: "Earlier version", Dependencies: []HistoryDependency{{Kind: "source", Key: "dialogue:" + turn.ID, Digest: digest}}}); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a canonical mutation during a cache outage: public JSON changed,
+	// the hook could not publish, but its source-identity repair marker survived.
+	turn.State = "routing"
+	turn.Revision++
+	turn.UpdatedAt = time.Now().Add(time.Second)
+	data, _ := json.Marshal(turn)
+	if err := os.WriteFile(filepath.Join(s.root, chat.ID, "dialogue", dialogueFilename(turn)), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.historyHookResult(chat.ID, "dialogue:"+turn.ID, errors.New("cache temporarily unavailable"))
+	if _, err := s.SyncHistory(ctx, chat.ID, 32); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := s.ReadHistoryNodes(ctx, HistoryQuery{Chat: chat.ID})
+	if err != nil || len(nodes) != 0 {
+		t.Fatal("stale section survived hook recovery", nodes, err)
+	}
+	if _, err := os.Stat(filepath.Join(s.root, chat.ID, historyRepairName("dialogue:"+turn.ID))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("repair checkpoint not cleared", err)
+	}
+}
+
+func TestHistoryDiscoveryContinuesPastUnreadableChat(t *testing.T) {
+	ctx := context.Background()
+	s, _ := Open(t.TempDir())
+	var ids []string
+	for i := 0; i < 6; i++ {
+		chat, err := s.CreateChat(t.TempDir(), time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, chat.ID)
+	}
+	sort.Strings(ids)
+	if err := os.WriteFile(filepath.Join(s.root, ids[0], "conversation.json"), []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SweepHistory(ctx); err == nil {
+		t.Fatal("unreadable source was not reported")
+	}
+	var cursor string
+	if err := s.HistoryCache(ctx, func(db *sql.DB) error {
+		return db.QueryRowContext(ctx, `SELECT value FROM history_meta WHERE key='discovery'`).Scan(&cursor)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if cursor != ids[3] {
+		t.Fatal("bad chat starved later discovery", cursor, ids)
+	}
+	if err := s.SweepHistory(ctx); err == nil {
+		t.Fatal("second rotation should still report the corrupt source")
+	}
+	if err := s.HistoryCache(ctx, func(db *sql.DB) error {
+		return db.QueryRowContext(ctx, `SELECT value FROM history_meta WHERE key='discovery'`).Scan(&cursor)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if cursor != ids[1] {
+		t.Fatal("discovery did not rotate across all chats", cursor)
 	}
 }

@@ -428,6 +428,7 @@ func (s Store) forgetRecord(record Record) error {
 		if err := os.Remove(s.path(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		s.notifyHistoryCache(id, record.GoalID, nil)
 		if err := retrieval.DropID(filepath.Dir(filepath.Dir(s.root)), id); err != nil {
 			return err
 		}

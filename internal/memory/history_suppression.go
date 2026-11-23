@@ -69,6 +69,7 @@ func (s Store) suppressHistory(record Record) error {
 			return err
 		}
 	}
+	s.notifyHistoryCache("", record.GoalID, hashes)
 	return nil
 }
 

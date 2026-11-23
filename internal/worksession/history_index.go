@@ -44,7 +44,7 @@ func (s Store) HistoryCache(ctx context.Context, fn func(*sql.DB) error) error {
 }
 
 func invalidateHistory(ctx context.Context, tx *sql.Tx, chat, kind, key string) error {
-	_, err := tx.ExecContext(ctx, `WITH RECURSIVE affected(id) AS (SELECT node FROM history_dependencies WHERE chat=? AND kind=? AND key=? UNION SELECT d.node FROM history_dependencies d JOIN affected a ON d.kind='node' AND d.key=a.id WHERE d.chat=?) UPDATE history_nodes SET dirty=1 WHERE chat=? AND id IN(SELECT id FROM affected)`, chat, kind, key, chat, chat)
+	_, err := tx.ExecContext(ctx, `WITH RECURSIVE affected(id) AS (SELECT node FROM history_dependencies WHERE chat=? AND kind=? AND key=? UNION SELECT d.node FROM history_dependencies d JOIN affected a ON d.kind='node' AND d.key=a.id WHERE d.chat=?) UPDATE history_nodes SET dirty=1,text='' WHERE chat=? AND id IN(SELECT id FROM affected)`, chat, kind, key, chat, chat)
 	return err
 }
 
@@ -122,7 +122,7 @@ func putHistorySource(ctx context.Context, db *sql.DB, t ContextTurn, parent, pa
 func (s Store) indexDialogue(t DialogueTurn) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = s.putDialogueContext(ctx, t)
+	s.historyHookResult(t.ConversationID, "dialogue:"+t.ID, s.putDialogueContext(ctx, t))
 }
 func (s Store) putDialogueContext(ctx context.Context, t DialogueTurn) error {
 	return s.indexContextTurn(ctx, ContextTurn{ID: "dialogue:" + t.ID, Sequence: t.Sequence, User: t.Text, Assistant: t.Response, State: t.State, TaskChat: t.TaskChat, At: t.CreatedAt}, "", filepath.Join(t.ConversationID, "dialogue", dialogueFilename(t)), t.UpdatedAt)
@@ -130,7 +130,7 @@ func (s Store) putDialogueContext(ctx context.Context, t DialogueTurn) error {
 func (s Store) indexRevision(chat string, r Revision) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = s.putRevisionContext(ctx, chat, r)
+	s.historyHookResult(chat, "work:"+r.ID, s.putRevisionContext(ctx, chat, r))
 }
 func (s Store) putRevisionContext(ctx context.Context, chat string, r Revision) error {
 	return s.indexContextTurn(ctx, ContextTurn{ID: "work:" + r.ID, User: r.Objective, Assistant: r.FinalText, State: r.Status, At: r.CreatedAt}, r.ParentRevisionID, filepath.Join(chat, "revisions", r.ID+".json"), r.CreatedAt)
@@ -172,6 +172,9 @@ func (s Store) SyncHistory(ctx context.Context, chat string, limit int) (bool, e
 	c, err := s.Load(chat)
 	if err != nil {
 		return false, err
+	}
+	if err := s.repairHistory(ctx, chat); err != nil {
+		return true, err
 	}
 	var oldest uint64
 	var done, workDone int
@@ -281,15 +284,20 @@ func (s Store) SweepHistory(ctx context.Context) error {
 	if start == len(ids) {
 		start = 0
 	}
+	var failures error
 	for n := 0; n < min(4, len(ids)); n++ {
 		id := ids[(start+n)%len(ids)]
 		if _, err := s.SyncHistory(ctx, id, 32); err != nil {
-			return err
+			failures = errors.Join(failures, err)
 		}
-		after = id
+		// Persist discovery after each visit, including an unreadable chat. One bad
+		// source must not starve other archives, and cancellation retains progress.
+		if err := s.HistoryCache(ctx, func(db *sql.DB) error {
+			_, err := db.ExecContext(ctx, `INSERT INTO history_meta VALUES('discovery',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, id)
+			return err
+		}); err != nil {
+			return errors.Join(failures, err)
+		}
 	}
-	return s.HistoryCache(ctx, func(db *sql.DB) error {
-		_, err := db.ExecContext(ctx, `INSERT INTO history_meta VALUES('discovery',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, after)
-		return err
-	})
+	return failures
 }

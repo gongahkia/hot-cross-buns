@@ -36,7 +36,13 @@ func (s Store) write(record Record, create bool) error {
 	if err := validate(record); err != nil {
 		return err
 	}
-	return s.publish(record.ID+".json", record, 16*1024, create)
+	if err := s.publish(record.ID+".json", record, 16*1024, create); err != nil {
+		return err
+	}
+	if !create {
+		s.notifyHistoryCache(record.ID, record.GoalID, nil)
+	}
+	return nil
 }
 
 // The caller holds the mutation lease. Metadata and records share the same
