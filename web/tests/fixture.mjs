@@ -50,8 +50,8 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0 
     custom_providers: [{ id: "fixture", default_model: "fixture", models: ["fixture"], base_url: "http://127.0.0.1:" + provider.address().port + "/chat" }],
   }));
   const binary = process.env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL(
-    "../../ui/runtime/hot-cross-buns-runtime" + (process.platform === "win32" ? ".exe" : ""), import.meta.url));
-  const env = { ...process.env, HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: join(root, "state") };
+    "../../runtime/hot-cross-buns-runtime" + (process.platform === "win32" ? ".exe" : ""), import.meta.url));
+  const env = { ...process.env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1", HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: join(root, "state") };
   const seededChats = [];
   for (let i = 0; i < chatCount; i++) {
     const id = 'work-fixture-' + String(i).padStart(3, '0'), at = new Date(Date.now() - (i + 1) * 60000).toISOString();

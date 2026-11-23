@@ -1,3 +1,5 @@
+> Historical: the terminal frontend and public CLI have been retired. Use `make run` for the browser app and [Development](DEVELOPMENT.md) for current commands. Source is retained in Git at `9644043e0`.
+
 # Hot Cross Buns terminal development and installation
 
 Hot Cross Buns's main interaction surface is chat in the terminal. The navigation rail

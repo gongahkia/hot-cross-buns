@@ -20,18 +20,11 @@ var (
 	date    = "unknown"
 )
 
-const usage = `Hot Cross Buns — personal agent in your terminal
+const usage = `Hot Cross Buns backend runtime (hot-cross-buns-runtime)
 
-hot-cross-buns                         Open the chat TUI
-hot-cross-buns resume <chat-id>         Reopen a retained conversation
-hot-cross-buns work "task"              Run a scripted task
-hot-cross-buns work-rpc                JSON-lines automation
-hot-cross-buns config|provider|agent|job|goal|memory|note|data|usage|doctor ...
-                              Manage Hot Cross Buns from the command line
-hot-cross-buns --version               Show build information
-
-In chat: / for commands, Ctrl+P to search, Ctrl+Q to quit.
-From a checkout: make run for local web or make terminal for this TUI.`
+Start the local browser app with make run.
+This binary provides private application services, not a command-line interface.
+Use --version to inspect build information.`
 
 func main() {
 	if err := runRuntime(os.Args[1:], os.Stdout); err != nil {
@@ -45,7 +38,7 @@ func run(args []string, out io.Writer) error {
 		return fmt.Errorf("Hot Cross Buns supports Linux, macOS, and Windows; %s is not supported", runtime.GOOS)
 	}
 	if len(args) == 0 {
-		return launchTerminal(nil)
+		return errors.New("the command-line interface is retired; start the browser app with make run")
 	}
 	if args[0] == "--help" || args[0] == "-h" {
 		_, err := fmt.Fprintln(out, usage)
@@ -75,7 +68,7 @@ func run(args []string, out io.Writer) error {
 		if len(args) != 2 || !validIdentifier(args[1]) {
 			return errors.New("usage: hot-cross-buns resume <chat-id>")
 		}
-		return launchTerminal(args)
+		return errors.New("open retained chats in the browser app")
 	case "overview":
 		return overviewCommand(args[1:], out)
 	case "data":

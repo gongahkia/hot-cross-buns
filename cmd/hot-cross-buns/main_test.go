@@ -16,7 +16,7 @@ func TestRunHelp(t *testing.T) {
 		if err := run([]string{command}, &output); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(output.String(), "Open the chat TUI") || !strings.Contains(output.String(), "hot-cross-buns work") {
+		if !strings.Contains(output.String(), "make run") || strings.Contains(output.String(), "Open the chat TUI") {
 			t.Fatalf("help = %q", output.String())
 		}
 	}

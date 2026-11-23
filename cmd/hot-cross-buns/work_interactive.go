@@ -62,12 +62,12 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 	backend := os.Getenv("HOT_CROSS_BUNS_UI_BACKEND") == "1"
 	if !backend {
 		if goalID != "" {
-			return launchTerminal([]string{"--goal", goalID})
+			return errors.New("open this goal in the browser app")
 		}
 		if startConversationID != "" {
-			return launchTerminal([]string{"resume", startConversationID})
+			return errors.New("open retained chats in the browser app")
 		}
-		return launchTerminal(nil)
+		return errors.New("start the browser app with make run")
 	}
 	stateDir, err := state.ResolveDir(os.Getenv("HOT_CROSS_BUNS_STATE_DIR"))
 	if err != nil {
@@ -244,7 +244,6 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 		Live:                     true,
 		BridgeMode:               backend,
 		ManagedSessions:          os.Getenv("HOT_CROSS_BUNS_UI_SESSION_HOST") == "1",
-		TerminalModelManagement:  os.Getenv("HOT_CROSS_BUNS_UI_FRONTEND") == "terminal",
 		StartNew:                 os.Getenv("HOT_CROSS_BUNS_UI_BOOT_MODE") == "new",
 		StartView:                os.Getenv("HOT_CROSS_BUNS_UI_BOOT_MODE") == "view",
 		ViewOriginConversationID: os.Getenv("HOT_CROSS_BUNS_UI_VIEW_ORIGIN"),

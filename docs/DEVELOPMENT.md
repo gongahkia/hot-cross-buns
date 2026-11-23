@@ -25,27 +25,16 @@ Images, including GIFs, use Markdown image syntax. Mermaid
 and Markdown dependencies are installed by `make run` and bundled locally at
 server startup. Streaming responses show code until the response is complete.
 
-Install Bun 1.4.2+ to run the optional Solid/OpenTUI frontend with `make terminal`.
-`make build` builds the runtime and terminal assets. `make check` runs the
-cross-surface checks.
-
-```sh
-bun ui/launcher/hot-cross-buns.mjs --help
-bun ui/launcher/hot-cross-buns.mjs work "Summarize this workspace"
-bun ui/launcher/hot-cross-buns.mjs resume <chat-id>
-make package PACKAGE_DIR=/tmp/hot-cross-buns-terminal-package
-node ui/scripts/install.mjs /tmp/hot-cross-buns-terminal-package /tmp/hot-cross-buns-install
-/tmp/hot-cross-buns-install/bin/hot-cross-buns
-```
-
-Packaging requires a fresh destination. Installed packages require Bun on PATH;
-Go and Node are build requirements. Optional browser and voice features use
-explicitly configured native helpers. See [terminal usage](TERMINAL.md).
+`make build` prepares the Go runtime in `runtime/` and browser dependencies.
+`make check` tests and vets the Go backend, shared host and browser gateway.
+Node and Go are the development requirements; there is no terminal frontend or
+Bun packaging dependency.
 
 ## Boundaries
 
 - `web/`: local HTTP server, typed host actions, event stream and browser UI.
-- `ui/`: terminal rendering, commands, CLI launcher and packaging.
+- `runtime/`: generated Go backend binary (not tracked).
+- `scripts/build-runtime.mjs`: runtime build, independent of a frontend package.
 - `app-host/`: local sessions, drafts, uploads, immutable files, exports,
   preferences, voice and verified retained evidence.
 - `internal/workapp/`: canonical conversation state, exact reviews and controls.
@@ -54,21 +43,16 @@ explicitly configured native helpers. See [terminal usage](TERMINAL.md).
   coding, usage and storage. Frontend changes do not grant execution authority.
 - `companion/`: optional authenticated phone extension, independent of Electron.
 
-Public Go commands no longer need `HOT_CROSS_BUNS_INTERNAL_COMMANDS`. Use temporary state
-and configuration directories for fixtures. Existing profile paths, IDs,
-credentials and formats remain compatible. `HOT_CROSS_BUNS_TERMINAL_USER_DATA` selects a
-custom application-data location; `HOT_CROSS_BUNS_DESKTOP_USER_DATA` remains a fallback.
-No installed app, user profile or enabled service is automatically removed.
+The Go executable is a private application runtime. The browser host, scheduled
+workers and optional companion use explicit internal transport roles. It does not
+launch a terminal UI or expose a user command-line product. Headless tools and
+coding-agent adapters remain backend capabilities. Existing profile paths, IDs,
+credentials and formats are retained; no installed user profile or service is
+automatically removed.
 
-```sh
-HOT_CROSS_BUNS_STATE_DIR=/tmp/hot-cross-buns-test-state HOT_CROSS_BUNS_CONFIG_DIR=/tmp/hot-cross-buns-test-config go run ./cmd/hot-cross-buns note list
-make check
-node ui/scripts/verify-install.mjs /tmp/hot-cross-buns-terminal-package
-```
-
-Native sign-in, microphone permissions, service startup and terminal rendering
-need native execution. Cross-compilation alone does not verify them. Historical
-audits retain their original observations; see the [current port inventory](CLI-TUI-PORT.md).
+Native sign-in, microphone permissions and service startup need their platform
+checks. Cross-compilation alone does not verify them. Historical audits retain
+their original observations; current frontend work lives in `web/`.
 
 
 Code blocks and artifact sources include syntax highlighting and a Copy button.
@@ -131,8 +115,7 @@ Models, Connections, Memory, Saved, Scheduled tasks, and Settings use modals.
 Local models use the native provider API for inventory and exact reviewed future
 selection, including selection receipts and reconciliation. The web host's old
 `/model` screen remains blocked; runtime start/stop and downloads are not enabled
-there. The terminal launcher explicitly identifies its frontend and retains its
-reviewed Go model-management panel, including provider setup and local downloads.
+there. The terminal frontend and its packaging have been retired.
 Settings is a hub for real model, connection, privacy, usage, data, and recovery
 controls; backend forms keep their view identity and explicit review step.
 Saved contains global notes rather than a second personal-memory list.

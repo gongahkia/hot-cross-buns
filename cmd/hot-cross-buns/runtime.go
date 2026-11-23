@@ -23,7 +23,7 @@ func runRuntime(args []string, out io.Writer) error {
 		return err
 	}
 	if len(args) == 0 {
-		return launchTerminal(nil)
+		return errors.New("start the browser app with make run; this is its private Go runtime")
 	}
 	if len(args) == 1 && args[0] == "desktop-speech" && os.Getenv("HOT_CROSS_BUNS_DESKTOP_SPEECH") == "1" {
 		if err := preparePlatformProfile(); err != nil {
@@ -61,8 +61,7 @@ func runRuntime(args []string, out io.Writer) error {
 	if len(args) == 2 && args[0] == "companion-create-chat" && os.Getenv("HOT_CROSS_BUNS_COMPANION_CREATE") == "1" {
 		return companionCreateChat(args[1], out)
 	}
-	// Private transport roles require their explicit host marker. Public CLI
-	// commands do not require a developer opt-in.
+	// Transport roles require their explicit host marker before any profile work.
 	if args[0] == "ui-backend" && (len(args) != 3 || os.Getenv("HOT_CROSS_BUNS_UI_BACKEND") != "1") {
 		return errors.New("ui-backend is an internal Hot Cross Buns transport")
 	}
@@ -76,6 +75,9 @@ func runRuntime(args []string, out io.Writer) error {
 	// maintenance. Its own workers use the same private command routing.
 	if supervisor {
 		return run(args, out)
+	}
+	if os.Getenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS") != "1" && os.Getenv("HOT_CROSS_BUNS_UI_BACKEND") != "1" {
+		return errors.New("the command-line interface is retired; use the browser app with make run")
 	}
 	if err := preparePlatformProfile(); err != nil {
 		return err

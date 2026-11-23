@@ -8,7 +8,7 @@ const home = homedir();
 const userData = env.HOT_CROSS_BUNS_WEB_USER_DATA || env.HOT_CROSS_BUNS_TERMINAL_USER_DATA || env.HOT_CROSS_BUNS_DESKTOP_USER_DATA ||
   (process.platform === "darwin" ? join(home, "Library", "Application Support", "Hot Cross Buns") :
     join(process.platform === "win32" ? env.APPDATA || home : env.XDG_CONFIG_HOME || join(home, ".config"), "Hot Cross Buns"));
-const binary = env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL("../ui/runtime/" +
+const binary = env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL("../runtime/" +
   (process.platform === "win32" ? "hot-cross-buns-runtime.exe" : "hot-cross-buns-runtime"), import.meta.url));
 const workspace = resolve(env.HOT_CROSS_BUNS_WEB_WORKSPACE || env.HOT_CROSS_BUNS_TERMINAL_WORKSPACE || env.HOT_CROSS_BUNS_DESKTOP_WORKSPACE || join(userData, "workspace"));
 const port = Number(env.HOT_CROSS_BUNS_WEB_PORT ?? 4317);

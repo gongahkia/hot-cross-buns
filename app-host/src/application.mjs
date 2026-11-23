@@ -40,7 +40,7 @@ export class Application extends EventEmitter {
     const draftRoot = join(this.userData, "drafts");
     this.drafts = new DraftStore(join(draftRoot, `${createHash("sha256").update(this.stateRoot).digest("hex")}.json`));
     this.reading = new ReadingStore(join(this.userData, "reading", createHash("sha256").update(this.stateRoot).digest("hex")));
-    this.env = { ...env, HOT_CROSS_BUNS_DESKTOP_DRAFT_DIR: draftRoot, HOT_CROSS_BUNS_DESKTOP_UPLOAD_DIR: this.uploads.root };
+    this.env = { ...env, HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1", HOT_CROSS_BUNS_DESKTOP_DRAFT_DIR: draftRoot, HOT_CROSS_BUNS_DESKTOP_UPLOAD_DIR: this.uploads.root };
     if (process.platform === "win32") {
       this.env.HOT_CROSS_BUNS_STATE_DIR = this.stateRoot;
       for (const key of ["HOT_CROSS_BUNS_CONFIG_DIR", "XDG_CONFIG_HOME"]) if (env[key]?.trim()) this.env[key] = resolve(env[key]);
@@ -184,7 +184,7 @@ export class Application extends EventEmitter {
     if (!this.sessions.canOpen(id)) throw new Error("This chat is no longer in the open-chat list.");
     await this.sessions.open({ conversation_id: id });
   }
-  async version() { return (await helper(this.binary, ["--version"], { maxBytes: 4096 })).toString("utf8").trim().replace("hot-cross-buns ", "Hot Cross Buns terminal "); }
+  async version() { return (await helper(this.binary, ["--version"], { maxBytes: 4096 })).toString("utf8").trim().replace("hot-cross-buns ", "Hot Cross Buns "); }
   async prepareComposerEditor(context, text) {
     this.mutable();
     if (context !== this.context || this.backend.state?.panel || this.backend.state?.running || this.backend.state?.pending_approval) throw new Error("Return to the idle conversation before editing its draft externally.");

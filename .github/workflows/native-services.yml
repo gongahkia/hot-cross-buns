@@ -1,4 +1,4 @@
-name: Native terminal and application services
+name: Native application services
 
 on:
   pull_request:
@@ -23,9 +23,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: ui/.bun-version
       - name: Verify native memory and tracking lifecycle
         shell: bash
         run: |
@@ -48,29 +45,14 @@ jobs:
           npm ci --prefix app-host
           npm test --prefix app-host
           node --test companion/recovery.test.mjs
-      - name: Build and verify the terminal product
+      - name: Check browser frontend and Go backend
         shell: bash
         run: |
           set -euo pipefail
           npm ci --prefix app-host
-          (cd ui && bun install --frozen-lockfile)
-          node ui/scripts/build-runtime.mjs
-          (cd ui && bun run build)
-          (cd ui && bun run check && bun run test)
-          node --test ui/scripts/install.test.mjs ui/scripts/uninstall.test.mjs
-          node ui/scripts/package.mjs terminal-artifact
-          node ui/scripts/verify-install.mjs terminal-artifact
-          bun ui/scripts/verify-upgrade.mjs terminal-artifact terminal-artifact terminal-upgrade-report.json
-      - name: Verify the installed application in a real terminal
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          python3 -m venv .pty-venv
-          .pty-venv/bin/pip install -r ui/scripts/requirements-pty.txt
-          .pty-venv/bin/python ui/scripts/verify-package.py terminal-artifact --editor --untrusted-file
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: terminal-native-${{ matrix.runner }}
-          path: terminal-upgrade-report.json
-          if-no-files-found: ignore
+          npm ci --prefix web
+          node scripts/build-runtime.mjs
+          node --test web/tests/*.test.mjs
+          HOT_CROSS_BUNS_INDEPENDENCE_BINARY="$PWD/runtime/hot-cross-buns-runtime${{ runner.os == 'Windows' && '.exe' || '' }}" npm test --prefix app-host
+          node --test scripts/google-oauth-build.test.mjs
+          node --test companion/auth.test.mjs companion/server.test.mjs companion/health.test.mjs

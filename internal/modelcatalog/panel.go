@@ -86,7 +86,7 @@ func (p *ModelCatalogPanel) command(command tea.Cmd) tea.Cmd {
 	}
 }
 
-// View satisfies Bubble Tea; the React terminal UI renders UISnapshot instead.
+// View is an empty event-loop adapter; frontends render the typed snapshot.
 func (p *ModelCatalogPanel) View() string { return "" }
 
 func (p *ModelCatalogPanel) focused() bool {

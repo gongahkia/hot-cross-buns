@@ -185,8 +185,8 @@ func TestWatchReplayBudgetAndCancellationRemainUnscored(t *testing.T) {
 	if err != nil || score.Episodes != 0 || score.MissedMaterialChanges.Value != nil {
 		t.Fatalf("cancelled replay fabricated misses: %#v %v", score, err)
 	}
-	t.Setenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS", "0")
+	t.Setenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS", "1")
 	if err := runRuntime([]string{"work", "eval", "watch", "validate", path}, &bytes.Buffer{}); err != nil {
-		t.Fatalf("public CLI watch validation: %v", err)
+		t.Fatalf("private watch validation service: %v", err)
 	}
 }

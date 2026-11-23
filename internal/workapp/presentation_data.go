@@ -8,7 +8,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/learning"
 )
 
-// View is an empty Bubble Tea adapter; the React terminal UI owns all rendering.
+// View is an empty event-loop adapter; the browser owns all rendering.
 func (m Model) View() string { return "" }
 
 func safeInboxText(value string) string {

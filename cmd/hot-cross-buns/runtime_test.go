@@ -39,11 +39,30 @@ func TestRuntimeHelpAndVersionWithoutOpeningProfile(t *testing.T) {
 	}
 }
 
-func TestRuntimePublicCommandsDoNotRequireDeveloperOptIn(t *testing.T) {
+func TestRuntimeRejectsRetiredPublicFrontendsBeforeOpeningProfile(t *testing.T) {
+	t.Setenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS", "")
+	t.Setenv("HOT_CROSS_BUNS_UI_BACKEND", "")
+	root := filepath.Join(t.TempDir(), "must-not-be-created")
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", root)
+	for _, args := range [][]string{nil, {"resume", "chat"}, {"work", "task"}, {"work-rpc"}, {"config"}, {"note", "list"}} {
+		if err := runRuntime(args, io.Discard); err == nil {
+			t.Fatalf("retired public frontend accepted %v", args)
+		}
+	}
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Fatalf("retired frontend touched a profile: %v", err)
+	}
+}
+
+func TestRuntimePrivateServicesRequireHostMarker(t *testing.T) {
 	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", t.TempDir())
 	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", t.TempDir())
 	t.Setenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS", "")
 	var out bytes.Buffer
+	if err := runRuntime([]string{"note", "list"}, &out); err == nil {
+		t.Fatal("public CLI remained available")
+	}
+	t.Setenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS", "1")
 	if err := runRuntime([]string{"note", "add", "--title", "Fixture", "--body", "Internal test data"}, &out); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +76,7 @@ func TestRuntimePublicCommandsDoNotRequireDeveloperOptIn(t *testing.T) {
 	if err := runRuntime([]string{"job", "supervisor", "--not-a-real-flag"}, io.Discard); err == nil || strings.Contains(err.Error(), "CLI is retired") {
 		t.Fatalf("background service routing: %v", err)
 	}
-	if err := workInteractive(); err == nil || !strings.Contains(err.Error(), "interactive mode needs a terminal") {
+	if err := workInteractive(); err == nil || !strings.Contains(err.Error(), "browser app") {
 		t.Fatalf("non-terminal launch: %v", err)
 	}
 }

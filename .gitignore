@@ -5,8 +5,7 @@ bin/
 coverage.out
 AGENTS.md
 node_modules
-/ui/dist/
-/ui/runtime/
+/runtime/
 /.pty-venv/
 /.env
 /.env.local

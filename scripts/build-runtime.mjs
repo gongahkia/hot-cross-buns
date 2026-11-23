@@ -1,10 +1,10 @@
-import { googleOAuthFlags } from "../../scripts/google-oauth-build.mjs";
+import { googleOAuthFlags } from "./google-oauth-build.mjs";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+const root = fileURLToPath(new URL("../", import.meta.url));
 const output = fileURLToPath(new URL("../runtime/", import.meta.url));
 mkdirSync(output, { recursive: true });
 const values = [process.env.VERSION || "dev", process.env.COMMIT || "unknown", process.env.BUILD_DATE || "unknown"];

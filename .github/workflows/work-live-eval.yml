@@ -50,7 +50,7 @@ jobs:
           [[ "$WORK_MODEL_REQUESTS" =~ ^[0-9]+$ && "$WORK_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]]
           (( WORK_MODEL_REQUESTS >= 1 && WORK_MODEL_REQUESTS <= 512 ))
           (( WORK_TIMEOUT_SECONDS >= 1 && WORK_TIMEOUT_SECONDS <= 1800 ))
-          ./ui/runtime/hot-cross-buns-runtime work eval run internal/eval/testdata/work-v1/dataset.json \
+          HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 ./runtime/hot-cross-buns-runtime work eval run internal/eval/testdata/work-v1/dataset.json \
             --id "live-${GITHUB_RUN_ID}" --live --provider "$HOT_CROSS_BUNS_PROVIDER" --model "$HOT_CROSS_BUNS_MODEL" \
             --max-model-requests "$WORK_MODEL_REQUESTS" --timeout-seconds "$WORK_TIMEOUT_SECONDS" \
             --report-dir "$RUNNER_TEMP/work-eval"

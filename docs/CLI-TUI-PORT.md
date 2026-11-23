@@ -1,3 +1,5 @@
+> Historical: the terminal frontend and public CLI have been retired. Use `make run` for the browser app and [Development](DEVELOPMENT.md) for current commands. Source is retained in Git at `9644043e0`.
+
 # CLI/TUI product port
 
 7 November 2026. Product direction: CLI/TUI only, with chat as the default
