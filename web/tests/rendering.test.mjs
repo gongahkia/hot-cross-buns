@@ -388,6 +388,17 @@ test("Memory groups topics and keeps an unsuccessful correction available for ed
   assert.equal(requests.at(-1).revision, 'original');
 });
 
+test('the chat list keeps main navigation separate while allowing main history in search', async () => {
+  const menu=chatMenu({request:async()=>({items:[{id:'main',title:'Main notes',selection:'main-selection'},{id:'side',title:'A side chat',selection:'side-selection'}]}),open(){}});
+  document.body.replaceChildren(menu.element);
+  menu.updateCurrent('side','main');await menu.load('owner');
+  assert.deepEqual([...menu.element.querySelectorAll('.chat-item')].map(node=>node.dataset.chat),['side']);
+  assert.equal(menu.element.querySelector('[aria-current="page"]').textContent,'A side chat');
+  const search=menu.element.querySelector('input');search.value='notes';search.dispatchEvent(new window.Event('input'));
+  await new Promise(resolve=>setTimeout(resolve,200));
+  assert.ok(menu.element.querySelector('[data-chat="main"]'));
+});
+
 test('the chat menu pages inside its own scroll area and opens only returned selections', async () => {
   const requests = [], opened = [];
   const menu = chatMenu({ request: async request => {

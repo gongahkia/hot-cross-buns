@@ -316,6 +316,10 @@ func TestRetentionPreservesSelectedUnsentChatAndBackupMemorySuppression(t *testi
 	sessions, _ := worksession.Open(root)
 	old := time.Now().Add(-60 * 24 * time.Hour)
 	active, _ := sessions.CreateChat(t.TempDir(), old)
+	main, err := sessions.EnsurePrimary(t.TempDir(), old)
+	if err != nil {
+		t.Fatal(err)
+	}
 	expired, _ := sessions.CreateChat(t.TempDir(), old)
 	if err := sessions.SetActive(active.ID); err != nil {
 		t.Fatal(err)
@@ -324,7 +328,7 @@ func TestRetentionPreservesSelectedUnsentChatAndBackupMemorySuppression(t *testi
 		t.Fatal(err)
 	}
 	page, err := sessions.PageConversations(worksession.ConversationQuery{})
-	if err != nil || page.IndexFallback || len(page.Items) != 2 {
+	if err != nil || page.IndexFallback || len(page.Items) != 3 {
 		t.Fatal("index fixture", page, err)
 	}
 	if _, err := Maintain(context.Background(), root, time.Now()); err != nil {
@@ -335,6 +339,9 @@ func TestRetentionPreservesSelectedUnsentChatAndBackupMemorySuppression(t *testi
 	}
 	if _, err := sessions.Load(active.ID); err != nil {
 		t.Fatal("unsent active chat lost", err)
+	}
+	if _, err := sessions.Load(main.ID); err != nil {
+		t.Fatal("main chat lost while another chat was selected", err)
 	}
 	if _, err := sessions.Load(expired.ID); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("expired unselected chat retained", err)

@@ -51,7 +51,7 @@ const headers = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };
-const routes = new Set(["/chat", "/new", "/conversations", "/settings", "/connections", "/knowledge", "/followup", "/goals", "/inbox", "/usage", "/recovery", "/memory", "/learnings", "/model", "/data", "/search"]);
+const routes = new Set(["/hot-cross-buns", "/chat", "/new", "/conversations", "/settings", "/connections", "/knowledge", "/followup", "/goals", "/inbox", "/usage", "/recovery", "/memory", "/learnings", "/model", "/data", "/search"]);
 const frames = new Set(["conversation", "composer", "panel", "task_plan", "sources", "dialogue_page", "queue"]);
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -99,6 +99,7 @@ function projection(host, corrections) {
     responses: responseReferences(state),
     state: state && {
       conversation_id: state.conversation_id, title: state.title, recent: state.recent_conversations,
+      primary: state.primary, primary_conversation_id: state.primary_conversation_id,
       source: state.source,
       recentId: state.recent_id, recentIssue: state.recent_issue, provider: state.provider, model: state.model,
       messages: state.messages, dialogue: state.dialogue, peers: state.dialogue_peers,

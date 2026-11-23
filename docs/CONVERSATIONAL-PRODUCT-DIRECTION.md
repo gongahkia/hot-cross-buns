@@ -5,8 +5,11 @@
 The primary interaction should be one persistent conversation with Hot Cross
 Buns. Retained chats remain available in the app-name menu for search, naming,
 and returning to earlier work, but organizing multiple chats is secondary.
-This records product intent; it does not merge existing histories or change
-startup/resume behavior yet.
+Cold launches now return to the profile's designated main chat, with a Main chat
+menu entry for returning after visiting another chat. Its identity exists before
+the first message. Existing histories remain separate; starting the app never
+sends a recovered draft or retries interrupted work. See [development](DEVELOPMENT.md)
+for designation, retention, and deletion behavior.
 
 Local web development is the primary surface. Keep the interface calm and
 minimal, with orchestration, scheduled tasks, and delegated work available on

@@ -3,9 +3,71 @@ package workapp
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
+
+func TestPersistentMainStartupIgnoresLastTopicAndHonorsExplicitNavigation(t *testing.T) {
+	cfg, store := requestConfig(t, nil)
+	cfg.PrimaryConversation, cfg.LastConversation = store.Primary, store.Active
+	cfg.RememberConversation = store.SetActive
+	ensured := 0
+	cfg.EnsureMainConversation = func(source string) (string, error) {
+		ensured++
+		main, err := store.EnsurePrimary(source, time.Now())
+		return main.ID, err
+	}
+	main := New(cfg)
+	if main.conversation == "" || !main.primary || main.primaryID != main.conversation {
+		t.Fatal("first launch did not retain a main identity")
+	}
+	otherConfig := cfg
+	otherConfig.StartNew = true
+	other := New(otherConfig)
+	if other.conversation == main.conversation || other.primary || ensured != 1 {
+		t.Fatal("explicit new chat reused or replaced main")
+	}
+	reopened := New(cfg)
+	if reopened.conversation != main.conversation || !reopened.primary {
+		t.Fatal("launch followed the last-opened topic instead of main")
+	}
+	otherConfig.StartNew = false
+	otherConfig.StartConversationID = other.conversation
+	selected := New(otherConfig)
+	if selected.conversation != other.conversation || selected.primary || ensured != 2 {
+		t.Fatal("explicit selection reopened main")
+	}
+	otherConfig.StartConversationID, otherConfig.StartView = "", true
+	view := New(otherConfig)
+	if view.conversation != "" || view.primary || ensured != 2 {
+		t.Fatal("management view created or focused main")
+	}
+	selected.config.ManagedSessions = true
+	selected.running = true
+	selected.messages = []message{{role: "You", text: "Keep this task here"}}
+	next, _ := selected.NavigateBridge("/hot-cross-buns")
+	navigated := next.(Model)
+	if navigated.conversation != other.conversation || !navigated.running || len(navigated.messages) != 1 || navigated.sessionRequest == nil || navigated.sessionRequest.ConversationID != main.conversation {
+		t.Fatal("main navigation moved or interrupted the current task")
+	}
+	main.config.ManagedSessions, main.running = true, true
+	next, _ = main.NavigateBridge("/hot-cross-buns")
+	if next.(Model).sessionRequest != nil || !next.(Model).running {
+		t.Fatal("returning to visible main spawned another owner or stopped work")
+	}
+}
+
+func TestPersistentMainStartupFailureDoesNotCreateFallbackTopic(t *testing.T) {
+	cfg, store := requestConfig(t, nil)
+	cfg.PrimaryConversation = store.Primary
+	cfg.EnsureMainConversation = func(string) (string, error) { return "", errors.New("main designation cannot be saved") }
+	m := New(cfg)
+	items, err := store.List(0)
+	if err != nil || len(items) != 0 || m.conversation != "" || m.bridgeNotice == "" {
+		t.Fatal("main startup failure created a fallback or lost its error", err)
+	}
+}
 
 func TestMainConversationResumesWithItsOwnScopeAndOptions(t *testing.T) {
 	mainID := "work-main"
@@ -76,11 +138,14 @@ func TestMainConversationDoesNotBypassActiveWorkOrAdoptExistingTopics(t *testing
 }
 
 func TestMainConversationUsesResetPrivateFolderAfterDataRemoval(t *testing.T) {
-	m := New(Config{CurrentFolder: "/old-private", PrimaryConversation: func() (string, error) { return "", nil }, ResetPrivateState: func() (GoalState, error) { return GoalState{SourcePath: "/fresh-private", Title: "Fresh"}, nil }})
+	var mainSource string
+	m := New(Config{CurrentFolder: "/old-private", PrimaryConversation: func() (string, error) { return "", nil },
+		EnsureMainConversation: func(source string) (string, error) { mainSource = source; return "", nil },
+		ResetPrivateState:      func() (GoalState, error) { return GoalState{SourcePath: "/fresh-private", Title: "Fresh"}, nil }})
 	m.clearRemovedData(ControlScreen{ResetConversation: true, ClearGoal: true})
 	next, _ := m.NavigateBridge("/hot-cross-buns")
 	m = next.(Model)
-	if !m.primary || m.source != "/fresh-private" || m.conversation != "" {
+	if !m.primary || m.source != "/fresh-private" || m.conversation != "" || mainSource != "/fresh-private" {
 		t.Fatal("main conversation returned to a removed source")
 	}
 }

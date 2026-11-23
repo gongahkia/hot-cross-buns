@@ -1,5 +1,5 @@
 import {
-  createElement, Plus, ArrowUp, X, ChevronDown, ChevronRight, ChevronLeft, Clock, Workflow,
+  createElement, MessageCircle, Plus, ArrowUp, X, ChevronDown, ChevronRight, ChevronLeft, Clock, Workflow,
   FileText, FolderSearch, Search, Globe, Terminal, Code, Pencil, NotebookPen,
   Table, Presentation, ChartNoAxesCombined, CalendarDays, Mail, Brain,
   Lightbulb, ListChecks, BookOpen, Check, CircleDashed, CircleAlert, Pause,
@@ -10,6 +10,7 @@ export { default as brandCatalog } from '../internal/branding/catalog.json' with
 import activityIcons from '../internal/workactivity/icon-names.json' with { type: 'json' };
 
 const catalog = {
+  'message-circle': MessageCircle,
   quote: Quote, reply: Reply, 'git-fork': GitFork, smile: Smile, plus: Plus, 'arrow-up': ArrowUp, x: X, 'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevron-left': ChevronLeft,
   clock: Clock, workflow: Workflow, 'file-text': FileText, 'folder-search': FolderSearch,
   search: Search, globe: Globe, terminal: Terminal, code: Code, pencil: Pencil,

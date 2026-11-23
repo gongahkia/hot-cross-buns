@@ -411,6 +411,7 @@ async function navigate(route) {
     await pane.load();
     return;
   }
+  if (route === '/hot-cross-buns' || route === '/new') dialog.close();
   await call({ op: "navigate", route });
 }
 async function backendRoute(route) { await flush(); showHistory(false); await call({ op: 'navigate', route }); }
@@ -418,7 +419,10 @@ $("new-chat").addEventListener("click", () => void execute(() => navigate("/new"
 for (const node of document.querySelectorAll("[data-route]")) node.addEventListener("click", () => void execute(() => navigate(node.dataset.route)));
 
 function renderHistory(state) {
-  chats.updateCurrent(state.conversation_id);
+  chats.updateCurrent(state.conversation_id, state.primary_conversation_id);
+  $('main-chat').classList.toggle('picked', !!state.primary);
+  if (state.primary) $('main-chat').setAttribute('aria-current', 'page');
+  else $('main-chat').removeAttribute('aria-current');
   const key = JSON.stringify([snapshot.context, state.recentId]);
   if (key !== historyKey && $('history').matches(':popover-open')) void chats.load(snapshot.context);
   historyKey = key;

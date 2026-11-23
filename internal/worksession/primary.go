@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 )
@@ -44,20 +45,11 @@ func (s Store) BindPrimary(id string) error {
 	if _, err := s.Load(id); err != nil {
 		return err
 	}
-	root, err := os.OpenRoot(s.root)
+	unlock, err := s.lockPrimary()
 	if err != nil {
 		return err
 	}
-	defer root.Close()
-	lock, err := filelock.OpenRootFile(root, ".primary-lock", os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return err
-	}
-	defer lock.Close()
-	if err := filelock.Lock(lock, filelock.Exclusive); err != nil {
-		return err
-	}
-	defer filelock.Unlock(lock)
+	defer unlock()
 	current, err := s.Primary()
 	if err != nil {
 		return err
@@ -66,4 +58,46 @@ func (s Store) BindPrimary(id string) error {
 		return errors.New("another window saved the main conversation first; this conversation remains a separate topic")
 	}
 	return writeJSON(filepath.Join(s.root, "primary.json"), primaryConversation{Version: 1, ID: id})
+}
+
+// EnsurePrimary creates the main chat once, even before its first message.
+// It neither adopts a recent topic nor resumes any retained operation.
+func (s Store) EnsurePrimary(source string, now time.Time) (Conversation, error) {
+	unlock, err := s.lockPrimary()
+	if err != nil {
+		return Conversation{}, err
+	}
+	defer unlock()
+	id, err := s.Primary()
+	if err != nil {
+		return Conversation{}, err
+	}
+	if id != "" {
+		return s.Load(id)
+	}
+	chat, err := s.create("Hot Cross Buns", source, "", now, true)
+	if err != nil {
+		return Conversation{}, err
+	}
+	if err := writeJSON(filepath.Join(s.root, "primary.json"), primaryConversation{Version: 1, ID: chat.ID}); err != nil {
+		return Conversation{}, err
+	}
+	return chat, nil
+}
+
+func (s Store) lockPrimary() (func(), error) {
+	root, err := os.OpenRoot(s.root)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	lock, err := filelock.OpenRootFile(root, ".primary-lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := filelock.Lock(lock, filelock.Exclusive); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return func() { filelock.Unlock(lock); lock.Close() }, nil
 }

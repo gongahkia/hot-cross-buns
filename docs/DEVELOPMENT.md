@@ -2,7 +2,7 @@
 
 Hot Cross Buns opens as a local web app. Install Go 1.25.13+ and Node 22.12+,
 run `make run`, and open the printed address (normally `http://127.0.0.1:4317`).
-Click the app name for recent chats and settings. Use Models to select or set up
+Click the app name for Main chat, other chats, and settings. Use Models to select or set up
 a provider. Browser reloads reconnect to the running host. Ctrl+C stops the
 local server and its conversation processes.
 
@@ -11,6 +11,21 @@ local server and its conversation processes.
 `HOT_CROSS_BUNS_WEB_USER_DATA` selects the directory for app drafts.
 The web server owns one foreground chat for the local browser, including when
 multiple tabs are open. Use `make web-check` for the loopback gateway tests.
+
+Cold launches open one persistent **Main chat** for the current profile, regardless
+of the last chat visited. Go retains its identity before the first message;
+concurrent launches use the same designation. An existing main designation is
+reused. Profiles without one get a new empty main conversation; old histories are
+not merged or adopted. Opening a chat, choosing a workspace, creating a new chat,
+or forking a response does not replace the main designation. **Main chat** in the
+app-name menu and command palette returns to its existing owner, allowing side
+tasks to keep running. Both chats retain their own drafts, source settings, and
+history. Opening the app does not send drafts or retry interrupted work.
+
+Automatic history retention protects the main conversation even while another
+chat is selected. Explicit data deletion still applies. If it removes the main
+conversation, the next launch or explicit Main chat navigation creates an empty
+replacement. Invalid main metadata is reported rather than silently replaced.
 
 Completed `html`, `svg`, and `mermaid` fenced code blocks render inline with a
 Source disclosure. HTML and SVG use opaque sandboxed frames. Self-contained inline scripts, buttons,
@@ -111,9 +126,11 @@ view transition. Switching retained chats uses the same quiet content reveal.
 Closing releases focus and interaction immediately, and reduced-motion
 preferences disable these effects.
 
-The app-name menu contains New chat and an internally scrolling **Chats** list.
+The app-name menu contains Main chat, New chat and an internally scrolling **Chats** list.
 The list pages through all retained chats, including archived chats, using the
-Go native catalog rather than the 24-item recent projection. Fading edges show
+Go native catalog rather than the 24-item recent projection. Main chat has its
+own menu entry and is omitted from the ordinary list; matching main-chat results
+remain available when searching. Fading edges show
 scroll position. Opening a row rechecks its catalog version and verifies the
 destination owner before focusing it. No arbitrary renderer chat ID is trusted.
 

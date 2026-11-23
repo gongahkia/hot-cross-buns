@@ -567,6 +567,16 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 		},
 		StartConversationID: startConversationID,
 		LastConversation:    sessions.Active,
+		PrimaryConversation: sessions.Primary,
+		EnsureMainConversation: func(source string) (string, error) {
+			release, err := state.Guard(stateDir, false)
+			if err != nil {
+				return "", err
+			}
+			defer release()
+			chat, err := sessions.EnsurePrimary(source, time.Now())
+			return chat.ID, err
+		},
 		RememberConversation: func(id string) error {
 			release, err := state.Guard(stateDir, false)
 			if err != nil {

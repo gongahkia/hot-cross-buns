@@ -29,6 +29,8 @@ button { border: 0; border-radius: .35rem; background: transparent; padding: .3r
 .wordmark { transition: background-color 140ms ease-out, color 140ms ease-out; display: flex; align-items: center; gap: .4rem; font-weight: 500; color: #37352f; }
 .wordmark[aria-expanded="true"] { background: var(--wash); }
 .new span { color: var(--accent); padding-inline-end: .25rem; }
+.history > .new { display: flex; align-items: center; gap: .4rem; width: 100%; }
+.history > .new + .section-head { margin-block-start: .5rem; }
 .history {
   position: fixed; z-index: 3; inset: 3.7rem auto auto clamp(.7rem, 3vw, 2.5rem);
   width: min(18rem, calc(100vw - 1.4rem)); max-height: calc(100dvh - 5rem);

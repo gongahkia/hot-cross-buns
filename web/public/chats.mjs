@@ -11,7 +11,7 @@ export function chatMenu({ request, open, rename }) {
   const issue = element('p', undefined, 'hint chat-list-issue'); issue.setAttribute('role', 'status'); issue.hidden = true;
   const editor = element('form', undefined, 'chat-rename'); editor.hidden = true;
   root.append(list); container.append(search, searchHelp, activitySummary, root, issue, editor);
-  let context, current, next = '', busy = false, generation = 0, items = new Map(), query = '', timer;
+  let context, current, primary, next = '', busy = false, generation = 0, items = new Map(), query = '', timer;
   let activity = new Map();
   function activityState() {
     let working = 0, waiting = 0;
@@ -59,7 +59,8 @@ export function chatMenu({ request, open, rename }) {
   }
   function render() {
     const position = list.scrollTop, ownerContext = context;
-    list.replaceChildren(...[...items.values()].map(item => {
+    const visible=[...items.values()].filter(item=>query || item.id!==primary);
+    list.replaceChildren(...visible.map(item => {
       const wrapper = element('div', undefined, 'chat-item');
       wrapper.dataset.chat = item.id;
       const row = element('button', undefined, 'quiet chat-row'); row.type = 'button';
@@ -83,7 +84,7 @@ export function chatMenu({ request, open, rename }) {
       }
       return wrapper;
     }));
-    if (!items.size) list.append(element('p', query ? 'No matching chats.' : 'No chats yet.', 'hint'));
+    if (!visible.length) list.append(element('p', query ? 'No matching chats.' : 'No other chats yet.', 'hint'));
     if (next) list.append(more);
     list.scrollTop = position; edges(); activityState();
   }
@@ -121,5 +122,5 @@ export function chatMenu({ request, open, rename }) {
     const labels = { running: 'In progress', waiting: 'Needs you', stopping: 'Stopping', failed: 'Needs attention', disconnected: 'Disconnected', queued: 'Queued' };
     for (const task of tasks) if (labels[task.state] && !activity.has(task.id)) activity.set(task.id, labels[task.state]);
     activityState();
-  }, updateCurrent(id) { if (current !== id) { current = id; render(); } } };
+  }, updateCurrent(id, main) { if (current !== id || primary !== main) { current = id; primary = main; render(); } } };
 }

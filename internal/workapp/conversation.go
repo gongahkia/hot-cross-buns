@@ -9,7 +9,7 @@ import (
 )
 
 func (m Model) openPrimaryConversation() (tea.Model, tea.Cmd) {
-	if m.config.LastConversation != nil {
+	if m.config.PrimaryConversation == nil && m.config.LastConversation != nil {
 		if m.conversation == "" {
 			m.createChat()
 		}
@@ -20,12 +20,24 @@ func (m Model) openPrimaryConversation() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	id, err := m.config.PrimaryConversation()
+	if err == nil && m.config.EnsureMainConversation != nil {
+		id, err = m.config.EnsureMainConversation(m.primarySource)
+	}
 	if err != nil {
 		m.bridgeNotice = "Couldn't open your main conversation: " + err.Error()
 		return m, nil
 	}
 	if id != "" && id == m.conversation {
 		m.primary, m.primaryID = true, id
+		return m, nil
+	}
+	if m.config.ManagedSessions {
+		if id == "" {
+			m.bridgeNotice = "The main conversation is unavailable. Reopen the app to retry."
+			return m, nil
+		}
+		m.primaryID = id
+		m.requestSession(BridgeSessionRequest{ConversationID: id})
 		return m, nil
 	}
 	next, _ := m.runLocalCommand("/new")

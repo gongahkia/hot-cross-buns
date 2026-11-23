@@ -236,6 +236,7 @@ type Config struct {
 	RememberConversation     func(string) error
 	CreateConversation       func(string) (worksession.Conversation, error)
 	PrimaryConversation      func() (string, error)
+	EnsureMainConversation   func(string) (string, error)
 	BindPrimaryConversation  func(string) error
 	Jobs                     []jobs.Definition
 	SupervisorRunning        bool
@@ -617,7 +618,7 @@ func New(config Config) Model {
 	model.refreshModelStatus()
 	model.refreshTerminalPreferences()
 	model.primarySource = config.CurrentFolder
-	if !config.StartNew && !config.StartView && config.LastConversation != nil && config.StartConversationID == "" && config.GoalID == "" {
+	if config.PrimaryConversation == nil && !config.StartNew && !config.StartView && config.LastConversation != nil && config.StartConversationID == "" && config.GoalID == "" {
 		id, err := config.LastConversation()
 		if err != nil {
 			model.bridgeNotice = "Couldn't reopen your last chat: " + err.Error()
@@ -627,10 +628,14 @@ func New(config Config) Model {
 	}
 	if config.PrimaryConversation != nil {
 		id, err := config.PrimaryConversation()
+		mainStartup := !config.StartNew && !config.StartView && config.StartConversationID == "" && config.GoalID == ""
+		if err == nil && mainStartup && config.EnsureMainConversation != nil {
+			id, err = config.EnsureMainConversation(model.primarySource)
+		}
 		model.primaryID = id
 		if err != nil {
 			model.bridgeNotice = "Couldn't open your main conversation: " + err.Error()
-		} else if config.StartConversationID == "" && config.GoalID == "" {
+		} else if mainStartup {
 			model.primary = true
 			model.title = "Hot Cross Buns"
 			config.StartConversationID = id

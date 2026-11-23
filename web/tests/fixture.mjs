@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true } = {}) {
+export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -77,20 +77,20 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
       }
     }
   }
+  if (designateMain && seededChats.length) await writeFile(join(root,'state','hot-cross-buns','conversations','primary.json'),JSON.stringify({version:1,conversation_id:seededChats[0].id}),{mode:0o600});
   for (const text of memories) await promisify(execFile)(binary, ["memory", "add", "--kind", "preference", text], { env, timeout: 5000 });
   let app;
+  const appOptions={binary,workspace,userData:join(root,'app'),env};
   try {
-    app = await startWeb({
-      binary, workspace, userData: join(root, "app"),
-      env,
-    }, 0);
+    app = await startWeb(appOptions, 0);
   } catch (error) {
     provider.close();
     await rm(root, { recursive: true, force: true });
     throw error;
   }
   return {
-    url: app.url, payloads, seededChats, draftFile,
+    get url() {return app.url;}, payloads, seededChats, draftFile,
+    async restart() { await app.close(); app=await startWeb(appOptions,0); },
     block() { blocked = true; },
     blockAfterTool() { afterTool = true; },
     release() { blocked = false; afterTool = false; release?.(); },

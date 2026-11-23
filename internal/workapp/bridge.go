@@ -468,6 +468,16 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
+	if command == "/hot-cross-buns" && m.config.ManagedSessions && !m.controlBusy && !m.followupSaving && !m.recallBusy && m.bridgeExternal == nil {
+		if m.models != nil {
+			m.closeModelPanel()
+		}
+		m.cancelControlBackground()
+		if m.primary && m.conversation == m.primaryID {
+			return m.NavigateBridge("/chat")
+		}
+		return m.openPrimaryConversation()
+	}
 	if m.config.ManagedSessions && (m.running && command != "/chat" && command != "/browser" || m.pendingConnection() != "" && command != "/connections") && !m.controlBusy && !m.followupSaving && !m.recallBusy && m.bridgeExternal == nil {
 		if command == "/new" {
 			m.requestSession(BridgeSessionRequest{New: true})
