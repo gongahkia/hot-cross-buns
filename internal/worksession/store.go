@@ -212,6 +212,7 @@ func (s Store) AddRevision(conversationID string, revision Revision) (Conversati
 	if err := s.writeConversation(conversation); err != nil {
 		return Conversation{}, err
 	}
+	s.indexRevision(conversationID, revision)
 	return conversation, nil
 }
 

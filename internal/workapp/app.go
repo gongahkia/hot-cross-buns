@@ -684,8 +684,15 @@ func New(config Config) Model {
 
 // Init loads the initial application projections. The terminal frontend owns rendering.
 func (m Model) Init() tea.Cmd {
+	var history tea.Cmd
+	if m.config.Live && m.config.BridgeMode && m.config.ManagedSessions && m.config.SessionStore != nil {
+		history = m.historySweepCommand()
+	}
 	if m.config.ReadChecks != nil {
-		return tea.Batch(m.refreshChecksCommand(), m.readOverviewCommand(), nextChecksTick())
+		return tea.Batch(m.refreshChecksCommand(), m.readOverviewCommand(), nextChecksTick(), history)
+	}
+	if history != nil {
+		return tea.Batch(m.readOverviewCommand(), history)
 	}
 	return m.readOverviewCommand()
 }

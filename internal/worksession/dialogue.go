@@ -239,6 +239,7 @@ func (store Store) AdmitDialogue(conversation, clientID, text string, options js
 	if err := writeDialogue(root, turn); err != nil {
 		return DialogueTurn{}, err
 	}
+	store.indexDialogue(turn)
 	return turn, nil
 }
 
@@ -361,5 +362,6 @@ func (store Store) UpdateDialogue(next DialogueTurn, expected uint64) (DialogueT
 	if err := writeDialogue(root, next); err != nil {
 		return DialogueTurn{}, err
 	}
+	store.indexDialogue(next)
 	return next, nil
 }

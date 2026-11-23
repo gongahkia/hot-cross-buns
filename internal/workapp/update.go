@@ -18,6 +18,16 @@ import (
 
 func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 	switch value := messageValue.(type) {
+	case historyIndexTick:
+		if m.quitting {
+			return m, nil
+		}
+		return m, tea.Tick(5*time.Second, func(time.Time) tea.Msg { return historySweepReady{} })
+	case historySweepReady:
+		if m.quitting {
+			return m, nil
+		}
+		return m, m.historySweepCommand()
 	case personalMemoryFinished:
 		return m.finishPersonalMemory(value.Result)
 	case nativeProviderFinished:
