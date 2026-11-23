@@ -38,8 +38,8 @@ typecheck, all 63 web tests, 143 host tests, and all 15 packaging/OAuth build te
 passed. Browser checks used disposable fixtures and the rebuilt local app; the
 existing ordinary draft was preserved.
 
-`GOFLAGS=-p=1 make check` is not fully green. Twelve terminal failures also
-reproduce against the original runtime and frontend at checkpoint `f9568a80f`:
+At retirement, `GOFLAGS=-p=1 make check` was not fully green. Twelve terminal
+failures also reproduced against the original runtime and frontend at checkpoint `f9568a80f`:
 
 - Attachment rejection display (`ui/tests/attachments.test.tsx`, one case).
 - Settings command menu (`ui/tests/commands.test.tsx`, one case).
@@ -57,3 +57,38 @@ failed, and two integrations were skipped (macOS login-service repair and the
 opt-in managed browser). These existing terminal issues
 were not changed or hidden by the web port. No Swift frontend test was run after
 retirement; its dedicated package and native UI no longer form part of the build.
+
+## Terminal follow-up
+
+The twelve reported failures now pass in focused runs. Terminal startup explicitly
+enables its reviewed Go model panel without exposing it to web/native hosts.
+Attachment errors are visible beside recovery controls, and descriptive backend
+commands precede supplemental menu entries. The stale model-deletion expectation
+now asserts the existing backend refusal, zero delete requests, and unchanged
+installed model and configuration; cross-process deletion protections remain.
+
+The full rerun also exposed a Markdown fixture that requested a dark preset while
+asserting terminal-default foreground colors. It now explicitly requests the
+terminal palette, retaining its rendering assertions. Markdown and palette tests
+passed both with `NO_COLOR=1` and with `NO_COLOR` unset.
+
+23 November 2026: the complete `make check` passed with `GOFLAGS=-p=1` and a short
+on-disk `TMPDIR` under `/var/tmp`, run as a temporary user service. Its final
+status was `Result=success`, `ExecMainStatus=0`:
+
+- Go runtime and terminal build, all Go tests, vet, typecheck, and formatting passed.
+- Web: 63 passed.
+- Shared host: 143 passed, one Windows-only native handoff skipped on Linux.
+- Terminal: 222 passed across 84 files; macOS login-service repair and opt-in
+  managed-browser integration skipped on Linux without the browser opt-in.
+- Packaging and OAuth build checks: 15 passed.
+
+Earlier command-session attempts encountered a long temporary path wrapping a
+catalog assertion and a later SIGTERM interruption. The shorter on-disk path
+passed the catalog test without changing its assertion. I cannot verify what
+sent SIGTERM; both isolated update tests and the complete service-based rerun
+passed. The temporary test service was stopped after verification.
+
+Fix commits: `374a9e2eb` (error visibility), `a3409339a` (command ordering),
+`deb1c0897` (terminal model management and deletion guard coverage), and
+`b759f3926` (environment-independent Markdown fixture).
