@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createMemorySamples } from '../public/memory-samples.mjs';
+import { createMemorySamples } from './memory-samples.mjs';
 
 test('memory samples cover every section and allow correction, forgetting, and reset in isolation', async () => {
   const preview = createMemorySamples(), other = createMemorySamples();

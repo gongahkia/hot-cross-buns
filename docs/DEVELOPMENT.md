@@ -12,11 +12,6 @@ local server and its conversation processes.
 The web server owns one foreground chat for the local browser, including when
 multiple tabs are open. Use `make web-check` for the loopback gateway tests.
 
-Open **Output preview** from the app menu, or `/?preview=outputs`, for a sample
-conversation rendered with the real message renderer. It includes Markdown,
-tables, code, HTML, SVG, Mermaid flow and sequence diagrams, and a local animated
-GIF. Preview mode does not send messages or write conversation history.
-
 Completed `html`, `svg`, and `mermaid` fenced code blocks render inline with a
 Source disclosure. HTML and SVG use opaque sandboxed frames. Self-contained inline scripts, buttons,
 selects, CSS animation and SVG animation can run there. The frame policy blocks
@@ -95,8 +90,9 @@ approval waits, and connection loss use their own status icons.
 Progress follows the current chat or its delegated task, keeping unrelated work
 out of the composer. Connection loss pauses its display.
 
-The clock icon and menu entry open the same **Scheduled tasks** modal, replacing
-the separate Following destination. It contains next-run times, timezones, and
+The clock icon, app menu, and Settings open the same **Scheduled tasks** dropdown.
+It shares Delegated work’s right-side popover layout, opening/closing motion,
+light dismissal, and reduced-motion behavior. It contains next-run times, timezones, and
 the existing revision-checked pause, resume, details, and timing controls. Ongoing
 responsibilities and schedule creation open their canonical management views.
 The branching icon opens **Delegated work**, a separate sidebar showing public
@@ -111,7 +107,7 @@ Go native catalog rather than the 24-item recent projection. Fading edges show
 scroll position. Opening a row rechecks its catalog version and verifies the
 destination owner before focusing it. No arbitrary renderer chat ID is trusted.
 
-Models, Connections, Memory, Saved, Scheduled tasks, and Settings use modals.
+Models, Connections, Memory, Saved, and Settings use modals.
 Local models use the native provider API for inventory and exact reviewed future
 selection, including selection receipts and reconciliation. The web host's old
 `/model` screen remains blocked. **Models → Local models** offers reviewed
@@ -122,11 +118,8 @@ packaging have been retired.
 Settings is a hub for real model, connection, privacy, usage, data, and recovery
 controls; backend forms keep their view identity and explicit review step.
 Saved contains global notes rather than a second personal-memory list.
-Output preview opens a gallery that renders one example at a time. Memory preview
-uses the same memory controls with explicitly fictional data. These menu entries
-stay in the chat instead of navigating to separate pages. The standalone
-`/?preview=outputs` demo remains available with its sample composer,
-**Replay current task**, fictional schedules, and mock delegates.
+Output and Memory preview demos have been removed from the app and public assets.
+Rich outputs and real memory editing remain available in their normal views.
 
 
 The composer has an attach icon, a model selector, and an arrow send control.
@@ -153,12 +146,6 @@ icons are mapped from persisted memory kinds, including model-assigned kinds;
 opening the view does not ask a model to classify or rewrite the saved content.
 Goal context and guidance link to their existing management controls. The pane
 reads the canonical stores without calling a model or generating a new profile.
-
-Open **Memory preview** from the app menu or `/?preview=memory` for fictional
-records in every topic group, including review and disabled statuses. Adding, editing,
-forgetting, filtering, and source disclosures reuse the real pane. Changes stay
-in browser memory and reset on reload or **Reset samples**. This mode makes no
-backend requests and does not modify the profile's canonical memory stores.
 
 Search retained chats from the app-name menu. Search covers titles, folders, and
 indexed work messages; conversation-only dialogue is not indexed. Hover or focus

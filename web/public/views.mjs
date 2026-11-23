@@ -1,6 +1,5 @@
-import { element, prose } from './text.mjs';
+import { element } from './text.mjs';
 import { icon } from './icons.mjs';
-import { samples } from './output-samples.mjs';
 
 function action(label, glyph, description, run) {
   const node = element('button', undefined, 'view-link'); node.type = 'button';
@@ -41,35 +40,4 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
     root.append(label, element('p', 'Show confirmed conversational acknowledgements as small emoji beside your message. This only changes display in this browser; it never approves work or asks the model for reactions.', 'hint'));
   }
   return root;
-}
-
-const previews = [
-  ['Text & tables', 'file-text', 0], ['Code', 'code', 5], ['HTML', 'code', 1],
-  ['SVG', 'chart-no-axes-combined', 2], ['Diagrams', 'workflow', 3],
-  ['GIF', 'eye', 4], ['Math', 'list-checks', 6], ['Interactive', 'pencil', 7], ['Animation', 'play', 8],
-];
-export function outputPreview() {
-  const root = element('section', undefined, 'output-gallery');
-  root.append(element('p', 'Sample outputs using the same renderer as your chats. Interactive examples run in isolated previews.', 'hint'));
-  const tabs = element('div', undefined, 'view-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Output types');
-  const body = element('div', undefined, 'output-example'); body.setAttribute('role', 'tabpanel'); body.id = 'output-example';
-  function show(index) {
-    for (const [i, tab] of [...tabs.children].entries()) { tab.setAttribute('aria-selected', String(i === index)); tab.tabIndex = i === index ? 0 : -1; }
-    body.setAttribute('aria-labelledby', 'output-tab-' + index);
-    const sample = samples[previews[index][2]];
-    body.replaceChildren(element('p', sample[0], 'hint'), prose(sample[1]));
-  }
-  for (const [index, [name, glyph]] of previews.entries()) {
-    const tab = element('button', name, 'quiet'); tab.type = 'button'; tab.id = 'output-tab-' + index;
-    tab.prepend(icon(glyph)); tab.setAttribute('role', 'tab'); tab.setAttribute('aria-controls', body.id);
-    tab.addEventListener('click', () => show(index));
-    tab.addEventListener('keydown', event => {
-      const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-      if (!offset && !['Home', 'End'].includes(event.key)) return;
-      event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? previews.length - 1 : (index + offset + previews.length) % previews.length;
-      show(next); tabs.children[next].focus();
-    });
-    tabs.append(tab);
-  }
-  root.append(tabs, body); show(0); return root;
 }

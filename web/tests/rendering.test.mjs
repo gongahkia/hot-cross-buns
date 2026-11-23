@@ -4,7 +4,7 @@ import test from "node:test";
 import { build } from "esbuild";
 import { JSDOM } from "jsdom";
 import { fileURLToPath } from "node:url";
-import { createMemorySamples } from '../public/memory-samples.mjs';
+import { createMemorySamples } from './memory-samples.mjs';
 
 const dom = new JSDOM("", { url: "http://127.0.0.1:4317/" });
 globalThis.window = dom.window;
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, outputPreview, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -76,8 +76,8 @@ test("unsafe links and image schemes cannot become active content", () => {
   const result = prose('[unsafe](javascript:alert%281%29)\n\n![unsafe](data:text/html;base64,PHNjcmlwdD4=)\n\n[credentials](https://user:secret@example.com)');
   assert.equal(result.querySelector("a[href]"), null);
   assert.equal(result.querySelector("img"), null);
-  const image = prose("![Animation](/preview.gif)").querySelector("img");
-  assert.equal(image.getAttribute("src"), "/preview.gif");
+  const image = prose("![Animation](/animation.gif)").querySelector("img");
+  assert.equal(image.getAttribute("src"), "/animation.gif");
   assert.equal(image.referrerPolicy, "no-referrer");
 });
 
@@ -317,7 +317,7 @@ test('live chat activity can remain collapsed while its status updates', () => {
   assert.equal(activity.element.open, true);
 });
 
-test('Memory preview uses the real pane for editing, forgetting, filtering, and reset', async () => {
+test('Memory editing, forgetting, filtering, and reset use the real pane', async () => {
   const samples = createMemorySamples();
   const pane = memoryPane({ request: samples.request, manage: () => {}, description: 'Fictional preview data.' });
   document.body.replaceChildren(pane.element);
@@ -405,21 +405,13 @@ test('the chat menu pages inside its own scroll area and opens only returned sel
   assert.deepEqual(opened, [{ context: 'chat-context', selection: 'newer-selection' }]);
 });
 
-test('settings routes to real management pages and output examples render one type at a time', () => {
+test('settings routes to real management pages', () => {
   const destinations = [];
   const settings = settingsView({ state: { model: 'Configured model' }, navigate: route => destinations.push(route), backend: route => destinations.push(route) });
   assert.match(settings.textContent, /Configured model/);
   [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Memory & privacy')).click();
   assert.deepEqual(destinations, ['/memory']);
-  const gallery = outputPreview(); document.body.replaceChildren(gallery);
-  assert.equal(gallery.querySelectorAll('table').length, 1);
-  const tabs = [...gallery.querySelectorAll('[role="tab"]')];
-  tabs.find(tab => tab.textContent === 'Interactive').click();
-  assert.equal(gallery.querySelectorAll('iframe').length, 1);
-  assert.equal(gallery.querySelectorAll('table').length, 0);
-  tabs.find(tab => tab.textContent === 'Code').click();
-  assert.equal(gallery.querySelectorAll('iframe').length, 0);
-  assert.ok(gallery.querySelector('.hljs-keyword'));
+
 });
 
 test('local model selection binds the displayed review and never repeats an unconfirmed mutation', async () => {

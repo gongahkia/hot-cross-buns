@@ -54,7 +54,10 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
   let live;
   try {
     const page = await fetch(app.url);
-    assert.match(await page.text(), /Hot Cross Buns/);
+    const html = await page.text();
+    assert.match(html, /Hot Cross Buns/);
+    assert.doesNotMatch(html, /Output preview|Memory preview|\/preview\//);
+    for (const path of ['/preview.mjs', '/memory-preview.mjs', '/output-samples.mjs', '/memory-samples.mjs', '/preview.gif']) assert.equal((await fetch(app.url + path)).status, 404);
     assert.match(page.headers.get("content-security-policy"), /frame-ancestors 'none'/);
     const artifact = await fetch(app.url + "/artifact");
     assert.equal(artifact.status, 200);

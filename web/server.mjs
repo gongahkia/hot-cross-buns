@@ -25,12 +25,9 @@ const assets = new Map([
   ["/views.mjs", ["views.mjs", "text/javascript; charset=utf-8"]],
   ["/local-models.mjs", ["local-models.mjs", "text/javascript; charset=utf-8"]],
   ["/fields.mjs", ["fields.mjs", "text/javascript; charset=utf-8"]],
-  ["/output-samples.mjs", ["output-samples.mjs", "text/javascript; charset=utf-8"]],
   ["/text.mjs", ["text.mjs", "text/javascript; charset=utf-8"]],
   ["/boot.mjs", ["boot.mjs", "text/javascript; charset=utf-8"]],
   ["/memory.mjs", ["memory.mjs", "text/javascript; charset=utf-8"]],
-  ["/memory-preview.mjs", ["memory-preview.mjs", "text/javascript; charset=utf-8"]],
-  ["/memory-samples.mjs", ["memory-samples.mjs", "text/javascript; charset=utf-8"]],
   ["/icons.mjs", ["icons.mjs", "text/javascript; charset=utf-8"]],
   ["/attachments.mjs", ["attachments.mjs", "text/javascript; charset=utf-8"]],
   ["/caret.mjs", ["caret.mjs", "text/javascript; charset=utf-8"]],
@@ -38,8 +35,6 @@ const assets = new Map([
   ["/task-inspector.mjs", ["task-inspector.mjs", "text/javascript; charset=utf-8"]],
   ["/scheduled.mjs", ["scheduled.mjs", "text/javascript; charset=utf-8"]],
   ["/palette.mjs", ["palette.mjs", "text/javascript; charset=utf-8"]],
-  ["/preview.mjs", ["preview.mjs", "text/javascript; charset=utf-8"]],
-  ["/preview.gif", ["preview.gif", "image/gif"]],
 ]);
 const headers = {
   "Cache-Control": "no-store",

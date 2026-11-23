@@ -1,11 +1,11 @@
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
-export function scheduledPane({ request, manage, goals, embedded = false, description = '' }) {
-  const root = element(embedded ? 'section' : 'aside', undefined, embedded ? 'scheduled-content' : 'task-inspector scheduled-pane'); root.id = 'scheduled-tasks';
-  if (!embedded) { root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', 'scheduled-title'); }
+export function scheduledPane({ request, manage, goals, description = '' }) {
+  const root = element('aside', undefined, 'task-inspector scheduled-pane'); root.id = 'scheduled-tasks';
+  root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', 'scheduled-title');
   const trigger = element('button', undefined, 'quiet icon-button'); trigger.type = 'button'; trigger.append(icon('clock'));
-  if (!embedded) trigger.setAttribute('popovertarget', root.id);
+  trigger.setAttribute('popovertarget', root.id);
   trigger.setAttribute('aria-label', 'Scheduled tasks'); trigger.title = 'Scheduled tasks';
   const header = element('div', undefined, 'section-head'), title = element('h2', 'Scheduled tasks'); title.id = 'scheduled-title';
   const close = element('button', undefined, 'quiet icon-button'); close.type = 'button'; close.append(icon('close'));
@@ -14,10 +14,10 @@ export function scheduledPane({ request, manage, goals, embedded = false, descri
   const error = element('p', undefined, 'issue'); error.setAttribute('role', 'alert'); error.hidden = true;
   const health = element('p', undefined, 'hint'), list = element('div'), actions = element('div', undefined, 'task-links');
   const refresh = button('Refresh', () => void perform({ action: 'refresh' })); actions.append(refresh);
-  const dismiss = () => { if (!embedded) root.hidePopover(); };
+  const dismiss = () => root.hidePopover();
   if (manage) actions.append(button('Create or manage schedules', async () => { dismiss(); await manage(); }));
   if (goals) actions.append(button('Ongoing responsibilities', async () => { dismiss(); await goals(); }));
-  if (!embedded) root.append(header);
+  root.append(header);
   root.append(note, error, health, list, actions);
   let busy = false, fingerprint = '';
   function button(text, action) { const node = element('button', text, 'quiet'); node.type = 'button'; node.addEventListener('click', () => void action()); return node; }
@@ -50,8 +50,8 @@ export function scheduledPane({ request, manage, goals, embedded = false, descri
     }
     if (!value.entries?.length) list.append(element('p', 'No scheduled tasks yet. Ask me to remind you or check on something regularly.', 'task-empty hint'));
   }
-  if (!embedded) trigger.addEventListener('click', () => void perform({ action: 'refresh' }));
-  function open() { if (!embedded) root.showPopover(); void perform({ action: 'refresh' }); }
+  root.addEventListener('toggle', event => { if (event.newState === 'open') void perform({ action: 'refresh' }); });
+  function open() { root.showPopover(); }
   update();
   return { element: root, trigger, update, open };
 }

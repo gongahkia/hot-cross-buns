@@ -4,8 +4,7 @@ import { memoryPane } from "./memory.mjs";
 import { taskInspector, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
 import { chatMenu } from './chats.mjs';
-import { settingsView, outputPreview } from './views.mjs';
-import { createMemorySamples } from './memory-samples.mjs';
+import { settingsView } from './views.mjs';
 import { localModelsView } from './local-models.mjs';
 import { panelField } from './fields.mjs';
 import { transcriptFind } from './find.mjs';
@@ -26,7 +25,6 @@ let transcriptKey = "", streamingText = "", historyKey = "", panelKey = "", work
 let draftLoad = 0, saveTail = Promise.resolve(), detailGeneration = 0;
 let previewContext;
 const previewCache = new Map();
-const sampleMemories = createMemorySamples();
 const correctionBar = element('div', undefined, 'correction-context'); correctionBar.hidden = true;
 document.querySelector('#composer').prepend(correctionBar);
 const draftTextKey = value => ':text:' + value?.context + (value?.correction ? ':correction:' + value.correction.id : '');
@@ -50,11 +48,11 @@ const inspector = taskInspector({ iconName: 'helpers', showEmpty: true, inspect:
 } });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
-const scheduled = scheduledPane({ embedded: true, request: body => call({ op: 'scheduled', ...body }),
-  description: 'Things I’ll check or remind you about later. Ongoing responsibilities live here too. Delegated work shows helpers working on a current request.',
+const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...body }),
+  description: 'Things I’ll check or remind you about later.',
   manage: () => execute(() => backendRoute('/followup')), goals: () => execute(() => backendRoute('/goals')) });
 document.querySelector('.top-actions').prepend(scheduled.trigger);
-scheduled.trigger.addEventListener('click', () => void execute(() => navigate('/scheduled')));
+document.body.append(scheduled.element);
 function renderProgress() {
   chats.updateActivity(snapshot.activity, snapshot.tasks);
   const candidates = (snapshot.tasks || []).filter(task => task.current || task.parent === snapshot.state?.conversation_id);
@@ -359,21 +357,14 @@ async function navigate(route) {
     const view = workspaceView({ source: snapshot.state?.source, request: body => call({ context, ...body }), selected: () => dialog.close() });
     openDetail('Workspace', view.element); await view.load(); return;
   }
-  if (['/settings', '/memory', '/knowledge', '/model', '/scheduled', '/preview/outputs', '/preview/memory'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
+  if (['/settings', '/memory', '/knowledge', '/model', '/scheduled'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
   if (route === '/settings') {
     openDetail('Settings', settingsView({ state: snapshot.state, scheduled: snapshot.scheduled,
       reactionMode, setReactionMode: mode => { reactionMode = reactionPreference(mode); transcriptKey = ''; renderTranscript(snapshot.state || {}); },
       navigate: route => void execute(() => navigate(route)), backend: route => void execute(() => route === '/recovery' ? showTaskDetails() : backendRoute(route)) }));
     return;
   }
-  if (route === '/scheduled') { openDetail('Scheduled tasks', scheduled.element); scheduled.open(); return; }
-  if (route === '/preview/outputs') { openDetail('Output preview', outputPreview()); return; }
-  if (route === '/preview/memory') {
-    const pane = memoryPane({ request: sampleMemories.request, description: 'Fictional sample memories. Add, edit, and forget here to try the controls; changes stay in this preview.',
-      manage: () => { const note = element('p', 'This is sample data. Open Memory & privacy from Settings to manage your actual profile.', 'hint'); pane.element.prepend(note); } });
-    const reset = button('Reset samples', () => { sampleMemories.reset(); void pane.load(); }); reset.prepend(icon('rotate-ccw'));
-    pane.element.querySelector('.memory-tools').append(reset); openDetail('Memory preview', pane.element); await pane.load(); return;
-  }
+  if (route === '/scheduled') { dialog.close(); scheduled.open(); return; }
   if (route === "/model") { showModels(); return; }
   if (route === "/memory" || route === '/knowledge') {
     const context = snapshot.context;
@@ -402,7 +393,7 @@ function showDetail(title, ...nodes) {
   detailGeneration++;
   $('back-detail').hidden = true; $('back-detail').onclick = null;
   dialog.classList.toggle("memory-pane", nodes.some(node => node.classList?.contains("memory-pane-content")));
-  dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('output-gallery') || node.classList?.contains('settings-view')));
+  dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view')));
   $("detail-title").textContent = title;
   detail.replaceChildren(...nodes);
   if (!dialog.open) dialog.showModal();

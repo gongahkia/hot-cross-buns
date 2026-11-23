@@ -88,8 +88,6 @@ dialog::backdrop { background: #25201835; }
 @media (max-width: 520px) { .paper { margin-top: 2.1rem; } h1 { margin-bottom: 1.5rem; } }
 
 .bread { font-size: 1.05rem; line-height: 1; }
-.preview-link { padding: .3rem .55rem; text-decoration: none; border-radius: .35rem; }
-.preview-link:hover { background: var(--wash); }
 .turn > :last-child { margin-bottom: 0; }
 .turn blockquote { border-left: 3px solid #deddd9; padding-left: 1rem; margin: 1rem 0; }
 .turn table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.25rem 0; font-size: .92rem; }
@@ -105,7 +103,6 @@ dialog::backdrop { background: #25201835; }
 .artifact-source { border-top: 1px solid var(--line); }
 .artifact-source summary { padding: .35rem .75rem; font-size: .75rem; }
 .artifact-source pre { margin: 0; border-radius: 0; }
-.preview-note { color: var(--muted); font-size: .8rem; margin-top: -1.4rem; margin-bottom: 2.5rem; }
 
 .artifact iframe.svg-preview { height: 230px; }
 
@@ -215,10 +212,6 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
   }
   .activity-group[open]::details-content, .activity-entry[open]::details-content { block-size: auto; opacity: 1; }
 }
-.motion-preview { margin-top: 3rem; }
-.motion-preview label { display: block; color: var(--muted); font-size: .85rem; margin-bottom: .5rem; }
-.motion-preview textarea { min-height: 7rem; max-height: 12rem; border: 1px solid var(--line); border-radius: .3rem; padding: .75rem; background: var(--wash); }
-.motion-preview .quiet { margin-block: .5rem; }
 @media (prefers-reduced-motion: reduce) {
   .smooth-caret { display: none !important; }
   .smooth-caret-field { caret-color: auto; }
@@ -342,7 +335,7 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 @media (prefers-reduced-motion: reduce) { .task-inspector, .task-item > summary > .disclosure-icon { transition: none; } .task-trigger .task-pulse, .task-steps [data-state="running"] .task-check { animation: none; } }
 @media (max-width: 520px) { .top-actions { gap: .1rem; flex-wrap: wrap; justify-content: flex-end; } .task-trigger { font-size: .72rem; } }
 
-.task-inspector:not(.scheduled-pane) { inset-block-end: 1rem; height: calc(100dvh - 5rem); }
+.task-inspector { inset-block-end: 1rem; height: calc(100dvh - 5rem); }
 .scheduled-pane .task-item > p { margin: .45rem 0; }
 .scheduled-pane .issue { font-size: .78rem; color: #9b6858; }
 .composer-progress { width: min(var(--measure), 100%); margin-inline: auto; padding: .45rem .8rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .7rem .7rem 0 0; background: var(--paper); }
@@ -405,12 +398,6 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .view-link small { font-size: .78rem; margin-top: .15rem; }
 .view-link:hover { background: var(--wash); }
 .view-link > .app-icon { color: var(--muted); }
-.view-tabs { display: flex; flex-wrap: wrap; gap: .25rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); }
-.view-tabs button { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; }
-.view-tabs [aria-selected="true"] { background: var(--wash); }
-.output-example { padding-top: 1rem; min-height: 13rem; }
-.output-example > .hint { font-size: .8rem; }
-.output-example > div { font-size: .9rem; }
 .memory-layout { grid-template-columns: 11rem minmax(0, 1fr); gap: 1.3rem; }
 .memory-layout.single-section { grid-template-columns: 1fr; }
 .memory-topics button { align-items: center; justify-content: flex-start; font-size: .78rem; gap: .45rem; text-align: left; }
@@ -431,7 +418,6 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .memory-create { border: 1px solid var(--line); border-radius: .45rem; padding: .75rem; margin-block: .7rem 1rem; }
 .memory-create h3 { margin-top: 0; }
 .memory-create textarea, .memory-create select { margin-bottom: .6rem; }
-.scheduled-content > .hint, .scheduled-content .task-item p { font-size: .82rem; }
 @media (prefers-reduced-motion: reduce) { .chat-scroll::before, .chat-scroll::after { transition: none; } }
 @media (max-width: 600px) { .memory-layout { grid-template-columns: 1fr; gap: 1rem; } .memory-nav-label { width: 100%; margin-top: .5rem; } }
 .setting-switch { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); border-radius: 0; padding: .7rem .2rem; font-size: .85rem; text-align: left; }
