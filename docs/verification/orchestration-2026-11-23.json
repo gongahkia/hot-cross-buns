@@ -1,0 +1,230 @@
+{
+  "automated": {
+    "installer_progress_regression": {
+      "after_passed": 20,
+      "before_failed": 20,
+      "cpu_limit": 1
+    },
+    "intermediate_interruptions": [
+      "one full-check attempt terminated with Killed",
+      "a later full-check attempt exposed the reproduced installer-progress race before it was fixed"
+    ],
+    "make_check": {
+      "browser_tests": 72,
+      "command": "TMPDIR=/var/tmp GOMAXPROCS=1 GOFLAGS=-p=1 GOMEMLIMIT=768MiB make check",
+      "go_tests": true,
+      "go_vet": true,
+      "host_tests": 140,
+      "oauth_build_tests": 1,
+      "passed": true
+    }
+  },
+  "date": "2026-11-23",
+  "live": {
+    "codex": {
+      "billing_changed": false,
+      "code": "codex_byok_restricted_by_api_credit_promo",
+      "status": "blocked"
+    },
+    "copilot_coding": {
+      "checks": {
+        "independent_tests_passed": true,
+        "original_unchanged": true,
+        "patch_returned": true,
+        "worker_completed": true
+      },
+      "passed": true,
+      "tasks": []
+    },
+    "copilot_coding_handoff": {
+      "checks": {
+        "host_verified_candidate": true,
+        "manager_completed": false,
+        "original_and_verifier_unchanged": true,
+        "patch_retained": true,
+        "two_tasks": true
+      },
+      "failure": "manager omitted the continue tool argument, supplied no retained context, and reached the 12-step limit; the returned patch independently verified",
+      "manager_usage": {
+        "estimated": false,
+        "input_tokens": 144161,
+        "model_requests": 12,
+        "output_tokens": 2563,
+        "reported": true,
+        "unknown_requests": 0
+      },
+      "passed": false,
+      "tasks": [
+        {
+          "continued": false,
+          "patch_retained": false,
+          "role": "cli_copilot",
+          "status": "completed"
+        },
+        {
+          "continued": false,
+          "patch_retained": true,
+          "role": "cli_copilot",
+          "status": "completed"
+        }
+      ]
+    },
+    "copilot_handoff": {
+      "checks": {
+        "explicit_result_handoff": true,
+        "facts_retained": true,
+        "manager_completed": true,
+        "no_native_session_claim": true,
+        "two_tasks": true
+      },
+      "manager_usage": {
+        "estimated": false,
+        "input_tokens": 64518,
+        "model_requests": 7,
+        "output_tokens": 841,
+        "reported": true,
+        "unknown_requests": 0
+      },
+      "passed": true,
+      "tasks": [
+        {
+          "continued": false,
+          "patch_retained": false,
+          "role": "cli_copilot",
+          "status": "completed"
+        },
+        {
+          "continued": true,
+          "patch_retained": false,
+          "role": "cli_copilot",
+          "status": "completed"
+        }
+      ]
+    },
+    "gemini": {
+      "reason": "user requested leaving live test blocked; missing credential",
+      "status": "not_run"
+    },
+    "normal_app": {
+      "credential": "app store; no OPENAI_API_KEY in service environment",
+      "model": "gpt-5-mini",
+      "passed": true,
+      "provider": "openai",
+      "tasks": [
+        {
+          "role": "cli_opencode",
+          "status": "completed",
+          "summary": "opencode ready"
+        },
+        {
+          "role": "cli_copilot",
+          "status": "completed",
+          "summary": "copilot ready"
+        }
+      ]
+    },
+    "opencode_coding": {
+      "checks": {
+        "independent_tests_passed": true,
+        "original_unchanged": true,
+        "patch_returned": true,
+        "worker_completed": true
+      },
+      "passed": true,
+      "tasks": []
+    },
+    "opencode_coding_handoff": {
+      "checks": {
+        "explicit_result_handoff": true,
+        "facts_retained": true,
+        "host_verified_candidate": true,
+        "manager_completed": true,
+        "no_native_session_claim": true,
+        "original_and_verifier_unchanged": true,
+        "patch_retained": true,
+        "two_tasks": true
+      },
+      "manager_usage": {
+        "estimated": false,
+        "input_tokens": 90005,
+        "model_requests": 8,
+        "output_tokens": 2727,
+        "reported": true,
+        "unknown_requests": 0
+      },
+      "passed": true,
+      "tasks": [
+        {
+          "continued": false,
+          "patch_retained": false,
+          "role": "cli_opencode",
+          "status": "completed"
+        },
+        {
+          "continued": true,
+          "patch_retained": true,
+          "role": "cli_opencode",
+          "status": "completed"
+        }
+      ]
+    },
+    "opencode_handoff": {
+      "checks": {
+        "explicit_result_handoff": true,
+        "facts_retained": true,
+        "manager_completed": true,
+        "no_native_session_claim": true,
+        "two_tasks": true
+      },
+      "manager_usage": {
+        "estimated": false,
+        "input_tokens": 76043,
+        "model_requests": 8,
+        "output_tokens": 1271,
+        "reported": true,
+        "unknown_requests": 0
+      },
+      "passed": true,
+      "tasks": [
+        {
+          "continued": false,
+          "patch_retained": false,
+          "role": "cli_opencode",
+          "status": "completed"
+        },
+        {
+          "continued": true,
+          "patch_retained": false,
+          "role": "cli_opencode",
+          "status": "completed"
+        }
+      ]
+    },
+    "personal_assistant": {
+      "checks": {
+        "agenda reports dependency and overlap": false,
+        "chat scheduled exact existing step": true,
+        "completion only affects reported step": true,
+        "dependency preserved on original step": false,
+        "fresh chat recalls corrected date": true,
+        "live checks did not complete overdue work": true,
+        "original note source retained": true,
+        "original note updated without duplicate": true,
+        "overdue alert cites the actual pending step": true,
+        "overdue-check decision": true,
+        "overdue-check has no mutations": true,
+        "quiet-check decision": true,
+        "quiet-check has no mutations": true,
+        "read-only recall queued no changes": true
+      },
+      "passed": false
+    }
+  },
+  "manager_model": "gpt-5-mini",
+  "worker_versions": {
+    "codex": "0.171.0",
+    "copilot": "1.0.114",
+    "gemini": "0.64.0",
+    "opencode": "2.3.2"
+  }
+}

@@ -5,8 +5,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"os"
 	"os/exec"
@@ -16,21 +18,30 @@ import (
 )
 
 func main() {
-	kind := flag.String("kind", "codex", "codex or pi")
+	kind := flag.String("kind", "codex", "installed CLI adapter kind")
+	executable := flag.String("executable", "", "explicit installed executable (avoids shell/package-manager shims)")
 	model := flag.String("model", "gpt-5.6", "model")
 	baseURL := flag.String("base-url", "", "regional API base URL")
+	diagnostics := flag.Bool("diagnostics", false, "include redacted synthetic CLI failure detail in this local test report")
+	timeoutSeconds := flag.Int("timeout", 120, "seconds per CLI invocation")
 	edit := flag.Bool("edit", false, "test isolated patch creation")
+	coding := flag.Bool("coding", false, "test a scoped coding patch with independent sandboxed Python checks")
+	handoff := flag.Bool("handoff", false, "test manager-directed retained-result handoff for a headless worker")
 	sessions := flag.Bool("session-manager", false, "test live manager/native-worker follow-up continuity")
 	crossChat := flag.Bool("cross-chat", false, "split the native follow-up across separate Work conversation turns")
 	controls := flag.Bool("controls", false, "test native clarification (Codex), steering, interruption and resumption")
 	completion := flag.Bool("completion-loop", false, "test live implementation, host checks, independent review and repair")
 	flag.Parse()
-	path, err := exec.LookPath(*kind)
+	selectedExecutable := *executable
+	if selectedExecutable == "" {
+		selectedExecutable = *kind
+	}
+	path, err := exec.LookPath(selectedExecutable)
 	check(err)
 	path, err = filepath.EvalSymlinks(path)
 	check(err)
 	roots := []string{filepath.Dir(path)}
-	if *kind == "pi" {
+	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") {
 		for dir := filepath.Dir(path); dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
 			if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
 				roots = append(roots, dir)
@@ -54,9 +65,25 @@ func main() {
 	check(os.Mkdir(scratch, 0700))
 	original := "# Project Lantern\nOwner: Mira\nDeadline: 2030-05-16\nStatus: draft\n"
 	check(os.WriteFile(filepath.Join(source, "project.md"), []byte(original), 0600))
-	cfg := cliagent.Config{Kind: *kind, Executable: path, Model: *model, BaseURL: *baseURL, APIKeyEnv: "OPENAI_API_KEY", ReadOnlyRoots: roots, TimeoutSeconds: 120, AllowEdits: *edit}
+	cfg := cliagent.Config{Kind: *kind, Executable: path, Model: *model, BaseURL: *baseURL, APIKeyEnv: "OPENAI_API_KEY", ReadOnlyRoots: roots, TimeoutSeconds: *timeoutSeconds, AllowEdits: *edit}
+	if *kind == "gemini" {
+		cfg.APIKeyEnv = "GEMINI_API_KEY"
+	}
+	if *kind == "claude" {
+		cfg.APIKeyEnv = "ANTHROPIC_API_KEY"
+	}
 	if *kind == "pi" {
 		cfg.Provider = "openai"
+	}
+	if *handoff {
+		cfg.AllowEdits = *coding
+		check(runHeadlessHandoff(context.Background(), cfg, root, source, *coding))
+		return
+	}
+	if *coding {
+		cfg.AllowEdits = true
+		check(runCodingProbe(context.Background(), cfg, root, source))
+		return
 	}
 	if *sessions {
 		check(runSessionManager(context.Background(), cfg, root, source, original, *crossChat))
@@ -88,6 +115,16 @@ func main() {
 	diagnostic := ""
 	if runErr != nil {
 		diagnostic = runErr.Error()
+		if *diagnostics {
+			var providerError agent.ProviderRequestError
+			if errors.As(runErr, &providerError) && providerError.Cause != nil {
+				detail := providerError.Cause.Error()
+				if key := os.Getenv(cfg.APIKeyEnv); key != "" {
+					detail = strings.ReplaceAll(detail, key, "[redacted]")
+				}
+				diagnostic += "\n" + detail
+			}
+		}
 	}
 	report := map[string]any{"kind": *kind, "model": *model, "edit": *edit, "passed": passed, "seconds": time.Since(start).Seconds(), "summary": value.Summary, "usage": value.Usage, "patch_bytes": len(value.Patch), "original_unchanged": string(current) == original, "error": diagnostic, "at": time.Now().UTC().Format(time.RFC3339)}
 	encoder := json.NewEncoder(os.Stdout)
