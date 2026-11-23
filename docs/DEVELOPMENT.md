@@ -242,6 +242,8 @@ ordinary draft text are saved together, and the host rechecks the retained
 response identity, digest and excerpt before submission. The model receives the
 reference as quoted conversation context. The transcript displays it as a quote,
 without showing the transport envelope.
+With saved drafts disabled, the active quote stays only in host memory until it
+is removed, submitted, or the host closes; unsent quote content is not saved.
 
 Response controls include Fork, Reply and React. Right-click model text for the
 emoji panel; Shift+right-click keeps the browser menu. Reactions are display-only

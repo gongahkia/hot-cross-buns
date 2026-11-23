@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath } = {}) {
+export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -52,6 +52,11 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
   const binary = process.env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL(
     "../../runtime/hot-cross-buns-runtime" + (process.platform === "win32" ? ".exe" : ""), import.meta.url));
   const env = { ...process.env, ...(runtimePath ? { PATH: runtimePath + ":" + process.env.PATH } : {}), XDG_CACHE_HOME: join(root, "cache"), HOT_CROSS_BUNS_INTERNAL_COMMANDS: "1", HOT_CROSS_BUNS_CONFIG_DIR: config, HOT_CROSS_BUNS_STATE_DIR: join(root, "state") };
+  const draftFile = join(root, 'app', 'drafts', createHash('sha256').update(env.HOT_CROSS_BUNS_STATE_DIR).digest('hex') + '.json');
+  if (!draftsEnabled) {
+    await mkdir(join(root, 'app', 'drafts'), {recursive:true});
+    await writeFile(draftFile, JSON.stringify({version:1,enabled:false,drafts:[]}));
+  }
   const seededChats = [];
   for (let i = 0; i < chatCount; i++) {
     const id = 'work-fixture-' + String(i).padStart(3, '0'), at = new Date(Date.now() - (i + 1) * 60000).toISOString();
@@ -85,7 +90,7 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
     throw error;
   }
   return {
-    url: app.url, payloads, seededChats,
+    url: app.url, payloads, seededChats, draftFile,
     block() { blocked = true; },
     blockAfterTool() { afterTool = true; },
     release() { blocked = false; afterTool = false; release?.(); },

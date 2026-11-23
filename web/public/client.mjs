@@ -49,7 +49,7 @@ async function respondTo(ref,action,text){
   await execute(async()=>{
     if(pending)throw new Error('Resolve the pending message before adding a quote.');
     await flush();
-    const next=await call({op:'response',action,context:ref.context,id:ref.id,digest:ref.digest,...(text!==undefined?{text}:{})});
+    const next=await call({op:'response',action,context:ref.context,id:ref.id,digest:ref.digest,draftText:input.value,...(text!==undefined?{text}:{})});
     if(next.context===snapshot.context){showDraft(next);window.getSelection()?.removeAllRanges();focusContext=next.context;}
   });
   if(focusContext===snapshot.context&&!input.disabled)input.focus();
@@ -186,7 +186,7 @@ function showDraft(value) {
   if(value?.response_quote){
     const text=element('div');
     const origin=button('Replying to Hot Cross Buns',()=>void execute(()=>{const source=[...$('transcript').querySelectorAll('[data-response-id]')].find(node=>node.dataset.responseId===value.response_quote.id);if(!source)throw new Error('Load the earlier response to view the source.');reading.moved();source.scrollIntoView({block:'center',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});source.classList.add('quoted-source');setTimeout(()=>source.classList.remove('quoted-source'),1600);}), 'quiet quote-origin');origin.title='Show quoted response';text.append(origin,element('blockquote',value.response_quote.text));
-    const close=button('',()=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before changing the quote.');await flush();const next=await call({op:'response',action:'clear',context:value.context});if(next.context===snapshot.context)showDraft(next);}), 'quiet icon-button');close.append(icon('x'));close.setAttribute('aria-label','Remove quote');close.title='Remove quote';quoteCard.append(icon('quote'),text,close);
+    const close=button('',()=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before changing the quote.');await flush();const next=await call({op:'response',action:'clear',context:value.context,draftText:input.value});if(next.context===snapshot.context)showDraft(next);}), 'quiet icon-button');close.append(icon('x'));close.setAttribute('aria-label','Remove quote');close.title='Remove quote';quoteCard.append(icon('quote'),text,close);
   }
   if (value?.correction) remember(':correction:' + value.context, { ...value.correction, text: value.text });
   input.value = value?.text || "";

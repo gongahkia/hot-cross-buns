@@ -121,6 +121,7 @@ export async function startWeb(options, port = 4317) {
   let tail = Promise.resolve(), closing = false;
   const admissions = new Map();
   const chatSelections = new Map();
+  const transientQuotes = new WeakMap();
   const serialized = operation => {
     const result = tail.then(operation);
     tail = result.catch(() => {});
@@ -133,13 +134,19 @@ export async function startWeb(options, port = 4317) {
   }
   async function draft() {
     const context = host.context;
-    const { drafts } = await host.drafts.request({ action: "list" });
+    const { drafts, enabled } = await host.drafts.request({ action: "list" });
     const saved = drafts.find(item => item.context === context);
+    const transient = transientQuotes.get(host.backend);
+    const quote = enabled ? saved?.response_quote : transient?.context === context ? transient.quote : undefined;
     const { title = "", source = "" } = host.backend.state;
-    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(saved?.plan_first ? { plan_first: true } : {}), ...(saved?.response_quote ? { response_quote: saved.response_quote } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
+    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(saved?.plan_first ? { plan_first: true } : {}), ...(quote ? { response_quote: quote } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
   }
   async function saveDraft(value) {
-    await host.drafts.request({ action: "save", draft: value });
+    const owner = host.backend;
+    const { enabled } = await host.drafts.request({ action: "save", draft: value });
+    // Keep an active quote usable without retaining an unsent draft on disk.
+    if (!enabled && value.response_quote) transientQuotes.set(owner, {context:value.context,quote:value.response_quote});
+    else transientQuotes.delete(owner);
     return value;
   }
   async function providers(body) {
@@ -206,6 +213,7 @@ export async function startWeb(options, port = 4317) {
         ...(!saved.correction && saved.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}),
       } });
       admissions.set(body.id, signature);
+      transientQuotes.delete(host.backend);
       if (saved.correction) { corrections.complete(body.correction); broadcast(); return {}; }
       if (admissions.size > 64) admissions.delete(admissions.keys().next().value);
       // Work was admitted even if draft cleanup fails. Keep the receipt.
@@ -287,6 +295,10 @@ export async function startWeb(options, port = 4317) {
         const saved=await draft();
         if (saved.correction) throw new RequestError(409,'Finish or cancel the correction before responding to a message.');
         if (body.action==='validate') {if(saved.response_quote){try{checkQuote(state,saved.response_quote);}catch(error){throw new RequestError(409,error.message);}}return {};}
+        if (['reply','quote','clear'].includes(body.action) && body.draftText !== undefined) {
+          if (typeof body.draftText !== 'string' || Buffer.byteLength(body.draftText) > 128*1024) throw new RequestError(400,'Invalid draft text.');
+          saved.text=body.draftText;
+        }
         if (body.action==='clear') { delete saved.response_quote; return saveDraft(saved); }
         let response;try{response=selectedResponse(state,body.id,body.digest);}catch(error){throw new RequestError(409,error.message);}
         if (body.action==='fork') {

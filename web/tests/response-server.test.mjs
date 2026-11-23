@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { fixture } from './fixture.mjs';
 
 async function events(url){
@@ -23,6 +24,26 @@ test('quoted response drafts validate retained excerpts, reach the backend and r
   const admitted=await live.until(value=>value.state?.dialogue?.some(turn=>turn.text?.endsWith('Explain this passage.')));
   const turn=admitted.state.dialogue.find(turn=>turn.text.endsWith('Explain this passage.'));assert.match(turn.text,/Quoted assistant response/);assert.match(turn.text,/A quiet note 1\./);
   assert.equal((await action(app,{op:'draft',context:admitted.context})).value.response_quote,undefined);
+ }finally{live?.close();await app.close();}
+});
+
+test('quotes remain usable without writing unsent content when saved drafts are disabled',{timeout:45000},async()=>{
+ const app=await fixture({chatCount:1,dialogueCount:3,draftsEnabled:false});let live;
+ try{
+  live=await events(app.url);const state=await live.until(value=>value.responses?.length>0&&value.state?.conversation_id),context=state.context,ref=state.responses[0];
+  const choose={op:'response',action:'quote',context,id:ref.id,digest:ref.digest,text:'A quiet note 1.',draftText:'Keep my unsent question.'};
+  let result=await action(app,choose);assert.equal(result.status,200);assert.equal(result.value.text,choose.draftText);
+  assert.deepEqual(JSON.parse(await readFile(app.draftFile,'utf8')),{version:1,enabled:false,drafts:[]});
+  result=await action(app,{op:'response',action:'clear',context,draftText:choose.draftText});assert.equal(result.status,200);assert.equal(result.value.text,choose.draftText);assert.equal(result.value.response_quote,undefined);
+  assert.equal((await action(app,{op:'draft',context})).value.response_quote,undefined);
+  result=await action(app,choose);assert.equal(result.status,200);const quote=result.value.response_quote;
+  assert.equal((await action(app,{op:'save',context,text:choose.draftText})).status,200);
+  assert.deepEqual((await action(app,{op:'draft',context})).value.response_quote,quote);
+  assert.equal((await action(app,{op:'response',action:'validate',context})).status,200);
+  assert.equal((await action(app,{op:'send',context,id:randomUUID(),text:choose.draftText,files:[],response_quote:quote})).status,200);
+  await live.until(value=>value.state?.messages?.some(message=>message.text?.includes('Keep my unsent question.'))||value.state?.dialogue?.some(turn=>turn.text?.includes('Keep my unsent question.')));
+  assert.equal((await action(app,{op:'draft',context})).value.response_quote,undefined);
+  assert.deepEqual(JSON.parse(await readFile(app.draftFile,'utf8')),{version:1,enabled:false,drafts:[]});
  }finally{live?.close();await app.close();}
 });
 
