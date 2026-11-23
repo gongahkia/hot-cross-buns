@@ -297,6 +297,30 @@ func (m Model) controlsPanel() uisnapshot.Panel {
 		if brand == "" {
 			brand = p.Brand
 		}
+		// a multi-service chooser identifies its selection at review; the editable
+		// form shows its changing logo beside the select instead of a stale heading.
+		for _, field := range f.Fields {
+			if field.Kind != "select" {
+				continue
+			}
+			branded := false
+			for _, option := range field.Options {
+				branded = branded || branding.Valid(option.Brand)
+			}
+			if !branded {
+				continue
+			}
+			brand = ""
+			if m.controlReview {
+				for _, option := range field.Options {
+					if option.Value == field.Value && branding.Valid(option.Brand) {
+						brand = option.Brand
+						break
+					}
+				}
+			}
+			break
+		}
 		p = uisnapshot.Panel{Brand: brand, Title: f.Label, Kind: "settings-form", Selected: m.controlField, Notice: m.sectionNotice, Subtitle: f.Description, Links: f.Links}
 		p.ActionIdentity = m.controlScreen.Panel.ActionIdentity + "\x00" + f.Action + "\x00" + strings.Join(f.Args, "\x00")
 		if m.controlReview {

@@ -359,7 +359,7 @@ func (c *searchControls) screen(settings config.Store, credentials auth.Store, n
 	if _, ok := websearch.Find(selected); !ok {
 		selected = "tinyfish"
 	}
-	screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "C", Icon: selected, Label: "Choose search service", Action: "configure", Args: []string{token}, Description: "Choose the service that receives search queries. Enter its API key privately; leave the key empty to reuse that service's existing saved or environment key.", Fields: []workapp.ControlField{{Label: "Search service", Kind: "select", Value: selected, Options: providers}, {Label: "API key", Secret: true, Help: "API key only. Saved privately on this computer; never included in chat or settings previews."}}})
+	screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "C", Icon: "search", Label: "Choose search service", Action: "configure", Args: []string{token}, Description: "Choose the service that receives search queries. Enter its API key privately; leave the key empty to reuse that service's existing saved or environment key.", Fields: []workapp.ControlField{{Label: "Search service", Kind: "select", Value: selected, Options: providers}, {Label: "API key", Secret: true, Help: "API key only. Saved privately on this computer; never included in chat or settings previews."}}})
 	if resolved.Ready {
 		screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "T", Label: "Run test search", Action: "test", Args: []string{token}, Detail: "One fixed public query; may incur a service charge."})
 	}

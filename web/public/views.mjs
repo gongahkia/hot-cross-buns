@@ -16,6 +16,7 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
     ['Assistant', [
       ['Models', 'cpu', 'Choose a chat model or configure a provider.', () => navigate('/model')],
       ['Connections', 'link', 'Accounts, connected sources, and their permissions.', () => navigate('/connections')],
+      ['Web search', 'search', 'Choose a search service and check its access.', () => backend('/search')],
       ['Memory & privacy', 'brain', 'Chat learning, earlier-chat retrieval, and recall settings.', () => backend('/memory')],
       ['Scheduled tasks', 'calendar-days', 'Recurring checks and ongoing responsibilities.', () => navigate('/scheduled')],
     ]],

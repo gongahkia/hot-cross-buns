@@ -140,3 +140,26 @@ func TestDesktopNavigationDoesNotAcceptPromptsOrInterruptWork(t *testing.T) {
 		t.Fatal("returning to the live conversation stopped Work or kept the view open")
 	}
 }
+
+func TestServiceChooserBrandFollowsReviewedSelection(t *testing.T) {
+	saved := 0
+	m := New(Config{Controls: func(_ context.Context, _, action string, _ []string) (ControlScreen, error) {
+		if action == "save" {
+			saved++
+		}
+		return ControlScreen{Panel: uisnapshot.Panel{Kind: "search", Title: "Web search", Brand: "tinyfish"}, Actions: []ControlAction{{Label: "Choose service", Icon: "search", Action: "save", Fields: []ControlField{{Label: "Service", Kind: "select", Value: "tinyfish", Options: []uisnapshot.Option{{Value: "tinyfish", Label: "TinyFish", Brand: "tinyfish"}, {Value: "brave", Label: "Brave", Brand: "brave"}}}}}}}, nil
+	}})
+	next, _ := m.Update(m.openControls("search", nil)())
+	m = next.(Model)
+	row := 0
+	next, _ = m.ApplyBridgePanel(BridgePanelAction{ID: m.BridgeState().Panel.ID, Action: "activate", Row: &row}, tea.KeyMsg{})
+	m = next.(Model)
+	if m.BridgeState().Panel.Brand != "" {
+		t.Fatal("editable chooser advertised a fixed service")
+	}
+	next, command := m.ApplyBridgePanel(BridgePanelAction{ID: m.BridgeState().Panel.ID, Action: "key", Fields: map[int]string{0: "brave"}}, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m = next.(Model)
+	if command != nil || saved != 0 || m.BridgeState().Panel.Kind != "confirmation" || m.BridgeState().Panel.Brand != "brave" {
+		t.Fatal("review did not identify the selected service without saving")
+	}
+}

@@ -149,6 +149,14 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
     } } });
     await live.until(s => s.state?.provider === "fixture", "composer model selection");
     assert.equal((await act({ op: "draft", context: ready.context })).text, "Keep this draft while changing models.");
+    await act({op:'navigate',context:ready.context,route:'/search'});
+    const search = await live.until(s => s.state?.panel?.kind === 'search', 'web search management');
+    const row = search.state.panel.rows.findIndex(row => row.label === 'Choose search service');
+    assert.ok(row >= 0);
+    await act({op:'frame',context:ready.context,frame:{type:'panel',panel:{id:search.state.panel.id,action:'activate',row}}});
+    const form = await live.until(s => s.state?.panel?.kind === 'settings-form', 'search service choices');
+    assert.deepEqual(form.state.panel.rows[0].input.options.map(option => option.brand), ['tinyfish','exa','tavily','brave']);
+    assert.equal(form.state.panel.brand, undefined);
   } finally {
     live?.close();
     await app.close();

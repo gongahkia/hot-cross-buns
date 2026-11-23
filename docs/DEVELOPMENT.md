@@ -90,7 +90,7 @@ approval waits, and connection loss use their own status icons.
 Progress follows the current chat or its delegated task, keeping unrelated work
 out of the composer. Connection loss pauses its display.
 
-The clock icon, app menu, and Settings open the same **Scheduled tasks** dropdown.
+The clock icon and Settings open the same **Scheduled tasks** dropdown.
 It shares Delegated work’s right-side popover layout, opening/closing motion,
 light dismissal, and reduced-motion behavior. Both dropdowns ease content-height
 changes over 220ms, retain their viewport cap and internal scrolling, and keep

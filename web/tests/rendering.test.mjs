@@ -414,7 +414,8 @@ test('settings routes to real management pages', () => {
   const settings = settingsView({ state: { model: 'Configured model' }, navigate: route => destinations.push(route), backend: route => destinations.push(route) });
   assert.match(settings.textContent, /Configured model/);
   [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Memory & privacy')).click();
-  assert.deepEqual(destinations, ['/memory']);
+  [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Web search')).click();
+  assert.deepEqual(destinations, ['/memory', '/search']);
 
 });
 
