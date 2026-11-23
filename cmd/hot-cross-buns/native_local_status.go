@@ -10,11 +10,16 @@ import (
 
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
 	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
+	"github.com/gongahkia/hot-cross-buns/internal/localruntime"
 	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
 )
 
 func (b *nativeProviderBackend) localStatus(a modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult {
 	r := modelcatalog.NativeProviderResult{RequestID: a.RequestID, Action: a.Action}
+	runtimeContext, runtimeCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer runtimeCancel()
+	runtime := localruntime.Existing(runtimeContext, localruntime.Config{StateDir: b.stateDir})
+	r.Runtime = &runtime.Status
 	if a.Provider != "" || a.Input != nil || a.ReplaceKey || a.ReviewID != "" {
 		r.Error = "Local inspection accepts no mutation or provider fields."
 		return r
@@ -36,7 +41,7 @@ func (b *nativeProviderBackend) localStatus(a modelcatalog.NativeProviderAction)
 	}
 	safe := func(s string) string { return safeProviderText(redact(s), nil) }
 	host := inspectLocalModelHost()
-	status := &modelcatalog.NativeLocalStatus{ResultID: providerNonce(), ObservedAt: time.Now().UTC().Format(time.RFC3339Nano), Ownership: "Unknown · discovery does not establish process ownership", Discovery: "PATH, /opt/homebrew/bin/ollama, /usr/local/bin/ollama, /Applications/Ollama.app/Contents/Resources/ollama", SelectedProvider: safe(settings.Defaults.Provider), SelectedModel: safe(settings.Defaults.Model), TotalMemory: host.TotalMemoryBytes, Catalog: []modelcatalog.NativeLocalModel{}, Installed: []modelcatalog.NativeLocalModel{}, Blocked: "Runtime Start and Download remain blocked by unverified ownership/use leases. Delete, update, unload and runtime stop remain unavailable. Reviewed future selection is independent of those mutations."}
+	status := &modelcatalog.NativeLocalStatus{ResultID: providerNonce(), ObservedAt: time.Now().UTC().Format(time.RFC3339Nano), Ownership: "Unknown · discovery does not establish process ownership", Discovery: "PATH, /opt/homebrew/bin/ollama, /usr/local/bin/ollama, /Applications/Ollama.app/Contents/Resources/ollama", SelectedProvider: safe(settings.Defaults.Provider), SelectedModel: safe(settings.Defaults.Model), TotalMemory: host.TotalMemoryBytes, Catalog: []modelcatalog.NativeLocalModel{}, Installed: []modelcatalog.NativeLocalModel{}, Blocked: "External runtimes are read-only. App-owned lifecycle controls use separate storage. Delete, replace, update and unload are unavailable."}
 	if local, found := configuredCustomProvider(settings, localmodel.ProviderID); found {
 		status.ConfiguredModel = safe(local.DefaultModel)
 	}
@@ -75,7 +80,15 @@ func (b *nativeProviderBackend) localStatus(a modelcatalog.NativeProviderAction)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	var installed, running []localmodel.InstalledModel
-	client, err := localClient("", settings)
+	override := ""
+	if a.AppOwned {
+		override, err = b.ownedLocalEndpoint()
+		if err != nil {
+			status.Issue = "Start the app-owned runtime to inspect its models."
+			return r
+		}
+	}
+	client, err := localClient(override, settings)
 	if err != nil {
 		status.Issue = "Configured local endpoint is invalid. No request was made."
 	} else {

@@ -4,12 +4,14 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/gongahkia/hot-cross-buns/internal/localruntime"
 	"github.com/gongahkia/hot-cross-buns/internal/model"
 )
 
 // NativeProviderAction is finite host input. APIKey is save-only transient data,
 // never a display model, request journal, command argument or completion field.
 type NativeProviderAction struct {
+	AppOwned    bool                 `json:"app_owned,omitempty"`
 	ModelID     string               `json:"model_id,omitempty"`
 	OperationID string               `json:"operation_id,omitempty"`
 	Generation  string               `json:"generation,omitempty"`
@@ -56,6 +58,8 @@ type NativeProviderReview struct {
 	SetsDefaults     bool              `json:"sets_defaults"`
 }
 type NativeProviderResult struct {
+	Runtime         *localruntime.Status         `json:"runtime,omitempty"`
+	RuntimeReview   *localruntime.Review         `json:"runtime_review,omitempty"`
 	FutureSelection *NativeFutureSelection       `json:"future_selection,omitempty"`
 	LocalReview     *NativeLocalSelectionReview  `json:"local_review,omitempty"`
 	LocalReceipt    *NativeLocalSelectionReceipt `json:"local_receipt,omitempty"`

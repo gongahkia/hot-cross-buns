@@ -62,6 +62,15 @@ func NewClient(rawURL string) (Client, error) {
 	return Client{baseURL: parsed, client: client}, nil
 }
 
+func NewVerifiedClient(rawURL string, verify func() error) (Client, error) {
+	client, err := NewClient(rawURL)
+	if err != nil {
+		return Client{}, err
+	}
+	client.client, err = VerifiedHTTPClient(client.BaseURL(), verify)
+	return client, err
+}
+
 // NewClientFromChatCompletionsURL validates the endpoint persisted for the
 // managed provider and recovers its loopback Ollama runtime root.
 func NewClientFromChatCompletionsURL(rawURL string) (Client, error) {

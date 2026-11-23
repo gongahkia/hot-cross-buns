@@ -198,6 +198,9 @@ func (b *nativeProviderBackend) Apply(a modelcatalog.NativeProviderAction) (resu
 	if a.Action != "save" && a.APIKey != "" {
 		return fail("Secret input is accepted only by an explicit reviewed Save.")
 	}
+	if strings.HasPrefix(a.Action, "runtime_") {
+		return b.localRuntimeAction(a)
+	}
 	if strings.HasPrefix(a.Action, "local_") && a.Action != "local_status" {
 		return b.localSelectionAction(a)
 	}

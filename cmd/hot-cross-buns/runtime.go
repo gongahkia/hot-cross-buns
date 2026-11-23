@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/lifecycle"
+	"github.com/gongahkia/hot-cross-buns/internal/localruntime"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
 )
 
@@ -24,6 +27,18 @@ func runRuntime(args []string, out io.Writer) error {
 	}
 	if len(args) == 0 {
 		return errors.New("start the browser app with make run; this is its private Go runtime")
+	}
+	if len(args) == 1 && args[0] == "local-runtime-service" {
+		if os.Getenv("HOT_CROSS_BUNS_INTERNAL_COMMANDS") != "1" {
+			return errors.New("local runtime service requires its host marker")
+		}
+		root, err := state.ResolveDir("")
+		if err != nil {
+			return err
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+		return localruntime.Serve(ctx, localruntime.Config{StateDir: root})
 	}
 	if len(args) == 1 && args[0] == "desktop-speech" && os.Getenv("HOT_CROSS_BUNS_DESKTOP_SPEECH") == "1" {
 		if err := preparePlatformProfile(); err != nil {

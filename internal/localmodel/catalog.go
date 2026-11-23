@@ -5,7 +5,7 @@ package localmodel
 import "strings"
 
 const (
-	// ProviderID is the Hot Cross Buns-owned custom provider selected through the TUI.
+	// ProviderID is the Hot Cross Buns-owned custom provider selected through the browser.
 	// Keeping it separate from a user-defined provider avoids overwriting a
 	// manually configured local endpoint.
 	ProviderID = "hot-cross-buns-local"

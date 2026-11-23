@@ -15,7 +15,7 @@ import (
 // LocalURL canonicalizes localhost without DNS and accepts only literal loopback HTTP.
 func LocalURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u == nil || u.Scheme != "http" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawPath != "" || u.Opaque != "" {
+	if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawPath != "" || u.Opaque != "" {
 		return nil, errors.New("local endpoint must be loopback HTTP without credentials, query or fragment")
 	}
 	host := strings.ToLower(u.Hostname())
@@ -42,12 +42,26 @@ func LocalURL(raw string) (*url.URL, error) {
 	} else {
 		u.Host = net.JoinHostPort(host, port)
 	}
+	if u.Scheme == "https" {
+		if _, _, err := RuntimeTLS(u.String()); err != nil {
+			return nil, err
+		}
+	}
 	return u, nil
 }
 
 // HTTPClient pins all requests to this origin, refuses redirects and bypasses proxies.
 // It is also used by the separately constructed managed Chat Completions adapter.
 func HTTPClient(raw string) (*http.Client, error) {
+	return httpClient(raw, nil)
+}
+
+// VerifiedHTTPClient checks a connected peer before any HTTP data is written.
+// The owned controller uses this for its separate child listener.
+func VerifiedHTTPClient(raw string, verify func() error) (*http.Client, error) {
+	return httpClient(raw, verify)
+}
+func httpClient(raw string, verify func() error) (*http.Client, error) {
 	u, err := LocalURL(raw)
 	if err != nil {
 		return nil, err
@@ -59,24 +73,47 @@ func HTTPClient(raw string) (*http.Client, error) {
 			if e != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
 				return nil, errors.New("local transport refused destination")
 			}
-			return dialer.DialContext(ctx, network, address)
+			connection, err := dialer.DialContext(ctx, network, address)
+			if err == nil && verify != nil {
+				if err = verify(); err != nil {
+					connection.Close()
+					return nil, err
+				}
+			}
+			return connection, err
 		},
 	}
-	return &http.Client{Transport: localTransport{origin: u.Host, transport: transport}, Timeout: 10 * time.Minute,
+	token := ""
+	if u.Scheme == "https" {
+		transport.TLSClientConfig, token, err = RuntimeTLS(u.String())
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &http.Client{Transport: localTransport{origin: u.Host, scheme: u.Scheme, token: token, transport: transport}, Timeout: 10 * time.Minute,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("local transport refuses redirects") }}, nil
 }
 
 type localTransport struct {
 	origin    string
+	scheme    string
+	token     string
 	transport *http.Transport
 }
 
 func (t localTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if r.URL.Scheme != "http" || r.URL.Host != t.origin || r.URL.User != nil || r.URL.RawQuery != "" || r.URL.Fragment != "" {
+	if r.URL.Scheme != t.scheme || r.URL.Host != t.origin || r.URL.User != nil || r.URL.RawQuery != "" || r.URL.Fragment != "" {
 		return nil, errors.New("local transport refused destination")
 	}
 	if r.Header.Get("Authorization") != "" || r.Header.Get("Proxy-Authorization") != "" || r.Header.Get("Cookie") != "" {
 		return nil, errors.New("managed local inference does not accept credentials")
+	}
+	if r.Header.Get(RuntimeTokenHeader) != "" {
+		return nil, errors.New("runtime authentication is host-owned")
+	}
+	if t.token != "" {
+		r = r.Clone(r.Context())
+		r.Header.Set(RuntimeTokenHeader, t.token)
 	}
 	response, err := t.transport.RoundTrip(r)
 	if err != nil {

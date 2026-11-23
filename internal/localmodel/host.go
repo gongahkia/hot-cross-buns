@@ -13,6 +13,15 @@ import (
 func DetectHost() Host {
 	osName := runtime.GOOS
 	directory, source, directoryErr := ollamaModelDirectory(osName)
+	return detectHostAt(osName, directory, source, directoryErr)
+}
+
+// DetectHostAt measures resources on the app-owned storage filesystem.
+func DetectHostAt(directory string) Host {
+	return detectHostAt(runtime.GOOS, directory, "app-owned storage", nil)
+}
+
+func detectHostAt(osName, directory, source string, directoryErr error) Host {
 	totalMemory, availableMemory, availableDisk, memoryErr, diskErr := detectHostResources(directory)
 	if directoryErr != nil {
 		if diskErr != "" {

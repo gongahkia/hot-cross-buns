@@ -18,6 +18,7 @@ const nativeLocalStartBlock = "Start is unavailable: verified binary/listener pr
 const nativeLocalDownloadBlock = "Download is unavailable: model-use protection does not yet cover cooperating requests, retained review and recovery. Use an explicit external Ollama workflow; Hot Cross Buns will not pull or replace a tag."
 
 type nativeLocalSelectionExpectation struct {
+	AppOwned bool
 	Public   modelcatalog.NativeLocalSelectionReview
 	Expected localSelectionExpectation
 	Expires  time.Time
@@ -118,7 +119,14 @@ func (b *nativeProviderBackend) localSelectionAction(a modelcatalog.NativeProvid
 		if err != nil {
 			return fail("Settings could not be read.")
 		}
-		client, err := localClient("", settings)
+		endpoint := ""
+		if a.AppOwned {
+			endpoint, err = b.ownedLocalEndpoint()
+			if err != nil {
+				return fail("Start the app-owned runtime before selecting its model.")
+			}
+		}
+		client, err := localClient(endpoint, settings)
 		if err != nil || !b.localMetadataSafe(client.BaseURL()) {
 			return fail("The reviewed local endpoint is unavailable or invalid.")
 		}
@@ -156,12 +164,12 @@ func (b *nativeProviderBackend) localSelectionAction(a modelcatalog.NativeProvid
 		if review.ID == "" || review.Generation == "" {
 			return fail("A secure local review identity could not be created.")
 		}
-		b.localReview = &nativeLocalSelectionExpectation{Public: review, Expected: localSelectionExpectation{Settings: settings, Endpoint: client.BaseURL(), Tag: m.OllamaModel, Digest: digest}, Expires: time.Now().Add(5 * time.Minute)}
+		b.localReview = &nativeLocalSelectionExpectation{Public: review, AppOwned: a.AppOwned, Expected: localSelectionExpectation{Settings: settings, Endpoint: client.BaseURL(), Tag: m.OllamaModel, Digest: digest}, Expires: time.Now().Add(5 * time.Minute)}
 		result.LocalReview = &review
 		return result
 	case "local_select":
 		review := b.localReview
-		if review == nil || a.ReviewID != review.Public.ID || a.Generation != review.Public.Generation || a.ModelID != review.Public.ModelID || a.OperationID != "" || time.Now().After(review.Expires) {
+		if review == nil || a.AppOwned != review.AppOwned || a.ReviewID != review.Public.ID || a.Generation != review.Public.Generation || a.ModelID != review.Public.ModelID || a.OperationID != "" || time.Now().After(review.Expires) {
 			return fail("The local review expired or changed. Review again; no selection was replayed.")
 		}
 		b.localReview = nil
@@ -191,6 +199,9 @@ func (b *nativeProviderBackend) localSelectionAction(a modelcatalog.NativeProvid
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
 		manager := newLocalModelManager(b.settings)
+		if review.AppOwned {
+			manager.runtimeURL = review.Expected.Endpoint
+		}
 		update, selectionErr := manager.use(ctx, review.Public.ModelID, &review.Expected)
 		receipt.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 		if !update.Published {
