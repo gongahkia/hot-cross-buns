@@ -1,0 +1,429 @@
+[
+  {
+    "id": "openai",
+    "label": "OpenAI",
+    "file": "openai.png",
+    "providers": [
+      "openai"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "azure",
+    "label": "Microsoft Azure",
+    "file": "azure-color.png",
+    "providers": [
+      "azure-openai",
+      "azure-openai-responses"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "anthropic",
+    "label": "Anthropic",
+    "file": "anthropic.png",
+    "providers": [
+      "anthropic"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "gemini",
+    "label": "Google Gemini",
+    "file": "gemini-color.png",
+    "providers": [
+      "gemini"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "mistral",
+    "label": "Mistral",
+    "file": "mistral-color.png",
+    "providers": [
+      "mistral"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "xai",
+    "label": "xAI",
+    "file": "grok.png",
+    "providers": [
+      "xai"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "groq",
+    "label": "Groq",
+    "file": "groq.png",
+    "providers": [
+      "groq"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "openrouter",
+    "label": "OpenRouter",
+    "file": "openrouter.png",
+    "providers": [
+      "openrouter"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "together",
+    "label": "Together AI",
+    "file": "together-color.png",
+    "providers": [
+      "together"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "fireworks",
+    "label": "Fireworks AI",
+    "file": "fireworks-color.png",
+    "providers": [
+      "fireworks"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "deepseek",
+    "label": "DeepSeek",
+    "file": "deepseek-color.png",
+    "providers": [
+      "deepseek"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "cerebras",
+    "label": "Cerebras",
+    "file": "cerebras-color.png",
+    "providers": [
+      "cerebras"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "nvidia",
+    "label": "NVIDIA",
+    "file": "nvidia-color.png",
+    "providers": [
+      "nvidia"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "huggingface",
+    "label": "Hugging Face",
+    "file": "huggingface-color.png",
+    "providers": [
+      "huggingface"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "moonshot",
+    "label": "Moonshot AI",
+    "file": "moonshot.png",
+    "providers": [
+      "moonshotai",
+      "moonshotai-cn"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "zai",
+    "label": "Z.ai",
+    "file": "zai.png",
+    "providers": [
+      "zai",
+      "zai-coding-cn"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "minimax",
+    "label": "MiniMax",
+    "file": "minimax-color.png",
+    "providers": [
+      "minimax",
+      "minimax-cn"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "baseten",
+    "label": "Baseten",
+    "file": "baseten.png",
+    "providers": [
+      "baseten"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "vercel",
+    "label": "Vercel",
+    "file": "vercel.png",
+    "providers": [
+      "vercel-ai-gateway"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "ling",
+    "label": "Ling",
+    "file": "ling-color.png",
+    "providers": [
+      "ant-ling"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "xiaomi",
+    "label": "Xiaomi MiMo",
+    "file": "xiaomimimo.png",
+    "providers": [
+      "xiaomi",
+      "xiaomi-token-plan-cn",
+      "xiaomi-token-plan-ams",
+      "xiaomi-token-plan-sgp"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "cloudflare",
+    "label": "Cloudflare",
+    "file": "cloudflare-color.png",
+    "providers": [
+      "cloudflare-workers-ai",
+      "cloudflare-ai-gateway"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "qwen",
+    "label": "Qwen",
+    "file": "qwen-color.png",
+    "providers": [
+      "qwen-token-plan",
+      "qwen-token-plan-cn",
+      "qwen-token-plan-individual"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "kimi",
+    "label": "Kimi",
+    "file": "kimi-color.png",
+    "providers": [
+      "kimi-coding"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "opencode",
+    "label": "OpenCode",
+    "file": "opencode.png",
+    "providers": [
+      "opencode",
+      "opencode-go"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "google",
+    "label": "Google Workspace",
+    "file": "google-color.png",
+    "providers": [],
+    "connectors": [
+      "google_workspace"
+    ],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "notion",
+    "label": "Notion",
+    "file": "notion.png",
+    "providers": [],
+    "connectors": [
+      "notion"
+    ],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "slack",
+    "label": "Slack",
+    "file": "slack.png",
+    "providers": [],
+    "connectors": [
+      "slack"
+    ],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "atlassian",
+    "label": "Atlassian",
+    "file": "atlassian.png",
+    "providers": [],
+    "connectors": [
+      "atlassian"
+    ],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "codex",
+    "label": "Codex",
+    "file": "codex.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [
+      "cli_codex"
+    ],
+    "searches": []
+  },
+  {
+    "id": "claude-code",
+    "label": "Claude Code",
+    "file": "claudecode-color.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [
+      "cli_claude"
+    ],
+    "searches": []
+  },
+  {
+    "id": "pi",
+    "label": "Pi",
+    "file": "pi.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [
+      "cli_pi"
+    ],
+    "searches": []
+  },
+  {
+    "id": "radius",
+    "label": "Radius (Pi)",
+    "file": "pi.png",
+    "providers": [
+      "radius"
+    ],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "ollama",
+    "label": "Ollama",
+    "file": "ollama.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [],
+    "searches": []
+  },
+  {
+    "id": "exa",
+    "label": "Exa",
+    "file": "exa-color.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [],
+    "searches": [
+      "exa"
+    ]
+  },
+  {
+    "id": "tavily",
+    "label": "Tavily",
+    "file": "tavily-color.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [],
+    "searches": [
+      "tavily"
+    ]
+  },
+  {
+    "id": "brave",
+    "label": "Brave",
+    "file": "brave-color.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [],
+    "searches": [
+      "brave"
+    ]
+  },
+  {
+    "id": "tinyfish",
+    "label": "TinyFish",
+    "file": "tinyfish.png",
+    "providers": [],
+    "connectors": [],
+    "specialists": [],
+    "searches": [
+      "tinyfish"
+    ]
+  }
+]

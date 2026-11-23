@@ -66,3 +66,11 @@ func activityArguments(arguments json.RawMessage) (json.RawMessage, error) {
 	}
 	return arguments, nil
 }
+
+func (t activityIconTool) DisplayBrand(arguments json.RawMessage) string {
+	arguments, err := activityArguments(arguments)
+	if err != nil {
+		return ""
+	}
+	return agent.ToolBrand(t.Tool, arguments)
+}

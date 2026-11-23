@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workhome"
 )
@@ -292,7 +293,11 @@ func (m Model) controlsPanel() uisnapshot.Panel {
 		p.Kind = "controls"
 	}
 	if f := m.controlForm; f != nil {
-		p = uisnapshot.Panel{Title: f.Label, Kind: "settings-form", Selected: m.controlField, Notice: m.sectionNotice, Subtitle: f.Description, Links: f.Links}
+		brand := branding.Service(f.Icon)
+		if brand == "" {
+			brand = p.Brand
+		}
+		p = uisnapshot.Panel{Brand: brand, Title: f.Label, Kind: "settings-form", Selected: m.controlField, Notice: m.sectionNotice, Subtitle: f.Description, Links: f.Links}
 		p.ActionIdentity = m.controlScreen.Panel.ActionIdentity + "\x00" + f.Action + "\x00" + strings.Join(f.Args, "\x00")
 		if m.controlReview {
 			p.Kind = "confirmation"
@@ -337,7 +342,7 @@ func (m Model) controlsPanel() uisnapshot.Panel {
 		return p
 	}
 	for _, a := range m.controlScreen.Actions {
-		row := uisnapshot.Row{Label: a.Label, Detail: a.Detail, Icon: a.Icon}
+		row := uisnapshot.Row{Label: a.Label, Detail: a.Detail, Icon: a.Icon, Brand: branding.Service(a.Icon)}
 		if a.Action == "seen" || a.Action == "start" || a.Action == "retry" {
 			row.Affordance = "action"
 		}

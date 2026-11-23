@@ -19,18 +19,24 @@ func TestControlEditsRequireReviewAndSecretsStayOutOfBridge(t *testing.T) {
 				t.Fatal("wrong secret payload")
 			}
 		}
-		return ControlScreen{Panel: uisnapshot.Panel{Kind: "recovery", Title: "Reconnect"}, Actions: []ControlAction{{Key: "T", Label: "Replace token", Action: "save", Fields: []ControlField{{Label: "Token", Secret: true}}, Review: true}}}, nil
+		return ControlScreen{Panel: uisnapshot.Panel{Brand: "slack", Kind: "recovery", Title: "Reconnect"}, Actions: []ControlAction{{Key: "T", Label: "Replace token", Action: "save", Fields: []ControlField{{Label: "Token", Secret: true}}, Review: true}}}, nil
 	}})
 	cmd := m.openControls("recovery", nil)
 	next, _ := m.Update(cmd())
 	m = next.(Model)
 	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
 	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("secret-token")})
+	if m.BridgeState().Panel.Brand != "slack" {
+		t.Fatal("connection identity lost in credential form")
+	}
 	encoded, _ := json.Marshal(m.BridgeState())
 	if strings.Contains(string(encoded), "secret-token") {
 		t.Fatal("secret leaked into display state")
 	}
 	m, _ = productKey(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	if m.BridgeState().Panel.Brand != "slack" {
+		t.Fatal("connection identity lost at review")
+	}
 	encoded, _ = json.Marshal(m.BridgeState())
 	if strings.Contains(string(encoded), "secret-token") || mutations != 0 {
 		t.Fatal("review leaked or saved the credential")

@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
@@ -829,4 +830,29 @@ func ReadTasks(directory string) ([]Task, error) {
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+func (t taskTool) DisplayBrand(raw json.RawMessage) string {
+	var input struct {
+		Agent string `json:"agent"`
+		ID    string `json:"id"`
+	}
+	if json.Unmarshal(raw, &input) != nil {
+		return ""
+	}
+	t.s.mu.Lock()
+	defer t.s.mu.Unlock()
+	role := input.Agent
+	if t.name != "start_agent" {
+		entry := t.s.tasks[input.ID]
+		if entry == nil {
+			return ""
+		}
+		role = entry.task.Role
+	}
+	specialist, ok := t.s.registry[role]
+	if !ok || specialist.Backend != BackendHosted {
+		return ""
+	}
+	return branding.Specialist(role)
 }

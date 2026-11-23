@@ -6,6 +6,8 @@ import (
 	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 )
 
 const maxDetailBytes = 32 * 1024
@@ -170,6 +172,9 @@ func toolDetails(name, content string) ([]Detail, bool) {
 func (t *Trace) ValidDetails() bool {
 	bytes := 0
 	for _, entry := range t.Entries {
+		if entry.Brand != "" && !branding.Valid(entry.Brand) {
+			return false
+		}
 		if len(entry.Details) > maxDetails {
 			return false
 		}

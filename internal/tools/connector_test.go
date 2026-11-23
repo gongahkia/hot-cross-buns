@@ -353,3 +353,17 @@ func TestConnectorReadAskRequiresAndUsesFreshApproval(t *testing.T) {
 		t.Fatalf("result = %s, approvals = %d", result, approvals)
 	}
 }
+
+func TestConnectorBrandUsesDescriptorKindNotNameOrArguments(t *testing.T) {
+	for _, fixture := range []struct{ kind, name, want string }{
+		{connector.KindSlack, "My notes", "slack"},
+		{connector.KindHTTPJSON, "Slack", ""},
+		{connector.KindRemoteMCP, "Notion", ""},
+		{connector.KindGoogle, "Personal mail", "google"},
+	} {
+		tool := connectorTool{descriptor: connector.Descriptor{Kind: fixture.kind, Name: fixture.name}}
+		if got := tool.DisplayBrand(json.RawMessage(`{"brand":"codex"}`)); got != fixture.want {
+			t.Errorf("kind %q: %q", fixture.kind, got)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 )
 
 const maxEntries = 160
@@ -22,6 +23,7 @@ type Entry struct {
 	Kind       string     `json:"kind"`
 	Text       string     `json:"text,omitempty"`
 	Tool       string     `json:"tool,omitempty"`
+	Brand      string     `json:"brand,omitempty"`
 	Icon       string     `json:"icon,omitempty"`
 	State      string     `json:"state"`
 	StartedAt  time.Time  `json:"started_at"`
@@ -108,10 +110,14 @@ func (t *Trace) Record(event agent.Event) {
 			return
 		}
 		t.closeText(at)
+		brand := event.Brand
+		if !branding.Valid(brand) {
+			brand = ""
+		}
 		key := fmt.Sprintf("%d/%s", event.Step, event.ToolCall.ID)
 		index, found := t.tools[key]
 		if !found {
-			index = t.append(Entry{Kind: "tool", Tool: boundedName(event.ToolCall.Name), Icon: displayIcon(event.ToolCall.Arguments), State: "running", StartedAt: at})
+			index = t.append(Entry{Kind: "tool", Brand: brand, Tool: boundedName(event.ToolCall.Name), Icon: displayIcon(event.ToolCall.Arguments), State: "running", StartedAt: at})
 			if index < 0 {
 				return
 			}

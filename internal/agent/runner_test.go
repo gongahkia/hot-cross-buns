@@ -539,3 +539,40 @@ func eventKinds(events []Event) []EventKind {
 	}
 	return kinds
 }
+
+type brandFixtureTool struct {
+	*recordingTool
+	brand string
+}
+
+func (t brandFixtureTool) DisplayBrand(json.RawMessage) string { return t.brand }
+
+func TestRunnerEmitsOnlyRegisteredAdapterBrands(t *testing.T) {
+	for _, brand := range []string{"slack", "https://example.com/logo.png", ""} {
+		tool := brandFixtureTool{recordingTool: &recordingTool{}, brand: brand}
+		model := &scriptedModel{turns: []Turn{
+			{ToolCalls: []ToolCall{{ID: "call", Name: "read_file", Arguments: json.RawMessage(`{"brand":"codex","private":"secret"}`)}}}, {Text: "Done"},
+		}}
+		var events []Event
+		_, err := (Runner{Model: model, Tools: []Tool{tool}}).Run(context.Background(), RunOptions{Task: "Read", OnEvent: func(e Event) { events = append(events, e) }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := ""
+		if brand == "slack" {
+			expected = brand
+		}
+		count := 0
+		for _, event := range events {
+			if event.Kind == EventToolCalled || event.Kind == EventToolFinished {
+				count++
+				if event.Brand != expected {
+					t.Fatalf("brand=%q, want %q", event.Brand, expected)
+				}
+			}
+		}
+		if count != 2 || tool.calls != 1 {
+			t.Fatalf("events=%d, calls=%d", count, tool.calls)
+		}
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
@@ -307,10 +308,10 @@ func (c *searchControls) screen(settings config.Store, credentials auth.Store, n
 		}
 		prior.credentials[p.ID] = credential
 		prior.environment[p.ID] = c.environment(p.Environment)
-		providers = append(providers, uisnapshot.Option{Value: p.ID, Label: p.Label})
+		providers = append(providers, uisnapshot.Option{Value: p.ID, Label: p.Label, Brand: branding.Search(p.ID)})
 		links = append(links, uisnapshot.Link{Label: p.Label + " API documentation", URL: p.Documentation})
 		if credential != nil {
-			saved = append(saved, uisnapshot.Option{Value: p.ID, Label: p.Label})
+			saved = append(saved, uisnapshot.Option{Value: p.ID, Label: p.Label, Brand: branding.Search(p.ID)})
 		}
 	}
 	var random [16]byte
@@ -353,12 +354,12 @@ func (c *searchControls) screen(settings config.Store, credentials auth.Store, n
 	if current.Search.Provider == "off" {
 		mode = "Disabled in Hot Cross Buns"
 	}
-	screen := workapp.ControlScreen{Panel: uisnapshot.Panel{ActionIdentity: token, Kind: "search", Title: "Web search", Subtitle: "Discover new sources from your conversation.", Notice: notice, Summary: []uisnapshot.Field{{Label: "Service", Value: service}, {Label: "Status", Value: status}, {Label: "Configuration", Value: mode}, {Label: "Credential source", Value: resolved.Source}}, Links: links, Blocks: []uisnapshot.Block{{Title: "Scope and charges", Lines: []string{"New tasks use this service; active work keeps its captured settings. Reading a public page does not require a search key.", "Web access is reviewed in chat. Searches share the task's eight-search limit and the shared provider request limits.", "The test sends only the public query “" + searchTestQuery + "” to the selected service. It may incur a search charge; no project or conversation text is sent."}}}}}
+	screen := workapp.ControlScreen{Panel: uisnapshot.Panel{Brand: branding.Search(resolved.Provider), ActionIdentity: token, Kind: "search", Title: "Web search", Subtitle: "Discover new sources from your conversation.", Notice: notice, Summary: []uisnapshot.Field{{Label: "Service", Value: service}, {Label: "Status", Value: status}, {Label: "Configuration", Value: mode}, {Label: "Credential source", Value: resolved.Source}}, Links: links, Blocks: []uisnapshot.Block{{Title: "Scope and charges", Lines: []string{"New tasks use this service; active work keeps its captured settings. Reading a public page does not require a search key.", "Web access is reviewed in chat. Searches share the task's eight-search limit and the shared provider request limits.", "The test sends only the public query “" + searchTestQuery + "” to the selected service. It may incur a search charge; no project or conversation text is sent."}}}}}
 	selected := resolved.Provider
 	if _, ok := websearch.Find(selected); !ok {
 		selected = "tinyfish"
 	}
-	screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "C", Label: "Choose search service", Action: "configure", Args: []string{token}, Description: "Choose the service that receives search queries. Enter its API key privately; leave the key empty to reuse that service's existing saved or environment key.", Fields: []workapp.ControlField{{Label: "Search service", Kind: "select", Value: selected, Options: providers}, {Label: "API key", Secret: true, Help: "API key only. Saved privately on this computer; never included in chat or settings previews."}}})
+	screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "C", Icon: selected, Label: "Choose search service", Action: "configure", Args: []string{token}, Description: "Choose the service that receives search queries. Enter its API key privately; leave the key empty to reuse that service's existing saved or environment key.", Fields: []workapp.ControlField{{Label: "Search service", Kind: "select", Value: selected, Options: providers}, {Label: "API key", Secret: true, Help: "API key only. Saved privately on this computer; never included in chat or settings previews."}}})
 	if resolved.Ready {
 		screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "T", Label: "Run test search", Action: "test", Args: []string{token}, Detail: "One fixed public query; may incur a service charge."})
 	}

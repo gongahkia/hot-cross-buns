@@ -10,6 +10,7 @@ import (
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
 )
 
@@ -239,4 +240,8 @@ func ConnectorOperationCapability(tool agent.Tool) (string, action.Capability, b
 		return "", "", false
 	}
 	return native.descriptor.ID, native.operation.Capability, true
+}
+
+func (t connectorTool) DisplayBrand(json.RawMessage) string {
+	return branding.Connector(t.descriptor.Kind)
 }

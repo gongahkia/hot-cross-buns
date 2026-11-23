@@ -104,3 +104,7 @@ func (s scopedWebSearch) Execute(ctx context.Context, raw json.RawMessage) (agen
 	content, err := json.Marshal(map[string]any{"results": leads, "note": "Discovery leads only. Fetch pages within the current web grant before citing their contents as evidence."})
 	return agent.ToolResult{Content: string(content)}, err
 }
+
+func (s scopedWebSearch) DisplayBrand(raw json.RawMessage) string {
+	return agent.ToolBrand(s.tool, raw)
+}

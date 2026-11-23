@@ -364,3 +364,20 @@ func TestManagerCanDiscoverSteerAndPollAgents(t *testing.T) {
 		t.Fatalf("steering evidence: %#v %v", retained, err)
 	}
 }
+
+func TestToolBrandResolvesOnlyActualHostedSpecialists(t *testing.T) {
+	s := &Supervisor{registry: map[string]Specialist{
+		"cli_codex": {Backend: BackendHosted}, "cli_pi": {Backend: BackendLLM},
+	}, tasks: map[string]*taskExecution{"subagent-001": {task: Task{Role: "cli_codex"}}}}
+	for _, fixture := range []struct{ name, raw, want string }{
+		{"start_agent", `{"agent":"cli_codex"}`, "codex"},
+		{"start_agent", `{"agent":"cli_claude"}`, ""},
+		{"start_agent", `{"agent":"cli_pi"}`, ""},
+		{"await_agent", `{"id":"subagent-001"}`, "codex"},
+		{"await_agent", `{"id":"unknown","agent":"cli_codex"}`, ""},
+	} {
+		if got := (taskTool{s: s, name: fixture.name}).DisplayBrand(json.RawMessage(fixture.raw)); got != fixture.want {
+			t.Errorf("%s %s: %q", fixture.name, fixture.raw, got)
+		}
+	}
+}

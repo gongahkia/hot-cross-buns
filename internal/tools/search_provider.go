@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"net/http"
 	"strconv"
 	"strings"
@@ -145,4 +146,12 @@ func parseSearchResults(provider string, body []byte, count int) ([]webSearchRes
 		}
 	}
 	return result, nil
+}
+
+func (t WebSearch) DisplayBrand(json.RawMessage) string {
+	provider, err := t.Options.SearchStatus()
+	if err != nil {
+		return ""
+	}
+	return branding.Search(provider)
 }

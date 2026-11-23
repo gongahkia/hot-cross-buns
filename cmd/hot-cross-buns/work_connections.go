@@ -13,6 +13,7 @@ import (
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
@@ -336,6 +337,7 @@ func (c *connectionControls) screen(id string) (workapp.ControlScreen, error) {
 		return screen, err
 	}
 	screen.Panel.Title, screen.Panel.BackLabel = d.Name, "Back to connections"
+	screen.Panel.Brand = branding.Connector(d.Kind)
 	screen.Panel.Subtitle = localStatus
 	screen.Panel.Summary = []uisnapshot.Field{{Label: "Service", Value: connectionServiceLabel(d.Kind)}, {Label: "Requested access", Value: connectionAccessLabel(d)}}
 	details := []uisnapshot.Field{{Label: "Resource", Value: d.Resource}, {Label: "Authentication", Value: d.Authentication}, {Label: "Connection ID", Value: d.ID}}

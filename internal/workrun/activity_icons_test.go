@@ -83,3 +83,26 @@ func TestForegroundModelSelectsIconThroughObservedToolActivity(t *testing.T) {
 		t.Fatalf("model icon did not reach completed public tool activity: %#v", trace.Entries)
 	}
 }
+
+type brandedIconFixtureTool struct{ *iconFixtureTool }
+
+func (brandedIconFixtureTool) DisplayBrand(raw json.RawMessage) string {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || fields["display_icon"] != nil {
+		return ""
+	}
+	return "slack"
+}
+func TestActivityAndSearchWrappersPreserveAdapterBrandWithoutExecuting(t *testing.T) {
+	original := &iconFixtureTool{}
+	tool := withActivityIcon(scopedWebSearch{tool: brandedIconFixtureTool{original}})
+	if got := agent.ToolBrand(tool, json.RawMessage(`{"path":"note.md","display_icon":"brain"}`)); got != "slack" {
+		t.Fatalf("wrapped brand=%q", got)
+	}
+	if got := agent.ToolBrand(tool, json.RawMessage(`{"display_icon":"bad"}`)); got != "" {
+		t.Fatalf("invalid metadata accepted: %q", got)
+	}
+	if original.calls != 0 {
+		t.Fatal("presentation executed tool")
+	}
+}

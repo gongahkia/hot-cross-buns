@@ -3,6 +3,7 @@ package uisnapshot
 // Panel carries display-independent state from a Go workflow to its frontends.
 // Workflow actions remain owned by the Go application that produced it.
 type Panel struct {
+	Brand      string `json:"brand,omitempty"`
 	Navigation string `json:"navigation,omitempty"`
 	// PresentationID restores local reading/filter state between nested views.
 	// It conveys no workflow authority; ID still binds every action.
@@ -67,6 +68,7 @@ type Hint struct {
 }
 
 type Row struct {
+	Brand      string  `json:"brand,omitempty"`
 	Icon       string  `json:"icon,omitempty"`
 	Identity   string  `json:"identity,omitempty"`
 	Label      string  `json:"label"`
@@ -104,6 +106,7 @@ type Input struct {
 }
 
 type Option struct {
+	Brand string `json:"brand,omitempty"`
 	Value string `json:"value"`
 	Label string `json:"label"`
 }

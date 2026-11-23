@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 )
 
 const defaultMaxSteps = 24
@@ -177,7 +179,8 @@ turnLoop:
 				r.applySteering(&messages, instructions, options.OnEvent, now, step)
 				continue turnLoop
 			}
-			r.emit(options.OnEvent, Event{Kind: EventToolCalled, At: now(), Step: step, ToolCall: cloneCall(call)})
+			brand := ToolBrand(tools[call.Name], call.Arguments)
+			r.emit(options.OnEvent, Event{Brand: brand, Kind: EventToolCalled, At: now(), Step: step, ToolCall: cloneCall(call)})
 			var result ToolResult
 			var toolErr error
 			executed := false
@@ -210,7 +213,7 @@ turnLoop:
 			if result.Computer != nil && toolErr == nil {
 				messages[len(messages)-1].Images = []Image{result.Computer.Screenshot}
 			}
-			event := Event{Kind: EventToolFinished, At: now(), Step: step, ToolCall: cloneCall(call), ToolResult: content}
+			event := Event{Brand: brand, Kind: EventToolFinished, At: now(), Step: step, ToolCall: cloneCall(call), ToolResult: content}
 			if toolErr != nil {
 				event.ToolError = toolErr.Error()
 			} else if len(result.Observations) > 0 {
@@ -419,4 +422,14 @@ func (r Runner) emit(sink EventSink, event Event) {
 	if sink != nil {
 		sink(event)
 	}
+}
+
+// ToolBrand returns only a finite identity supplied by the registered tool.
+func ToolBrand(tool Tool, arguments json.RawMessage) string {
+	if branded, ok := tool.(BrandedTool); ok && json.Valid(arguments) {
+		if id := branded.DisplayBrand(arguments); branding.Valid(id) {
+			return id
+		}
+	}
+	return ""
 }

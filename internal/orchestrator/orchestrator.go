@@ -27,6 +27,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/branding"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 )
 
@@ -404,4 +405,27 @@ func boundedText(value string, maximum int) string {
 		value = value[:len(value)-1]
 	}
 	return value
+}
+
+func (t *delegateTool) DisplayBrand(raw json.RawMessage) string {
+	var input struct {
+		Tasks []struct {
+			Agent string `json:"agent"`
+		} `json:"tasks"`
+	}
+	if json.Unmarshal(raw, &input) != nil || len(input.Tasks) == 0 {
+		return ""
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	brand := ""
+	for _, task := range input.Tasks {
+		specialist, ok := t.registry[task.Agent]
+		next := branding.Specialist(task.Agent)
+		if !ok || specialist.Backend != BackendHosted || next == "" || brand != "" && brand != next {
+			return ""
+		}
+		brand = next
+	}
+	return brand
 }

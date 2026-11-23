@@ -97,3 +97,30 @@ func TestCodingCommandFailureIsVisibleWithoutLeakingCommandData(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicActivityRetainsOnlyHostOwnedBrandIdentity(t *testing.T) {
+	trace := New(time.Now())
+	call := &agent.ToolCall{ID: "slack-call", Name: "connector_notes_read", Arguments: json.RawMessage(`{"brand":"codex","token":"private-secret"}`)}
+	trace.Record(agent.Event{Kind: agent.EventToolCalled, Brand: "slack", ToolCall: call})
+	trace.Record(agent.Event{Kind: agent.EventToolFinished, Brand: "slack", ToolCall: call})
+	if trace.Entries[0].Brand != "slack" || !trace.ValidDetails() {
+		t.Fatal("brand not retained")
+	}
+	raw, _ := json.Marshal(trace.Clone())
+	if strings.Contains(string(raw), "private-secret") || strings.Contains(string(raw), "codex") {
+		t.Fatal("tool arguments leaked")
+	}
+	var restored Trace
+	if err := json.Unmarshal(raw, &restored); err != nil || restored.Entries[0].Brand != "slack" || !restored.ValidDetails() {
+		t.Fatal("brand lost during replay")
+	}
+	restored.Entries[0].Brand = "../../secret.png"
+	if restored.ValidDetails() {
+		t.Fatal("untrusted brand accepted in retained activity")
+	}
+	trace = New(time.Now())
+	trace.Record(agent.Event{Kind: agent.EventToolCalled, Brand: "https://example.com/logo.png", ToolCall: call})
+	if trace.Entries[0].Brand != "" {
+		t.Fatal("unbounded brand projected")
+	}
+}

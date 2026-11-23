@@ -125,6 +125,10 @@ type Tool interface {
 	Execute(context.Context, json.RawMessage) (ToolResult, error)
 }
 
+// BrandedTool supplies host-owned adapter identity for public activity.
+// Implementations resolve arguments against their configured adapters.
+type BrandedTool interface{ DisplayBrand(json.RawMessage) string }
+
 // ToolResult is serialized to the model as the result of one named call.
 // Observations are bounded, untrusted visual observations produced by trusted
 // local tools after the matching result. They are deliberately separate from a
@@ -190,6 +194,7 @@ type Event struct {
 	At                 time.Time           `json:"at"`
 	Step               int                 `json:"step"`
 	ToolCall           *ToolCall           `json:"tool_call,omitempty"`
+	Brand              string              `json:"brand,omitempty"`
 	ToolError          string              `json:"tool_error,omitempty"`
 	Text               string              `json:"text,omitempty"`
 	ToolResult         string              `json:"-"`
