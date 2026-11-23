@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
@@ -37,13 +38,15 @@ type Message struct {
 	Text string `json:"text"`
 }
 type Report struct {
-	CanGuide         bool   `json:"can_guide"`
-	CanStop          bool   `json:"can_stop"`
-	CanCorrectAction bool   `json:"can_correct_action"`
-	ID               string `json:"id"`
-	Title            string `json:"title"`
-	State            string `json:"reported_state"`
-	Summary          string `json:"summary,omitempty"`
+	ConversationID   string    `json:"conversation_id,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at,omitempty"`
+	CanGuide         bool      `json:"can_guide"`
+	CanStop          bool      `json:"can_stop"`
+	CanCorrectAction bool      `json:"can_correct_action"`
+	ID               string    `json:"id"`
+	Title            string    `json:"title"`
+	State            string    `json:"reported_state"`
+	Summary          string    `json:"summary,omitempty"`
 }
 type Memory struct {
 	ID        string    `json:"id"`
@@ -63,6 +66,7 @@ type Commitment struct {
 	Steps        []goal.Step `json:"unfinished_steps,omitempty"`
 }
 type Context struct {
+	Results     []Report     `json:"retained_task_results,omitempty"`
 	Reports     []Report     `json:"admitted_task_reports,omitempty"`
 	AsOf        time.Time    `json:"as_of"`
 	Summary     string       `json:"earlier_conversation_summary,omitempty"`
@@ -249,7 +253,7 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	if err != nil {
 		return result, err
 	}
-	result.Tasks, err = unfinished(sessions, options.ConversationID, turns)
+	result.Tasks, result.Results, err = taskRecords(sessions, options.ConversationID, turns)
 	if err != nil {
 		return result, err
 	}
@@ -317,7 +321,7 @@ func summarize(ctx context.Context, model agent.Model, previous string, turns []
 		return "", err
 	}
 	text := strings.TrimSpace(turn.Text)
-	if len(turn.ToolCalls) > 0 || text == "" || len(text) > 12*1024 || !utf8.ValidString(text) {
+	if len(turn.ToolCalls) > 0 || text == "" || len(text) > 12*1024 || !utf8.ValidString(text) || strings.ContainsFunc(text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' }) {
 		return "", errors.New("summary did not return bounded plain text")
 	}
 	return text, nil

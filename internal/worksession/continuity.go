@@ -52,7 +52,7 @@ func (s Store) ContextHistory(id string, before uint64, at time.Time) ([]Context
 			return nil, err
 		}
 		for _, turn := range page {
-			if !at.IsZero() && !turn.CreatedAt.Before(at) {
+			if !at.IsZero() && (turn.CreatedAt.After(at) || before == 0 && turn.CreatedAt.Equal(at)) {
 				continue
 			}
 			response := turn.Response
@@ -125,7 +125,9 @@ type ContinuitySummary struct {
 }
 
 func validContinuity(v ContinuitySummary, id string) bool {
-	return v.Version == 1 && v.Revision > 0 && v.ConversationID == id && v.Covered >= 0 && v.Covered <= MaxContextTurns && len(v.Epoch) == 64 && len(v.Digest) == 64 && utf8.ValidString(v.Text) && len(v.Text) <= 12*1024 && !v.UpdatedAt.IsZero()
+	_, epochErr := hex.DecodeString(v.Epoch)
+	_, digestErr := hex.DecodeString(v.Digest)
+	return epochErr == nil && digestErr == nil && v.Version == 1 && v.Revision > 0 && v.ConversationID == id && v.Covered >= 0 && v.Covered <= MaxContextTurns && len(v.Epoch) == 64 && len(v.Digest) == 64 && utf8.ValidString(v.Text) && len(v.Text) <= 12*1024 && !v.UpdatedAt.IsZero()
 }
 
 func (s Store) ReadContinuity(id string) (ContinuitySummary, error) {

@@ -45,3 +45,22 @@ test('a new main chat uses conversational routing before starting any task',{tim
  const app=await fixture({conversationalReplies:true});let live;
  try{live=await events(app);const state=await live.until(value=>value.state?.primary);const done=await say(app,live,state.context,'Hello, how are we doing today?');assert.equal(done.context,state.context);assert.equal(done.state.running,false);assert.equal(routed(app).length,1);assert.equal(app.payloads.length,1);assert.equal(done.state.dialogue.length,1);}finally{live?.close();await app.close();}
 });
+
+test('main chat can discuss a completed delegated result after its worker has closed',{timeout:45000},async()=>{
+ const app=await fixture({conversationalReplies:true});let live;
+ try{
+  live=await events(app);const main=await live.until(value=>value.state?.primary);
+  await action(app,{op:'send',context:main.context,id:randomUUID(),text:'Run fixture activity. Read the note and summarize it.',files:[]});
+  const completed=await live.until(value=>value.state?.peers?.some(peer=>peer.state==='completed'));
+  const child=completed.state.peers.find(peer=>peer.state==='completed').conversation_id;
+  const calls=app.payloads.length;
+  live.close();await app.restart();live=await events(app);
+  const reopened=await live.until(value=>value.state?.primary);
+  assert.equal(app.payloads.length,calls);
+  await say(app,live,reopened.context,'How did that note summary go?');
+  const context=JSON.parse(routed(app).at(-1).continuity_context);
+  const result=context.retained_task_results.find(result=>result.conversation_id===child);
+  assert.ok(result);assert.equal(result.reported_state,'completed');assert.match(result.summary,/Fixture answer/);
+  assert.equal(result.can_guide,false);assert.equal(result.can_stop,false);assert.equal(result.can_correct_action,false);
+ }finally{live?.close();await app.close();}
+});

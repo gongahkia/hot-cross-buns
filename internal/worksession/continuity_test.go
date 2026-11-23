@@ -32,7 +32,7 @@ func TestContextHistoryUsesVisibleAncestryAndAdmissionBoundary(t *testing.T) {
 	if _, err = s.UpdateDialogue(turn, turn.Revision); err != nil {
 		t.Fatal(err)
 	}
-	later, err := s.AdmitDialogue(c.ID, "context-private-options-later", "Future user text", json.RawMessage(`{}`), at.Add(2*time.Minute))
+	later, err := s.AdmitDialogue(c.ID, "context-private-options-later", "Future user text", json.RawMessage(`{}`), at.Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,5 +86,33 @@ func TestContinuityCacheRejectsCorruptionSymlinksAndDeletedChats(t *testing.T) {
 	}
 	if err := s.SaveContinuity(v, 1); err == nil {
 		t.Fatal("cache publication resurrected deleted chat")
+	}
+}
+
+func TestContinuityPublicationHasOneWinnerAcrossConcurrentWriters(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	chat, err := s.CreateChat(t.TempDir(), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := ContinuitySummary{ConversationID: chat.ID, Epoch: strings.Repeat("a", 64), Digest: ContextDigest(nil), UpdatedAt: time.Now()}
+	results := make(chan error, 4)
+	for range 4 {
+		go func() { results <- s.SaveContinuity(v, 0) }()
+	}
+	winners := 0
+	for range 4 {
+		if err := <-results; err == nil {
+			winners++
+		} else if !strings.Contains(err.Error(), "changed during preparation") {
+			t.Fatal(err)
+		}
+	}
+	saved, err := s.ReadContinuity(chat.ID)
+	if err != nil || winners != 1 || saved.Revision != 1 {
+		t.Fatal("concurrent writers replaced a newer cache", winners, saved, err)
 	}
 }

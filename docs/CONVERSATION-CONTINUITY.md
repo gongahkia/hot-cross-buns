@@ -27,6 +27,9 @@ interface keeps the same composer, thinking trace, and background-task controls.
   chats receive only their selected goal's responsibilities. Retained running
   state explicitly needs inspection; it is not a liveness check. A configured
   schedule does not prove that the supervisor ran or an external action occurred.
+  Recent completed/failed/stopped task outcomes are reread from their retained
+  journals and public revisions, so discussing a result does not depend on its
+  worker remaining open. Those results still carry no action-control authority.
 
 The router can send a request to existing history tools when bounded recall is
 insufficient and the user's earlier-chat setting permits that search. Durable
@@ -87,3 +90,17 @@ correction/exclusion/forgetting, concurrent memory changes, opt-out and goal
 boundaries, current commitments, schedule changes, and the real browser gateway
 through the Go runtime. Deterministic fixtures verify these mechanisms; they do
 not measure longitudinal recall quality or a live model's semantic judgments.
+
+An opt-in live check is available using the configured provider and its existing
+credential store:
+
+```sh
+HOT_CROSS_BUNS_LIVE_CONTINUITY=1 go test ./cmd/hot-cross-buns -run '^TestLiveConversationContinuity$' -count=1 -v -timeout=100s
+```
+
+On 23 November 2026 this passed with OpenAI `gpt-5.6`: a corrected synthetic
+deadline and the distinction between a comparison draft and an unconfirmed
+booking survived 16 summarized turns. The probe used temporary synthetic state,
+made no external account actions, and left real conversations unchanged. It
+exercises one summary and one conversational answer, uses provider usage, and is
+skipped by ordinary checks. This single case is not longitudinal quality evidence.

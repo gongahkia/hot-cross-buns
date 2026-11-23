@@ -19,6 +19,7 @@ import (
 )
 
 type testModel struct {
+	response  *agent.Turn
 	requests  []agent.TurnRequest
 	fail      bool
 	onSummary func()
@@ -48,6 +49,9 @@ func (m *testModel) Complete(_ context.Context, r agent.TurnRequest) (agent.Turn
 	}
 	if m.fail {
 		return agent.Turn{}, errors.New("temporary summary failure")
+	}
+	if m.response != nil {
+		return *m.response, nil
 	}
 	return agent.Turn{Text: "Launch marker SAFFRON. The user is comparing two plans; the booking remains unconfirmed."}, nil
 }
@@ -345,5 +349,21 @@ func TestForkDoesNotInheritFutureSummaryAndHistoricalPreparationCannotRollBackCa
 	after, err := s.ReadContinuity(chat.ID)
 	if err != nil || before.Revision != after.Revision || before.Digest != after.Digest {
 		t.Fatal("older task rolled back the newer main summary", before, after, err)
+	}
+}
+
+func TestMalformedSummariesCannotReplaceRetainedContext(t *testing.T) {
+	for name, turn := range map[string]agent.Turn{"empty": {}, "oversize": {Text: strings.Repeat("x", 12*1024+1)}, "invalid-utf8": {Text: "\xff"}, "controls": {Text: "bad\x00summary"}, "tool-call": {Text: "claimed result", ToolCalls: []agent.ToolCall{{ID: "invented", Name: "execute"}}}} {
+		t.Run(name, func(t *testing.T) {
+			root, s, chat := fixture(t, 12)
+			result, err := Build(context.Background(), root, &testModel{response: &turn}, Options{ConversationID: chat.ID})
+			if err != nil || result.Summary != "" || len(result.Notices) == 0 {
+				t.Fatal("invalid summary trusted", result, err)
+			}
+			saved, err := s.ReadContinuity(chat.ID)
+			if err != nil || saved.Revision != 0 {
+				t.Fatal("invalid summary published", saved, err)
+			}
+		})
 	}
 }

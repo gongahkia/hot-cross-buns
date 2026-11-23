@@ -42,6 +42,15 @@ func recall(ctx context.Context, stateDir string, sessions worksession.Store, me
 		score int
 	}
 	var matches []match
+	less := func(i, j int) bool {
+		if matches[i].score == matches[j].score {
+			if matches[i].ref.Turn.At.Equal(matches[j].ref.Turn.At) {
+				return matches[i].ref.Turn.ID < matches[j].ref.Turn.ID
+			}
+			return matches[i].ref.Turn.At.After(matches[j].ref.Turn.At)
+		}
+		return matches[i].score > matches[j].score
+	}
 	add := func(chat string, turns []worksession.ContextTurn) {
 		for _, turn := range turns {
 			text := strings.ToLower(turn.User + "\n" + turn.Assistant)
@@ -55,6 +64,8 @@ func recall(ctx context.Context, stateDir string, sessions worksession.Store, me
 				matches = append(matches, match{Recall{chat, turn}, score})
 			}
 		}
+		sort.SliceStable(matches, less)
+		matches = matches[:min(8, len(matches))]
 	}
 	add(options.ConversationID, older)
 	if options.ReferToChats {
@@ -204,7 +215,7 @@ type Task struct {
 	NeedsInspection bool   `json:"needs_inspection"`
 }
 
-func unfinished(sessions worksession.Store, current string, turns []worksession.ContextTurn) ([]Task, error) {
+func taskRecords(sessions worksession.Store, current string, turns []worksession.ContextTurn) ([]Task, []Report, error) {
 	ids := []string{current}
 	seen := map[string]bool{current: true}
 	for i := len(turns) - 1; i >= 0 && len(ids) < 9; i-- {
@@ -215,6 +226,11 @@ func unfinished(sessions worksession.Store, current string, turns []worksession.
 		}
 	}
 	var result []Task
+	type outcome struct {
+		chat    string
+		request worksession.Request
+	}
+	var outcomes []outcome
 	for _, id := range ids {
 		journal, err := sessions.LoadRequests(id)
 		if errors.Is(err, os.ErrNotExist) {
@@ -222,18 +238,31 @@ func unfinished(sessions worksession.Store, current string, turns []worksession.
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, r := range journal.Requests {
-			if r.Pending() || r.AwaitingRecovery() {
+			if len(result) < 12 && (r.Pending() || r.AwaitingRecovery()) {
 				result = append(result, Task{ConversationID: id, RequestID: r.ID, Title: Clip(r.Text, 512), RecordedState: r.State, NeedsInspection: true})
 			}
-			if len(result) == 12 {
-				return result, nil
+			if r.State == "completed" || r.State == "failed" || r.State == "stopped" {
+				outcomes = append(outcomes, outcome{id, r})
 			}
 		}
 	}
-	return result, nil
+	sort.SliceStable(outcomes, func(i, j int) bool { return outcomes[i].request.UpdatedAt.After(outcomes[j].request.UpdatedAt) })
+	var reports []Report
+	for _, o := range outcomes[:min(4, len(outcomes))] {
+		r := o.request
+		report := Report{ID: r.ID, ConversationID: o.chat, Title: Clip(r.Text, 256), State: r.State, UpdatedAt: r.UpdatedAt, Summary: "Retained output is unavailable; inspect the owning task before relying on an outcome."}
+		if r.RevisionID != "" {
+			revision, err := sessions.LoadRevision(o.chat, r.RevisionID)
+			if err == nil {
+				report.Summary = Clip(revision.FinalText, 2048)
+			}
+		}
+		reports = append(reports, report)
+	}
+	return result, reports, nil
 }
 
 type Schedule struct {
@@ -322,5 +351,16 @@ func screenReferences(ctx context.Context, memories memory.Store, model agent.Mo
 		}
 	}
 	result.Reports = reports
+	results := result.Results[:0]
+	for _, item := range result.Results {
+		ok, err := allowed("result:"+item.ConversationID+":"+item.ID, item)
+		if err != nil {
+			return err
+		}
+		if ok {
+			results = append(results, item)
+		}
+	}
+	result.Results = results
 	return nil
 }
