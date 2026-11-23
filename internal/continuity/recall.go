@@ -32,7 +32,7 @@ func terms(query string) []string {
 	return result
 }
 
-func recall(ctx context.Context, stateDir string, sessions worksession.Store, memories memory.Store, model agent.Model, options Options, older []worksession.ContextTurn) ([]Recall, error) {
+func recall(ctx context.Context, stateDir string, sessions worksession.Store, memories memory.Store, model agent.Model, options Options, older []worksession.ContextTurn, notices *[]string) ([]Recall, error) {
 	words := terms(options.Query)
 	if len(words) == 0 {
 		return nil, nil
@@ -83,6 +83,14 @@ func recall(ctx context.Context, stateDir string, sessions worksession.Store, me
 			if chat.ID == options.ConversationID || denied[chat.ID] {
 				continue
 			}
+			allowed, err := historyScope(sessions, chat.ID, denied)
+			if err != nil {
+				*notices = append(*notices, "Some earlier chats have unavailable ancestry and were omitted from recall.")
+				continue
+			}
+			if !allowed {
+				continue
+			}
 			blocked, err := memories.HistorySuppressed(chat.ID, options.GoalID)
 			if err != nil {
 				return nil, err
@@ -92,7 +100,8 @@ func recall(ctx context.Context, stateDir string, sessions worksession.Store, me
 			}
 			turns, err := sessions.ContextHistory(chat.ID, 0, time.Time{})
 			if err != nil {
-				return nil, err
+				*notices = append(*notices, "Some earlier chat text could not be read and was omitted from recall.")
+				continue
 			}
 			add(chat.ID, turns)
 		}
@@ -122,6 +131,34 @@ func recall(ctx context.Context, stateDir string, sessions worksession.Store, me
 		}
 	}
 	return result, nil
+}
+
+func historyScope(sessions worksession.Store, id string, denied map[string]bool) (bool, error) {
+	seen := map[string]bool{}
+	for depth := 0; id != "" && depth < 16; depth++ {
+		if denied[id] || seen[id] {
+			return false, nil
+		}
+		seen[id] = true
+		origin, err := sessions.DialogueTask(id)
+		if err != nil {
+			return false, err
+		}
+		if origin != nil {
+			id = origin.ParentConversationID
+			continue
+		}
+		branch, err := sessions.Branch(id)
+		if err != nil {
+			return false, err
+		}
+		if branch != nil {
+			id = branch.ParentConversationID
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func commitments(stateDir string, options Options) ([]Commitment, error) {

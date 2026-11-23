@@ -43,7 +43,7 @@ async function stream(url) {
 }
 
 test("local browser keeps the Go owner and draft across reconnects, with exact file admission and review", { timeout: 35000 }, async () => {
-  const app = await fixture();
+  const app = await fixture({ startInSide: true });
   const send = (value, origin = app.url) => fetch(app.url + "/api/action", {
     method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(value),
   });
@@ -164,7 +164,7 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
 });
 
 test("composer effort is scoped to its conversation, preserves the draft, and rejects stale controls", { timeout: 20000 }, async () => {
-  const app = await fixture(), live = await stream(app.url);
+  const app = await fixture({ startInSide: true }), live = await stream(app.url);
   const act = async (body, status = 200) => {
     const response = await fetch(app.url + '/api/action', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body),
@@ -214,7 +214,7 @@ test("composer effort is scoped to its conversation, preserves the draft, and re
 });
 
 test('scheduled tasks refresh through the canonical check API and reject unsupported or stale actions', { timeout: 20000 }, async () => {
-  const app = await fixture(), live = await stream(app.url);
+  const app = await fixture({ startInSide: true }), live = await stream(app.url);
   try {
     const initial = await live.until(snapshot => snapshot.connection === 'connected', 'connection');
     const send = body => fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify({ context: initial.context, op: 'scheduled', ...body }) });
@@ -231,7 +231,7 @@ test('scheduled tasks refresh through the canonical check API and reject unsuppo
 });
 
 test("browser activity streams real tool outcomes and retains timing with the finished answer", { timeout: 20000 }, async () => {
-  const app = await fixture();
+  const app = await fixture({ startInSide: true });
   const live = await stream(app.url);
   try {
     const initial = await live.until(s => s.connection === "connected", "connection");
@@ -291,7 +291,7 @@ test("browser activity streams real tool outcomes and retains timing with the fi
 });
 
 test("attachment previews restore selected files, render PDF pages, and enforce conversation ownership", { timeout: 25000 }, async () => {
-  const app = await fixture();
+  const app = await fixture({ startInSide: true });
   const live = await stream(app.url);
   const action = async body => {
     const response = await fetch(app.url + "/api/action", {
@@ -392,7 +392,7 @@ test('all-chat browsing loads beyond the recent limit and opens a version-checke
 });
 
 test('manual memory creation uses the real store and keeps type icons and revision-checked corrections', { timeout: 20000 }, async () => {
-  const app = await fixture(); const live = await stream(app.url);
+  const app = await fixture({ startInSide: true }); const live = await stream(app.url);
   const action = async body => {
     const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body) });
     return { status: response.status, value: await response.json() };
@@ -413,7 +413,7 @@ test('manual memory creation uses the real store and keeps type icons and revisi
 });
 
 test('local model inspection uses typed provider status while runtime mutations remain unavailable', { timeout: 20000 }, async () => {
-  const app = await fixture(), live = await stream(app.url);
+  const app = await fixture({ startInSide: true }), live = await stream(app.url);
   const action = async body => {
     const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body) });
     return { status: response.status, value: await response.json() };
@@ -485,7 +485,7 @@ test('workspace selection confirms canonical folders without moving existing dra
 });
 
 test('source-access reviews cannot be presented or submitted as correctable external actions', { timeout: 20000 }, async () => {
-  const app = await fixture(), live = await stream(app.url);
+  const app = await fixture({ startInSide: true }), live = await stream(app.url);
   const action = async body => { const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify(body) }); return { status: response.status, value: await response.json() }; };
   try {
     const { context } = await live.until(s => s.connection === 'connected', 'connection');

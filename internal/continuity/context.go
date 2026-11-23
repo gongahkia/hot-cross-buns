@@ -99,6 +99,7 @@ func hash(value any) string {
 // Build refreshes owning stores on every request. Summaries are disposable
 // caches: source changes or memory withdrawals invalidate their covered prefix.
 func Build(ctx context.Context, stateDir string, model agent.Model, options Options) (Context, error) {
+	options.Main = options.Main && options.GoalID == ""
 	result := Context{AsOf: time.Now().UTC()}
 	if err := ctx.Err(); err != nil {
 		return result, err
@@ -256,10 +257,16 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	if err != nil {
 		return result, err
 	}
+	if len(result.Commitments) == 6 || len(result.Tasks) == 12 || len(result.Schedules) == 6 {
+		result.Notices = append(result.Notices, "Commitment, task, or schedule context reached its bounded limit and may be incomplete. Inspect the owning views for the complete list.")
+	}
+	if options.ReferToChats {
+		result.Notices = append(result.Notices, "Earlier-chat recall uses lexical matches within at most 24 other retained chats, plus older turns in this conversation. It is not exhaustive or semantic recall.")
+	}
 	if err := screenReferences(ctx, memories, model, options.GoalID, &result); err != nil {
 		return Context{}, err
 	}
-	result.Recalled, err = recall(ctx, stateDir, sessions, memories, model, options, turns[:split])
+	result.Recalled, err = recall(ctx, stateDir, sessions, memories, model, options, turns[:split], &result.Notices)
 	if err != nil {
 		return result, err
 	}

@@ -11,6 +11,12 @@ the first message. Existing histories remain separate; starting the app never
 sends a recovered draft or retries interrupted work. See [development](DEVELOPMENT.md)
 for designation, retention, and deletion behavior.
 
+The continuing context layer now connects recent conversation, durable rolling
+summaries, current editable memory, scoped older-history recall, and explicit
+unfinished responsibilities. See [conversation continuity](CONVERSATION-CONTINUITY.md).
+This establishes context mechanics; longitudinal model quality still requires
+evaluation against real use.
+
 Local web development is the primary surface. Keep the interface calm and
 minimal, with orchestration, scheduled tasks, and delegated work available on
 demand. Menu-bar/notch access, separate native windows, and the desktop mascot

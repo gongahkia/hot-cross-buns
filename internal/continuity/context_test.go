@@ -9,8 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
+	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
@@ -250,5 +253,97 @@ func TestMemoryMutationDuringSummaryRejectsPreparedContext(t *testing.T) {
 	}}
 	if _, err := Build(context.Background(), root, model, Options{ConversationID: chat.ID}); err == nil {
 		t.Fatal("returned context prepared before a concurrent forget")
+	}
+}
+
+func TestCommitmentsAndPendingTasksRefreshFromStoresWithoutClaimingLiveExecution(t *testing.T) {
+	root, s, chat := fixture(t, 0)
+	goals, _ := goal.Open(root)
+	g, err := goals.Add("Prepare a trip", "Compare train options", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := goals.ApplyPlanChange(g.ID, goal.PlanChange{Kind: "add_step", Title: "Choose a train", ExpectedRevision: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := worksession.NewRequest("Prepare a booking draft", json.RawMessage(`{}`), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal, err := s.SaveRequests(chat.ID, worksession.RequestJournal{Version: 1, Requests: []worksession.Request{r}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, _ := jobs.Open(root)
+	job, err := store.Save(jobs.Definition{Name: "Morning check", Enabled: true, Schedule: "0 9 * * *", Timezone: "UTC", SourcePath: chat.SourcePath, Objective: "Review pending plans", Mode: action.Inspect, Contract: artifact.InspectionContract()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := Options{ConversationID: chat.ID, Main: true}
+	model := &testModel{}
+	first, err := Build(context.Background(), root, model, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Commitments) != 1 || len(first.Commitments[0].Steps) != 1 || len(first.Tasks) != 1 || !first.Tasks[0].NeedsInspection || len(first.Schedules) != 1 || !first.Schedules[0].RequiresOnlineHost {
+		t.Fatal("missing owned commitments", first)
+	}
+	if _, err := goals.ApplyPlanChange(g.ID, goal.PlanChange{Kind: "update_step", StepID: plan.Steps[0].ID, Status: goal.StepDone, ExpectedRevision: plan.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	journal.Requests[0].State = "completed"
+	if _, err := s.SaveRequests(chat.ID, journal); err != nil {
+		t.Fatal(err)
+	}
+	job.Enabled = false
+	if _, err := store.Save(job); err != nil {
+		t.Fatal(err)
+	}
+	next, err := Build(context.Background(), root, model, o)
+	if err != nil || len(next.Commitments[0].Steps) != 0 || len(next.Tasks) != 0 || len(next.Schedules) != 0 {
+		t.Fatal("stale unfinished state persisted", next, err)
+	}
+	o.Main = false
+	scoped, err := Build(context.Background(), root, model, o)
+	if err != nil || len(scoped.Commitments) != 0 {
+		t.Fatal("unscoped side chat received unrelated responsibilities", scoped, err)
+	}
+}
+
+func TestForkDoesNotInheritFutureSummaryAndHistoricalPreparationCannotRollBackCache(t *testing.T) {
+	root, s, chat := fixture(t, 24)
+	model := &testModel{}
+	if _, err := Build(context.Background(), root, model, Options{ConversationID: chat.ID}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.ReadContinuity(chat.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turns, _, err := s.DialoguePage(chat.ID, 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := turns[9]
+	fork, err := s.ForkDialogueOnce(chat.ID, selected.ID, selected.Revision, "continuity-fork-request-001", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := Build(context.Background(), root, model, Options{ConversationID: fork.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range child.Recent {
+		if strings.Contains(m.Text, "Message 20:") {
+			t.Fatal("fork inherited future context")
+		}
+	}
+	if _, err := Build(context.Background(), root, model, Options{ConversationID: chat.ID, BeforeSequence: selected.Sequence, BeforeTime: selected.CreatedAt}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := s.ReadContinuity(chat.ID)
+	if err != nil || before.Revision != after.Revision || before.Digest != after.Digest {
+		t.Fatal("older task rolled back the newer main summary", before, after, err)
 	}
 }

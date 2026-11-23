@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true } = {}) {
+export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -35,7 +35,7 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
     } : read ? {
       role: "assistant", content: "I’ll read the note first.",
       tool_calls: [{ id: "read-fixture", type: "function", function: { name: "read_file", arguments: JSON.stringify({ path: "source/note.md", display_icon: 'book-open' }) } }],
-    } : { role: "assistant", content: classification ? '{"mode":"inspect"}' : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? '{"kind":"task"}' : "## Fixture answer\n\nThe message reached the running Go backend." };
+    } : { role: "assistant", content: classification ? '{"mode":"inspect"}' : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? conversationalReplies && !routed.message.includes('fixture activity') ? JSON.stringify({kind:'reply',text:'A continuing conversation.'}) : '{"kind":"task"}' : "## Fixture answer\n\nThe message reached the running Go backend." };
     if ((blocked && !classification && !review && !decision) || afterTool && value.messages.some(item => item.role === "tool")) await new Promise(resolve => { release = resolve; });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ choices: [{ message, finish_reason: review || read ? "tool_calls" : "stop" }] }));
@@ -83,6 +83,16 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
   const appOptions={binary,workspace,userData:join(root,'app'),env};
   try {
     app = await startWeb(appOptions, 0);
+    if (startInSide) {
+      const abort=new AbortController();
+      try {
+        const response=await fetch(app.url+'/api/events',{signal:abort.signal}),reader=response.body.pipeThrough(new TextDecoderStream()).getReader();let buffer='';
+        while(!buffer.includes('\n\n')){const part=await reader.read();if(part.done)throw Error('Fixture startup ended');buffer+=part.value;}
+        const current=JSON.parse(buffer.slice(6,buffer.indexOf('\n\n')));
+        const opened=await fetch(app.url+'/api/action',{method:'POST',headers:{'Content-Type':'application/json',Origin:app.url},body:JSON.stringify({op:'navigate',context:current.context,route:'/new'})});
+        if(!opened.ok)throw Error('Could not open the fixture side chat');
+      }finally{abort.abort();}
+    }
   } catch (error) {
     provider.close();
     await rm(root, { recursive: true, force: true });

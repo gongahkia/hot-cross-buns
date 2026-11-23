@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/continuity"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/state"
 	sharedusage "github.com/gongahkia/hot-cross-buns/internal/usage"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
@@ -119,27 +122,6 @@ func verifyConversationScopeFor(input workapp.ConversationInput, conversationOnl
 	return nil
 }
 
-// Both planning and execution receive the same admitted public references.
-// Past task controls, tool replay and approval tokens are never inherited.
-func dialogueReferenceContext(input *workapp.ConversationInput) (string, error) {
-	if input == nil {
-		return "", nil
-	}
-	tasks := append([]workrun.ConversationTask(nil), input.TaskContext...)
-	for index := range tasks {
-		tasks[index].CanGuide, tasks[index].CanStop = false, false
-		tasks[index].CanRevisePlan = false
-		tasks[index].CanReviewInputs = false
-		tasks[index].CanCorrectAction = false
-		tasks[index].ReviewControlID = ""
-	}
-	data, err := json.Marshal(struct {
-		Messages []workrun.ConversationMessage `json:"messages,omitempty"`
-		Tasks    []workrun.ConversationTask    `json:"tasks,omitempty"`
-	}{input.Recent, tasks})
-	return string(data), err
-}
-
 func routeInteractiveConversation(stateDir string) func(context.Context, workrun.ConversationRequest, workapp.ConversationInput) (workrun.ConversationDecision, error) {
 	return func(ctx context.Context, request workrun.ConversationRequest, input workapp.ConversationInput) (workrun.ConversationDecision, error) {
 		if err := verifyConversationScopeFor(input, true); err != nil {
@@ -159,8 +141,77 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 		if err != nil {
 			return workrun.ConversationDecision{}, err
 		}
+		if input.ConversationID != "" {
+			context, err := prepareDialogueContinuity(ctx, stateDir, backend, request.Text, input)
+			if err != nil {
+				return workrun.ConversationDecision{}, err
+			}
+			request.Recent = nil
+			for _, message := range context.Recent {
+				request.Recent = append(request.Recent, workrun.ConversationMessage{Role: message.Role, Text: message.Text})
+			}
+			context.Recent = nil
+			data, err := json.Marshal(context)
+			if err != nil {
+				return workrun.ConversationDecision{}, err
+			}
+			request.Continuity = string(data)
+			settings, err := loadSettings()
+			if err != nil {
+				return workrun.ConversationDecision{}, err
+			}
+			request.LearnFromChats = settings.Desktop.LearnsFromChats()
+			request.ReferToChats = settings.Desktop.RefersToChats()
+		}
 		return workrun.RouteConversation(sharedusage.WithState(sharedusage.WithCategory(ctx, "routing"), stateDir), backend, request)
 	}
+}
+
+func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent.Model, text string, input workapp.ConversationInput) (continuity.Context, error) {
+	release, err := state.Guard(stateDir, false)
+	if err != nil {
+		return continuity.Context{}, err
+	}
+	defer release()
+	settings, err := loadSettings()
+	if err != nil {
+		return continuity.Context{}, err
+	}
+	sessions, err := worksession.Open(stateDir)
+	if err != nil {
+		return continuity.Context{}, err
+	}
+	chat, err := sessions.Load(input.ConversationID)
+	if err != nil {
+		return continuity.Context{}, err
+	}
+	if chat.SourcePath != input.Source {
+		return continuity.Context{}, errors.New("conversation continuity source changed")
+	}
+	main, err := sessions.Primary()
+	if err != nil {
+		return continuity.Context{}, err
+	}
+	var recent []continuity.Message
+	for _, message := range input.Recent {
+		recent = append(recent, continuity.Message{Role: message.Role, Text: message.Text})
+	}
+	var reports []continuity.Report
+	for _, task := range input.TaskContext {
+		reports = append(reports, continuity.Report{ID: task.ID, Title: continuity.Clip(task.Title, 256), State: task.State, Summary: continuity.Clip(task.Summary, 1024)})
+	}
+	result, err := continuity.Build(sharedusage.WithState(sharedusage.WithCategory(ctx, "retrieval"), stateDir), stateDir, model, continuity.Options{
+		AdmittedRecent: recent, Reports: reports,
+		ConversationID: input.ConversationID, GoalID: input.GoalID, Query: text, BeforeSequence: input.BeforeSequence, BeforeTime: input.BeforeTime,
+		Excluded: input.RunOptions.ExcludedKnowledgeIDs, Main: main == input.ConversationID, ReferToChats: settings.Desktop.RefersToChats(), LearnFromChats: settings.Desktop.LearnsFromChats(),
+	})
+	if err != nil {
+		return continuity.Context{}, err
+	}
+	if err := verifyConversationScopeFor(input, true); err != nil {
+		return continuity.Context{}, err
+	}
+	return result, nil
 }
 
 // Execution uses the child's own lease/replay/approval owner. Parent context is
@@ -194,6 +245,10 @@ func resolveDialogueExecutionScope(stateDir, source, conversation, text string, 
 	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || input.Source != source || turn.Text != text || turn.TaskChat != conversation {
 		return nil, goal.Record{}, errors.New("independent task inputs changed")
 	}
+	if input.ConversationID != "" && input.ConversationID != origin.ParentConversationID {
+		return nil, goal.Record{}, errors.New("requesting conversation changed")
+	}
+	input.ConversationID, input.BeforeSequence, input.BeforeTime = origin.ParentConversationID, turn.Sequence, turn.CreatedAt
 	expected := input.RunOptions
 	expected.DialogueParent, expected.DialogueTurn = options.DialogueParent, options.DialogueTurn
 	a, err := json.Marshal(expected)

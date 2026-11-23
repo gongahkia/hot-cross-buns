@@ -19,6 +19,9 @@ import (
 // ConversationInput is the immutable envelope captured by admission. Public
 // conversation text is context, never replay, tool results or approval grants.
 type ConversationInput struct {
+	ConversationID   string                        `json:"conversation_id,omitempty"`
+	BeforeSequence   uint64                        `json:"-"`
+	BeforeTime       time.Time                     `json:"-"`
 	Version          int                           `json:"version"`
 	Source           string                        `json:"source"`
 	GoalID           string                        `json:"goal_id,omitempty"`
@@ -100,6 +103,9 @@ func (m Model) conversationActive() bool {
 	if !m.conversationAvailable() {
 		return false
 	}
+	if m.primary {
+		return true
+	}
 	if m.running || len(m.dialogueTurns) > 0 || m.planPreparing != "" || m.dialogueRouting != "" || len(m.dialogueQueue) > 0 || m.dialogueOtherBusy {
 		return true
 	}
@@ -173,13 +179,13 @@ func (m Model) conversationRecent() []workrun.ConversationMessage {
 			if message.role == "You" {
 				role = "user"
 			}
-			entries = append(entries, entry{message.createdAt, workrun.ConversationMessage{Role: role, Text: boundedConversation(message.text, 2048)}})
+			entries = append(entries, entry{message.createdAt, workrun.ConversationMessage{Role: role, Text: boundedConversation(message.text, 8192)}})
 		}
 	}
 	for _, turn := range m.dialogueTurns {
-		entries = append(entries, entry{turn.CreatedAt, workrun.ConversationMessage{Role: "user", Text: boundedConversation(turn.Text, 2048)}})
+		entries = append(entries, entry{turn.CreatedAt, workrun.ConversationMessage{Role: "user", Text: boundedConversation(turn.Text, 8192)}})
 		if turn.Response != "" {
-			entries = append(entries, entry{turn.UpdatedAt, workrun.ConversationMessage{Role: "assistant", Text: boundedConversation(turn.Response, 2048)}})
+			entries = append(entries, entry{turn.UpdatedAt, workrun.ConversationMessage{Role: "assistant", Text: boundedConversation(turn.Response, 8192)}})
 		}
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].at.Before(entries[j].at) })
@@ -187,8 +193,16 @@ func (m Model) conversationRecent() []workrun.ConversationMessage {
 	for _, entry := range entries {
 		recent = append(recent, entry.message)
 	}
-	if len(recent) > 12 {
-		recent = recent[len(recent)-12:]
+	if len(recent) > 16 {
+		recent = recent[len(recent)-16:]
+	}
+	bytes := 0
+	for i := len(recent) - 1; i >= 0; i-- {
+		bytes += len(recent[i].Text)
+		if bytes > 48*1024 {
+			recent = recent[i+1:]
+			break
+		}
 	}
 	return recent
 }
@@ -329,7 +343,7 @@ func (m Model) admitConversation(request BridgeUploadSubmission, text string) (t
 	options.Uploads = append([]string(nil), request.Files...)
 	options.ReplyToUpdateID = request.ReplyToUpdateID
 	options.PlanFirst = request.PlanFirst
-	input := ConversationInput{Version: 1, Source: m.source, GoalID: m.goalID, RunOptions: retainedRunOptions(options), Recent: m.conversationRecent(), TaskContext: m.conversationTasks()}
+	input := ConversationInput{ConversationID: m.conversation, Version: 1, Source: m.source, GoalID: m.goalID, RunOptions: retainedRunOptions(options), Recent: m.conversationRecent(), TaskContext: m.conversationTasks()}
 	for index := range input.TaskContext {
 		input.TaskContext[index].CanGuide, input.TaskContext[index].CanStop = false, false
 		input.TaskContext[index].CanRevisePlan = false
@@ -394,6 +408,7 @@ func (m Model) startConversationRoute() (tea.Model, tea.Cmd) {
 	m.dialogueCancel = cancel
 	request := workrun.ConversationRequest{Text: turn.Text, Recent: input.Recent, Tasks: m.conversationTasks(), HasFiles: len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.ReplyToUpdateID != "", PlanFirst: input.RunOptions.PlanFirst, CanStart: m.dialogueCanStart}
 	request.AcknowledgementBlocked = input.RunOptions.RefreshSource || m.acknowledgementBlocked() || !workrun.AcknowledgementContextSafe(input.TaskContext, input.Recent)
+	input.ConversationID, input.BeforeSequence, input.BeforeTime = m.conversation, turn.Sequence, turn.CreatedAt
 	route, conversation := m.config.RouteConversation, m.conversation
 	return m, func() tea.Msg {
 		decision, err := route(ctx, request, input)

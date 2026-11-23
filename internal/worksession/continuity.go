@@ -18,6 +18,7 @@ import (
 // ContextTurn exposes only public conversation text. Captured options, files,
 // tool replay, credentials and action receipts never enter a continuity summary.
 type ContextTurn struct {
+	Sequence  uint64    `json:"sequence,omitempty"`
 	ID        string    `json:"id"`
 	User      string    `json:"user"`
 	Assistant string    `json:"assistant,omitempty"`
@@ -61,7 +62,7 @@ func (s Store) ContextHistory(id string, before uint64, at time.Time) ([]Context
 				state = "unconfirmed_at_admission"
 				task = ""
 			}
-			if err := add(ContextTurn{ID: "dialogue:" + turn.ID, User: turn.Text, Assistant: response, State: state, TaskChat: task, At: turn.CreatedAt}); err != nil {
+			if err := add(ContextTurn{Sequence: turn.Sequence, ID: "dialogue:" + turn.ID, User: turn.Text, Assistant: response, State: state, TaskChat: task, At: turn.CreatedAt}); err != nil {
 				return nil, err
 			}
 		}
@@ -92,6 +93,9 @@ func (s Store) ContextHistory(id string, before uint64, at time.Time) ([]Context
 	}
 	sort.Slice(turns, func(i, j int) bool {
 		if turns[i].At.Equal(turns[j].At) {
+			if turns[i].Sequence > 0 && turns[j].Sequence > 0 {
+				return turns[i].Sequence < turns[j].Sequence
+			}
 			return turns[i].ID < turns[j].ID
 		}
 		return turns[i].At.Before(turns[j].At)

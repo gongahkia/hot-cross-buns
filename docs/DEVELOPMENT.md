@@ -27,6 +27,14 @@ chat is selected. Explicit data deletion still applies. If it removes the main
 conversation, the next launch or explicit Main chat navigation creates an empty
 replacement. Invalid main metadata is reported rather than silently replaced.
 
+Main chat now prepares continuing context for ordinary replies, plans, and
+delegated Work: detailed recent text, a durable rolling summary, current editable
+memories, relevant older chat excerpts, and unfinished responsibilities. Summary
+calls use the selected model and shared usage accounting. Original history is
+retained; current corrections and forgetting rules are reapplied before recall.
+See [conversation continuity](CONVERSATION-CONTINUITY.md) for bounds, privacy,
+failure behavior and verification limits. No additional chat dashboard is added.
+
 Completed `html`, `svg`, and `mermaid` fenced code blocks render inline with a
 Source disclosure. HTML and SVG use opaque sandboxed frames. Self-contained inline scripts, buttons,
 selects, CSS animation and SVG animation can run there. The frame policy blocks

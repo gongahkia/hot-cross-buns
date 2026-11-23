@@ -830,11 +830,6 @@ func runInteractiveWorkGoal(source, conversationID, prompt, stateDir string, opt
 	if dialogue != nil {
 		request.OriginConversationID = options.DialogueParent
 		request.OAuthRefreshPins = dialogue.OAuthRefreshPins
-		context, err := dialogueReferenceContext(dialogue)
-		if err != nil {
-			return workapp.RunResult{Error: err.Error()}
-		}
-		request.ConversationContext = context
 	}
 	parse := func(values []string) ([][]string, error) {
 		var result verificationFlags
@@ -872,6 +867,17 @@ func runInteractiveWorkGoal(source, conversationID, prompt, stateDir string, opt
 	service, err := configuredWorkService(options.ModelProvider, options.ModelName, stateDir, &request)
 	if err != nil {
 		return workapp.RunResult{Error: err.Error()}
+	}
+	if dialogue != nil {
+		context, err := prepareDialogueContinuity(ctx, stateDir, service.Executor.Model, prompt, *dialogue)
+		if err != nil {
+			return workapp.RunResult{Error: err.Error()}
+		}
+		data, err := json.Marshal(context)
+		if err != nil {
+			return workapp.RunResult{Error: err.Error()}
+		}
+		request.ConversationContext = string(data)
 	}
 	recoveryScope, recoveryScopeErr := captureConversationInput(workapp.ConversationInput{Version: 1, Source: source, RunOptions: options})
 	var outcome workrun.Outcome
