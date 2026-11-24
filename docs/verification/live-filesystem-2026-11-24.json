@@ -45,5 +45,8 @@
   "linux_runtime": "not exercised",
   "windows_runtime": "cross-compiled only",
   "rendered_visual_acceptance": "not performed; incumbent components reused",
-  "mutation_atomicity": "hash checked; no transaction guarantee against external processes"
+  "mutation_atomicity": "hash checked; no transaction guarantee against external processes",
+  "full_scope_protection": "passed; actual macOS sandbox and canonical config alias contracts",
+  "verification_log": "/tmp/hcb-files-complete-check.log",
+  "plan_first": "passed; tool discoverability and exact read/mutation scope enforcement"
 }
