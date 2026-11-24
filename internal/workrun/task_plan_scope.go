@@ -286,6 +286,15 @@ func filterTaskPlanTools(request Request, surface []agent.Tool) []agent.Tool {
 			effects = []string{"read"}
 			err = nil
 		}
+		if name == "filesystem" {
+			// The schema covers both reads and mutations. Keep it discoverable;
+			// the exact operation is checked against the canonical plan at dispatch.
+			effects = []string{"read"}
+			if !slices.Contains(request.reviewedPlan.Content.Effects, "read") {
+				effects = []string{"filesystem"}
+			}
+			err = nil
+		}
 		if err != nil {
 			continue
 		}
