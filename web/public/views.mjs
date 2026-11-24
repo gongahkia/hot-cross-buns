@@ -21,6 +21,7 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
       ['Scheduled tasks', 'calendar-days', 'Recurring checks and ongoing responsibilities.', () => navigate('/scheduled')],
     ]],
     ['This device', [
+      ['Browser access', 'globe', 'Choose a private browser, allowed sites, and tabs for a task.', () => backend('/browser')],
       ['Usage & limits', 'chart-no-axes-combined', 'Provider usage and shared request limits.', () => backend('/usage')],
       ['Data & backups', 'folder-search', 'Retained data, exports, and restore reviews.', () => backend('/data')],
       ['Recovery', 'rotate-ccw', 'Review interrupted work and setup that needs attention.', () => backend('/recovery')],

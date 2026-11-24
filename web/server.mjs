@@ -57,7 +57,7 @@ const headers = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };
-const routes = new Set(["/hot-cross-buns", "/chat", "/new", "/conversations", "/settings", "/connections", "/knowledge", "/followup", "/goals", "/inbox", "/usage", "/recovery", "/memory", "/learnings", "/model", "/data", "/search"]);
+const routes = new Set(["/hot-cross-buns", "/chat", "/new", "/conversations", "/settings", "/browser", "/connections", "/knowledge", "/followup", "/goals", "/inbox", "/usage", "/recovery", "/memory", "/learnings", "/model", "/data", "/search"]);
 const frames = new Set(["conversation", "composer", "panel", "task_plan", "sources", "dialogue_page", "queue"]);
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
