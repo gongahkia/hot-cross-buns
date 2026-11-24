@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "date": "2026-11-24",
+  "feature": "live filesystem permission and delegated access",
+  "make_check": {
+    "status": "passed",
+    "go_tests": "passed",
+    "go_vet": "passed",
+    "web_tests": 126,
+    "host_tests": 143,
+    "oauth_build_tests": 1
+  },
+  "race_tests": "passed",
+  "macos_sandbox": "passed; actual scoped subprocess",
+  "web_inline_choices": {
+    "once": "passed",
+    "always": "passed",
+    "full": "passed"
+  },
+  "live_codex": {
+    "at": "2026-11-24T16:49:09.436727+08:00",
+    "checks": {
+      "created_live_file": true,
+      "deleted_disposable_file": true,
+      "private_checkout_unchanged": true,
+      "updated_live_file": true,
+      "worker_succeeded": true
+    }
+  },
+  "live_manager_handoff": {
+    "manager_model": "gpt-5-mini",
+    "checks": {
+      "codex_completed": true,
+      "codex_delegated": true,
+      "inline_permission_once": true,
+      "live_marker_returned": true,
+      "manager_did_not_read_file": true,
+      "manager_succeeded": true
+    }
+  },
+  "worker_authentication": "existing local Codex login; no manager-key worker fallback",
+  "normal_app_permissions_changed": false,
+  "user_neovim_files_changed": false,
+  "pi_live": "not exercised; prior adapter issue remains",
+  "linux_runtime": "not exercised",
+  "windows_runtime": "cross-compiled only",
+  "rendered_visual_acceptance": "not performed; incumbent components reused",
+  "mutation_atomicity": "hash checked; no transaction guarantee against external processes"
+}

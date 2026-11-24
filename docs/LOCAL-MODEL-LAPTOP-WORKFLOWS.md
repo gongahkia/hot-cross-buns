@@ -12,6 +12,10 @@ Managed local models can now use HCB's existing controlled browser through text 
 
 A useful first task is to read a selected project folder and an approved project page, then draft a source-linked brief. A source read failure must be reported rather than treated as evidence. Local model quality, latency and tool-call reliability still need qualification against the installed model.
 
+## Live local files
+
+For requests about an actual folder such as `~/.config/nvim`, the manager can now call `filesystem` directly. Missing permission is reviewed inline; approval resumes that call without a workspace switch or resending. Use Settings → Permissions for saved read/CRUD folder grants or explicit full filesystem access. Approved live paths can be passed to configured CLI workers. See [live filesystem access](LIVE-FILESYSTEM.md) for scope, revocation and verification.
+
 ## Boundaries
 
 The browser controller continues to enforce origin and selected-tab policy. The model receives no arbitrary JavaScript execution, cookies, storage, browser-profile paths or arbitrary local uploads. Task grants remain bound to the reviewed browser policy. Explicit per-request browser opt-outs are preserved.
