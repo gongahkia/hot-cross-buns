@@ -68,3 +68,12 @@ test('disconnecting the audio request cancels its owned helper', async () => {
   controller.abort(); assert.equal(signal.aborted, true); finish({ text: 'Stale' });
   await assert.rejects(result, /cancelled/); voice.close();
 });
+
+test('a model download can be cancelled without blocking normal voice controls', async () => {
+  let signal;
+  const { voice } = setup((request, s) => { if (request.action === 'download') { signal = s; return new Promise((_resolve, reject) => s.addEventListener('abort', () => reject(new Error('Download cancelled')))); } });
+  const operation = voice.action({ context: 'chat-a', action: 'download', model: 'tiny' });
+  await voice.action({ context: 'chat-a', action: 'cancel-download' });
+  assert.equal(signal.aborted, true); await assert.rejects(operation, /Download cancelled/);
+  assert.ok(await voice.action({ context: 'chat-a', action: 'status' })); voice.close();
+});

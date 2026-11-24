@@ -92,7 +92,9 @@ const voice = voiceInput({
   },
   submit: async context => {
     if (context !== snapshot.context || busy || pending) throw new Error('Review the voice transcript in the composer before sending.');
-    await submitMessage();
+    busy = true; controls();
+    try { await submitMessage(); }
+    finally { busy = false; controls(); status(); }
   },
 });
 document.querySelector('#attach').after(voice.trigger);

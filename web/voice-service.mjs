@@ -21,6 +21,10 @@ export function browserVoice(host, { run = runSpeechRequest, now = Date.now } = 
     async action(body) {
       check(body.context); changed();
       const { action } = body;
+      if (action === 'cancel-download') {
+        if (download?.context === body.context) download.controller.abort();
+        return {};
+      }
       if (action === 'cancel') {
         const grant = grants.get(body.grant);
         if (grant?.context === body.context) { grant.controller.abort(); grants.delete(body.grant); }
