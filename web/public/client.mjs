@@ -1,3 +1,4 @@
+import { voiceInput } from './voice.mjs';
 import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs";
 import { brandIcon, setBrandIcon, providerBrand } from './brands.mjs';
 import { animateSurfaceHeight, viewTransition } from './surface-motion.mjs';
@@ -79,6 +80,25 @@ const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...bo
   manage: () => execute(() => backendRoute('/followup')), goals: () => execute(() => backendRoute('/goals')) });
 document.querySelector('.top-actions').prepend(scheduled.trigger);
 document.body.append(scheduled.element);
+const voice = voiceInput({
+  getDraft: () => ({ context: snapshot.context, text: input.value, files: draft?.uploads?.length || 0,
+    attachments: JSON.stringify(draft?.uploads?.map(file => file.id) || []), quoted: draft?.response_quote?.id,
+    correction: draft?.correction?.id, messages: snapshot.state?.messages, running: snapshot.state?.running || snapshot.state?.working }),
+  append: async (text, context) => {
+    if (context !== snapshot.context || draft?.context !== context || pending || input.disabled) throw new Error('The draft changed. Return to this chat before recording again.');
+    const next = [input.value.trimEnd(), text.trim()].filter(Boolean).join('\n');
+    if (new TextEncoder().encode(next).length > 128 * 1024) throw new Error('The transcript exceeds the draft limit. Try a shorter recording.');
+    input.value = next; input.dispatchEvent(new Event('input', { bubbles: true }));
+  },
+  submit: async context => {
+    if (context !== snapshot.context || busy || pending) throw new Error('Review the voice transcript in the composer before sending.');
+    await submitMessage();
+  },
+});
+document.querySelector('#attach').after(voice.trigger);
+document.body.append(voice.settings);
+document.querySelector('.composer-wrap').prepend(voice.bar);
+
 function renderProgress() {
   chats.updateActivity(snapshot.activity, snapshot.tasks);
   const candidates = (snapshot.tasks || []).filter(task => task.current || task.parent === snapshot.state?.conversation_id);
@@ -111,6 +131,7 @@ function controls() {
   const enabled = online && snapshot.connection === "connected" && !snapshot.switching && !busy;
   const writing = enabled && draft?.context === snapshot.context && !state?.panel && !state?.external;
   const waiting = pending?.context === snapshot.context;
+  voice.update({ ...state, context: snapshot.context, connected: online && snapshot.connection === 'connected' && !snapshot.switching }, writing && !waiting);
   input.disabled = !writing;
   input.readOnly = waiting;
   $("attach").disabled = !writing || waiting || !!draft?.correction;
@@ -265,7 +286,9 @@ pending = restore(":pending");
 
 $("composer").addEventListener("submit", event => {
   event.preventDefault();
-  void execute(async () => {
+  void execute(submitMessage);
+});
+async function submitMessage() {
     if (!draft || draft.context !== snapshot.context) return;
     if (new TextEncoder().encode(input.value).length > 128 * 1024) throw new Error("Shorten the message to 128 KiB before sending.");
     await flush();
@@ -286,8 +309,7 @@ $("composer").addEventListener("submit", event => {
       }
       throw error;
     }
-  });
-});
+}
 input.addEventListener("keydown", event => {
   if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !$("send").disabled) {
     event.preventDefault();

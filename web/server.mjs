@@ -18,6 +18,9 @@ import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+  ["/voice.mjs", ["voice.mjs", "text/javascript; charset=utf-8"]],
+  ["/voice-capture.mjs", ["voice-capture.mjs", "text/javascript; charset=utf-8"]],
+  ["/voice-controller.mjs", ["voice-controller.mjs", "text/javascript; charset=utf-8"]],
   ["/brands.mjs", ["brands.mjs", "text/javascript; charset=utf-8"]],
   ...brandCatalog.map(brand => ["/brands/" + brand.file, ["brands/" + brand.file, "image/png"]]),
   ["/", ["index.html", "text/html; charset=utf-8"]],
