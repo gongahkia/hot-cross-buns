@@ -73,3 +73,11 @@ export function planReview(review) {
   const raw = element('details', undefined, 'task-evidence'); raw.append(element('summary', 'Exact review data'), element('pre', JSON.stringify(review, null, 2))); root.append(raw);
   return root;
 }
+
+export function filesystemApprovalActions(choose) {
+ const root=element('div',undefined,'review-actions');
+ for(const [label,approved,choice] of [['Decline',false],['Allow once',true,'once'],['Always for this folder',true,'always'],['Full filesystem access',true,'full']]) {
+  const button=element('button',label);button.type='button';button.addEventListener('click',()=>choose(approved,choice));root.append(button);
+ }
+ return root;
+}

@@ -206,6 +206,7 @@ func commandPaletteEntries() []entry {
 		{title: "/goals", subtitle: "Resume an ongoing goal", kind: "command", command: "/goals"},
 		{title: "/followup", subtitle: "Watch project changes and review the next step", kind: "command", command: "/followup"},
 		{title: "/overview", subtitle: "Changes, decisions, next actions, and blockers", kind: "command", command: "/overview"},
+		{title: "/permissions", subtitle: "Live filesystem permissions and app capabilities", kind: "command", command: "/permissions"},
 		{title: "/computer", subtitle: "Selected-app computer access and private takeover", kind: "command", command: "/computer"},
 		{title: "/browser", subtitle: "Private sign-in, browser access and next-task grant", kind: "command", command: "/browser"},
 		{title: "/connections", subtitle: "Connect accounts and check access", kind: "command", command: "/connections"},
@@ -239,7 +240,6 @@ func commandPaletteEntries() []entry {
 		{title: "/source ignore", subtitle: "Ignore a project instruction", kind: "command-input", command: "/source ignore", advanced: true},
 		{title: "/source unignore", subtitle: "Restore a project instruction", kind: "command-input", command: "/source unignore", advanced: true},
 		{title: "/source ignored", subtitle: "List ignored project instructions", kind: "command", command: "/source ignored", advanced: true},
-		{title: "/permissions", subtitle: "Inspect current work authority", kind: "command", command: "/permissions", advanced: true},
 		{title: "/agents", subtitle: "Inspect internal specialists", kind: "command", command: "/agents", advanced: true},
 		{title: "/queue", subtitle: "Show queued prompts", kind: "command", command: "/queue"},
 		{title: "/dequeue", subtitle: "Remove the next queued prompt", kind: "command", command: "/dequeue", advanced: true},
@@ -397,7 +397,7 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 	if len(fields) == 0 {
 		return m, nil
 	}
-	if m.config.BeforeLocalCommand != nil && fields[0] != "/data" && fields[0] != "/usage" && fields[0] != "/recovery" && fields[0] != "/overview" && fields[0] != "/connections" && fields[0] != "/browser" && fields[0] != "/computer" && fields[0] != "/search" {
+	if m.config.BeforeLocalCommand != nil && fields[0] != "/data" && fields[0] != "/usage" && fields[0] != "/recovery" && fields[0] != "/overview" && fields[0] != "/connections" && fields[0] != "/browser" && fields[0] != "/computer" && fields[0] != "/permissions" && fields[0] != "/search" {
 		release, err := m.config.BeforeLocalCommand()
 		if err != nil {
 			m.messages = append(m.messages, noticeMessage("Private data", err.Error(), "error"))
@@ -623,6 +623,10 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 	case "/statusline":
 		m.openStatusLineEditor()
 	case "/permissions":
+		if m.config.Controls != nil {
+			m.home = wasHome
+			return m, m.openControls("permissions", fields[1:])
+		}
 		result = m.workPermissions()
 	case "/settings":
 		if len(fields) == 2 && fields[1] == "statusline" {

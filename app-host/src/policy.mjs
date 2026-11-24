@@ -28,7 +28,7 @@ export function validateFrame(frame) {
   // never come from the renderer. External handoffs use a separate host method.
   const allowed = {
     submit: ["type", "text"], navigate: ["type", "text"], key: ["type", "key", "text"],
-    panel: ["type", "key", "panel"], approval: ["type", "interaction_id", "approval_token", "approved"],
+    panel: ["type", "key", "panel"], approval: ["type", "interaction_id", "approval_token", "approved", "permission_choice"],
     queue: ["type", "queue"],
     specialist: ["type", "specialist"],
     composer: ["type", "composer"],
@@ -82,6 +82,7 @@ export function validateFrame(frame) {
   if (frame.type === "navigate" && (typeof frame.text !== "string" || frame.text.length > 4096 || !(/^\/[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/.test(frame.text) || /^\/context [a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(frame.text)) || ["/approve", "/deny", "/quit", "/exit"].includes(frame.text))) throw new Error("Invalid destination");
   if (frame.type === "key" && !["esc", "ctrl+o", "ctrl+p", "ctrl+x", "ctrl+b"].includes(frame.key)) throw new Error("Unsupported shortcut");
   if (frame.type === "approval" && (!Number.isSafeInteger(frame.interaction_id) || frame.interaction_id < 1 || typeof frame.approval_token !== "string" || !/^[a-f0-9]{64}$/.test(frame.approval_token) || typeof frame.approved !== "boolean")) throw new Error("Invalid approval");
+  if (frame.type === "approval" && frame.permission_choice !== undefined && (!frame.approved || !['once','always','full'].includes(frame.permission_choice))) throw new Error("Invalid filesystem permission choice");
   if (frame.type === "queue") {
     const queue = frame.queue;
     if (!queue || typeof queue !== "object" || Array.isArray(queue) || Object.keys(queue).some((key) => !["request_id", "id", "action", "text", "target_id", "placement"].includes(key))) throw new Error("Invalid queue action");

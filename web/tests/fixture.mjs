@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false } = {}) {
+export async function fixture({ voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -31,7 +31,8 @@ export async function fixture({ voiceOptions, memories = [], chatCount = 0, dial
     const proposal = planningQuestions && system.includes("Propose a plan for the user's task");
     const plan = {outcome:'A parser using the chosen format',steps:[{id:'inspect',text:'Inspect the parser after review'}],sources:[],effects:['read'],...(!routed?.correction ? {questions:[{id:'format',question:'Which format should the parser support?',options:['JSON','YAML']}]} : {})};
     const read = value.tools?.some(item => item.function?.name === "read_file") && prompt.includes("fixture activity") && !value.messages.some(item => item.role === "tool");
-    const message = review ? {
+    const fileRead = filesystemTask && value.tools?.some(tool => tool.function?.name === "filesystem") && !value.messages.some(item => item.role === "tool");
+    const message = fileRead ? {role:"assistant",tool_calls:[{id:"live-file",type:"function",function:{name:"filesystem",arguments:JSON.stringify({operation:"read",path:join(workspace,"note.md")})}}]} : review ? {
       role: "assistant", tool_calls: [{ id: "exact-local-review", type: "function", function: {
         name: "web_access", arguments: JSON.stringify({ action: "request", scope: "sites", origins: [prompt.includes('Use a different site.') ? 'https://corrected.invalid' : "https://example.invalid"], reason: "Review this fixture request." }),
       } }],

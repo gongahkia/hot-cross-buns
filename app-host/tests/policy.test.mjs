@@ -209,3 +209,11 @@ test('dialogue forks bind one response revision and cannot mix work or permissio
  assert.doesNotThrow(()=>validateFrame({type:'branch',branch}));
  for(const change of [{turn_revision:0},{turn_revision:Number.MAX_SAFE_INTEGER+1},{revision_id:'rev-one'},{run_id:'run-one'},{turn_id:'../private'},{permissions:['all']}])assert.throws(()=>validateFrame({type:'branch',branch:{...branch,...change}}),/Invalid branch/);
 });
+
+test('filesystem permission decisions remain bounded approval frames',()=>{
+ const frame={type:'approval',interaction_id:1,approval_token:'a'.repeat(64),approved:true};
+ for(const permission_choice of ['once','always','full']) assert.equal(validateFrame({...frame,permission_choice}).permission_choice,permission_choice);
+ for(const permission_choice of ['unknown','',true]) assert.throws(()=>validateFrame({...frame,permission_choice}));
+ assert.throws(()=>validateFrame({...frame,approved:false,permission_choice:'full'}));
+ assert.throws(()=>validateFrame({...frame,permission_choice:'full',path:'/'}));
+});

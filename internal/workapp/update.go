@@ -889,8 +889,14 @@ func (m Model) submitRunningInput() (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if (prompt == "/approve" || prompt == "/deny") && m.operation != nil && m.interaction != nil {
-		err := m.operation.Respond(m.interaction.ID, prompt == "/approve")
+	if (prompt == "/approve" || strings.HasPrefix(prompt, "/approve ") || prompt == "/deny") && m.operation != nil && m.interaction != nil {
+		var err error
+		approved := prompt == "/approve" || strings.HasPrefix(prompt, "/approve ")
+		if strings.HasPrefix(prompt, "/approve ") {
+			err = m.operation.RespondPermission(m.interaction.ID, strings.TrimPrefix(prompt, "/approve "))
+		} else {
+			err = m.operation.Respond(m.interaction.ID, approved)
+		}
 		if err != nil {
 			m.status = err.Error()
 			if err.Error() != "interaction is no longer pending" {
@@ -902,7 +908,7 @@ func (m Model) submitRunningInput() (tea.Model, tea.Cmd) {
 			if item.result != nil && item.result.Kind == "approval" && len(item.result.Fields) > 0 && item.result.Fields[0].Value == fmt.Sprint(m.interaction.ID) {
 				if err != nil {
 					item.result.Tone, item.result.Footer = "muted", "No longer pending"
-				} else if prompt == "/approve" {
+				} else if approved {
 					item.result.Tone, item.result.Footer = "success", "Approved"
 				} else {
 					item.result.Tone, item.result.Footer = "muted", "Denied"

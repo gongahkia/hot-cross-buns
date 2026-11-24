@@ -64,7 +64,7 @@ const headers = {
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };
-const routes = new Set(["/hot-cross-buns", "/chat", "/new", "/conversations", "/settings", "/browser", "/computer", "/connections", "/knowledge", "/followup", "/goals", "/inbox", "/usage", "/recovery", "/memory", "/learnings", "/model", "/data", "/search"]);
+const routes = new Set(["/hot-cross-buns", "/chat", "/new", "/conversations", "/settings", "/browser", "/computer", "/permissions", "/connections", "/knowledge", "/followup", "/goals", "/inbox", "/usage", "/recovery", "/memory", "/learnings", "/model", "/data", "/search"]);
 const frames = new Set(["conversation", "composer", "panel", "task_plan", "sources", "dialogue_page", "queue"]);
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
@@ -95,7 +95,7 @@ function reviewFor(state, context) {
   // Go binds this message index to its pending interaction. Some typed reviews
   // replace the generic request-ID field with their own fields.
   if (!action?.token || message?.result?.kind !== "approval") return null;
-  return { id: digest([context, action, message]), result: message.result, canCorrect: state.can_correct_action === true };
+  return { id: digest([context, action, message]), result: message.result, permission: action.kind === "file_access", canCorrect: state.can_correct_action === true };
 }
 
 function projection(host, corrections) {
@@ -412,7 +412,8 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         if (!review || body.id !== review.id || typeof body.approved !== "boolean") {
           throw new RequestError(409, "The request changed. Open the latest review.");
         }
-        await host.send({ type: "approval", interaction_id: state.pending_approval.id, approval_token: state.pending_approval.token, approved: body.approved });
+        if (body.permission_choice !== undefined && (!review.permission || !body.approved || !['once','always','full'].includes(body.permission_choice))) throw new RequestError(400, 'Invalid filesystem permission choice.');
+        await host.send({ type: "approval", interaction_id: state.pending_approval.id, approval_token: state.pending_approval.token, approved: body.approved, ...(body.permission_choice ? {permission_choice:body.permission_choice} : {}) });
         break;
       }
       case "frame":

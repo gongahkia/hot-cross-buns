@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
@@ -54,6 +55,13 @@ func approvalMessage(interaction workrun.Interaction) message {
 		}
 		result.result.Fields = []uisnapshot.Field{{Label: "Web scope", Value: scope}, {Label: "Search service", Value: review.SearchProvider}, {Label: "Shared limits", Value: fmt.Sprintf("%d search requests within %d total web requests", review.MaxSearches, review.MaxRequests)}}
 		result.result.Footer = review.Lifetime
+	}
+	if review, ok := interaction.Preview.(fileaccess.Review); ok && interaction.Kind == "file_access" {
+		result.result.Title = "Allow filesystem access"
+		result.result.Summary = review.Operation + ": " + review.Path
+		result.result.Fields = append(result.result.Fields, uisnapshot.Field{Label: "Folder", Value: review.Folder}, uisnapshot.Field{Label: "Access", Value: review.Access})
+		result.result.Lines = []string{review.Reason, review.FullAccessNotice}
+		result.result.Footer = "Allow once: /approve once · Save folder: /approve always · Full filesystem: /approve full · Deny: /deny"
 	}
 	return result
 }

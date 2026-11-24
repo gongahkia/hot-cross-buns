@@ -21,6 +21,7 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
       ['Scheduled tasks', 'calendar-days', 'Recurring checks and ongoing responsibilities.', () => navigate('/scheduled')],
     ]],
     ['This device', [
+      ['Permissions', 'eye', 'Live filesystem access, saved folders, and app capabilities.', () => backend('/permissions')],
       ['Computer access', 'cpu', 'Share an app for one task and pause for private takeover.', () => backend('/computer')],
       ['Browser access', 'globe', 'Choose a private browser, allowed sites, and tabs for a task.', () => backend('/browser')],
       ['Usage & limits', 'chart-no-axes-combined', 'Provider usage and shared request limits.', () => backend('/usage')],

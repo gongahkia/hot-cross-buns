@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"os/exec"
 	"strings"
 	"time"
@@ -133,6 +134,7 @@ type BridgeState struct {
 }
 
 type BridgeApproval struct {
+	Kind         string `json:"kind"`
 	ID           int    `json:"id"`
 	Token        string `json:"token"`
 	MessageIndex int    `json:"message_index"`
@@ -410,7 +412,7 @@ func (m Model) BridgeState() BridgeState {
 				break
 			}
 		}
-		state.PendingApproval = &BridgeApproval{ID: m.interaction.ID, Token: m.bridgeApprovalToken(), MessageIndex: index}
+		state.PendingApproval = &BridgeApproval{Kind: m.interaction.Kind, ID: m.interaction.ID, Token: m.bridgeApprovalToken(), MessageIndex: index}
 	}
 	return state
 }
@@ -434,7 +436,7 @@ func (m Model) bridgeApprovalToken() string {
 
 // RespondBridgeApproval binds the decision to its run and exact preview, even
 // when a later run reuses the same numeric interaction ID.
-func (m Model) RespondBridgeApproval(id int, token string, approved bool) (tea.Model, tea.Cmd) {
+func (m Model) RespondBridgeApproval(id int, token string, approved bool, choices ...string) (tea.Model, tea.Cmd) {
 	m.bridgeNotice = ""
 	if m.interaction == nil || m.interaction.ID != id || token == "" || token != m.bridgeApprovalToken() {
 		m.status = "This approval is no longer pending."
@@ -444,6 +446,13 @@ func (m Model) RespondBridgeApproval(id int, token string, approved bool) (tea.M
 	command := "/deny"
 	if approved {
 		command = "/approve"
+	}
+	if len(choices) > 0 && choices[0] != "" {
+		if !approved || m.interaction.Kind != "file_access" || !fileaccess.ValidChoice(choices[0]) {
+			m.bridgeNotice = "Invalid filesystem permission choice"
+			return m, nil
+		}
+		command += " " + choices[0]
 	}
 	m.input = command
 	return m.submitRunningInput()
@@ -462,7 +471,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch command {
-	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/computer", "/model", "/settings", "/help", "/search":
+	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/computer", "/permissions", "/model", "/settings", "/help", "/search":
 	default:
 		known := scopedContext
 		for _, entry := range m.availableCommandEntries() {
@@ -482,7 +491,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 		return m.openPrimaryConversation()
 	}
-	if m.config.ManagedSessions && (m.running && command != "/chat" && command != "/browser" && command != "/computer" || m.pendingConnection() != "" && command != "/connections") && !m.controlBusy && !m.followupSaving && !m.recallBusy && m.bridgeExternal == nil {
+	if m.config.ManagedSessions && (m.running && command != "/chat" && command != "/browser" && command != "/computer" && command != "/permissions" || m.pendingConnection() != "" && command != "/connections") && !m.controlBusy && !m.followupSaving && !m.recallBusy && m.bridgeExternal == nil {
 		if command == "/new" {
 			m.requestSession(BridgeSessionRequest{New: true})
 		} else {
@@ -490,7 +499,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if (m.running && command != "/chat" && command != "/browser" && command != "/computer") || m.controlBusy || m.followupSaving || m.recallBusy || m.bridgeExternal != nil {
+	if (m.running && command != "/chat" && command != "/browser" && command != "/computer" && command != "/permissions") || m.controlBusy || m.followupSaving || m.recallBusy || m.bridgeExternal != nil {
 		m.status = "Finish or stop the current operation before switching views."
 		m.bridgeNotice = m.status
 		return m, nil
