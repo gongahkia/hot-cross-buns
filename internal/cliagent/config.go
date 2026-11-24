@@ -15,6 +15,8 @@ import (
 )
 
 type Config struct {
+	AuthMode  string `json:"auth_mode,omitempty"`
+	CodexHome string `json:"codex_home,omitempty"`
 	// Credential resolves a host-owned credential for one invocation; it is never persisted.
 	Credential     func() (string, error) `json:"-"`
 	Kind           string                 `json:"kind"`
@@ -39,8 +41,17 @@ func (c Config) Validate() error {
 	if c.TimeoutSeconds < 10 || c.TimeoutSeconds > 1800 {
 		return errors.New("CLI timeout must be 10 through 1800 seconds")
 	}
-	if !regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,127}$`).MatchString(c.APIKeyEnv) || !strings.HasSuffix(c.APIKeyEnv, "_API_KEY") {
+	if !c.UsesCodexLogin() && (!regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,127}$`).MatchString(c.APIKeyEnv) || !strings.HasSuffix(c.APIKeyEnv, "_API_KEY")) {
 		return errors.New("select an API key environment variable ending in _API_KEY; never store its value")
+	}
+	if c.AuthMode != "" && c.AuthMode != "api_key" && !c.UsesCodexLogin() {
+		return errors.New("unsupported CLI authentication mode")
+	}
+	if c.UsesCodexLogin() && (!filepath.IsAbs(c.CodexHome) || c.BaseURL != "" || c.APIKeyEnv != "") {
+		return errors.New("local Codex login requires an absolute Codex home and no API key or endpoint override")
+	}
+	if !c.UsesCodexLogin() && c.CodexHome != "" {
+		return errors.New("Codex home requires local Codex login mode")
 	}
 	for _, v := range []string{c.Model, c.Provider} {
 		if len(v) > 256 || strings.ContainsAny(v, "\x00\r\n") {
@@ -177,6 +188,10 @@ func Supported(kind string) bool {
 	return false
 }
 func (c Config) credential() (string, error) {
+	if c.UsesCodexLogin() {
+		_, token, err := c.localCodexLogin()
+		return token, err
+	}
 	if c.Credential != nil {
 		return c.Credential()
 	}

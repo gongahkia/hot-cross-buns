@@ -33,9 +33,9 @@ function observedStep(step, state, rows, owner) {
   return row.item;
 }
 
-export function taskInspector({ openChat, description = '', title: headingText = 'Delegated work', iconName, showEmpty = false }) {
+export function taskInspector({ openChat, description = '', title: headingText = 'Delegated work', iconName, showEmpty = false, id = 'task-inspector', visibleWhen = () => true }) {
   const root = element('aside', undefined, 'task-inspector');
-  root.id = 'task-inspector'; root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', 'task-inspector-title');
+  root.id = id; root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', id + '-title');
   const trigger = element('button', undefined, 'quiet task-trigger'); trigger.type = 'button'; trigger.hidden = true;
   trigger.setAttribute('popovertarget', root.id); trigger.setAttribute('aria-label', 'Activity');
   const pulse = element('span', undefined, 'task-pulse'); pulse.setAttribute('aria-hidden', 'true');
@@ -43,7 +43,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
   if (iconName) { triggerLabel.classList.add('sr-only'); pulse.hidden = true; trigger.prepend(icon(iconName)); trigger.classList.add('icon-button'); }
   trigger.title = headingText;
   const header = element('div', undefined, 'section-head');
-  const title = element('h2', headingText); title.id = 'task-inspector-title';
+  const title = element('h2', headingText); title.id = id + '-title';
   const close = element('button', undefined, 'quiet icon-button'); close.type = 'button'; close.append(icon('close'));
   close.setAttribute('aria-label', 'Close ' + headingText.toLowerCase()); close.setAttribute('popovertarget', root.id); close.setAttribute('popovertargetaction', 'hide');
   header.append(title, close);
@@ -75,7 +75,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
     tasks = values; available = connected;
     const active = tasks.filter(task => task.active).length;
     const waiting = tasks.filter(task => task.state === 'waiting').length;
-    trigger.hidden = !showEmpty && !tasks.length;
+    trigger.hidden = !visibleWhen(tasks) || !showEmpty && !tasks.length;
     triggerLabel.textContent = !connected ? 'Activity' : waiting ? `Needs you · ${waiting}` : active ? `In progress · ${active}` : 'Activity';
     trigger.dataset.active = String(connected && active > 0 && !waiting);
     trigger.setAttribute('aria-label', headingText + (active ? ' · ' + active + ' active' : ''));
@@ -113,6 +113,15 @@ export function taskInspector({ openChat, description = '', title: headingText =
         if (task.engine) nodes.push(element('p', task.assignment || 'Working independently on your request.', 'hint'));
         else if (task.active && connected && task.state === 'running' && !(task.steps || []).some(step => step.state === 'running')) nodes.push(element('p', 'Thinking it through…', 'task-thinking hint'));
         else if (!steps.childNodes.length) nodes.push(element('p', 'No steps recorded yet.', 'hint'));
+        if (task.model) nodes.push(element('p', task.model, 'hint'));
+        if (task.output) {
+          let output = row.body.querySelector('.agent-output');
+          if (!output) { output = element('details', undefined, 'agent-output'); output.append(element('summary', 'Output'), element('pre')); }
+          const log = output.querySelector('pre'); if (log.textContent !== task.output) log.textContent = task.output;
+          nodes.push(output);
+        }
+        if (task.error) nodes.push(element('p', task.error, 'issue'));
+        if (task.started_at) nodes.push(element('p', 'Started ' + task.started_at + (task.finished_at && !task.finished_at.startsWith('0001-') ? ' · Finished ' + task.finished_at : ''), 'hint'));
         if (task.truncated) nodes.push(element('p', 'Some earlier activity is no longer shown.', 'hint'));
         for (const plan of task.plans || []) if (plan.steps?.length) {
           const proposed = element('details', undefined, 'task-proposal');

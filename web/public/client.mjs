@@ -7,6 +7,12 @@ import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
 import { taskInspector, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
+import { canvasWorkspace } from './canvas.mjs';
+import { fileReferences } from './file-references.mjs';
+import { localBrowser } from './local-browser.mjs';
+import { modelPicker } from './model-picker.mjs';
+import { modelsView } from './models-view.mjs';
+let modelDashboard;
 import { chatMenu } from './chats.mjs';
 import { settingsView } from './views.mjs';
 import { localModelsView } from './local-models.mjs';
@@ -18,7 +24,7 @@ import { usageView, usageLimits } from './usage.mjs';
 import { taskDetailView } from './task-details.mjs';
 import { workspaceView } from './workspace.mjs';
 import { streamingResponse } from './streaming.mjs';
-import { planReview, correctionText } from './reviews.mjs';
+import { currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
 import { icon } from "./icons.mjs";
 import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
 
@@ -43,6 +49,7 @@ const draftTextKey = value => ':text:' + value?.context + (value?.correction ? '
 const quoteCard=element('div',undefined,'composer-quote');quoteCard.hidden=true;document.querySelector('#composer').prepend(quoteCard);
 const interaction= responseInteractions({transcript:$('transcript'),
  reply:ref=>respondTo(ref,'reply'), quote:(ref,text)=>respondTo(ref,'quote',text),
+ react:async(ref,emoji)=>{if(pending)throw new Error('Resolve the pending message before reacting.');await flush();await call({op:'reaction',context:ref.context,id:ref.id,digest:ref.digest,emoji,requestId:crypto.randomUUID()});},
  fork:ref=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before forking.');await flush();await call({op:'response',action:'fork',context:ref.context,id:ref.id,digest:ref.digest,requestId:ref.requestId ||= crypto.randomUUID()});}),
 });
 async function respondTo(ref,action,text){
@@ -60,6 +67,23 @@ const reading = readingPosition({ transcript: $('transcript'), streaming: $('str
 document.querySelector('.composer-wrap').prepend(reading.element);
 export const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
 let reactionMode = reactionPreference();
+const filePreviews = fileReferences({ request: body => call({ op: 'file-preview', ...body }) });
+document.body.append(filePreviews.element);
+const canvas=canvasWorkspace({request:body=>call({op:'canvas-request',...body})});
+document.body.append(canvas.element);
+document.addEventListener('open-canvas',event=>{filePreviews.close();canvas.open(event.detail,snapshot.context)});
+document.addEventListener('local-file-preview-open',()=>canvas.close());
+const browser = localBrowser(); document.body.append(browser.element);
+document.addEventListener('open-local-app', event => browser.open(event.detail.url, event.detail.trigger));
+document.addEventListener('local-app-preview-open', () => { filePreviews.close(); canvas.close(); });
+document.addEventListener('local-file-preview-open', () => browser.close());
+document.addEventListener('open-canvas', () => browser.close());
+const models = modelPicker({select: async (action, state) => {
+  if (pending || snapshot.context !== state.context) throw new Error('Resolve the current message before changing models or effort.');
+  await flush();
+  await frame({type:'composer',composer:{id:state.composer.id,request_id:crypto.randomUUID(),...action}}, state.context);
+}, local: () => void execute(showLocalModels), providers: () => void execute(showProviderSetup)});
+document.body.append(models.element);
 const chats = chatMenu({ request: body => call({ op: 'chats', ...body }), open: async selection => {
   await flush(); await call({ op: 'open-chat', ...selection }); showHistory(false);
 }, rename: body => call({ op: 'rename-chat', ...body }) });
@@ -75,6 +99,12 @@ const inspector = taskInspector({ iconName: 'helpers', showEmpty: true, openChat
 } });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
+const agents = taskInspector({ id: 'agent-inspector', title: 'Agents', iconName: 'bot',
+  visibleWhen: tasks => tasks.length >= 2,
+  openChat: async id => { await flush(); if (id !== snapshot.state?.conversation_id) await call({ op: 'open-work', id }); },
+});
+document.querySelector('.top-actions').append(agents.trigger);
+document.body.append(agents.element);
 const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...body }),
   description: 'Things I’ll check or remind you about later.',
   manage: () => execute(() => backendRoute('/followup')), goals: () => execute(() => backendRoute('/goals')) });
@@ -107,6 +137,7 @@ function renderProgress() {
   const current = candidates.find(task => task.active && task.current) || candidates.find(task => task.active) || candidates.find(task => task.current) || candidates[0];
   progress.update(current, { connected: online });
   inspector.update(snapshot.helpers, { connected: online });
+  agents.update(snapshot.agents, { connected: online });
   scheduled.update(snapshot.scheduled);
 }
 
@@ -149,9 +180,14 @@ function controls() {
   $("model-picker").setAttribute("aria-label", "Model · " + modelLabel);
   $("model-picker").title = state?.composer?.disabled || state?.composer?.readiness?.issue || modelLabel;
   $("model-picker").disabled = !enabled || !state?.composer || !!state.composer.disabled || !!state?.external;
-  $("effort").value = state?.composer?.effort || "standard";
+  const effort = state?.composer?.effort || 'standard';
+  $("effort").textContent = effort[0].toUpperCase() + effort.slice(1);
   $("effort").disabled = !enabled || !state?.composer || !!state.composer.disabled || !!state?.external || waiting;
   $("effort").title = state?.composer?.disabled || "Work budget for future messages in this chat";
+  $('plan-mode').hidden = !currentPlan(state);
+  $('plan-mode').disabled = !enabled;
+  models.update({context:snapshot.context,composer:state?.composer,provider:state?.provider,model:state?.model}, enabled && !waiting && !state?.external);
+  if (modelDashboard?.element.isConnected) modelDashboard.update();
   for (const node of document.querySelectorAll(".attachment-remove")) node.disabled = !writing || waiting;
   for (const node of document.querySelectorAll(".attachment-open")) node.disabled = !enabled;
   $("new-chat").disabled = !enabled;
@@ -393,7 +429,7 @@ async function openAttachment(file, context, page = 1) {
   actions.append(original);
   openDetail(file.name, previewContent(view), actions);
 }
-$("model-picker").addEventListener("click", () => void execute(() => navigate("/model")));
+$("model-picker").addEventListener("click", () => models.open($('model-picker')));
 
 function showHistory(open) {
   const history = $('history');
@@ -422,7 +458,7 @@ async function navigate(route) {
     return;
   }
   if (route === '/scheduled') { dialog.close(); scheduled.open(); return; }
-  if (route === "/model") { showModels(); return; }
+  if (route === "/model") { await showModels(); return; }
   if (route === "/memory" || route === '/knowledge') {
     const context = snapshot.context;
     const pane = memoryPane({
@@ -456,7 +492,7 @@ function showDetail(title, ...nodes) {
   detailGeneration++;
   $('back-detail').hidden = true; $('back-detail').onclick = null;
   dialog.classList.toggle("memory-pane", nodes.some(node => node.classList?.contains("memory-pane-content")));
-  dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view') || node.classList?.contains('usage-dashboard')));
+  dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view') || node.classList?.contains('usage-dashboard') || node.classList?.contains('models-dashboard')));
   $("detail-title").textContent = title;
   detail.replaceChildren(...nodes);
   if (previousTitle !== title) dialog.scrollTop = 0;
@@ -484,37 +520,27 @@ $("close-detail").addEventListener("click", () => {
 });
 function frame(value, context = snapshot.context) { return call({ op: "frame", frame: value, context }); }
 
-$("effort").addEventListener("change", () => {
-  const context = snapshot.context, composer = snapshot.state?.composer, effort = $("effort").value;
-  void execute(async () => {
-    await flush();
-    if (!composer || composer.disabled || pending?.context === context) throw new Error("Wait for the current message before changing effort.");
-    await frame({ type: "composer", composer: { id: composer.id, request_id: crypto.randomUUID(), action: "effort", effort } }, context);
-  });
+$("effort").addEventListener('click', () => models.open($('effort'), true));
+$('plan-mode').addEventListener('click', () => {
+  const target = currentPlan(snapshot.state); if (!target) return;
+  if (target.plan?.digest) showPlan(target.plan, snapshot.context, snapshot.state.conversation_id);
+  else if (target.conversation) void execute(async () => { await flush(); await call({op:'open-work',context:snapshot.context,id:target.conversation}); });
 });
 
-function showModels() {
-  const context = snapshot.context, state = snapshot.state, composer = state.composer;
-  const models = (composer?.models || []).map(model => {
-    const choice = button(model.label || model.model, () => void execute(async () => {
-      await frame({ type: "composer", composer: {
-        id: composer.id, request_id: crypto.randomUUID(), action: "model", provider: model.provider, model: model.model,
-      } }, context);
-      dialog.close();
-    }), "quiet option");
-    choice.prepend(brandIcon(providerBrand(model.provider)));
-    choice.disabled = !!model.unavailable || !!composer.disabled;
-    choice.setAttribute("aria-pressed", String(model.provider === state.provider && model.model === state.model));
-    if (choice.getAttribute('aria-pressed') === 'true') choice.append(icon('check'));
-    if (model.unavailable) choice.append(element("small", model.unavailable));
-    return choice;
-  });
-  openDetail("Models", element('p', 'Choose a configured chat model. Provider setup and local model management are available below.', 'hint'),
-    ...models, ...(!models.length ? [element('p', 'No chat models configured yet.', 'view-empty')] : []),
-    button('Local models', () => void execute(async () => {
-      const pane = localModelsView({ request: body => call({ op: 'local-models', context, ...body }) });
-      openDetail('Local models', pane.element); await pane.load();
-    }), 'quiet option'), button("Set up a provider", () => void execute(async () => {
+async function showModels() {
+  const context = snapshot.context;
+  const view = modelsView({state:()=>snapshot.state || {}, request:()=>call({op:'providers',action:'inventory',context}),
+    choose:async model=>{const state=snapshot.state;if(snapshot.context!==context||pending)throw Error('Return to the original chat before selecting a model.');await flush();await frame({type:'composer',composer:{id:state.composer.id,request_id:crypto.randomUUID(),action:'model',provider:model.provider,model:model.model}},context);},
+    local:()=>void execute(showLocalModels),providers:()=>void execute(showProviderSetup)});
+  modelDashboard=view;openDetail('Models',view.element);await view.load();
+}
+async function showLocalModels() {
+  const context = snapshot.context;
+  const pane = localModelsView({ request: body => call({ op: 'local-models', context, ...body }) });
+  openDetail('Local models', pane.element); await pane.load();
+}
+async function showProviderSetup() {
+    const context = snapshot.context;
     const { rows } = await call({ op: "providers", action: "status", context });
     const select = element("select"), label = element("label", "API provider");
     for (const row of rows || []) {
@@ -528,7 +554,6 @@ function showModels() {
       const row = rows?.find(item => item.id === select.value);
       if (row) editProvider(row, context);
     }));
-  }), "quiet option"));
 }
 
 function labeledInput(label, value = "", type = "text") {
@@ -741,13 +766,21 @@ function showPlan(plan, context, conversation) {
     const { review } = await action("inspect");
     if (!review) throw new Error("The current plan is unavailable.");
     const controls = element("div", undefined, "review-actions");
+    const questions = review.content?.questions || [];
+    const answers = questions.length && review.phase === 'review' && plan.canRevise ? planQuestions(questions, text => void execute(async () => {
+      if (pending) throw new Error('Resolve the unconfirmed message before answering plan questions.');
+      await flush();
+      const value = await call({op:'begin-correction',context,kind:'plan',id:plan.id,revision:plan.revision,digest:plan.digest});
+      if (value.context !== snapshot.context) throw new Error('The conversation changed. Reopen the current plan.');
+      showDraft({...value,text}); draft.text = text; await save(); dialog.close(); await submitMessage();
+    })) : null;
     if (review.phase === 'review' && plan.canRevise) controls.append(button('Request revision', () => void execute(() => beginCorrection({ kind: 'plan', id: plan.id, revision: plan.revision, digest: plan.digest }, context))));
-    if (review.state === "queued" && review.phase === "review") {
+    if (review.state === "queued" && review.phase === "review" && !questions.length) {
       controls.append(button("Approve and start", () => void execute(async () => { await action("approve"); dialog.close(); }), "send"));
     } else if (review.state === "queued" && review.phase === "approved") {
       controls.append(button("Start reviewed work", () => void execute(async () => { await action("start"); dialog.close(); }), "send"));
     }
-    openDetail("Task plan", planReview(review), element('p', 'Approval starts this exact revision. External actions still need their own required reviews.', 'hint'), controls);
+    openDetail(questions.length ? 'Before we start' : 'Task plan', ...(answers ? [answers] : []), planReview(review), element('p', 'Approval starts this exact revision. External actions still need their own required reviews.', 'hint'), controls);
   });
 }
 
@@ -773,6 +806,8 @@ function sources(run, context) {
 }
 function renderTranscript(state) {
   const context = snapshot.context;
+  filePreviews.reset(context);
+  canvas.reset(context);
   const messages = state.messages || [], talks = state.dialogue || [], updates = state.updates || [];
   const key = JSON.stringify([context, messages, talks, updates, state.peers, state.dialogueMore]);
   if (key === transcriptKey) return;
@@ -814,7 +849,7 @@ function renderTranscript(state) {
       if (value.issue) nodes.push(element("p", value.issue, "hint"));
       if (value.task_chat) {
         const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat);
-        if (peer?.summary) nodes.push(turn(peer.summary, false, "Task result"));
+        if (peer?.summary) { const result = turn(peer.summary, false, "Task result"); result.dataset.fileRun = peer.run_id || ""; nodes.push(result); }
         nodes.push(button("Open task", () => void execute(async () => {
           await flush(); await call({ op: "open-work", context, id: value.task_chat });
         })));
@@ -831,6 +866,7 @@ function renderTranscript(state) {
     }
     if (value.result?.kind === "approval" || !value.text && !value.result && !value.bundle && !value.activity) continue;
     const article = value.role === "You" ? quotedTurn(value.text,value.role) : turn(value.text,false,value.role), meta = element("div", undefined, "meta");
+    article.dataset.fileRun = value.bundle?.RunID || value.run_id || '';
     article.dataset.messageId = 'message:' + (value.revision_id || value.run_id || value.created_at || '') + ':' + messages.indexOf(value);
     decorate(article);
     if (value.result) meta.append(button(value.result.title || "Details", () => openDetail(value.result.title || "Details", describeResult(value.result))));
@@ -863,6 +899,7 @@ function renderTranscript(state) {
       response = value.role === "Hot Cross Buns" && value.text ? article : undefined;
     }
   }
+  for (const node of nodes) filePreviews.decorate(node, node.dataset.fileRun);
   $("transcript").replaceChildren(...nodes);
   find.refresh(state.conversation_id || context);
   for (const complete of completions) requestAnimationFrame(complete);
@@ -884,7 +921,7 @@ function renderWork(state) {
   } else if (!state.working && state.composer?.readiness?.state && state.composer.readiness.state !== "configured" && !state.panel) {
     nodes.push(element("span", state.composer.readiness.issue || "Choose a model to start.", "hint"));
   }
-  for (const plan of state.plans || []) if (plan.digest) nodes.push(button("Review plan", () => showPlan(plan, context, state.conversation_id)));
+  for (const plan of state.plans || []) if (plan.digest) nodes.push(button(plan.questions?.length ? 'Answer plan questions' : "Review plan", () => showPlan(plan, context, state.conversation_id)));
   if (state.recoveries) nodes.push(button("Recovery", () => void execute(() => showTaskDetails())));
   if (state.queue?.length) nodes.push(button(state.queue.length + " queued", () => {
     openDetail("Queued messages", ...state.queue.map(item => element("p", item.text)));
@@ -966,6 +1003,7 @@ export function paletteCommands() {
     { label: 'Jump to latest', action: reading.latest },
     { label: 'Task recovery', action: () => void execute(() => showTaskDetails()) },
     { label: 'Delegated work', action: inspector.open },
+    { label: 'Agents', action: agents.open },
     { label: 'Scheduled tasks', action: scheduled.open },
   ];
   for (const node of document.querySelectorAll("[data-route]")) {

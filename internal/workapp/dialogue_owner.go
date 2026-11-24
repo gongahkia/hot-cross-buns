@@ -72,6 +72,9 @@ func (m Model) dialogueTaskState() *DialogueTaskState {
 			return result
 		}
 		result.State = r.State
+		if r.Plan != nil && r.Pending() {
+			result.PlanPhase = r.Plan.Phase
+		}
 		if r.State == "discarded" {
 			result.State = "stopped"
 			if r.Plan != nil {
@@ -131,6 +134,9 @@ func (m Model) retainedDialoguePeer(turn worksession.DialogueTurn) *DialoguePeer
 	}
 	for _, r := range journal.Requests {
 		if r.ClientID == turn.ID {
+			if r.Plan != nil && r.Pending() {
+				peer.PlanPhase = r.Plan.Phase
+			}
 			if !r.Pending() {
 				peer.State = r.State
 				if r.State == "discarded" {
@@ -200,6 +206,13 @@ func (m Model) BootstrapDialogue(parent, turnID string) (tea.Model, tea.Cmd) {
 		return fail(err)
 	}
 	options := retainedRunOptions(input.RunOptions)
+	var decision workrun.ConversationDecision
+	if json.Unmarshal(turn.Decision, &decision) != nil {
+		return fail(errors.New("the retained routing decision is unavailable"))
+	}
+	if decision.Kind == "plan" {
+		options.PlanFirst = true
+	}
 	options.DialogueParent, options.DialogueTurn = parent, turnID
 	m.submissionID = turnID
 	m.messages = append(m.messages, message{role: "You", text: turn.Text, createdAt: time.Now().UTC(), replyToUpdateID: options.ReplyToUpdateID})

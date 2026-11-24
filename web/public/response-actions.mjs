@@ -17,7 +17,7 @@ function actionButton(label, name, action) {
   const button = element('button',undefined,'quiet icon-button');button.type='button';button.title=label;button.setAttribute('aria-label',label);button.append(icon(name));
   button.addEventListener('click',()=>void action());return button;
 }
-export function responseInteractions({transcript, reply, quote, fork, storage}) {
+export function responseInteractions({transcript, reply, quote, fork, react = async () => {}, storage}) {
   let selected, target, focusReturn, records=[], menuOpen=false;
   try { storage??=window.localStorage; const saved=JSON.parse(storage.getItem(storageKey));if(Array.isArray(saved))records=saved.filter(item=>typeof item.key==='string'&&item.key.length<=1024&&emojis.some(([emoji])=>emoji===item.emoji)).slice(-256); }catch{}
   const reactionKey=ref=>ref.conversation+':'+ref.id+':'+ref.digest;
@@ -32,11 +32,14 @@ export function responseInteractions({transcript, reply, quote, fork, storage}) 
     const chip=element('button',emoji,'user-reaction quiet');chip.type='button';chip.title='Your reaction · click to change';chip.setAttribute('aria-label','Your reaction: '+emojis.find(item=>item[0]===emoji)?.[1]);chip.addEventListener('click',()=>openMenu(article,ref,chip.getBoundingClientRect(),chip));article.append(chip);
   }
   for(const [emoji,label] of emojis){
-    const button=element('button',emoji,'quiet');button.type='button';button.setAttribute('aria-label','React with '+label.toLowerCase());button.title=label;
-    button.addEventListener('click',()=>{if(!target)return;const {article,ref}=target,key=reactionKey(ref),old=currentReaction(ref);records=records.filter(item=>item.key!==key);if(old!==emoji)records.push({key,emoji});records=records.slice(-256);try{storage.setItem(storageKey,JSON.stringify(records));}catch{}paint(article,ref);closeMenu();focusReturn?.focus({preventScroll:true});});row.append(button);
+    const button=element('button',emoji,'quiet');button.type='button';button.setAttribute('aria-label','React with '+label.toLowerCase());button.dataset.tooltip=label;
+    button.addEventListener('click',async()=>{if(!target)return;const {article,ref}=target,key=reactionKey(ref),old=currentReaction(ref);
+      if (old!==emoji) { for(const node of row.children)node.disabled=true; feedback.hidden=true; try { await react(ref,emoji,label); } catch(error) { feedback.textContent=error.message;feedback.hidden=false;return; } finally { for(const node of row.children)node.disabled=false; } }
+      records=records.filter(item=>item.key!==key);if(old!==emoji)records.push({key,emoji});records=records.slice(-256);try{storage.setItem(storageKey,JSON.stringify(records));}catch{}paint(article,ref);closeMenu();focusReturn?.focus({preventScroll:true});});row.append(button);
   }
   const menuQuote=element('button','Quote selection','quiet response-menu-quote');menuQuote.type='button';menuQuote.prepend(icon('quote'));menuQuote.addEventListener('click',()=>{const value=selected;closeMenu();hideSelection();if(value)void quote(value.ref,value.text);});
-  menu.append(row,menuQuote,element('small','Reactions stay in this browser.','hint'));
+  const feedback=element('small','','hint');feedback.hidden=true;feedback.setAttribute('role','status');
+  menu.append(row,menuQuote,feedback);
   menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeMenu();focusReturn?.focus({preventScroll:true});return;}if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const buttons=[...row.children],index=buttons.indexOf(document.activeElement);buttons[(index+(event.key==='ArrowLeft'?-1:1)+buttons.length)%buttons.length].focus();});
   function position(node,rect){const box=node.getBoundingClientRect();node.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-box.width-8))+'px';node.style.top=Math.max(8,Math.min(rect.bottom+6,window.innerHeight-box.height-8))+'px';}
   function hideSelection(){selectionButton.hidePopover?.();selected=undefined;}
@@ -50,7 +53,7 @@ export function responseInteractions({transcript, reply, quote, fork, storage}) 
     const range=value.getRangeAt(0),start=range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement,end=range.endContainer.nodeType===1?range.endContainer:range.endContainer.parentElement;
     const article=start?.closest('article[data-response-id]');
     if(!article||article!==end?.closest('article[data-response-id]')||!transcript.contains(article))return null;
-    if(!start.closest('.response-content')||!end.closest('.response-content')||range.cloneContents().querySelector('button,summary,.response-tools'))return null;
+    if(!start.closest('.response-content')||!end.closest('.response-content')||range.cloneContents().querySelector('button:not(.file-reference),summary,.response-tools'))return null;
     const ref=references.get(article),text=value.toString().trim();if(!ref||!text||text.length>16384)return null;
     return {ref,text,rect:range.getBoundingClientRect?.()||article.getBoundingClientRect()};
   }

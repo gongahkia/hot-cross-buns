@@ -50,10 +50,16 @@ type PlanStep struct {
 	Text string `json:"text"`
 }
 type PlanContent struct {
-	Outcome string     `json:"outcome"`
-	Steps   []PlanStep `json:"steps"`
-	Sources []string   `json:"sources"`
-	Effects []string   `json:"effects"`
+	Outcome   string         `json:"outcome"`
+	Steps     []PlanStep     `json:"steps"`
+	Sources   []string       `json:"sources"`
+	Effects   []string       `json:"effects"`
+	Questions []PlanQuestion `json:"questions,omitempty"`
+}
+type PlanQuestion struct {
+	ID       string   `json:"id"`
+	Question string   `json:"question"`
+	Options  []string `json:"options,omitempty"`
 }
 type PlanApproval struct {
 	Revision uint64    `json:"revision"`
@@ -90,10 +96,24 @@ func planSourceID(id string) bool {
 	return true
 }
 func validPlanContent(content PlanContent, sources []string) bool {
-	if !boundedPlanText(content.Outcome, 4096) || len(content.Steps) < 1 || len(content.Steps) > 24 || len(content.Sources) > 16 || len(content.Effects) < 1 || len(content.Effects) > 8 {
+	if !boundedPlanText(content.Outcome, 4096) || len(content.Steps) < 1 || len(content.Steps) > 24 || len(content.Sources) > 16 || len(content.Effects) < 1 || len(content.Effects) > 8 || len(content.Questions) > 3 {
 		return false
 	}
 	seen := map[string]bool{}
+	for _, question := range content.Questions {
+		if !catalogIdentity.MatchString(question.ID) || len(question.ID) > 64 || seen[question.ID] || !boundedPlanText(question.Question, 1024) || len(question.Options) == 1 || len(question.Options) > 4 {
+			return false
+		}
+		seen[question.ID] = true
+		options := map[string]bool{}
+		for _, option := range question.Options {
+			if !boundedPlanText(option, 256) || options[option] {
+				return false
+			}
+			options[option] = true
+		}
+	}
+	seen = map[string]bool{}
 	for _, step := range content.Steps {
 		if !catalogIdentity.MatchString(step.ID) || len(step.ID) > 64 || seen[step.ID] || !boundedPlanText(step.Text, 1024) {
 			return false
@@ -200,6 +220,9 @@ func validateTaskPlan(r Request) error {
 		return errors.New("invalid draining plan execution")
 	}
 	if p.Approval != nil {
+		if p.Content != nil && len(p.Content.Questions) > 0 {
+			return errors.New("answer the plan's questions before approval")
+		}
 		if p.Approval.Revision != p.Revision || p.Approval.Digest != p.Digest || p.Approval.At.IsZero() {
 			return errors.New("stale plan approval")
 		}
@@ -330,6 +353,9 @@ func (s Store) ApproveTaskPlan(id, request string, revision uint64, digest strin
 		return j, false, err
 	}
 	r := &j.Requests[index]
+	if r.Plan.Content != nil && len(r.Plan.Content.Questions) > 0 {
+		return j, false, errors.New("answer the plan's questions and review its revised proposal before starting work")
+	}
 	if err := s.checkPlanAttemptEffects(r.Plan); err != nil {
 		return j, false, err
 	}
@@ -394,7 +420,7 @@ func (s Store) CheckPlanDispatch(id string, r Request) error {
 	if err := s.CheckPlanBinding(id, r); err != nil {
 		return err
 	}
-	if r.Plan.Content == nil || r.Plan.Approval == nil || !(r.Plan.Phase == "approved" && r.State == "queued" || r.Plan.Phase == "dispatching" && r.State == "running") {
+	if r.Plan.Content == nil || len(r.Plan.Content.Questions) > 0 || r.Plan.Approval == nil || !(r.Plan.Phase == "approved" && r.State == "queued" || r.Plan.Phase == "dispatching" && r.State == "running") {
 		return ErrPlanChanged
 	}
 	return nil

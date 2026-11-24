@@ -171,14 +171,17 @@ test "$(cat "$COPILOT_HOME/settings.json")" = '{"disableAllHooks":true}'
 `
 				terminal = `{"type":"assistant.message","data":{"content":"done"}}` + "\n" + `{"type":"result","exitCode":0}`
 			}
-			script += "cat <<'RESULT'\n" + terminal + "\nRESULT\n"
+			// avoid shell heredoc temporary files outside the sandbox's private scratch.
+			for _, line := range strings.Split(terminal, "\n") {
+				script += "printf '%s\n' '" + line + "'\n"
+			}
 			if err := os.WriteFile(r.Config.Executable, []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}
 			r.Config.Kind = kind
 			value, err := Run(context.Background(), r)
 			if err != nil || value.Summary != "done" {
-				t.Fatalf("sandboxed %s: %+v %v", kind, value, err)
+				t.Fatalf("sandboxed %s: %+v %v; cause: %v", kind, value, err, errors.Unwrap(err))
 			}
 		})
 	}

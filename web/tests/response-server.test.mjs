@@ -62,3 +62,33 @@ test('forking a dialogue response retains its boundary, leaves the parent draft 
   assert.equal((await action(app,{op:'draft',context:back.context})).value.text,'Unsent parent note');
  }finally{live?.close();await app.close();}
 });
+
+test('emoji reactions reach the model with their exact response context and preserve composer drafts',{timeout:45000},async()=>{
+ const app=await fixture({chatCount:1,dialogueCount:2,conversationalReplies:true});let live;
+ try{
+  live=await events(app.url);const initial=await live.until(s=>s.responses?.length&&s.state?.conversation_id),context=initial.context,ref=initial.responses[0];
+  await action(app,{op:'save',context,text:'Keep my unsent draft'});
+  const request={op:'reaction',context,id:ref.id,digest:ref.digest,emoji:'❤️',requestId:randomUUID()};
+  const accepted=await action(app,request);assert.equal(accepted.status,200,JSON.stringify(accepted.value));
+  await live.until(s=>s.state?.dialogue?.some(t=>t.text?.includes('Reacted with ❤️')));
+  await live.until(s=>!s.state?.working&&s.state?.dialogue?.some(t=>t.text?.includes('Reacted with ❤️')&&t.state==='answered'));
+  assert.ok(app.payloads.some(p=>JSON.stringify(p).includes('Reacted with ❤️')));
+  assert.ok(app.payloads.some(p=>JSON.stringify(p).includes('not approval or permission')));
+  assert.equal((await action(app,{op:'draft',context})).value.text,'Keep my unsent draft');
+  assert.equal((await action(app,{...request,emoji:'invalid'})).status,400);
+  assert.notEqual((await action(app,{...request,digest:'f'.repeat(64)})).status,200);
+ }finally{live?.close();await app.close()}
+});
+
+test('Canvas revision requests send user instructions and source without replacing an unrelated draft',{timeout:45000},async()=>{
+ const app=await fixture({conversationalReplies:true});let live;
+ try{
+  live=await events(app.url);const initial=await live.until(s=>s.state?.conversation_id),context=initial.context;
+  await action(app,{op:'save',context,text:'Keep the composer draft'});
+  const request={op:'canvas-request',context,id:'canvas-one',title:'Notes',language:'markdown',source:'# Current draft',instruction:'Make it shorter',requestId:randomUUID()};
+  const accepted=await action(app,request);assert.equal(accepted.status,200,JSON.stringify(accepted.value));
+  await live.until(s=>s.state?.dialogue?.some(t=>t.text?.includes('Revise this Canvas')));
+  assert.equal((await action(app,{op:'draft',context})).value.text,'Keep the composer draft');
+  assert.equal((await action(app,{...request,source:'x'.repeat(140000)})).status,400);
+ }finally{live?.close();await app.close()}
+});

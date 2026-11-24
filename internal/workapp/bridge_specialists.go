@@ -17,6 +17,11 @@ import (
 // credentials/configuration, native session state and private filesystem paths.
 type BridgeSpecialist struct {
 	ID          string `json:"id"`
+	Output      string `json:"output,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Engine      string `json:"engine,omitempty"`
+	StartedAt   string `json:"started_at,omitempty"`
+	FinishedAt  string `json:"finished_at,omitempty"`
 	Token       string `json:"token,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
@@ -53,9 +58,14 @@ func (m *Model) recordBridgeSpecialist(event agent.Event) {
 	// Parse only the public card fields, never serialize a full orchestrator.Task
 	// to the renderer. Events originate in the current operation's supervisor.
 	var task struct {
-		ID, Role, Description, Assignment, Status string
-		ParentRun                                 string `json:"parent_run"`
-		Steerable                                 bool
+		ID, Role, Description, Assignment, Status, Error string
+		StartedAt                                        string `json:"started_at"`
+		FinishedAt                                       string `json:"finished_at"`
+		Result                                           struct{ Summary string }
+		Native                                           struct{ Summary string }
+		Configuration                                    struct{ Provider string }
+		ParentRun                                        string `json:"parent_run"`
+		Steerable                                        bool
 	}
 	if json.Unmarshal([]byte(event.Text), &task) != nil || !specialistTaskID.MatchString(task.ID) || task.ParentRun == "" || event.TaskID != task.ParentRun+"/"+task.ID {
 		return
@@ -63,7 +73,11 @@ func (m *Model) recordBridgeSpecialist(event agent.Event) {
 	if m.specialists == nil {
 		m.specialists = map[string]BridgeSpecialist{}
 	}
-	m.specialists[task.ID] = BridgeSpecialist{ID: task.ID, Name: task.Role, Description: cardText(task.Description, 1024), Assignment: cardText(task.Assignment, 2048), Status: task.Status, parentRun: task.ParentRun, steerable: task.Steerable}
+	output := task.Result.Summary
+	if output == "" {
+		output = task.Native.Summary
+	}
+	m.specialists[task.ID] = BridgeSpecialist{Output: cardText(output, 16384), Error: cardText(task.Error, 4096), Engine: cardText(task.Configuration.Provider, 256), StartedAt: task.StartedAt, FinishedAt: task.FinishedAt, ID: task.ID, Name: task.Role, Description: cardText(task.Description, 1024), Assignment: cardText(task.Assignment, 2048), Status: task.Status, parentRun: task.ParentRun, steerable: task.Steerable}
 }
 
 func cardText(text string, limit int) string {
@@ -99,6 +113,29 @@ func (m Model) bridgeSpecialists() []BridgeSpecialist {
 		task.Token = m.specialistToken(task)
 		task.CanStop = task.Token != "" && specialistActive(task.Status)
 		task.CanGuide = task.Token != "" && task.steerable && (task.Status == "queued" || task.Status == "running") && m.bridgeGuidanceID() != ""
+		cards = append(cards, task)
+	}
+	sort.Slice(cards, func(i, j int) bool { return cards[i].ID < cards[j].ID })
+	return cards
+}
+
+// bridgeAgentActivity retains the latest run's public output without live controls.
+func (m Model) bridgeAgentActivity() []BridgeSpecialist {
+	run := m.lastWorkID
+	if m.running && m.operation != nil {
+		run = m.operation.RunID
+	}
+	if run == "" {
+		return nil
+	}
+	var cards []BridgeSpecialist
+	for _, task := range m.specialists {
+		if task.parentRun != run {
+			continue
+		}
+		task.Token = ""
+		task.CanGuide = false
+		task.CanStop = false
 		cards = append(cards, task)
 	}
 	sort.Slice(cards, func(i, j int) bool { return cards[i].ID < cards[j].ID })

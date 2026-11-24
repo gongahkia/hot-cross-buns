@@ -57,3 +57,21 @@ export function delegatedSummaries(host) {
   }
   return result.slice(0, 64);
 }
+
+export function agentSummaries(host) {
+  const names = { cli_codex: 'Codex', cli_pi: 'Pi', cli_copilot: 'GitHub Copilot', cli_gemini: 'Gemini CLI', cli_claude: 'Claude Code', cli_opencode: 'OpenCode' };
+  const tasks = [];
+  for (const owner of host.sessions.workers) {
+    const state = owner.state;
+    if (!state?.conversation_id || owner !== host.backend && !host.sessions.canOpen(state.conversation_id)) continue;
+    for (const card of state.agent_activity || state.specialists || []) tasks.push({
+      id: state.conversation_id + ':' + card.id, conversation: state.conversation_id,
+      title: card.name, engine: names[card.name] || 'Hot Cross Buns', model: (card.name.startsWith('cli_') ? 'Local CLI' : card.engine?.startsWith('hot-cross-buns-local') ? 'Local model' : 'Cloud model') + (card.engine ? ' · ' + card.engine : ''),
+      state: owner.closed ? 'disconnected' : ({awaiting_input:'waiting', answering:'running', cancelled:'stopped'}[card.status] || card.status),
+      active: !owner.closed && ['running','queued','answering','awaiting_input'].includes(card.status),
+      assignment: card.assignment, output: card.output, error: card.error,
+      started_at: card.started_at, finished_at: card.finished_at, steps: [], canOpen: true,
+    });
+  }
+  return tasks.slice(0, 64);
+}

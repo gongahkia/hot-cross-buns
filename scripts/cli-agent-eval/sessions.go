@@ -23,8 +23,12 @@ import (
 // This evaluation uses a live manager and a live native worker, exercising the
 // normal Work service and tool routing. It verifies native identity plus exact
 // remembered facts, rather than accepting the manager's claim of completion.
-func runSessionManager(ctx context.Context, cfg cliagent.Config, root, source, original string, crossChat bool) error {
-	backend, err := model.New(model.Config{Provider: model.OpenAI, Model: cfg.Model, BaseURL: strings.TrimRight(cfg.BaseURL, "/") + "/responses"})
+func runSessionManager(ctx context.Context, cfg cliagent.Config, root, source, original string, crossChat bool, managerModel string) error {
+	endpoint := cfg.BaseURL
+	if endpoint != "" {
+		endpoint = strings.TrimRight(endpoint, "/") + "/responses"
+	}
+	backend, err := model.New(model.Config{Provider: model.OpenAI, Model: managerModel, BaseURL: endpoint})
 	if err != nil {
 		return err
 	}
@@ -33,6 +37,7 @@ func runSessionManager(ctx context.Context, cfg cliagent.Config, root, source, o
 	state := filepath.Join(root, "state")
 	service := workrun.Service{Executor: workrun.Executor{Model: backend.Model, StateDir: state}}
 	objective := fmt.Sprintf(`Test native conversation continuity using %s only. First call start_agent with this exact task: "Read project.md. Remember the codeword capybara-924 in this conversation. Report the project owner and deadline and confirm the codeword. Do not edit files." Wait for completion. Then call start_agent with continue pointing to that completed task and this exact task: "Without reading any files, what codeword did I ask you to remember? Who owns the project and what is its deadline?" Do not paste prior answers, the owner, deadline, or codeword into this second assignment. Wait for completion and report both results. Do not call another specialist or create files.`, cfg.Role())
+	objective += " For each wait use await_agent with timeout_seconds=60. Do not busy-poll inspect_agent while a worker is running."
 	request := workrun.Request{SourcePath: source, RunID: "session-manager", Objective: objective, Mode: action.Inspect, Contract: artifact.InspectionContract(), ExternalAgents: []cliagent.Config{cfg}, MaxSteps: 16, Limits: agent.Limits{ModelRequests: 20, Tokens: 100000}}
 	if crossChat {
 		request.Objective = fmt.Sprintf(`Call start_agent using %s with this exact task: "Read project.md. Remember the codeword capybara-924 in this conversation. Report the project owner and deadline and confirm the codeword. Do not edit files." Wait for completion, then report the result. Make exactly one assignment.`, cfg.Role())
@@ -80,7 +85,10 @@ func runSessionManager(ctx context.Context, cfg cliagent.Config, root, source, o
 	}
 	diagnostic := ""
 	if err := errors.Join(runErr, taskErr); err != nil {
-		diagnostic = strings.ReplaceAll(err.Error(), os.Getenv(cfg.APIKeyEnv), "[redacted]")
+		diagnostic = err.Error()
+		if key := os.Getenv(cfg.APIKeyEnv); key != "" {
+			diagnostic = strings.ReplaceAll(diagnostic, key, "[redacted]")
+		}
 	}
 	report := map[string]any{"kind": cfg.Kind, "model": cfg.Model, "evaluation": "live-manager-native-session-v1", "cross_chat": crossChat, "at": time.Now().UTC().Format(time.RFC3339), "passed": passed, "checks": checks, "tasks": items, "seconds": time.Since(start).Seconds(), "error": diagnostic}
 	encoder := json.NewEncoder(os.Stdout)

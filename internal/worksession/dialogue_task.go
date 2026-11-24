@@ -79,7 +79,7 @@ func dialogueTaskDecision(data json.RawMessage) bool {
 		return false
 	}
 	var kind string
-	return json.Unmarshal(value["kind"], &kind) == nil && kind == "task"
+	return json.Unmarshal(value["kind"], &kind) == nil && (kind == "task" || kind == "plan")
 }
 
 func taskCreationKey(parent, turn string) string {

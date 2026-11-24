@@ -47,12 +47,9 @@
           <button id="attach" type="button" class="quiet icon-button" aria-label="Attach files" title="Attach files" data-ui-icon="plus"></button>
           <input id="files" type="file" multiple hidden>
           <div class="compose-trailing">
-            <button id="model-picker" type="button" class="quiet model-picker" aria-label="Choose model" aria-haspopup="dialog" aria-controls="detail"><span id="model-brand" aria-hidden="true"></span><span id="model-label">Choose model</span></button>
-            <select id="effort" class="quiet composer-select" aria-label="Effort" title="Task effort" disabled>
-              <option value="low">Low</option>
-              <option value="standard" selected>Standard</option>
-              <option value="high">High</option>
-            </select>
+            <button id="plan-mode" type="button" class="quiet plan-mode" aria-label="View current plan" title="View current plan" hidden data-ui-icon="list-checks">Plan</button>
+            <button id="model-picker" type="button" class="quiet model-picker" aria-label="Choose model" aria-haspopup="dialog" aria-controls="model-menu"><span id="model-brand" aria-hidden="true"></span><span id="model-label">Choose model</span></button>
+            <button id="effort" type="button" class="quiet composer-select" aria-label="Work effort" title="Task effort" aria-haspopup="dialog" aria-controls="model-menu" disabled>Standard</button>
             <button id="send" type="submit" class="send icon-button" aria-label="Send message" title="Send message" data-ui-icon="arrow-up" disabled></button>
           </div>
         </div>

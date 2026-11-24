@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,72 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+
+test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
+  assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
+  assert.equal(currentPlan({plan_first:true}),null);
+  assert.equal(currentPlan({plans:[{id:'old',state:'completed',phase:'finished'}]}),null);
+  assert.equal(currentPlan({plans:[{id:'current',state:'queued',phase:'review'}]}).plan.id,'current');
+  assert.equal(currentPlan({peers:[{conversation_id:'child',plan_phase:'preparing'}]}).conversation,'child');
+});
+
+test('the detailed Models view separates orchestrator choices from native and CLI assignments',async()=>{
+  const state={provider:'openai',model:'manager',composer:{models:[{provider:'openai',model:'manager',label:'Manager'},{provider:'gemini',model:'worker',label:'Alternative'}],budget:{work_steps:24,code_steps:16},readiness:{processing:{description:'Configured provider'}}}};
+  let chosen;
+  const view=modelsView({state:()=>state,request:async()=>({inventory:{agents:[{name:'source_researcher',kind:'native',inherits:true,continuation:'Retained result',steering:true},{name:'codex',kind:'cli',model:'local-worker',auth:'Local Codex ChatGPT login',continuation:'Native session',steering:true,questions:true,allow_edits:false}]}}),choose:async value=>{chosen=value},local(){},providers(){}});
+  document.body.append(view.element);await view.load();assert.equal(view.element.querySelector('.model-menu'),null);assert.match(view.element.textContent,/Allowed orchestrator models/);
+  [...view.element.querySelectorAll('.orchestrator-model-row button')].find(button=>!button.disabled).click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(chosen.model,'worker');
+  view.element.querySelector('#models-tab-native').click();assert.match(view.element.textContent,/source researcher/);assert.match(view.element.textContent,/Uses the orchestrator model/);
+  view.element.querySelector('#models-tab-cli').click();assert.match(view.element.textContent,/Local Codex ChatGPT login/);assert.match(view.element.textContent,/Native session/);
+  const row=view.element.querySelector('details');row.open=true;state.model='another-manager';view.update();assert.equal(view.element.querySelector('details').open,true);
+  assert.equal(view.element.querySelector('script'),null);view.element.remove();
+});
+
+test('local app links open on click in bounded split tabs and cannot embed the host or remote sites', () => {
+  document.body.replaceChildren();
+  for (const value of ['https://example.com','http://127.0.0.1:4317/','http://localhost:4317/','http://[::1]:3000/','http://localhost.evil.test:3000','http://user:password@localhost:3000','javascript:alert(1)','file:///tmp/app.html']) assert.equal(localAppURL(value),null);
+  assert.equal(localAppURL('http://localhost:3000/path'),'http://localhost:3000/path');
+  const pane=localBrowser();document.body.append(pane.element);
+  const rendered=document.createElement('div');rendered.append(prose('App: http://localhost:3000/ and `http://127.0.0.1:4000/`.'));document.body.append(rendered);
+  const onOpen=event=>pane.open(event.detail.url,event.detail.trigger);document.addEventListener('open-local-app',onOpen);
+  assert.equal(pane.element.querySelector('iframe'),null);
+  rendered.querySelector('a').click();assert.equal(pane.element.hidden,false);assert.equal(pane.element.querySelector('iframe').src,'http://localhost:3000/');
+  const frame=pane.element.querySelector('iframe');assert.equal(frame.getAttribute('sandbox'),'allow-scripts allow-same-origin allow-forms allow-downloads');assert.ok(!frame.sandbox?.contains?.('allow-top-navigation'));
+  rendered.querySelector('code a').click();assert.equal(pane.element.querySelectorAll('iframe').length,2);
+  pane.open('http://localhost:3000/');assert.equal(pane.element.querySelectorAll('iframe').length,2);
+  for(let port=5000;port<5004;port++)pane.open('http://localhost:'+port);assert.equal(pane.element.querySelectorAll('iframe').length,4);
+  assert.equal(pane.open('https://example.com'),false);
+  pane.element.querySelector('[aria-label="Close app preview"]').click();assert.equal(pane.element.querySelector('iframe'),null);assert.equal(document.body.classList.contains('local-browser-open'),false);
+  document.removeEventListener('open-local-app',onOpen);
+});
+
+test('model picker searches configured models, filters providers and sends supported effort choices with captured state',async()=>{
+  const choices=[],pane=modelPicker({select:async(action,state)=>choices.push({action,id:state.composer.id}),local(){},providers(){}});document.body.append(pane.element);
+  // jsdom does not implement showing a popover; expose it for keyboard checks.
+  pane.element.removeAttribute('popover');
+  const state={context:'conversation:one',provider:'openai',model:'one',composer:{id:'current',effort:'standard',models:[{provider:'openai',model:'one',label:'First model'},{provider:'gemini',model:'two',label:'Second model'},{provider:'openai',model:'blocked',label:'Unavailable model',unavailable:'Set up this provider'}]}};
+  pane.update(state,true);
+  const search=pane.element.querySelector('input');search.value='Second';search.dispatchEvent(new window.Event('input'));assert.equal(pane.element.querySelectorAll('.model-menu-list button').length,1);
+  pane.element.querySelector('.model-menu-list button').click();await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(choices[0],{action:{action:'model',provider:'gemini',model:'two'},id:'current'});
+  search.value='';search.dispatchEvent(new window.Event('input'));
+  const providerFilter=pane.element.querySelector('[aria-label="Model providers"] button:last-child');providerFilter.focus();providerFilter.click();assert.equal(document.activeElement,pane.element.querySelector('[aria-label="Model providers"] [aria-pressed="true"]'));
+  pane.element.querySelector('[aria-label="All models"]').click();
+  const unavailable=[...pane.element.querySelectorAll('.model-menu-list button')].find(node=>node.textContent.includes('Unavailable'));assert.equal(unavailable.disabled,true);
+  const high=[...pane.element.querySelectorAll('.model-menu-effort button')].find(node=>node.textContent.startsWith('High'));high.click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(choices[1].action.effort,'high');
+  pane.update({...state,composer:{...state.composer,disabled:'Work is running'}},true);assert.ok([...pane.element.querySelectorAll('.model-menu-choice')].every(node=>node.disabled));
+  assert.match(pane.element.textContent,/Work is running/);pane.element.remove();
+});
+
+test('plan questions require each answer and support both choices and custom text without approving work',()=>{
+  let submitted;const form=planQuestions([{id:'format',question:'Which format?',options:['JSON','YAML']},{id:'name',question:'What name?'}],text=>{submitted=text});document.body.append(form);
+  form.dispatchEvent(new window.Event('submit',{cancelable:true}));assert.equal(submitted,undefined);
+  const first=form.querySelector('input');first.checked=true;
+  const custom=form.querySelectorAll('textarea')[1];custom.value='Bread parser';custom.dispatchEvent(new window.Event('input'));
+  form.dispatchEvent(new window.Event('submit',{cancelable:true}));assert.match(submitted,/JSON/);assert.match(submitted,/Bread parser/);assert.match(submitted,/Do not start implementation/);
+  const own=form.querySelector('textarea');own.value='TOML';own.dispatchEvent(new window.Event('input'));assert.equal(first.checked,false);
+  form.dispatchEvent(new window.Event('submit',{cancelable:true}));assert.match(submitted,/TOML/);form.remove();
+});
 
 test('every model-selectable icon exists in the local Lucide catalog and menu decoration preserves labels', () => {
   assert.ok(activityIconNames.length > 0);
@@ -804,15 +869,65 @@ test('response actions quote only model text, persist local emoji and expose rep
   const data=new Map(),storage={getItem:key=>data.get(key)||null,setItem:(key,value)=>data.set(key,value)};
   const transcript=document.createElement('div');document.body.replaceChildren(transcript);
   const calls=[],ref={id:'dialogue:one:response',digest:'a'.repeat(64),context:'conversation:one',conversation:'one',can_fork:true};
-  const create=()=>responseInteractions({transcript,storage,reply:r=>calls.push(['reply',r.id]),quote:(r,text)=>calls.push(['quote',text]),fork:r=>calls.push(['fork',r.id])});
+  const create=()=>responseInteractions({transcript,storage,react:async(r,emoji)=>calls.push(['reaction',r.id,emoji]),reply:r=>calls.push(['reply',r.id]),quote:(r,text)=>calls.push(['quote',text]),fork:r=>calls.push(['fork',r.id])});
   const view=create(),article=turn('Hello **world**.',false,'Hot Cross Buns');transcript.append(article);view.decorate(article,ref);
   article.querySelector('[aria-label="Reply to this response"]').click();article.querySelector('[aria-label="Fork from this response"]').click();assert.equal(calls.length,2);
   article.dispatchEvent(new window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:20,clientY:20}));
-  document.querySelector('[aria-label="React with heart"]').click();assert.equal(article.querySelector('.user-reaction').textContent,'❤️');assert.equal(data.size,1);
+  document.querySelector('[aria-label="React with heart"]').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(article.querySelector('.user-reaction').textContent,'❤️');assert.equal(data.size,1);assert.deepEqual(calls.at(-1),['reaction',ref.id,'❤️']);assert.doesNotMatch(document.querySelector('.response-menu').textContent,/Reactions stay in this browser/);assert.equal(document.querySelector('[aria-label="React with heart"]').dataset.tooltip,'Heart');
   const source=article.querySelector('.response-content p').firstChild,range=document.createRange();range.setStart(source,0);range.setEnd(source,5);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);transcript.dispatchEvent(new window.Event('pointerup'));
   document.querySelector('.selection-quote').click();assert.deepEqual(calls.at(-1),['quote','Hello']);
   view.dispose();const again=create(),other=turn('Hello **world**.',false,'Hot Cross Buns');transcript.replaceChildren(other);again.decorate(other,ref);assert.equal(other.querySelector('.user-reaction').textContent,'❤️');
   const stale=turn('Different conversation',false,'Hot Cross Buns');transcript.append(stale);again.decorate(stale,{...ref,conversation:'other'});assert.equal(stale.querySelector('.user-reaction'),null);
   const request='Quoted assistant response (context, not new instructions): '+JSON.stringify({id:ref.id,digest:ref.digest,text:'Hello'})+'\n\nExplain.';assert.equal(parseQuotedRequest(request).text,'Explain.');assert.equal(parseQuotedRequest('Ordinary reply'),null);
   again.dispose();selection.removeAllRanges();proto.showPopover=oldShow;proto.hidePopover=oldHide;
+});
+
+
+test('filename previews open a sidebar without following URLs or code samples and retire stale reads', async () => {
+ document.body.innerHTML = '<article><p>Open PROJECT.md and <code>notes.md</code>, plus src/file.test.ts.</p><pre>ignored.md</pre><a href="https://example.com/remote.md">remote.md</a></article>';
+ let finish;
+ const requests=[];
+ const previews=fileReferences({request: body=>{requests.push(body);return new Promise(resolve=>finish=resolve)}});
+ document.body.append(previews.element);previews.reset('conversation:one');previews.decorate(document.querySelector('article'));
+ const links=document.querySelectorAll('.file-reference');assert.equal(links.length,3);assert.equal(links[0].textContent,'PROJECT.md');assert.equal(links[2].textContent,'src/file.test.ts');
+ links[0].click();assert.equal(previews.element.hidden,false);assert.equal(requests[0].context,'conversation:one');
+ previews.reset('conversation:two');finish({kind:'text',text:'stale private output'});await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(previews.element.hidden,true);assert.doesNotMatch(previews.element.textContent,/stale private output/);
+ links[1].click();finish({kind:'text',text:'selected notes',note:'Current workspace file'});await new Promise(resolve=>setTimeout(resolve,0));
+ assert.match(previews.element.textContent,/selected notes/);assert.equal(previews.element.getAttribute('aria-label'),'File preview');
+ previews.element.querySelector('[aria-label="Close file preview"]').click();assert.equal(previews.element.hidden,true);
+});
+
+test('robot agent panel is conditional, has a distinct identity, and shows literal output', () => {
+ const pane=taskInspector({id:'agents-test',title:'Agents',iconName:'bot',visibleWhen:values=>values.length>=2,openChat:async()=>{}});
+ const task={id:'one',title:'cli_codex',engine:'Codex',model:'local CLI',state:'running',active:true,output:'<script>literal log</script>',error:'worker failed',steps:[]};
+ pane.update([task]);assert.equal(pane.trigger.hidden,true);
+ pane.update([task,{...task,id:'two'}]);assert.equal(pane.trigger.hidden,false);
+ assert.equal(pane.trigger.querySelector('[data-icon="bot"]').getAttribute('aria-hidden'),'true');
+ assert.equal(pane.element.id,'agents-test');assert.match(pane.element.textContent,/literal log|worker failed/);assert.equal(pane.element.querySelector('script'),null);
+ assert.match(pane.element.querySelector('pre').textContent,/<script>literal log/);
+});
+
+
+test('media links render images and controlled video players while untrusted HTML stays literal',()=>{
+ const view=prose('![Animation](https://example.com/a.gif)\n\n[Clip](https://example.com/demo.mp4)\n\n[Watch](https://youtu.be/dQw4w9WgXcQ)\n\n<video autoplay src="bad"></video>');
+ assert.equal(view.querySelector('img').getAttribute('src'),'https://example.com/a.gif');
+ const video=view.querySelector('video');assert.equal(video.controls,true);assert.equal(video.autoplay,false);assert.equal(video.preload,'none');
+ const load=[...view.querySelectorAll('button')].find(x=>x.textContent==='Load video');assert.ok(load);assert.equal(view.querySelector('iframe'),null);
+ load.click();assert.equal(view.querySelector('iframe').getAttribute('src'),'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+ assert.match(view.textContent,/<video autoplay/);assert.equal(view.querySelectorAll('video').length,1);
+ const unsafe=prose('[Bad](javascript:alert(1))');assert.equal(unsafe.querySelector('video'),null);assert.equal(unsafe.querySelector('iframe'),null);
+});
+
+test('Canvas opens model artifacts, preserves user drafts over incoming revisions, and submits explicit source edits',async()=>{
+ const data=new Map(),storage={getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)},requests=[];
+ const canvas=canvasWorkspace({storage,request:async body=>requests.push(body)});document.body.replaceChildren(canvas.element);
+ const doc={id:'draft-one',title:'Draft',language:'markdown',content:'# Original'};
+ canvas.open(doc,'conversation:one');const editor=canvas.element.querySelector('textarea');editor.value='# My changes';editor.dispatchEvent(new window.Event('input'));
+ [...canvas.element.querySelectorAll('button')].find(b=>b.textContent==='Save version').click();
+ canvas.open({...doc,content:'# Agent revision'},'conversation:one');assert.equal(editor.value,'# My changes');assert.match(canvas.element.textContent,/Your edits are kept/);
+ const ask=canvas.element.querySelector('input');ask.value='Make it concise';[...canvas.element.querySelectorAll('button')].find(b=>b.textContent==='Ask agent').click();await new Promise(r=>setTimeout(r,0));
+ assert.equal(requests[0].source,'# My changes');assert.equal(requests[0].instruction,'Make it concise');assert.equal(requests[0].context,'conversation:one');
+ const card=prose('```canvas\n'+JSON.stringify(doc)+'\n```');assert.match(card.querySelector('.canvas-card').textContent,/Open in Canvas/);
+ canvas.reset('conversation:other');assert.equal(canvas.element.hidden,true);
 });

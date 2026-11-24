@@ -64,7 +64,9 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 				}
 			}
 		}
-		invocationConfig.Credential = func() (string, error) { return key, nil }
+		if !cfg.UsesCodexLogin() {
+			invocationConfig.Credential = func() (string, error) { return key, nil }
+		}
 		baseline, err := request.integration.baseline(i.Baseline)
 		if err != nil {
 			return orchestrator.Result{}, err

@@ -58,6 +58,7 @@ type NativeProviderReview struct {
 	SetsDefaults     bool              `json:"sets_defaults"`
 }
 type NativeProviderResult struct {
+	Inventory       *NativeModelInventory        `json:"inventory,omitempty"`
 	Runtime         *localruntime.Status         `json:"runtime,omitempty"`
 	RuntimeReview   *localruntime.Review         `json:"runtime_review,omitempty"`
 	FutureSelection *NativeFutureSelection       `json:"future_selection,omitempty"`
@@ -74,6 +75,26 @@ type NativeProviderResult struct {
 	Conflict        bool                         `json:"conflict"`
 	Error           string                       `json:"error,omitempty"`
 	Notice          string                       `json:"notice,omitempty"`
+}
+
+// NativeModelInventory contains configuration metadata, never executable paths,
+// credential values, native login files or private provider options.
+type NativeModelInventory struct {
+	Agents []NativeAgentModel `json:"agents"`
+}
+type NativeAgentModel struct {
+	Name           string `json:"name"`
+	Kind           string `json:"kind"`
+	Provider       string `json:"provider,omitempty"`
+	Model          string `json:"model,omitempty"`
+	Inherits       bool   `json:"inherits"`
+	Auth           string `json:"auth,omitempty"`
+	Continuation   string `json:"continuation"`
+	Steering       bool   `json:"steering"`
+	Questions      bool   `json:"questions"`
+	AllowEdits     bool   `json:"allow_edits"`
+	MaxSteps       int    `json:"max_steps,omitempty"`
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
 }
 
 func NativeCloudFields(provider model.Provider) []string {

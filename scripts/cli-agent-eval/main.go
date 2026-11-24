@@ -20,6 +20,9 @@ import (
 func main() {
 	kind := flag.String("kind", "codex", "installed CLI adapter kind")
 	executable := flag.String("executable", "", "explicit installed executable (avoids shell/package-manager shims)")
+	authMode := flag.String("auth", "api_key", "api_key or codex_login")
+	codexHome := flag.String("codex-home", "", "local Codex login home")
+	workerModel := flag.String("worker-model", "", "worker model override; manager keeps --model")
 	model := flag.String("model", "gpt-5.6", "model")
 	baseURL := flag.String("base-url", "", "regional API base URL")
 	diagnostics := flag.Bool("diagnostics", false, "include redacted synthetic CLI failure detail in this local test report")
@@ -42,9 +45,12 @@ func main() {
 	check(err)
 	roots := []string{filepath.Dir(path)}
 	if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs") {
+		// npm can hoist runtime dependencies beside the selected package.
 		for dir := filepath.Dir(path); dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
-			if _, err := os.Stat(filepath.Join(dir, "package.json")); err == nil {
-				roots = append(roots, dir)
+			if filepath.Base(dir) == "node_modules" {
+				if dir != roots[0] {
+					roots = append(roots, dir)
+				}
 				break
 			}
 		}
@@ -66,6 +72,22 @@ func main() {
 	original := "# Project Lantern\nOwner: Mira\nDeadline: 2030-05-16\nStatus: draft\n"
 	check(os.WriteFile(filepath.Join(source, "project.md"), []byte(original), 0600))
 	cfg := cliagent.Config{Kind: *kind, Executable: path, Model: *model, BaseURL: *baseURL, APIKeyEnv: "OPENAI_API_KEY", ReadOnlyRoots: roots, TimeoutSeconds: *timeoutSeconds, AllowEdits: *edit}
+	if *workerModel != "" {
+		cfg.Model = *workerModel
+	}
+	if *authMode == "codex_login" {
+		cfg.AuthMode = "codex_login"
+		cfg.APIKeyEnv = ""
+		cfg.CodexHome = *codexHome
+		if cfg.CodexHome == "" {
+			cfg.CodexHome = os.Getenv("CODEX_HOME")
+		}
+		if cfg.CodexHome == "" {
+			home, err := os.UserHomeDir()
+			check(err)
+			cfg.CodexHome = filepath.Join(home, ".codex")
+		}
+	}
 	if *kind == "gemini" {
 		cfg.APIKeyEnv = "GEMINI_API_KEY"
 	}
@@ -86,7 +108,7 @@ func main() {
 		return
 	}
 	if *sessions {
-		check(runSessionManager(context.Background(), cfg, root, source, original, *crossChat))
+		check(runSessionManager(context.Background(), cfg, root, source, original, *crossChat, *model))
 		return
 	}
 	if *completion {

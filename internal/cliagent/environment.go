@@ -88,12 +88,32 @@ func prepareCLI(ctx context.Context, cfg Config, directory, home string, argv []
 	if err := prepareHeadlessEnvironment(cmd, cfg, edit); err != nil {
 		return sandbox.Prepared{}, err
 	}
+	if cfg.UsesCodexLogin() {
+		privateHome := home
+		if privateHome == "" {
+			for _, item := range cmd.Env {
+				if strings.HasPrefix(item, "HOME=") {
+					privateHome = strings.TrimPrefix(item, "HOME=")
+				}
+			}
+		}
+		removeLogin, err := cfg.stageCodexLogin(privateHome)
+		if err != nil {
+			return sandbox.Prepared{}, err
+		}
+		cleanup := prepared.Cleanup
+		prepared.Cleanup = func() { removeLogin(); cleanup() }
+		cmd.Env = append(cmd.Env, "CODEX_HOME="+filepath.Join(privateHome, "codex"))
+	}
 	// Inject exactly one explicitly selected credential into the child, never argv
 	// or config. All user config/home discovery is disabled or isolated.
 	if certificate != "" {
 		cmd.Env = append(cmd.Env, "SSL_CERT_FILE="+certificate, "NODE_EXTRA_CA_CERTS="+certificate)
 	}
-	cmd.Env = append(cmd.Env, cfg.CredentialTarget()+"="+key, "PI_TELEMETRY=0")
+	if !cfg.UsesCodexLogin() {
+		cmd.Env = append(cmd.Env, cfg.CredentialTarget()+"="+key)
+	}
+	cmd.Env = append(cmd.Env, "PI_TELEMETRY=0")
 	ready = true
 	return prepared, nil
 }

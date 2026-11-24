@@ -22,7 +22,7 @@ func TestAgentCLIConfigurationLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := agentFamilyCommand([]string{"cli", "enable", "codex", "--executable", executable, "--model", "fixture-model", "--base-url", "https://us.api.openai.com/v1", "--allow-edits"}, &output); err != nil {
+	if err := agentFamilyCommand([]string{"cli", "enable", "codex", "--auth", "api_key", "--executable", executable, "--model", "fixture-model", "--base-url", "https://us.api.openai.com/v1", "--allow-edits"}, &output); err != nil {
 		t.Fatal(err)
 	}
 	store, err := config.DefaultStore()

@@ -31,6 +31,7 @@ func TestConversationRoutesAreToolFreeAndBoundToHostTaskIdentity(t *testing.T) {
 		`{"kind":"guide","target":"task-current","instruction":"Keep the venue under $2,000."}`,
 		`{"kind":"stop","target":"task-current"}`,
 		`{"kind":"task"}`,
+		`{"kind":"plan"}`,
 		`{"kind":"reply","text":"The venue comparison is still working."}`,
 		`{"kind":"clarify","text":"Should that budget apply to the venue comparison or another task?"}`,
 	} {

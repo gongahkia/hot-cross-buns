@@ -3,6 +3,8 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startWeb } from "./server.mjs";
 
+try { process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); }
+catch (error) { if (error.code !== 'ENOENT') throw new Error('Cannot load the local application environment.'); }
 const env = process.env;
 const home = homedir();
 const userData = env.HOT_CROSS_BUNS_WEB_USER_DATA || env.HOT_CROSS_BUNS_TERMINAL_USER_DATA || env.HOT_CROSS_BUNS_DESKTOP_USER_DATA ||

@@ -2,7 +2,7 @@ import { extname } from "node:path";
 import { inspectOffice, editOffice } from "./office.mjs";
 
 export const fileLimit = 16 * 1024 * 1024;
-const textExtensions = new Set("txt md markdown rst json jsonl yaml yml toml xml html htm svg log ini cfg conf js jsx ts tsx py go rs java c h cpp hpp css scss sh bash zsh sql rb swift kt vue svelte tex r gitignore".split(" "));
+const textExtensions = new Set("txt md markdown rst json jsonl yaml yml toml xml html htm svg log ini cfg conf js mjs cjs jsx ts tsx py go rs java c h cpp hpp css scss sh bash zsh sql rb swift kt vue svelte tex r gitignore".split(" "));
 const decode = bytes => new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 export function parseTable(text, delimiter = ",") {
   const rows = []; let row = [], cell = "", quoted = false;

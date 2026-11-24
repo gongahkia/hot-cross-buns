@@ -137,13 +137,14 @@ provider key saved through Models in the browser. For the standard names
 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, foreground workers can
 resolve the matching app credential when the environment variable is absent.
 Configuration stores only the variable name; the credential is injected per
-invocation and excluded from task/configuration serialization. Saved CLI logins
-and OAuth sessions are not imported. `doctor` checks executable, sandbox and
+invocation and excluded from task/configuration serialization. Codex can instead use its explicit `codex_login` mode with the local ChatGPT
+login. Only that credential is copied into the isolated CLI home and removed
+after the owned process stops; user configuration and other CLI logins are not imported. `doctor` checks executable, sandbox and
 launch-environment credentials only; an app-stored key is checked at invocation.
 It does not verify provider authentication or protocol compatibility.
 Restart an existing Hot Cross Buns session after changing adapter settings.
 
-For a regional OpenAI project, add `--base-url https://us.api.openai.com/v1` to
+For Codex BYOK, explicitly select `--auth api_key`. For a regional OpenAI project, add `--base-url https://us.api.openai.com/v1` to
 Codex/Pi setup. Copilot also accepts an explicit HTTPS API base URL.
 OpenCode and Gemini endpoint overrides are currently rejected. They are explicit
 credential destinations, so configure only a provider endpoint you trust.

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false } = {}) {
+export async function fixture({ voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -27,6 +27,9 @@ export async function fixture({ voiceOptions, memories = [], chatCount = 0, dial
     try { routed = JSON.parse(value.messages.findLast(item => item.role === 'user').content); } catch {}
     const decision = system.includes("conversation") && system.includes("reply") && !value.tools?.length && routed?.can_start_task !== undefined;
     const correctionTarget = routed?.message?.includes('This is a correction request for review') && routed.tasks?.find(task => task.can_correct_action);
+    const planTarget = planningQuestions && routed?.message?.includes('This is a correction request for review') && routed.tasks?.find(task => task.can_revise_plan);
+    const proposal = planningQuestions && system.includes("Propose a plan for the user's task");
+    const plan = {outcome:'A parser using the chosen format',steps:[{id:'inspect',text:'Inspect the parser after review'}],sources:[],effects:['read'],...(!routed?.correction ? {questions:[{id:'format',question:'Which format should the parser support?',options:['JSON','YAML']}]} : {})};
     const read = value.tools?.some(item => item.function?.name === "read_file") && prompt.includes("fixture activity") && !value.messages.some(item => item.role === "tool");
     const message = review ? {
       role: "assistant", tool_calls: [{ id: "exact-local-review", type: "function", function: {
@@ -35,7 +38,7 @@ export async function fixture({ voiceOptions, memories = [], chatCount = 0, dial
     } : read ? {
       role: "assistant", content: "I’ll read the note first.",
       tool_calls: [{ id: "read-fixture", type: "function", function: { name: "read_file", arguments: JSON.stringify({ path: "source/note.md", display_icon: 'book-open' }) } }],
-    } : { role: "assistant", content: classification ? '{"mode":"inspect"}' : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? conversationalReplies && !routed.message.includes('fixture activity') ? JSON.stringify({kind:'reply',text:'A continuing conversation.'}) : '{"kind":"task"}' : "## Fixture answer\n\nThe message reached the running Go backend." };
+    } : { role: "assistant", content: proposal ? JSON.stringify(plan) : classification ? '{"mode":"inspect"}' : planTarget ? JSON.stringify({kind:'revise_plan',target:planTarget.id,instruction:routed.message}) : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? conversationalReplies && !routed.message.includes('fixture activity') ? JSON.stringify({kind:'reply',text:'A continuing conversation.'}) : JSON.stringify({kind:planningQuestions ? 'plan' : 'task'}) : "## Fixture answer\n\nThe message reached the running Go backend." };
     if ((blocked && !classification && !review && !decision) || afterTool && value.messages.some(item => item.role === "tool")) await new Promise(resolve => { release = resolve; });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ choices: [{ message, finish_reason: review || read ? "tool_calls" : "stop" }] }));

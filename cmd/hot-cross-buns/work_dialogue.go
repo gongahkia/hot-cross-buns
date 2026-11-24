@@ -254,6 +254,14 @@ func resolveDialogueExecutionScope(stateDir, source, conversation, text string, 
 	}
 	input.ConversationID, input.BeforeSequence, input.BeforeTime = origin.ParentConversationID, turn.Sequence, turn.CreatedAt
 	expected := input.RunOptions
+	var decision workrun.ConversationDecision
+	if json.Unmarshal(turn.Decision, &decision) != nil {
+		return nil, goal.Record{}, errors.New("the retained routing decision is unavailable")
+	}
+	if decision.Kind == "plan" {
+		expected.PlanFirst = true
+		input.RunOptions.PlanFirst = true
+	}
 	expected.DialogueParent, expected.DialogueTurn = options.DialogueParent, options.DialogueTurn
 	a, err := json.Marshal(expected)
 	if err != nil {

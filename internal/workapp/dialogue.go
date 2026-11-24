@@ -37,6 +37,7 @@ type ConversationInput struct {
 // DialoguePeer comes from another native owner through the host-only channel.
 // Every peer is checked against this conversation's durable task origin.
 type DialoguePeer struct {
+	PlanPhase            string `json:"plan_phase,omitempty"`
 	NeedsInspection      bool   `json:"needs_inspection,omitempty"`
 	ConversationID       string `json:"conversation_id"`
 	TurnID               string `json:"turn_id"`
@@ -491,7 +492,7 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 		m.dialogueIssue = err.Error()
 		return m.startConversationRoute()
 	}
-	if value.Decision.Kind == "task" {
+	if value.Decision.Kind == "task" || value.Decision.Kind == "plan" {
 		bind := m.config.BindConversationTask
 		if bind == nil {
 			return m.failConversation(turn, "Independent task creation is unavailable. Your original message and files are retained.")
@@ -589,6 +590,11 @@ func (m Model) FinishDialogueDispatch(result DialogueDispatchResult) (tea.Model,
 	switch request.Kind {
 	case "task":
 		turn.State, turn.Response = "delegated", "I've started that as independent work. You can keep talking here."
+		var decision workrun.ConversationDecision
+		var input ConversationInput
+		if json.Unmarshal(turn.Decision, &decision) == nil && json.Unmarshal(turn.Options, &input) == nil && (decision.Kind == "plan" || input.RunOptions.PlanFirst) {
+			turn.Response = "I'm preparing a plan for your review. I'll ask any necessary questions before implementation."
+		}
 	case "guide":
 		turn.State, turn.Response = "guided", "I passed that correction to the selected task."
 	case "revise_action":

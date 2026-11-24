@@ -216,6 +216,14 @@ func (b *nativeProviderBackend) Apply(a modelcatalog.NativeProviderAction) (resu
 		r.Rows = rows
 		return r
 	}
+	if a.Action == "inventory" {
+		inventory, err := b.modelInventory()
+		if err != nil {
+			return fail("Model configuration could not be read. Refresh after repairing local settings.")
+		}
+		r.Inventory = inventory
+		return r
+	}
 	if a.Action == "cancel" {
 		b.review = nil
 		return r

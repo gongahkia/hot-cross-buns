@@ -28,7 +28,7 @@ export function transcriptFind({ transcript, revealed = () => {} }) {
       const parts = []; let text = '', child;
       while ((child = walker.nextNode())) {
         const parent = child.parentElement;
-        if (!parent || parent.closest('button, input, textarea, select, svg, iframe, script, style, [hidden], [aria-hidden="true"], .sr-only, .meta, .code-toolbar, .work-activity')) continue;
+        if (!parent || parent.closest('button:not(.file-reference), input, textarea, select, svg, iframe, script, style, [hidden], [aria-hidden="true"], .sr-only, .meta, .code-toolbar, .work-activity')) continue;
         let visible = true;
         for (let p = parent; p && p !== node; p = p.parentElement) if (p.tagName === 'DETAILS' && !p.open && !p.querySelector('summary')?.contains(parent)) visible = false;
         if (!visible) continue;

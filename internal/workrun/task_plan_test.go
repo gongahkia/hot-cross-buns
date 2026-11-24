@@ -23,6 +23,19 @@ func planningRequest() worksession.Request {
 
 const validPlan = `{"outcome":"A tested parser","steps":[{"id":"step-1","text":"Inspect and implement"},{"id":"step-2","text":"Run checks"}],"sources":["docs"],"effects":["read","code","checks"]}`
 
+func TestPlannerCanAskBoundedQuestionsWithoutExecutionTools(t *testing.T) {
+	model := taskPlanModel(func(_ context.Context, request agent.TurnRequest) (agent.Turn, error) {
+		if len(request.Tools) > 0 || !strings.Contains(request.System, "questions") {
+			t.Fatal("question preparation did not remain tool-free")
+		}
+		return agent.Turn{Text: strings.TrimSuffix(validPlan, "}") + `,"questions":[{"id":"format","question":"Which format?","options":["JSON","YAML"]}]}`}, nil
+	})
+	plan, err := PrepareTaskPlan(context.Background(), model, planningRequest(), nil)
+	if err != nil || len(plan.Questions) != 1 || plan.Questions[0].Options[1] != "YAML" {
+		t.Fatal("structured clarification lost", err)
+	}
+}
+
 func TestTaskPlanPreparationIsOneToolFreeBoundedModelCall(t *testing.T) {
 	calls := 0
 	model := taskPlanModel(func(ctx context.Context, r agent.TurnRequest) (agent.Turn, error) {

@@ -35,6 +35,50 @@ func retainedPlan(t *testing.T, s Store, id, request string) Request {
 	t.Fatal("missing plan")
 	return Request{}
 }
+
+func TestPlanQuestionsRequireARevisedReviewBeforeApproval(t *testing.T) {
+	s, id, r := planFixture(t)
+	content := proposedPlan()
+	content.Questions = []PlanQuestion{{ID: "scope", Question: "Which parser inputs?", Options: []string{"JSON", "YAML"}}}
+	if _, err := s.ReviseTaskPlan(id, r.ID, 0, "", content); err != nil {
+		t.Fatal(err)
+	}
+	r = retainedPlan(t, s, id, r.ID)
+	if _, _, err := s.ApproveTaskPlan(id, r.ID, r.Plan.Revision, r.Plan.Digest); err == nil {
+		t.Fatal("unanswered questions approved")
+	}
+	if err := s.CheckPlanDispatch(id, r); err == nil {
+		t.Fatal("unanswered questions dispatched")
+	}
+	for _, questions := range [][]PlanQuestion{
+		{{ID: "scope", Question: "", Options: []string{"JSON", "YAML"}}},
+		{{ID: "scope", Question: "Which?", Options: []string{"JSON", "JSON"}}},
+		{{ID: "scope", Question: "Which?"}, {ID: "scope", Question: "Again?"}},
+	} {
+		invalid := content
+		invalid.Questions = questions
+		if invalid.Validate([]string{"docs"}) == nil {
+			t.Fatal("invalid questions accepted")
+		}
+	}
+	old := r.Plan.Digest
+	content.Questions = nil
+	content.Steps[0].Text = "Inspect the JSON parser chosen by the user"
+	if _, err := s.ReviseTaskPlan(id, r.ID, r.Plan.Revision, r.Plan.Digest, content); err != nil {
+		t.Fatal(err)
+	}
+	r = retainedPlan(t, s, id, r.ID)
+	if _, _, err := s.ApproveTaskPlan(id, r.ID, r.Plan.Revision-1, old); err == nil {
+		t.Fatal("old question review approved")
+	}
+	if _, _, err := s.ApproveTaskPlan(id, r.ID, r.Plan.Revision, r.Plan.Digest); err != nil {
+		t.Fatal(err)
+	}
+	r = retainedPlan(t, s, id, r.ID)
+	if err := s.CheckPlanDispatch(id, r); err != nil {
+		t.Fatal(err)
+	}
+}
 func TestTaskPlanReviewRevisionApprovalAndDispatchAreSeparate(t *testing.T) {
 	s, id, r := planFixture(t)
 	if err := s.CheckPlanDispatch(id, r); !errors.Is(err, ErrPlanChanged) {

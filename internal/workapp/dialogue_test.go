@@ -193,6 +193,45 @@ func TestDialogueTaskLaunchHasIndependentDurableAdmissionAndNoRetryReplay(t *tes
 	}
 }
 
+func TestAgentSelectedPlanModeCannotBootstrapExecution(t *testing.T) {
+	config, _ := dialogueConfig(t)
+	config.RouteConversation = func(context.Context, workrun.ConversationRequest, ConversationInput) (workrun.ConversationDecision, error) {
+		return workrun.ConversationDecision{Kind: "plan"}, nil
+	}
+	config.Run = func(string, string, string, RunOptions) RunResult {
+		t.Fatal("plan mode dispatched implementation")
+		return RunResult{}
+	}
+	config.PreparePlan = func(context.Context, worksession.Request) (worksession.PlanContent, error) {
+		return worksession.PlanContent{Outcome: "Clarify scope", Steps: []worksession.PlanStep{{ID: "read", Text: "Inspect after review"}}, Effects: []string{"read"}, Questions: []worksession.PlanQuestion{{ID: "scope", Question: "Which scope?"}}}, nil
+	}
+	m := New(config).ConfigureDialogueHost(DialogueHost{CanStart: true})
+	m.primary = true
+	m, cmd := dialogueSubmit(t, m, "agent-plan-000001", "Improve the parser")
+	m = routeDialogue(t, m, cmd)
+	if m.dialogueDispatch == nil {
+		t.Fatal("plan was not delegated")
+	}
+	dispatch := *m.dialogueDispatch
+	childConfig := config
+	childConfig.StartConversationID = dispatch.ChildID
+	child := New(childConfig)
+	next, prepare := child.BootstrapDialogue(m.conversation, dispatch.TurnID)
+	child = next.(Model)
+	if child.dialogueBootstrapResult.Error != "" || prepare == nil {
+		t.Fatal("planning bootstrap failed", child.dialogueBootstrapResult)
+	}
+	var options RunOptions
+	if json.Unmarshal(child.requests.Requests[0].Options, &options) != nil || !options.PlanFirst {
+		t.Fatal("agent plan decision lost at child admission")
+	}
+	next, _ = child.Update(prepare())
+	child = next.(Model)
+	if child.requests.Requests[0].Plan.Phase != "review" || len(child.requests.Requests[0].Plan.Content.Questions) != 1 {
+		t.Fatal("questions not retained for review")
+	}
+}
+
 func TestDialogueRevalidatesTargetsAndRetainsUnconfirmedMessagesWithoutReplay(t *testing.T) {
 	config, _ := dialogueConfig(t)
 	stateDir := t.TempDir()

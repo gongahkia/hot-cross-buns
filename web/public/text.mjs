@@ -1,5 +1,6 @@
 import { marked, DOMPurify, highlight } from "/vendor/render-deps.mjs";
 import { icon } from './icons.mjs';
+import { localAppURL } from './local-url.mjs';
 
 export function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -153,6 +154,14 @@ function typesetMath(node) {
 
 function richBlock(code, language) {
   const source = code.textContent;
+  if(language==='canvas') {
+    try {
+      const doc=JSON.parse(source);
+      if(typeof doc.id!=='string'||!/^[a-zA-Z0-9_-]{1,64}$/.test(doc.id)||typeof doc.title!=='string'||doc.title.length>160||!['markdown','html','svg','mermaid','text','js','ts','css','python','go'].includes(doc.language)||typeof doc.content!=='string'||doc.content.length>131072)throw new Error();
+      const card=element('button',undefined,'canvas-card quiet');card.type='button';card.append(icon('file-text'),element('span',doc.title),element('small','Open in Canvas'));
+      card.addEventListener('click',()=>document.dispatchEvent(new window.CustomEvent('open-canvas',{detail:doc})));return card;
+    }catch{return codeBlock(source,'canvas')}
+  }
   const block = element("figure", undefined, "artifact");
   const output = element("div", undefined, "artifact-output");
   const sourceDetails = element("details", undefined, "artifact-source");
@@ -213,7 +222,36 @@ export function prose(text, { previews = true } = {}) {
       if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error();
       link.target = "_blank";
       link.rel = "noopener noreferrer";
+      if (localAppURL(url.href)) {
+        link.addEventListener('click', event => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault(); document.dispatchEvent(new window.CustomEvent('open-local-app', {detail:{url:url.href,trigger:link}}));
+        });
+        link.title = 'Open local app beside this chat';
+      }
+      const extension = url.pathname.match(/\.(gif|png|jpe?g|webp|mp4|webm|ogv|mov|m4v)$/i)?.[1]?.toLowerCase();
+      const youtube = ['youtube.com','www.youtube.com','m.youtube.com'].includes(url.hostname) ? url.searchParams.get('v') : url.hostname === 'youtu.be' ? url.pathname.slice(1) : null;
+      const vimeo = ['vimeo.com','www.vimeo.com'].includes(url.hostname) ? url.pathname.slice(1) : null;
+      const embed = youtube && /^[\w-]{11}$/.test(youtube) ? 'https://www.youtube-nocookie.com/embed/'+youtube : vimeo && /^\d+$/.test(vimeo) ? 'https://player.vimeo.com/video/'+vimeo : null;
+      if (previews && (extension || embed) && !link.querySelector('img')) {
+        const wrap = element('span', undefined, 'inline-media');
+        if (embed) {
+          const play = element('button','Load video','quiet'); play.type='button';
+          play.addEventListener('click',()=>{ const frame=element('iframe');frame.title=link.textContent || 'Video';frame.src=embed;frame.referrerPolicy='no-referrer';frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');frame.setAttribute('allow','fullscreen; picture-in-picture');frame.allowFullscreen=true;play.replaceWith(frame); });
+          wrap.append(play);
+        } else if (['mp4','webm','ogv','mov','m4v'].includes(extension)) {
+          const video=element('video');video.controls=true;video.preload='none';video.playsInline=true;video.src=url.href;video.setAttribute('aria-label',link.textContent || 'Video');wrap.append(video);
+        } else {
+          const image=element('img');image.src=url.href;image.alt=link.textContent || 'Image';wrap.append(image);
+        }
+        link.replaceWith(wrap);wrap.append(link);
+      }
     } catch { link.removeAttribute("href"); }
+  }
+  for (const code of result.querySelectorAll('code')) if (!code.closest('pre, a') && localAppURL(code.textContent.trim())) {
+    const link = element('a', code.textContent); link.href = localAppURL(code.textContent.trim()); link.title = 'Open local app beside this chat';
+    link.addEventListener('click', event => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { link.target = '_blank'; link.rel = 'noopener noreferrer'; return; } event.preventDefault(); document.dispatchEvent(new window.CustomEvent('open-local-app', {detail:{url:link.href,trigger:link}})); });
+    code.replaceChildren(link);
   }
   for (const image of result.querySelectorAll("img")) {
     const src = image.getAttribute("src") || "";
@@ -227,7 +265,7 @@ export function prose(text, { previews = true } = {}) {
   }
   for (const code of result.querySelectorAll("pre > code")) {
     const language = code.className.match(/^language-([\w+-]+)$/)?.[1] || "";
-    const rich = previews && ["html", "svg", "mermaid"].includes(language);
+    const rich = previews && ["html", "svg", "mermaid", "canvas"].includes(language);
     code.parentElement.replaceWith(rich ? richBlock(code, language) : codeBlock(code.textContent, language));
   }
   for (const table of result.querySelectorAll("table")) resizableTable(table);

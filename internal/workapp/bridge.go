@@ -113,6 +113,7 @@ type BridgeState struct {
 	Queued                int                        `json:"queued"`
 	Queue                 []BridgeQueuedRun          `json:"queue"`
 	QueueResult           *BridgeQueueResult         `json:"queue_result,omitempty"`
+	AgentActivity         []BridgeSpecialist         `json:"agent_activity,omitempty"`
 	Specialists           []BridgeSpecialist         `json:"specialists,omitempty"`
 	SpecialistResult      *BridgeSpecialistResult    `json:"specialist_result,omitempty"`
 	GuidanceID            string                     `json:"guidance_id,omitempty"`
@@ -287,6 +288,7 @@ func (m Model) BridgeState() BridgeState {
 		Queue:                 make([]BridgeQueuedRun, 0, len(m.queue)),
 		QueueResult:           m.bridgeQueueResult,
 		Specialists:           m.bridgeSpecialists(),
+		AgentActivity:         m.bridgeAgentActivity(),
 		SpecialistResult:      m.bridgeSpecialistResult,
 		Home:                  m.home,
 		FirstRun:              m.firstRun,

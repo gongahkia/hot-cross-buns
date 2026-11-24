@@ -379,17 +379,18 @@ func (m Model) startReviewedPlan(id string) (tea.Model, tea.Cmd) {
 }
 
 type TaskPlanSummary struct {
-	ID       string                 `json:"id"`
-	Revision uint64                 `json:"revision"`
-	Digest   string                 `json:"digest"`
-	Task     string                 `json:"task"`
-	Outcome  string                 `json:"outcome,omitempty"`
-	Steps    []worksession.PlanStep `json:"steps,omitempty"`
-	State    string                 `json:"state"`
-	Phase    string                 `json:"phase"`
-	WorkID   string                 `json:"work_id,omitempty"`
-	At       time.Time              `json:"at"`
-	Issue    string                 `json:"issue,omitempty"`
+	ID        string                     `json:"id"`
+	Revision  uint64                     `json:"revision"`
+	Digest    string                     `json:"digest"`
+	Task      string                     `json:"task"`
+	Outcome   string                     `json:"outcome,omitempty"`
+	Steps     []worksession.PlanStep     `json:"steps,omitempty"`
+	Questions []worksession.PlanQuestion `json:"questions,omitempty"`
+	State     string                     `json:"state"`
+	Phase     string                     `json:"phase"`
+	WorkID    string                     `json:"work_id,omitempty"`
+	At        time.Time                  `json:"at"`
+	Issue     string                     `json:"issue,omitempty"`
 }
 type TaskPlanAccessReview struct {
 	Before       []string                          `json:"before"`
@@ -429,6 +430,7 @@ func (m Model) taskPlanSummaries() []TaskPlanSummary {
 		summary := TaskPlanSummary{ID: r.ID, Revision: r.Plan.Revision, Digest: r.Plan.Digest, Task: truncate(r.Text, 256), State: r.State, Phase: r.Plan.Phase, WorkID: r.WorkID, At: r.CreatedAt}
 		summary.Issue = boundedConversation(r.Issue, 1024)
 		if r.Plan.Content != nil {
+			summary.Questions = r.Plan.Clone().Content.Questions
 			summary.Outcome = truncate(r.Plan.Content.Outcome, 512)
 			for _, step := range r.Plan.Content.Steps {
 				summary.Steps = append(summary.Steps, worksession.PlanStep{ID: step.ID, Text: truncate(step.Text, 256)})

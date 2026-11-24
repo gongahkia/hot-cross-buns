@@ -174,8 +174,10 @@ Rich outputs and real memory editing remain available in their normal views.
 
 The composer has an attach icon, a model selector, and an arrow send control.
 The selector uses the backend's configured model list and keeps the current draft.
-The small effort selector beside the model uses Low, Standard, or High work
-budgets for future messages. It reuses the canonical conversation preference and
+The model and effort buttons open one animated picker with provider filters,
+model search, and Low, Standard, or High work budgets for future messages.
+These are task-step budgets, not provider reasoning-token controls. The picker
+reuses the canonical conversation preference and
 is unavailable while current or queued work locks those settings.
 Chosen files, dropped files, and pasted images use the same private upload store.
 Text pastes longer than 4,000 characters become Pasted text.txt attachments;
@@ -262,6 +264,27 @@ remaining and original budgets, prior attempts, and current state. Exact raw
 review data remains in a closed disclosure. Backend revision/digest checks remain
 the execution boundary.
 
+The composer’s **Plan** indicator appears only while a retained plan is pending
+or executing. It uses the same text and icon size as the adjacent model controls.
+The user can request planning in their message, and the agent chooses the `plan`
+conversation route when the request explicitly asks for planning or its complexity
+needs a reviewed proposal. Ordinary drafts do not carry a sticky planning mode.
+This route preserves the original admission and only tightens it into planning.
+Plans may include up to three structured questions, with choices and a free-text
+answer. **Answer plan questions** opens the form; Continue with answers uses the
+existing same-task correction flow while preserving the main composer draft.
+Questions block approval and dispatch in Go. Their answers produce a revised
+proposal that still needs explicit review before implementation starts.
+
+The app-menu **Models** entry opens a separate wide dashboard, while the composer
+model and effort buttons retain the quick picker. Models has Orchestrator,
+Specialists, and CLI agents tabs, including the allowed orchestrator choices,
+effective inherited or overridden specialist models, CLI authentication mode,
+continuation type, guidance/question support, edit scope and configured limits.
+Local model management and provider setup remain available through their existing
+review flows. The native `inventory` read projects only public assignment fields;
+it does not launch a model, expose credentials/CLI paths or cancel provider reviews.
+
 Jump to latest uses a smooth scroll, with immediate movement when reduced motion
 is requested. Reading-position restoration does not interrupt that animation.
 Each observed composer step has its own disclosure for recorded tool, provider,
@@ -286,10 +309,58 @@ With saved drafts disabled, the active quote stays only in host memory until it
 is removed, submitted, or the host closes; unsent quote content is not saved.
 
 Response controls include Fork, Reply and React. Right-click model text for the
-emoji panel; Shift+right-click keeps the browser menu. Reactions are display-only
-and stored in this browser, bounded to the most recent 256 selections; they are
-not provider feedback. Fork creates a new retained conversation through the
+emoji panel; Shift+right-click keeps the browser menu. Selecting a reaction sends
+response-bound conversation input to the model. Reaction chips are cached in this
+browser, bounded to the most recent 256 selections; clearing a chip does not
+remove the input already sent. Fork creates a new retained conversation through the
 chosen response, including earlier completed conversational replies. Later
 messages, pending dispatches, captured account scopes and approvals are not
 inherited. The parent's unsent draft stays with its original chat. Fork creation
 uses a durable request receipt so matching retries do not create another branch.
+
+## File previews, agent activity and Canvas
+
+Hover or focus a local filename in a response to open the file sidebar; click it
+for keyboard interaction. Task-linked previews prefer that task's verified retained
+output; other files open from the selected workspace with their origin labeled.
+Hidden files, traversal paths and
+linked files are refused. Previewing does not modify source files. Text previews
+can open a separate editable Canvas draft.
+
+A third top-right Lucide robot button appears when multiple specialists are
+available for the current work. It shows the local CLI or model engine, status,
+timestamps, bounded output and errors. Expanded output remains open during
+updates. It exposes supervised output, not private model reasoning or credentials.
+
+The manager uses the configured API provider. New Codex adapter setup defaults
+to `--auth codex_login`, using the locally signed-in ChatGPT CLI account with a
+private credential copy removed when the child stops. It does not pass the
+manager API key to Codex or import the CLI's configuration/history. Explicit
+`--auth api_key` retains separate BYOK setup; other adapters keep their own
+credential requirements. `make run` loads the ignored root `.env` into the host
+process; secrets are not included in browser state.
+
+Emoji reactions are sent as response-bound conversation input so the model can
+respond. They never approve an action. Markdown images and GIFs render inline;
+direct video links get controls without autoplay. YouTube/Vimeo links load their
+player only after clicking Load video. Unsupported links remain ordinary links.
+Requested diagrams default to Mermaid guidance; existing ASCII responses are not
+rewritten.
+
+Click a localhost or loopback app link to open it beside the chat in a tabbed
+preview. Inline-code URLs work too; modified clicks keep the browser’s normal
+link behavior. Up to four preview tabs stay mounted until closed; closing the
+pane unloads them. Only explicit HTTP(S) loopback URLs on another port are
+accepted (`localhost` and `127.0.0.1`; other links stay external). Frames keep their own origin in a sandbox without top-navigation or
+popup privileges. The app’s own control surface cannot be embedded. Previewing
+does not start a server or bypass another app’s framing policy; Open in browser
+is available for apps that refuse embedding. On narrow screens, the preview uses
+the available width and its close control returns to chat.
+
+For an editable artifact, ask the agent to use Canvas. A fenced `canvas` block
+contains JSON with `id`, `title`, `language`, and full source `content`. The card
+opens the sidebar with Preview/Source, local draft versions, Download and Ask
+agent. Revisions retain the same ID; incoming agent changes do not overwrite a
+user-edited draft without choosing Use agent version. Canvas drafts stay in the
+browser; Ask agent sends the chosen source and instruction as a new conversation
+input while preserving the normal composer draft.

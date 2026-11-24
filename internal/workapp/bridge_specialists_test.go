@@ -110,3 +110,23 @@ func TestStoppedSpecialistDoesNotShowFailureWarning(t *testing.T) {
 		t.Fatal("unexpected worker failure lost its warning")
 	}
 }
+
+func TestAgentActivityRetainsBoundedOutputWithoutControlAuthority(t *testing.T) {
+	m := specialistModel(t)
+	m.recordBridgeSpecialist(agent.Event{TaskID: "run-one/subagent-001", Text: `{"id":"subagent-001","parent_run":"run-one","role":"cli_codex","status":"completed","configuration":{"provider":"codex/default","secret":"PRIVATE"},"result":{"Summary":"Verified project.md"},"error":"","started_at":"2026-11-24T01:00:00Z"}`})
+	m.running = false
+	m.lastWorkID = "run-one"
+	m.operation = nil
+	cards := m.bridgeAgentActivity()
+	if len(cards) != 1 || cards[0].Output != "Verified project.md" || cards[0].Engine != "codex/default" || cards[0].Token != "" || cards[0].CanGuide || cards[0].CanStop {
+		t.Fatalf("bad retained projection: %+v", cards)
+	}
+	data, _ := json.Marshal(cards)
+	if strings.Contains(string(data), "PRIVATE") {
+		t.Fatal("private configuration leaked")
+	}
+	m.lastWorkID = "different"
+	if len(m.bridgeAgentActivity()) != 0 {
+		t.Fatal("unrelated run projected")
+	}
+}
