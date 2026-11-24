@@ -345,7 +345,7 @@ func TestGoalWatchOffsiteDraftAndPlanSuggestionStayForReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	args, _ := json.Marshal(map[string]any{"kind": "plan", "title": "Recheck venue", "plan_change": goal.PlanChange{Kind: "update_step", ExpectedRevision: plan.Revision, StepID: plan.Steps[0].ID, Status: goal.StepBlocked, Evidence: []string{"source/venue.txt:1"}}})
+	args, _ := json.Marshal(map[string]any{"kind": "plan", "title": "Recheck venue", "plan_change": map[string]any{"kind": "update_step", "expected_revision": plan.Revision, "step_id": plan.Steps[0].ID, "status": goal.StepBlocked, "evidence": []string{"source/venue.txt:1"}, "dependency_action": "preserve"}})
 	model := &workScriptedModel{turns: []agent.Turn{
 		{ToolCalls: []agent.ToolCall{{ID: "read", Name: "read_file", Arguments: json.RawMessage(`{"path":"source/venue.txt"}`)}}},
 		{ToolCalls: []agent.ToolCall{{ID: "suggest", Name: "suggest_change", Arguments: args}}},

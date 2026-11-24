@@ -71,7 +71,7 @@ func TestConversationCreatesSavesRunsAndReusesSpecialist(t *testing.T) {
 	secondSource := dynamicSource(t, "# Different venue\nDeadline: 20 November\n")
 	secondManager := &scriptedModel{turns: []agent.Turn{
 		dynamicCall("list_agents", map[string]any{}),
-		dynamicCall("start_agent", map[string]any{"agent": "venue_research", "task": "Read this task's selected facts."}),
+		dynamicCall("start_agent", map[string]any{"agent": "venue_research", "task": "Read this task's selected facts.", "continue": ""}),
 		dynamicCall("await_agent", map[string]any{"id": "subagent-001", "timeout_seconds": 5}),
 		{Text: "Used the saved specialist on this conversation's source."},
 	}}
@@ -168,7 +168,7 @@ func TestDynamicCodeAliasCannotEscapeReviewedReadScope(t *testing.T) {
 			}
 			turns := []agent.Turn{dynamicCall("create_agent", definition)}
 			if !immediate {
-				turns = append(turns, dynamicCall("start_agent", map[string]any{"agent": "friendly_researcher", "task": "Implement an edit."}))
+				turns = append(turns, dynamicCall("start_agent", map[string]any{"agent": "friendly_researcher", "task": "Implement an edit.", "continue": ""}))
 			}
 			calls := 0
 			model := &scriptedModel{turns: turns}

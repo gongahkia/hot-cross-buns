@@ -364,9 +364,9 @@ func (m *specialistControlModel) Complete(ctx context.Context, _ agent.TurnReque
 	m.calls++
 	switch m.calls {
 	case 1:
-		assignment := json.RawMessage(`{"agent":"code","task":"wait for cancellation"}`)
+		assignment := json.RawMessage(`{"agent":"code","task":"wait for cancellation","continue":""}`)
 		if m.role == "source_researcher" {
-			assignment = json.RawMessage(`{"agent":"source_researcher","task":"read the selected source"}`)
+			assignment = json.RawMessage(`{"agent":"source_researcher","task":"read the selected source","continue":""}`)
 		}
 		return agent.Turn{ToolCalls: []agent.ToolCall{{ID: "specialist", Name: "start_agent", Arguments: assignment}}}, nil
 	case 2:
