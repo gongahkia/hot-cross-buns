@@ -1,5 +1,7 @@
 # Local voice
 
+For the current browser interface, start with [Voice in the browser app](BROWSER-VOICE.md). The Electron controls and packaged-app acceptance records below describe the earlier desktop interface; they are not browser acceptance evidence. The speech helper, pinned Whisper models and runtime setup are shared.
+
 Electron supports **Whisper · local, no API key** alongside Gemini and OpenAI dictation. Spoken replies use installed local system voices independently of the dictation provider. Whisper is not preinstalled by macOS or Linux.
 
 ## Setup

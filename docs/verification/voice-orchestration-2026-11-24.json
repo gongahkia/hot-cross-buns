@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "date": "2026-11-24",
+  "validation": {
+    "node": "26.7.0",
+    "make_check": {
+      "passed": true,
+      "go_test_all": true,
+      "go_vet_all": true,
+      "web_tests": 119,
+      "host_tests": 142,
+      "oauth_build_tests": 1
+    },
+    "committed_snapshot": {
+      "revision": "85f3b28a8",
+      "runtime_build": true,
+      "orchestrator_and_tools_tests": true,
+      "voice_tests": 16
+    }
+  },
+  "live_lifecycle": {
+    "model": "gpt-5-mini",
+    "checks": {
+      "agenda reports dependency and overlap": true,
+      "chat scheduled exact existing step": true,
+      "completion only affects reported step": true,
+      "dependency preserved on original step": true,
+      "fresh chat recalls corrected date": true,
+      "live checks did not complete overdue work": true,
+      "original note source retained": true,
+      "original note updated without duplicate": true,
+      "overdue alert cites the actual pending step": true,
+      "overdue-check decision": true,
+      "overdue-check has no mutations": true,
+      "quiet-check decision": true,
+      "quiet-check has no mutations": true,
+      "read-only recall queued no changes": true
+    },
+    "usage": {
+      "unknown_requests": 0,
+      "model_requests": 23,
+      "input_tokens": 220499,
+      "output_tokens": 11890,
+      "reported": true,
+      "estimated": false
+    },
+    "recovered_tool_errors": [
+      {
+        "phase": "add-native-dependency",
+        "errors": [
+          "tool \"suggest_change\": plan changes must use plan_change, not body text; remove body and retain the requested dependency_action, depends_on, scheduling and status fields inside plan_change"
+        ]
+      }
+    ]
+  },
+  "local_codex": {
+    "auth": "Local Codex CLI ChatGPT login",
+    "worker_model": "gpt-6.1-sol",
+    "manager_model": "gpt-5-mini",
+    "checks": {
+      "followup_not_rehydrated": true,
+      "original_unchanged": true,
+      "remembered_facts": true,
+      "same_native_conversation": true,
+      "separate_work_turns": true,
+      "two_worker_turns": true,
+      "work_succeeded": true
+    },
+    "seconds": 35.901744166
+  },
+  "earlier_completed_runs": [
+    {
+      "report": "lifecycle.json",
+      "passed": 13,
+      "total": 14,
+      "checks": {
+        "agenda reports dependency and overlap": true,
+        "chat scheduled exact existing step": true,
+        "completion only affects reported step": true,
+        "dependency preserved on original step": true,
+        "fresh chat recalls corrected date": false,
+        "live checks did not complete overdue work": true,
+        "original note source retained": true,
+        "original note updated without duplicate": true,
+        "overdue alert cites the actual pending step": true,
+        "overdue-check decision": true,
+        "overdue-check has no mutations": true,
+        "quiet-check decision": true,
+        "quiet-check has no mutations": true,
+        "read-only recall queued no changes": true
+      },
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 23,
+        "input_tokens": 217554,
+        "output_tokens": 10827,
+        "reported": true,
+        "estimated": false
+      }
+    },
+    {
+      "report": "lifecycle-final.json",
+      "passed": 12,
+      "total": 14,
+      "checks": {
+        "agenda reports dependency and overlap": false,
+        "chat scheduled exact existing step": true,
+        "completion only affects reported step": true,
+        "dependency preserved on original step": false,
+        "fresh chat recalls corrected date": true,
+        "live checks did not complete overdue work": true,
+        "original note source retained": true,
+        "original note updated without duplicate": true,
+        "overdue alert cites the actual pending step": true,
+        "overdue-check decision": true,
+        "overdue-check has no mutations": true,
+        "quiet-check decision": true,
+        "quiet-check has no mutations": true,
+        "read-only recall queued no changes": true
+      },
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 28,
+        "input_tokens": 275952,
+        "output_tokens": 14535,
+        "reported": true,
+        "estimated": false
+      }
+    }
+  ],
+  "unverified": [
+    "Physical browser microphone permission",
+    "Actual audible browser speech playback",
+    "Real local Whisper recognition on this host",
+    "Browser-specific codec and responsive visual acceptance"
+  ],
+  "excluded": [
+    "Live Gemini",
+    "New live Copilot or Pi acceptance"
+  ]
+}

@@ -51,7 +51,7 @@ export function voiceInput({ getDraft, append, submit, capture = captureSpeech, 
     const ready = controller.state.phase === 'idle' && !loading && !downloading && status?.ready && destination.value === status.provider && (destination.value !== 'whisper-local' || model.value === status.model);
     dictate.disabled = conversation.disabled = !allowed || !ready;
     destination.disabled = model.disabled = loading || downloading || controller.state.phase !== 'idle';
-    note.textContent = downloading ? 'Downloading the selected Whisper model…' : loading ? 'Checking voice settings…' : status?.issue || (destination.value === 'whisper-local' ? 'Audio is transcribed on this laptop.' : 'Audio is sent to ' + destination.options[destination.selectedIndex].textContent.split(' · ')[0] + '. This uses its separately configured API credentials.');
+    note.textContent = downloading ? 'Downloading the selected Whisper model…' : loading ? 'Checking voice settings…' : status?.issue || (destination.value === 'whisper-local' ? 'Audio is transcribed on this laptop.' : 'Audio is sent to ' + destination.options[destination.selectedIndex].textContent.split(' · ')[0] + '. This uses that provider’s configured API credentials.');
     if (!environment.navigator?.mediaDevices?.getUserMedia || !environment.MediaRecorder || !environment.AudioContext || !environment.OfflineAudioContext) { dictate.disabled = conversation.disabled = true; note.textContent = 'This browser cannot record audio. Open the app in a current browser at its local address.'; }
     if (!environment.speechSynthesis) { conversation.disabled = true; }
   }
