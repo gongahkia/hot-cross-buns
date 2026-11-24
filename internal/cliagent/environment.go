@@ -16,7 +16,7 @@ import (
 // A persistent home is host-created and must be separate from the source copy.
 func prepareCLI(ctx context.Context, cfg Config, directory, home string, argv []string, edit bool, scopes []string, key string) (sandbox.Prepared, error) {
 	var err error
-	policy := sandbox.Policy{Mode: sandbox.Strict, Network: sandbox.AllowNetwork, ReadOnlyRoots: append([]string(nil), cfg.ReadOnlyRoots...)}
+	policy := sandbox.Policy{LiveFiles: cfg.LiveFiles, Mode: sandbox.Strict, Network: sandbox.AllowNetwork, ReadOnlyRoots: append([]string(nil), cfg.ReadOnlyRoots...)}
 	policy.ReadOnlyRoots = append(policy.ReadOnlyRoots, cfg.Executable)
 	if home != "" {
 		policy.WritableRoots = []string{home}

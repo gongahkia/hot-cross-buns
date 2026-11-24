@@ -18,6 +18,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
+	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/tools"
 	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
@@ -47,6 +48,7 @@ func (s Service) Execute(ctx context.Context, request Request) (Outcome, error) 
 	if s.Defaults != nil {
 		request.ExternalAgents = append([]cliagent.Config(nil), s.Defaults.ExternalAgents...)
 		request.Provider = s.Defaults.Provider
+		request.FilesystemProtected = append([]string(nil), s.Defaults.FilesystemProtected...)
 		request.ConnectorPermissions = s.Defaults.ConnectorPermissions
 		request.SnapshotOptions = s.Defaults.SnapshotOptions
 		request.OTLPEndpoint = s.Defaults.OTLPEndpoint
@@ -136,12 +138,13 @@ type Interaction struct {
 // process exited unexpectedly. Remote answers additionally need a live run,
 // a private control token, and the original preview digest.
 type InteractionRecord struct {
-	Version     int         `json:"version"`
-	Status      string      `json:"status"`
-	Interaction Interaction `json:"interaction"`
-	Approved    *bool       `json:"approved,omitempty"`
-	RunID       string      `json:"run_id,omitempty"`
-	LiveStatus  string      `json:"live_status,omitempty"`
+	Version          int         `json:"version"`
+	Status           string      `json:"status"`
+	Interaction      Interaction `json:"interaction"`
+	Approved         *bool       `json:"approved,omitempty"`
+	PermissionChoice string      `json:"permission_choice,omitempty"`
+	RunID            string      `json:"run_id,omitempty"`
+	LiveStatus       string      `json:"live_status,omitempty"`
 }
 type Completion struct {
 	Outcome Outcome
@@ -165,6 +168,7 @@ type Operation struct {
 
 type pendingInteraction struct {
 	response    chan bool
+	choice      *string
 	digest      string
 	interaction Interaction
 }
@@ -291,7 +295,11 @@ func (o *Operation) respondBound(id int, digest string, approved bool) error {
 	return o.respond(id, digest, approved)
 }
 
-func (o *Operation) respond(id int, digest string, approved bool) error {
+func (o *Operation) RespondPermission(id int, choice string) error {
+	return o.respond(id, "", true, choice)
+}
+
+func (o *Operation) respond(id int, digest string, approved bool, choices ...string) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if approved && o.reviewFence {
@@ -303,6 +311,12 @@ func (o *Operation) respond(id int, digest string, approved bool) error {
 	}
 	if digest != "" && pending.digest != digest {
 		return errors.New("pending interaction preview changed")
+	}
+	if len(choices) > 0 {
+		if pending.interaction.Kind != "file_access" || pending.choice == nil || !fileaccess.ValidChoice(choices[0]) {
+			return errors.New("invalid filesystem permission choice")
+		}
+		*pending.choice = choices[0]
 	}
 	delete(o.pending, id)
 	pending.response <- approved
@@ -348,7 +362,7 @@ func (s Service) Start(ctx context.Context, request Request) *Operation {
 		lockOnce.Do(func() { liveLock, lockErr = acquireInteractionRunLock(request.StateDir, request.RunID) })
 		return lockErr
 	}
-	ask := func(ctx context.Context, kind string, preview any) (bool, error) {
+	ask := func(ctx context.Context, kind string, preview any, choices ...*string) (bool, error) {
 		if err := ensureLiveLock(); err != nil {
 			return false, err
 		}
@@ -362,7 +376,11 @@ func (s Service) Start(ctx context.Context, request Request) *Operation {
 			o.mu.Unlock()
 			return false, err
 		}
-		o.pending[id] = pendingInteraction{response: response, digest: digest, interaction: interaction}
+		pending := pendingInteraction{response: response, digest: digest, interaction: interaction}
+		if len(choices) > 0 {
+			pending.choice = choices[0]
+		}
+		o.pending[id] = pending
 		o.mu.Unlock()
 		defer func() { o.mu.Lock(); delete(o.pending, id); o.mu.Unlock() }()
 		if err := persistInteraction(InteractionRecord{Version: 1, Status: "pending", Interaction: interaction}, id); err != nil {
@@ -375,7 +393,12 @@ func (s Service) Start(ctx context.Context, request Request) *Operation {
 		}
 		select {
 		case approved := <-response:
-			if err := persistInteraction(InteractionRecord{Version: 1, Status: "resolved", Interaction: interaction, Approved: &approved}, id); err != nil {
+			if err := persistInteraction(InteractionRecord{Version: 1, Status: "resolved", Interaction: interaction, Approved: &approved, PermissionChoice: func() string {
+				if len(choices) > 0 {
+					return *choices[0]
+				}
+				return ""
+			}()}, id); err != nil {
 				return false, err
 			}
 			if approved {
@@ -444,6 +467,17 @@ func (s Service) Start(ctx context.Context, request Request) *Operation {
 	}
 	request.ApproveAppChange = func(ctx context.Context, preview any) (bool, error) {
 		return ask(ctx, "app_change", preview)
+	}
+	request.ApproveFilesystem = func(ctx context.Context, review fileaccess.Review) (string, error) {
+		choice := "once"
+		approved, err := ask(ctx, "file_access", review, &choice)
+		if err != nil {
+			return "", err
+		}
+		if !approved {
+			return "deny", nil
+		}
+		return choice, nil
 	}
 	request.ApproveWebAccess = func(ctx context.Context, preview WebAccessReview) (bool, error) {
 		return ask(ctx, "web_access", preview)

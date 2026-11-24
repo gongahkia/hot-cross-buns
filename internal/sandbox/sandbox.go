@@ -44,6 +44,7 @@ const (
 // filesystem roots and environment variables are opt-in because both are
 // capability grants to code produced by an agent.
 type Policy struct {
+	LiveFiles *LiveFilesystem `json:"-"`
 	// WritablePaths narrows writes within the worktree; empty retains full private-root access.
 	WritablePaths []string `json:"writable_paths,omitempty"`
 	Mode          Mode     `json:"mode,omitempty"`
@@ -83,6 +84,9 @@ func (p Policy) Normalize() Policy {
 // Validate rejects malformed capability grants before a command starts.
 func (p Policy) Validate() error {
 	p = p.Normalize()
+	if err := p.LiveFiles.validate(); err != nil {
+		return err
+	}
 	if p.Mode != Strict && p.Mode != Off {
 		return fmt.Errorf("unknown sandbox mode %q", p.Mode)
 	}
@@ -165,6 +169,9 @@ func EffectivePolicy(ctx context.Context, requested Policy) (Policy, error) {
 	host, ok := ctx.Value(envelopeKey{}).(Policy)
 	if !ok {
 		return policy, policy.Validate()
+	}
+	if policy.LiveFiles != nil && host.LiveFiles == nil {
+		return Policy{}, errors.New("live filesystem access is not part of the host execution envelope")
 	}
 	if host.Mode == Strict {
 		policy.Mode = Strict

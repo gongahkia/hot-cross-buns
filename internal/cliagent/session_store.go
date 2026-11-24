@@ -27,11 +27,12 @@ var ErrSessionReconciliation = errors.New("CLI session owner stopped with uncert
 // goal within a profile. Dynamic memory/prompt contents deliberately do not form
 // part of this permission boundary.
 type SessionBinding struct {
-	Owner   string   `json:"owner"`
-	Capture string   `json:"capture"`
-	Config  Config   `json:"config"`
-	Edit    bool     `json:"edit"`
-	Scopes  []string `json:"scopes,omitempty"`
+	Filesystem string   `json:"filesystem,omitempty"`
+	Owner      string   `json:"owner"`
+	Capture    string   `json:"capture"`
+	Config     Config   `json:"config"`
+	Edit       bool     `json:"edit"`
+	Scopes     []string `json:"scopes,omitempty"`
 }
 
 type SessionCommand struct {
@@ -89,6 +90,9 @@ func sessionBindingDigest(b SessionBinding) (string, error) {
 	b.Config.ReadOnlyRoots = append([]string(nil), b.Config.ReadOnlyRoots...)
 	sort.Strings(b.Scopes)
 	sort.Strings(b.Config.ReadOnlyRoots)
+	if b.Config.LiveFiles != nil {
+		b.Filesystem = b.Config.LiveFiles.Fingerprint
+	}
 	data, err := json.Marshal(b)
 	if err != nil {
 		return "", err

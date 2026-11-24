@@ -50,6 +50,17 @@ func prepareLinux(ctx context.Context, root, scratch string, argv, environment [
 	for _, directory := range writeRoots {
 		arguments = append(arguments, "--bind", directory, directory)
 	}
+	if policy.LiveFiles != nil {
+		for _, protected := range policy.LiveFiles.Protected {
+			if exists(protected) {
+				arguments = append(arguments, "--tmpfs", protected)
+			}
+		}
+		// Restore only this process's private checkout, scratch and private HOME.
+		for _, allowed := range append([]string{root, scratch}, policy.WritableRoots...) {
+			arguments = append(arguments, "--bind", allowed, allowed)
+		}
+	}
 	if policy.Network == DenyNetwork {
 		arguments = append(arguments, "--unshare-net")
 	}

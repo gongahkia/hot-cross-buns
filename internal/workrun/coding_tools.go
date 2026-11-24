@@ -42,7 +42,7 @@ func (t conversationCodeTool) Definition() agent.ToolDefinition { return t.defin
 
 func newConversationCode(factory CodeSessionFactory, request Request, work workspace.Work, emit agent.EventSink) *conversationCode {
 	return &conversationCode{factory: factory, work: work, integration: request.integration, request: CodeRequest{
-		ID: "conversation-code", SourcePath: work.Source.Path(), ScratchPath: work.Scratch.Path(), Task: request.Objective,
+		Filesystem: request.files, ID: "conversation-code", SourcePath: work.Source.Path(), ScratchPath: work.Scratch.Path(), Task: request.Objective,
 		ParentRunID: request.RunID, MaxSteps: request.MaxSteps, Project: request.Project, Policy: request.Code,
 		Budget: request.Budget, Approve: request.ApproveCodeCommand, OnEvent: emit,
 	}}

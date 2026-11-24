@@ -135,6 +135,28 @@ func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
 		return []string{"read"}, nil
 	}
 	name := call.Name
+	if name == "filesystem" {
+		var args struct {
+			Operation string `json:"operation"`
+			Access    string `json:"access"`
+		}
+		if len(call.Arguments) > 2*1024*1024 || json.Unmarshal(call.Arguments, &args) != nil {
+			return nil, errors.New("invalid filesystem scope")
+		}
+		switch args.Operation {
+		case "read", "list":
+			return []string{"read"}, nil
+		case "request_access":
+			if args.Access != "write" {
+				return []string{"read"}, nil
+			}
+			return []string{"filesystem"}, nil
+		case "write", "mkdir", "delete":
+			return []string{"filesystem"}, nil
+		default:
+			return nil, errors.New("unknown filesystem operation")
+		}
+	}
 	switch name {
 	case "read_file", "list_files", "search_files", "list_input_files", "extract_document", "inspect_table", "web_search", "http_fetch", "web_fetch", "list_evidence", "read_evidence", "check_claims", "artifact_status", "knowledge_read", "knowledge_search", "chat_read", "chat_search", "skill_list", "skill_read", "local_agenda", "hot_cross_buns_app_inspect":
 		return []string{"read"}, nil

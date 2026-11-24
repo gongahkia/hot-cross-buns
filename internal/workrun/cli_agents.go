@@ -4,15 +4,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cfg cliagent.Config) orchestrator.Specialist {
@@ -30,9 +33,40 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 	} else {
 		description += "; read-only for this run."
 	}
+	if request.files != nil {
+		description += " Host-approved live filesystem paths are separate from the private checkout; use their granted read/write scope. Acquire folder access with filesystem request_access before launching this worker."
+	}
 	specialist := orchestrator.HostedSpecialist(cfg.Role(), description, func(ctx context.Context, i orchestrator.Invocation) (orchestrator.Result, error) {
 		// pin the selected credential for this invocation, including native redaction.
 		invocationConfig := cfg
+		if request.files != nil {
+			envelope, err := request.files.Envelope()
+			if err != nil {
+				return orchestrator.Result{}, err
+			}
+			if len(envelope.Read) > 0 {
+				invocationConfig.LiveFiles = &sandbox.LiveFilesystem{Read: envelope.Read, Write: envelope.Write, Protected: envelope.Protected, Full: envelope.Full, Fingerprint: envelope.Digest}
+				workerCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+				ctx = workerCtx
+				go func() {
+					ticker := time.NewTicker(150 * time.Millisecond)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-workerCtx.Done():
+							return
+						case <-ticker.C:
+							if request.files.CheckPolicy() != nil {
+								cancel()
+								return
+							}
+						}
+					}
+				}()
+			}
+		}
+
 		key := os.Getenv(cfg.APIKeyEnv)
 		if key == "" && request.StateDir != "" {
 			provider := ""
@@ -71,7 +105,15 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 		if err != nil {
 			return orchestrator.Result{}, err
 		}
-		assignment := cliagent.Request{Config: invocationConfig, Source: work.Source.Path(), Scratch: work.Scratch.Path(), ID: i.ID, Task: i.Task, Edit: edit, Scopes: request.Code.Scopes, Baseline: baseline, OnEvent: i.OnEvent}
+		taskText := i.Task
+		if invocationConfig.LiveFiles != nil {
+			scope, _ := json.Marshal(struct {
+				Read  []string
+				Write []string
+			}{invocationConfig.LiveFiles.Read, invocationConfig.LiveFiles.Write})
+			taskText += "\nHost-approved LIVE filesystem paths: " + string(scope) + ". Read/modify these absolute paths directly as assigned. Changes in Write roots affect real files; report actual changes. Private checkout changes remain isolated. Do not access other paths or HCB control records."
+		}
+		assignment := cliagent.Request{Config: invocationConfig, Source: work.Source.Path(), Scratch: work.Scratch.Path(), ID: i.ID, Task: taskText, Edit: edit, Scopes: request.Code.Scopes, Baseline: baseline, OnEvent: i.OnEvent}
 		var value cliagent.Result
 		if persistent {
 			owner := request.ConversationID

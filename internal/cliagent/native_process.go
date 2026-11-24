@@ -63,7 +63,7 @@ func openNativeProcess(ctx context.Context, cfg Config, directory, home, threadI
 		return nil, errors.New("native session credential environment is missing")
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	args := nativeArguments(cfg, edit, home)
+	args := nativeArguments(cfg, edit || cfg.LiveFiles != nil && len(cfg.LiveFiles.Write) > 0, home)
 	if cfg.Kind == "claude" {
 		if threadID == "" {
 			threadID = nativeUUID()

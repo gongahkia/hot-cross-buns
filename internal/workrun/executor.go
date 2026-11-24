@@ -22,6 +22,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/attachment"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
 	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"github.com/gongahkia/hot-cross-buns/internal/learning"
@@ -106,6 +107,16 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		roles[role] = agent.WithBudget(model, request.Budget)
 	}
 	e.RoleModels = roles
+	if request.ForegroundApp {
+		store, err := fileaccess.Open(request.StateDir, request.FilesystemProtected...)
+		if err != nil {
+			return Outcome{}, err
+		}
+		request.files, err = fileaccess.NewTask(store, request.Mode == action.Inspect, request.ApproveFilesystem)
+		if err != nil {
+			return Outcome{}, err
+		}
+	}
 	startedAt := now()
 	policySHA256, err := PolicyDigest(request)
 	if err != nil {
@@ -577,6 +588,9 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		if request.OnEvent != nil {
 			request.OnEvent(event)
 		}
+	}
+	if request.files != nil {
+		surface = append(surface, tools.Filesystem{Task: request.files, ReadOnly: request.Mode == action.Inspect})
 	}
 	if request.BrowserSession != "" {
 		if request.DisableBrowser {

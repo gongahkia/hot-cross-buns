@@ -20,6 +20,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/patch"
 	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/tools"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
 
@@ -174,6 +175,10 @@ func (b *nativeWorkBackend) codeSession(stateDir string) workrun.CodeSessionFact
 			return nil, prepareErr
 		}
 
+		if request.Filesystem != nil {
+			prepared.Tools = append(prepared.Tools, tools.Filesystem{Task: request.Filesystem, ReadOnly: true})
+			prepared.System += " You may read explicitly granted live files through filesystem. Live access does not replace the isolated coding/patch contract; return a staged patch for the manager to apply through its separately authorized live filesystem tools."
+		}
 		return &workrun.CodeSession{Harness: prepared, Model: code.Model, Finish: func(ctx context.Context, agentResult agent.Result) (workrun.CodeResult, error) {
 			var runErr error
 			baseline := sha256.Sum256([]byte(strings.TrimSpace(string(baselineTree))))

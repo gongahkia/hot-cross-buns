@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -102,6 +103,7 @@ func configuredWorkService(provider, modelName, stateDir string, request *workru
 		if err != nil {
 			return workrun.Service{}, err
 		}
+		request.FilesystemProtected = []string{filepath.Dir(store.Path())}
 		executor.App = hotCrossBunsAppController{stateDir: stateDir, settings: store, request: request}
 	}
 	if request.BrowserSession != "" {

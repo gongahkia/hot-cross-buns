@@ -115,7 +115,7 @@ func Run(ctx context.Context, r Request) (result Result, err error) {
 	}
 	defer os.RemoveAll(trustedGit)
 	phase = "sandbox preparation"
-	prepared, err := prepareCLI(ctx, r.Config, directory, "", r.Config.Arguments(r.Edit), r.Edit, r.Scopes, key)
+	prepared, err := prepareCLI(ctx, r.Config, directory, "", r.Config.Arguments(r.Edit || r.Config.LiveFiles != nil && len(r.Config.LiveFiles.Write) > 0), r.Edit, r.Scopes, key)
 	if err != nil {
 		return result, err
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/codeexec"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
 	"github.com/gongahkia/hot-cross-buns/internal/desktop"
+	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
@@ -79,6 +80,9 @@ type Request struct {
 	UpdateContext        string
 	InputIDs             []string
 	ForegroundApp        bool
+	ApproveFilesystem    fileaccess.Decide `json:"-"`
+	FilesystemProtected  []string
+	files                *fileaccess.Task
 	LearnFromChats       bool
 	MaintainMemory       bool
 	DisableChatHistory   bool
@@ -235,6 +239,7 @@ type Outcome struct {
 // frozen source selected by a Work run. The implementation must isolate all
 // writes and return a reviewable patch rather than mutate SourcePath.
 type CodeRequest struct {
+	Filesystem  *fileaccess.Task
 	OnEvent     agent.EventSink
 	Budget      *agent.Budget
 	Baseline    []byte

@@ -15,8 +15,9 @@ import (
 )
 
 type Config struct {
-	AuthMode  string `json:"auth_mode,omitempty"`
-	CodexHome string `json:"codex_home,omitempty"`
+	LiveFiles *sandbox.LiveFilesystem `json:"-"`
+	AuthMode  string                  `json:"auth_mode,omitempty"`
+	CodexHome string                  `json:"codex_home,omitempty"`
 	// Credential resolves a host-owned credential for one invocation; it is never persisted.
 	Credential     func() (string, error) `json:"-"`
 	Kind           string                 `json:"kind"`

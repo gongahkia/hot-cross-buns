@@ -30,6 +30,18 @@ func prepareDarwin(ctx context.Context, root, scratch string, argv, environment 
 	}
 	readRoots = append(readRoots, commandRuntimeRoots(argv)...)
 	profile := darwinProfile(readRoots, writeRoots, policy.Network)
+	if policy.LiveFiles != nil {
+		// A broad folder/full grant must not authorize rewriting HCB's own reviews,
+		// permission policy, credentials or other workers' private sessions.
+		exceptions := append([]string{root, scratch}, policy.WritableRoots...)
+		for _, protected := range policy.LiveFiles.Protected {
+			predicate := `(require-all (subpath "` + escapeSBPL(protected) + `")`
+			for _, allowed := range exceptions {
+				predicate += ` (require-not (subpath "` + escapeSBPL(allowed) + `"))`
+			}
+			profile += "\n(deny file-read* " + predicate + "))\n(deny file-write* " + predicate + "))"
+		}
+	}
 	command := exec.CommandContext(ctx, sandboxExec, "-p", profile, "--", executable)
 	command.Args = append(command.Args, argv[1:]...)
 	command.Dir = root
@@ -152,6 +164,11 @@ func sandboxRoots(root, scratch string, policy Policy) ([]string, []string, erro
 	}
 	readRoots = append(readRoots, gitRead...)
 	writeRoots = append(writeRoots, gitWrite...)
+	if policy.LiveFiles != nil {
+		readRoots = append(readRoots, policy.LiveFiles.Read...)
+		readRoots = append(readRoots, policy.LiveFiles.Write...)
+		writeRoots = append(writeRoots, policy.LiveFiles.Write...)
+	}
 	readRoots = append(readRoots, policy.ReadOnlyRoots...)
 	readRoots = append(readRoots, policy.WritableRoots...)
 	writeRoots = append(writeRoots, policy.WritableRoots...)
