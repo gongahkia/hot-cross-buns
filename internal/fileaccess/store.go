@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +47,9 @@ func Open(stateDir string, protected ...string) (*Store, error) {
 		return nil, err
 	}
 	s := &Store{directory: filepath.Join(stateDir, "hot-cross-buns", "file-permissions"), protected: append([]string{filepath.Join(stateDir, "hot-cross-buns")}, protected...)}
+	if home, err := os.UserHomeDir(); err == nil {
+		s.protected = append(s.protected, filepath.Join(home, ".config", "hot-cross-buns"))
+	}
 	for i, p := range s.protected {
 		if !filepath.IsAbs(p) {
 			return nil, errors.New("protected filesystem paths must be absolute")
@@ -100,7 +102,7 @@ func (s *Store) load() (Policy, error) {
 	}
 	seen := map[string]bool{}
 	for _, g := range p.Grants {
-		if len(g.ID) != 32 || seen[g.ID] || !filepath.IsAbs(g.Root) || g.Root == string(filepath.Separator) || g.Identity == "" || (g.Access != "read" && g.Access != "write") {
+		if len(g.ID) != 32 || seen[g.ID] || !filepath.IsAbs(g.Root) || filepath.Dir(g.Root) == g.Root || g.Identity == "" || (g.Access != "read" && g.Access != "write") {
 			return p, errors.New("invalid saved folder grant")
 		}
 		seen[g.ID] = true
@@ -168,7 +170,7 @@ func (s *Store) Add(revision uint64, folder, access, identity string) (Policy, e
 	if err != nil {
 		return Policy{}, err
 	}
-	if root == string(filepath.Separator) {
+	if filepath.Dir(root) == root {
 		return Policy{}, errors.New("use the explicit full filesystem setting for root access")
 	}
 	if s.blocked(root) {
@@ -250,4 +252,3 @@ func Folder(path string) (string, string, error) {
 	identity, err := folderIdentity(root)
 	return root, identity, err
 }
-func (s *Store) String() string { return fmt.Sprint(s.directory) }

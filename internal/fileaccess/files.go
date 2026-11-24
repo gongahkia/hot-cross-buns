@@ -48,12 +48,18 @@ func (t *Task) open(path string) (*os.Root, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	info, err := root.Stat(".")
+	file, err := root.Open(".")
 	if err != nil {
 		root.Close()
 		return nil, "", err
 	}
-	if identityInfo(info) != selected.Identity {
+	identity, err := identityFile(file)
+	file.Close()
+	if err != nil {
+		root.Close()
+		return nil, "", err
+	}
+	if identity != selected.Identity {
 		root.Close()
 		return nil, "", errors.New("approved folder was replaced")
 	}
@@ -135,6 +141,9 @@ func (t *Task) Execute(ctx context.Context, operation, path, content, expected, 
 		out.Text = string(data)
 		out.SHA256 = hash(data)
 	case "list":
+		if info, err := root.Lstat(rel); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return out, errors.New("listing requires an ordinary directory; symlinks are unavailable")
+		}
 		file, err := root.Open(rel)
 		if err != nil {
 			return out, err

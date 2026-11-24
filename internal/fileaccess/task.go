@@ -134,7 +134,7 @@ func (t *Task) Access(ctx context.Context, path, access, operation, reason strin
 	}
 	folder := target
 	info, statErr := os.Lstat(folder)
-	if statErr != nil || !info.IsDir() {
+	if statErr != nil || !info.IsDir() || operation == "delete" {
 		folder = filepath.Dir(folder)
 	}
 	for {
@@ -153,7 +153,7 @@ func (t *Task) Access(ctx context.Context, path, access, operation, reason strin
 	if p.Full {
 		return target, remember(Grant{Root: folder, Identity: identity, Access: access})
 	}
-	if folder == string(filepath.Separator) {
+	if filepath.Dir(folder) == folder {
 		return "", errors.New("select full filesystem access in Settings before operating at the filesystem root")
 	}
 	if t.decide == nil {
