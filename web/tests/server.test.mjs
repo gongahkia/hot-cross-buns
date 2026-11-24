@@ -287,6 +287,22 @@ test("browser activity streams real tool outcomes and retains timing with the fi
     assert.ok(retained.activity.finished_at);
     assert.match(retained.text, /Fixture answer/);
     assert.equal(retained.activity.entries.filter(entry => entry.text?.includes("Fixture answer")).length, 0);
+    const requestContext = async body => {
+      const response = await fetch(app.url + '/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: app.url }, body: JSON.stringify({ op: 'answer-context', context: finished.context, ...body }) });
+      return { status: response.status, value: await response.json() };
+    };
+    const calls = app.payloads.length;
+    const inspected = await requestContext({ run: retained.run_id });
+    assert.equal(inspected.status, 200, JSON.stringify(inspected.value));
+    assert.equal(inspected.value.context.WorkID, retained.run_id);
+    assert.equal(inspected.value.context_error, undefined);
+    assert.match(inspected.value.references.find(reference => reference.locator === 'source/note.md').preview.text, /Private fixture note content/);
+    assert.equal(app.payloads.length, calls, 'inspection must not call the model');
+    assert.equal((await requestContext({ run: retained.run_id, context: 'conversation:other' })).status, 409);
+    const foreign = await requestContext({ run: 'run-foreign' });
+    assert.match(foreign.value.context_error, /answer’s conversation/);
+    assert.equal(foreign.value.context, undefined);
+    assert.equal((await fetch(app.url + '/answer-context.mjs')).status, 200);
   } finally { live.close(); await app.close(); }
 });
 

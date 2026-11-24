@@ -6,17 +6,18 @@ import "encoding/json"
 // the terminal frontend owns their visual presentation. Kind is one of
 // notice, details, list, report, preview, or approval.
 type Result struct {
-	Kind     string          `json:"kind"`
-	Title    string          `json:"title"`
-	Tone     string          `json:"tone,omitempty"`
-	Summary  string          `json:"summary,omitempty"`
-	Fields   []Field         `json:"fields,omitempty"`
-	Items    []ResultItem    `json:"items,omitempty"`
-	Sections []ResultSection `json:"sections,omitempty"`
-	Lines    []string        `json:"lines,omitempty"`
-	Markdown string          `json:"markdown,omitempty"`
-	Preview  json.RawMessage `json:"preview,omitempty"`
-	Footer   string          `json:"footer,omitempty"`
+	ContextRunID string          `json:"context_run_id,omitempty"`
+	Kind         string          `json:"kind"`
+	Title        string          `json:"title"`
+	Tone         string          `json:"tone,omitempty"`
+	Summary      string          `json:"summary,omitempty"`
+	Fields       []Field         `json:"fields,omitempty"`
+	Items        []ResultItem    `json:"items,omitempty"`
+	Sections     []ResultSection `json:"sections,omitempty"`
+	Lines        []string        `json:"lines,omitempty"`
+	Markdown     string          `json:"markdown,omitempty"`
+	Preview      json.RawMessage `json:"preview,omitempty"`
+	Footer       string          `json:"footer,omitempty"`
 }
 
 type Field struct {

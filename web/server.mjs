@@ -19,6 +19,7 @@ import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+  ["/answer-context.mjs", ["answer-context.mjs", "text/javascript; charset=utf-8"]],
   ["/voice.mjs", ["voice.mjs", "text/javascript; charset=utf-8"]],
   ["/voice-capture.mjs", ["voice-capture.mjs", "text/javascript; charset=utf-8"]],
   ["/voice-controller.mjs", ["voice-controller.mjs", "text/javascript; charset=utf-8"]],
@@ -432,6 +433,8 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         const handoff = await host.runExternal();
         if (handoff.error) throw new RequestError(409, handoff.error);
         return {};
+      case "answer-context":
+        return host.answerContext({ context, run: body.run });
       case "sources":
         return host.sourceCatalog({ context, run: body.run });
       case "source":

@@ -3,6 +3,7 @@ import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs
 import { brandIcon, setBrandIcon, providerBrand } from './brands.mjs';
 import { animateSurfaceHeight, viewTransition } from './surface-motion.mjs';
 import { element, prose, turn } from "./text.mjs";
+import { answerContextRun, answerContextView } from './answer-context.mjs';
 import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
 import { taskInspector, composerProgress } from "./task-inspector.mjs";
@@ -795,15 +796,15 @@ function download(label, ref, context) {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }));
 }
-function sources(run, context) {
-  return button("Sources", () => void execute(async () => {
-    const { references } = await call({ op: "sources", context, run });
-    const items = references.map(ref => button(ref.label, () => void execute(async () => {
-      const value = await call({ op: "source", context, run, path: "evidence:" + ref.id });
-      openDetail(ref.label, element("pre", value.text || value.lines?.join("\n") || JSON.stringify(value, null, 2)));
-    }), "quiet option"));
-    openDetail("Sources", ...(items.length ? items : [element("p", "No sources were retained.", "hint")]));
-  }));
+function contextSources(run, context) {
+  const action = button('Context and sources', () => {
+    const view = answerContextView({ request: () => call({ op: 'answer-context', context, run }),
+      current: () => snapshot.context === context && dialog.open && detail.contains(view.element) });
+    openDetail('Context and sources', view.element);
+    void view.load();
+  });
+  action.dataset.contextRun = run;
+  return action;
 }
 function renderTranscript(state) {
   const context = snapshot.context;
@@ -870,10 +871,11 @@ function renderTranscript(state) {
     article.dataset.fileRun = value.bundle?.RunID || value.run_id || '';
     article.dataset.messageId = 'message:' + (value.revision_id || value.run_id || value.created_at || '') + ':' + messages.indexOf(value);
     decorate(article);
-    if (value.result) meta.append(button(value.result.title || "Details", () => openDetail(value.result.title || "Details", describeResult(value.result))));
+    if (value.result && value.result.title !== 'Context and sources') meta.append(button(value.result.title || "Details", () => openDetail(value.result.title || "Details", describeResult(value.result))));
     for (const file of value.bundle?.Artifacts || []) if (file.Valid) meta.append(download(file.Path, { kind: "output", bundle: value.bundle.Path, path: file.Path }, context));
     for (const id of value.input_ids || []) meta.append(download(id.split("/").at(-1), { kind: "upload", id }, context));
-    if (value.bundle?.RunID) meta.append(sources(value.bundle.RunID, context));
+    const contextRun = answerContextRun(value);
+    if (contextRun && value.role !== 'You') meta.append(contextSources(contextRun, context));
     if (value.activity) {
       const key = context + ":" + (value.run_id || value.created_at || value.activity.started_at);
       if (value.activity.started_at && liveTraceKey === context + ":" + value.activity.started_at) {
@@ -893,7 +895,9 @@ function renderTranscript(state) {
     if (!value.text && response && meta.children.length) {
       let links = response.querySelector(".meta");
       if (!links) response.append(links = element("div", undefined, "meta"));
-      links.append(...meta.children);
+      for (const child of [...meta.children]) {
+        if (!child.dataset.contextRun || ![...links.children].some(link => link.dataset.contextRun === child.dataset.contextRun)) links.append(child);
+      }
     } else {
       if (meta.children.length) article.append(meta);
       if (article.childNodes.length) nodes.push(article);

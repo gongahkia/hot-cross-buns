@@ -240,7 +240,7 @@ func (m Model) contextPanel() uisnapshot.Panel {
 }
 
 func contextLink(workID string) *uisnapshot.Result {
-	return &uisnapshot.Result{Kind: "notice", Title: "Context and sources", Summary: "Inspect supplied saved context, source references, and usage.", Footer: "/context " + strings.TrimSpace(workID) + " · /followup to keep tracking this work"}
+	return &uisnapshot.Result{Kind: "notice", Title: "Context and sources", ContextRunID: strings.TrimSpace(workID), Summary: "Inspect supplied saved context, source references, and usage.", Footer: "/context " + strings.TrimSpace(workID) + " · /followup to keep tracking this work"}
 }
 
 func knowledgeScope(scope, goalID string) string {

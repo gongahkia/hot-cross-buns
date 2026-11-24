@@ -61,6 +61,16 @@ p code, li code { padding: .05rem .25rem; background: var(--wash); border-radius
 #status { margin: .5rem 0; }
 .meta, .work-actions, .review-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .8rem; }
 .meta button { padding-inline: .15rem; text-decoration: underline; text-underline-offset: .18em; }
+.answer-context { overflow-wrap: anywhere; }
+.answer-context h3 { margin: 1.5rem 0 .65rem; }
+.context-entry + .context-entry { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.context-entry h4 { margin: 0 0 .35rem; font-size: 1rem; }
+.context-entry p { margin: .35rem 0; }
+.context-excerpt { white-space: pre-wrap; }
+.source-excerpt { max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.context-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem .8rem; font-size: .875rem; }
+.context-facts dt { color: var(--muted); }
+.context-facts dd { margin: 0; }
 .work-actions { border-top: 1px solid var(--line); padding-top: .55rem; margin-block: .6rem; }
 summary { cursor: pointer; }
 details ul { color: var(--muted); }

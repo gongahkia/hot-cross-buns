@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -35,6 +35,41 @@ test('Plan is scoped to active retained planning rather than draft preferences o
   assert.equal(currentPlan({plans:[{id:'old',state:'completed',phase:'finished'}]}),null);
   assert.equal(currentPlan({plans:[{id:'current',state:'queued',phase:'review'}]}).plan.id,'current');
   assert.equal(currentPlan({peers:[{conversation_id:'child',plan_phase:'preparing'}]}).conversation,'child');
+});
+
+test('answer context opens with actual saved text and source excerpts without command hints or extra clicks', async () => {
+  const view = answerContextView({ request: async () => ({ context: { Outcome: 'Review the config', Usage: '2 model requests', Items: [{ Title: 'Preferences', Text: 'Use Neovim\nKeep existing keymaps', Updated: 'Supplied at run start' }] }, references: [{ label: 'init.lua', locator: 'source/init.lua', preview: { text: 'vim.opt.number = true\n<script>bad()</script>' } }] }) });
+  document.body.append(view.element);
+  await view.load();
+  assert.match(view.element.textContent, /Use Neovim\nKeep existing keymaps/);
+  assert.match(view.element.textContent, /vim.opt.number = true/);
+  assert.match(view.element.textContent, /Supplied at run start/);
+  assert.equal(view.element.querySelectorAll('button').length, 0);
+  assert.equal(view.element.querySelector('script'), null);
+  assert.doesNotMatch(view.element.textContent, /\/context|\/followup/);
+  assert.equal(view.element.hasAttribute('aria-busy'), false);
+  view.element.remove();
+  assert.equal(answerContextRun({ result: { title: 'Context and sources', footer: '/context work-old · /followup' } }), 'work-old');
+  assert.equal(answerContextRun({ result: { context_run_id: 'work-earlier' }, run_id: 'work-later' }), 'work-earlier');
+  assert.equal(answerContextRun({ bundle: { RunID: 'work-bundle' } }), 'work-bundle');
+});
+
+test('answer context has honest empty, partial failure, retry and stale-view states', async () => {
+  let attempts = 0;
+  const view = answerContextView({ request: async () => { if (++attempts === 1) throw Error('Connection closed.'); return { references: [], context: { Items: [] } }; } });
+  document.body.append(view.element); await view.load();
+  assert.match(view.element.querySelector('[role=alert]').textContent, /Connection closed/);
+  view.element.querySelector('button').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(attempts, 2);
+  assert.match(view.element.textContent, /No saved context was recorded/);
+  assert.match(view.element.textContent, /No source excerpts were retained/);
+  const partial = answerContextView({ request: async () => ({ context_error: 'Historical context unavailable.', references: [{ label: 'note.md', locator: 'source/note.md', error: 'Retained bytes changed.' }] }) });
+  await partial.load();
+  assert.match(partial.element.textContent, /Historical context unavailable/);
+  assert.match(partial.element.textContent, /Retained bytes changed/);
+  const stale = answerContextView({ current: () => false, request: async () => ({ context: { Outcome: 'Do not render in another chat' } }) });
+  await stale.load(); assert.doesNotMatch(stale.element.textContent, /Do not render/);
+  view.element.remove();
 });
 
 test('the detailed Models view separates orchestrator choices from native and CLI assignments',async()=>{
