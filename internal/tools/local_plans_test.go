@@ -19,7 +19,7 @@ func TestMainChatPlanChangesRequireInspectionAndRespectGoalIsolation(t *testing.
 	plan, _ := goals.InitializePlan(first.ID, "Prepare", []string{"Draft"})
 	plans := &LocalPlans{Store: goals, AllowGlobal: true}
 	propose := SuggestChange{Store: queue, Plans: plans, WorkID: "test"}
-	raw, _ := json.Marshal(map[string]any{"kind": "plan", "goal_id": first.ID, "plan_change": goal.PlanChange{Kind: "update_step", ExpectedRevision: plan.Revision, StepID: plan.Steps[0].ID, Status: goal.StepDoing}})
+	raw, _ := json.Marshal(map[string]any{"kind": "plan", "goal_id": first.ID, "plan_change": map[string]any{"kind": "update_step", "expected_revision": plan.Revision, "step_id": plan.Steps[0].ID, "status": goal.StepDoing, "dependency_action": "preserve"}})
 	if _, err := propose.Execute(context.Background(), raw); err == nil {
 		t.Fatal("uninspected plan change accepted")
 	}
