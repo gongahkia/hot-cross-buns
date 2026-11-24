@@ -214,6 +214,11 @@ func (r Runtime) PrepareAction(connectorID, operationID string, input json.RawMe
 			return PreparedAction{}, err
 		}
 	}
+	if descriptor.Kind == KindGoogle && strings.HasPrefix(operation.ID, "calendar_event_") {
+		if _, err := decodeCalendarWrite(operation.ID, payload, true); err != nil {
+			return PreparedAction{}, err
+		}
+	}
 	var gmailAttachments []gmailAttachment
 	if descriptor.Kind == KindGoogle && operation.ID == "gmail_send" {
 		payload, gmailAttachments, err = r.prepareGmailAttachments(payload)
@@ -372,6 +377,10 @@ func (r Runtime) ExecutePreparedWithEvidence(ctx context.Context, mode action.Mo
 func googleActionResourceID(operation, expectedID string, response json.RawMessage) (string, error) {
 	field := ""
 	switch operation {
+	case "calendar_event_create", "calendar_event_update":
+		field = "id"
+	case "calendar_event_delete":
+		return expectedID, nil
 	case "docs_create", "docs_update":
 		field = "documentId"
 	case "sheets_create", "sheets_values_update", "sheets_batch_update":
@@ -395,6 +404,9 @@ func googleActionResourceID(operation, expectedID string, response json.RawMessa
 
 func expectedGoogleActionResourceID(operation string, payload []byte) (string, error) {
 	switch operation {
+	case "calendar_event_update", "calendar_event_delete":
+		value, err := decodeCalendarWrite(operation, payload, true)
+		return value.EventID, err
 	case "docs_update", "sheets_batch_update", "sheets_values_update":
 		id, _, err := extractResourceID(payload)
 		if err != nil {
@@ -447,14 +459,17 @@ func (r Runtime) invokeRemoteMCP(ctx context.Context, descriptor Descriptor, ope
 }
 
 type serviceInput struct {
-	Query      string          `json:"query,omitempty"`
-	ResourceID string          `json:"resource_id,omitempty"`
-	Cursor     string          `json:"cursor,omitempty"`
-	Limit      int             `json:"limit,omitempty"`
-	Payload    json.RawMessage `json:"payload,omitempty"`
-	Fields     string          `json:"fields,omitempty"`
-	TimeMin    string          `json:"time_min,omitempty"`
-	TimeMax    string          `json:"time_max,omitempty"`
+	CalendarID  string          `json:"calendar_id,omitempty"`
+	EventID     string          `json:"event_id,omitempty"`
+	CalendarIDs []string        `json:"calendar_ids,omitempty"`
+	Query       string          `json:"query,omitempty"`
+	ResourceID  string          `json:"resource_id,omitempty"`
+	Cursor      string          `json:"cursor,omitempty"`
+	Limit       int             `json:"limit,omitempty"`
+	Payload     json.RawMessage `json:"payload,omitempty"`
+	Fields      string          `json:"fields,omitempty"`
+	TimeMin     string          `json:"time_min,omitempty"`
+	TimeMax     string          `json:"time_max,omitempty"`
 }
 
 func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, operation Operation, raw json.RawMessage) (Result, error) {
@@ -485,6 +500,9 @@ func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, opera
 }
 
 func serviceRead(descriptor Descriptor, operation string, input serviceInput) (string, string, []byte, error) {
+	if descriptor.Kind == KindGoogle && strings.HasPrefix(operation, "calendar_") {
+		return calendarRead(descriptor, operation, input)
+	}
 	query := url.Values{}
 	path := ""
 	method := http.MethodGet
@@ -642,6 +660,8 @@ func serviceAction(descriptor Descriptor, operation string, payload []byte, corr
 		path = "/chat.postMessage"
 	case KindSlack + "/update_message":
 		path = "/chat.update"
+	case KindGoogle + "/calendar_event_create", KindGoogle + "/calendar_event_update", KindGoogle + "/calendar_event_delete":
+		return calendarAction(descriptor, operation, payload)
 	case KindGoogle + "/docs_create":
 		path = "/v1/documents"
 	case KindGoogle + "/docs_update":
@@ -711,8 +731,10 @@ func serviceAction(descriptor Descriptor, operation string, payload []byte, corr
 
 func serviceActionMethod(descriptor Descriptor, operation string) string {
 	switch descriptor.Kind + "/" + operation {
-	case KindNotion + "/page_update":
+	case KindNotion + "/page_update", KindGoogle + "/calendar_event_update":
 		return http.MethodPatch
+	case KindGoogle + "/calendar_event_delete":
+		return http.MethodDelete
 	case KindGoogle + "/sheets_values_update":
 		return http.MethodPut
 	default:
@@ -948,6 +970,9 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 			return Result{}, action.MarkUncertain(err)
 		}
 		return Result{}, err
+	}
+	if descriptor.Kind == KindGoogle && operation == "calendar_event_delete" && response.StatusCode != http.StatusNoContent {
+		return Result{}, action.MarkUncertain(errors.New("Calendar did not confirm deletion with HTTP 204; inspect the event before retrying"))
 	}
 	if len(contents) == 0 {
 		contents = []byte(`{}`)

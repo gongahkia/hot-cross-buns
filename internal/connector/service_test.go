@@ -467,7 +467,7 @@ func TestRemoteMCPRequiresTypedMapping(t *testing.T) {
 	}
 }
 
-func TestRetiredGoogleCalendarCannotSendRequestsEvenWithLegacyGrant(t *testing.T) {
+func TestGoogleCalendarRequiresBoundedSelectionEvenWithLegacyGrant(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++; w.WriteHeader(500) }))
 	defer server.Close()
@@ -478,11 +478,11 @@ func TestRetiredGoogleCalendarCannotSendRequestsEvenWithLegacyGrant(t *testing.T
 	}
 	runtime := Runtime{Registry: registry, HTTPClient: server.Client()}
 	_, err = runtime.Invoke(context.Background(), action.Inspect, "google", "calendar_events", json.RawMessage(`{}`))
-	if err == nil || !strings.Contains(err.Error(), "support was removed") || requests != 0 {
-		t.Fatalf("retired read: requests=%d, err=%v", requests, err)
+	if err == nil || !strings.Contains(err.Error(), "calendar_id") || requests != 0 {
+		t.Fatalf("unselected calendar read: requests=%d, err=%v", requests, err)
 	}
 	if _, _, _, err := serviceRead(descriptor, "calendar_events", serviceInput{}); err == nil {
-		t.Fatal("retired endpoint still routable")
+		t.Fatal("calendar endpoint accepted missing target and time bounds")
 	}
 }
 

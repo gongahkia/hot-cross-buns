@@ -23,6 +23,13 @@
     "sheets_values_update",
     "sheets_batch_update",
     "gmail_send",
-    "batch"
+    "batch",
+    "calendar_list",
+    "calendar_events",
+    "calendar_event_get",
+    "calendar_freebusy",
+    "calendar_event_create",
+    "calendar_event_update",
+    "calendar_event_delete"
   ]
 }

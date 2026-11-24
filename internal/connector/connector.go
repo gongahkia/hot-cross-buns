@@ -227,7 +227,7 @@ func (d Descriptor) Operations() []Operation {
 			{"update_message", "Prepare an update to one Slack message for exact approval.", action.ConnectedMutate},
 		})
 	case KindGoogle:
-		operations := googleOperations()
+		operations := append(googleOperations(), calendarOperations()...)
 		if d.Authentication != AuthOAuth {
 			return operations
 		}
@@ -237,6 +237,9 @@ func (d Descriptor) Operations() []Operation {
 		}
 		filtered := operations[:0]
 		for _, operation := range operations {
+			if !calendarScopeAllows(operation.ID, granted) {
+				continue
+			}
 			if (operation.ID == "gmail_list" || operation.ID == "gmail_get" || operation.ID == "gmail_thread_get") && !granted["https://www.googleapis.com/auth/gmail.readonly"] {
 				continue
 			}
@@ -381,9 +384,6 @@ func (r Registry) Operation(connectorID, operationID string) (Descriptor, Operat
 	descriptor, found := r.Get(connectorID)
 	if !found {
 		return Descriptor{}, Operation{}, fmt.Errorf("connector %q is not configured", connectorID)
-	}
-	if descriptor.Kind == KindGoogle && operationID == "calendar_events" {
-		return Descriptor{}, Operation{}, errors.New("Google Calendar support was removed; replace this source with Hot Cross Buns's local plan dates")
 	}
 	for _, operation := range descriptor.Operations() {
 		if operation.ID == operationID {
