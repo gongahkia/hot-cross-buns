@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "date": "2026-11-24",
+  "features": {
+    "local_models": "Explicitly granted text-browser tools, with screenshots excluded for text-only models",
+    "calendar_operations": [
+      "calendar_list",
+      "calendar_events",
+      "calendar_event_get",
+      "calendar_freebusy",
+      "calendar_event_create",
+      "calendar_event_update",
+      "calendar_event_delete"
+    ],
+    "calendar_consent": "Separate read and event-write upgrades; existing local account kept until successful consent"
+  },
+  "verification": {
+    "full_check": {
+      "go_test_all": true,
+      "go_vet_all": true,
+      "browser_tests": 120,
+      "host_tests": 142,
+      "oauth_build_tests": 1
+    },
+    "committed_snapshot": "bee2b8a1c",
+    "committed_focused_tests": true,
+    "committed_runtime_build": true,
+    "committed_browser_route_test": true,
+    "focused_race_tests": true,
+    "chromium": {
+      "initial_attempt": "Timed out after 480 seconds while installing Chromium; owned installer processes were stopped",
+      "node26_download_diagnostic": "Stopped at the 35-second diagnostic limit",
+      "node20_pinned_install": "Passed",
+      "node26_preinstalled_runtime_integration": "Passed in 3.26 seconds"
+    },
+    "source_design_scan": "No findings; source-only scan without visual/layout acceptance",
+    "application_browser_runtime": {
+      "installed": true,
+      "node_used_for_install": "20.19.5",
+      "sessions_opened": 0,
+      "tabs_or_accounts_granted": 0
+    }
+  },
+  "live_unverified": [
+    "Installed local-model structured tool-call behavior: no local Ollama server was running",
+    "Real Google Calendar OAuth consent and account/event operations: no Google account was connected"
+  ],
+  "remaining_boundaries": [
+    "Arbitrary desktop/CUA remains on its existing supported model/desktop grant route",
+    "Calendar-specific change-only watches remain unsupported",
+    "Calendar ACL administration, calendar creation/deletion, recurring-series creation and Google Tasks are not added"
+  ]
+}
