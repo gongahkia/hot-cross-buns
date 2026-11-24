@@ -417,6 +417,7 @@ type Model struct {
 	nativeProviderResult      *modelcatalog.NativeProviderResult
 	nativeWorkspacePending    string
 	nativeWorkspaceResult     *NativeWorkspaceResult
+	contextInspectResult      *ContextInspectResult
 	nativeCatalog             *nativeCatalogState
 	conversationLoadIssue     string
 	nativeCatalogQueryResult  *NativeCatalogResult

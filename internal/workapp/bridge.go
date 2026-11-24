@@ -23,6 +23,7 @@ import (
 // BridgeState is a display-only projection for the desktop.
 // The Go model remains the sole owner of commands, runs, approvals and history.
 type BridgeState struct {
+	ContextInspectResult      *ContextInspectResult              `json:"context_inspect_result,omitempty"`
 	CanCorrectAction          bool                               `json:"can_correct_action"`
 	CanRevisePlans            []string                           `json:"can_revise_plans,omitempty"`
 	PersonalMemoryResult      *personalization.CatalogResult     `json:"personal_memory_result,omitempty"`
@@ -232,6 +233,7 @@ func (m Model) BridgeState() BridgeState {
 	desktop := m.desktop
 	desktop.Shortcuts = m.desktop.ResolvedShortcuts()
 	state := BridgeState{
+		ContextInspectResult:     m.contextInspectResult,
 		CanCorrectAction:         m.bridgeCanCorrectAction(),
 		PersonalMemoryResult:     m.personalMemoryResult,
 		NativeProviderResult:     m.nativeProviderResult,

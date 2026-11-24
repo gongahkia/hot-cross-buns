@@ -131,6 +131,12 @@ export class Backend extends EventEmitter {
     return this.state.native_workspace_result;
   }
 
+  async inspectContext(action) {
+    await this.#waitForState(state => state.context_inspect_result?.request_id === action.request_id,
+      () => this.#write({ version: 1, type: 'context_inspect', context_inspect: action }), 15000);
+    return this.state.context_inspect_result;
+  }
+
   async check(action) {
     await this.#waitForState(state => state.check_result?.request_id === action.request_id,
       () => this.send({ type: "check", check: action }), 15000);

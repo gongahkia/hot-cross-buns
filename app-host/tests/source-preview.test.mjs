@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { sourcePreview, sourceCatalog } from "../src/source-preview.mjs";
+import { answerContext } from '../src/answer-context.mjs';
 const hash = text => createHash("sha256").update(text).digest("hex");
 async function fixture(run) {
   const root = await mkdtemp(join(tmpdir(), "hot-cross-buns-source-preview-")), path = join(root, "bundle"), text = "Title\nOwner: Mina\nDeadline: Friday\nBudget: unapproved\n";
@@ -77,6 +78,40 @@ async function replaceEvidence(f, entries) {
  const manifest=JSON.stringify({run_id:"run-one",evidence:entries});
  await writeFile(join(f.path,"manifest.json"),manifest);f.state.messages[0].bundle.ManifestSHA256=hash(manifest);
 }
+test('answer context includes actual excerpts and preserves context when one source is damaged', () => fixture(async f => {
+  await replaceEvidence(f, [{ id: 'note', locator: 'source/project.md', sha256: hash(f.text), snapshot_path: f.file }]);
+  const owner = { state: f.state, stateRoot: f.root, current: () => true };
+  const context = { WorkID: 'run-one', Items: [{ Text: 'Context supplied at run start' }] };
+  const inspect = async run => { assert.equal(run, 'run-one'); return { context }; };
+  const request = { context: f.request.context, run: 'run-one' };
+  const result = await answerContext(request, owner, inspect);
+  assert.equal(result.context, context);
+  assert.equal(result.references[0].preview.text, f.text);
+  await writeFile(join(f.path, f.file), 'tampered');
+  const partial = await answerContext(request, owner, inspect);
+  assert.equal(partial.context, context);
+  assert.match(partial.references[0].error, /changed/);
+  assert.equal(partial.references[0].preview, undefined);
+  let reads = 0;
+  await assert.rejects(answerContext({ ...request, context: 'conversation:foreign' }, owner, async () => { reads++; }));
+  assert.equal(reads, 0);
+  owner.current = () => reads++ === 0;
+  await assert.rejects(answerContext(request, owner, inspect), /conversation changed/);
+}));
+test('an omitted evidence field is an empty source list, while malformed evidence and foreign runs are rejected', () => fixture(async f => {
+  const request = { context: f.request.context, run: 'run-one' };
+  const owner = { state: f.state, stateRoot: f.root, current: () => true };
+  const replace = async manifest => { const text = JSON.stringify(manifest); await writeFile(join(f.path, 'manifest.json'), text); f.state.messages[0].bundle.ManifestSHA256 = hash(text); };
+  await replace({ run_id: 'run-one' });
+  assert.deepEqual((await sourceCatalog(request, owner)).references, []);
+  const result = await answerContext(request, owner, async () => ({ error: 'Context no longer retained.' }));
+  assert.equal(result.context_error, 'Context no longer retained.');
+  assert.equal(result.sources_error, undefined);
+  for (const manifest of [{ run_id: 'run-one', evidence: null }, { run_id: 'run-other' }]) {
+    await replace(manifest);
+    await assert.rejects(sourceCatalog(request, owner), /another answer/);
+  }
+}));
 test("citation metadata supports retained web and connected evidence without native configuration",()=>fixture(async f=>{
  const entries=[{id:"web-one",locator:"https://example.com/report",sha256:hash(f.text),snapshot_path:f.file,retrieved_at:"2026-11-01T01:00:00Z"},{id:"connected-one",locator:"connector:reports/fetch",sha256:hash(f.text),snapshot_path:f.file}];
  await replaceEvidence(f,entries);

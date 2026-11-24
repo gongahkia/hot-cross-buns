@@ -27,8 +27,8 @@ async function retainedManifest(request, {state,current}) {
   const raw = await readBoundedFile(bundle.Path, "manifest.json", 2 * 1024 * 1024);
   if (hash(raw) !== bundle.ManifestSHA256) throw new Error("The retained source manifest has changed.");
   const manifest = JSON.parse(raw);
-  if (manifest.run_id !== request.run || !Array.isArray(manifest.evidence)) throw new Error("The source belongs to another answer or its evidence is unavailable.");
-  return {bundle,entries:manifest.evidence};
+  if (manifest.run_id !== request.run || manifest.evidence !== undefined && !Array.isArray(manifest.evidence)) throw new Error("The source belongs to another answer or its evidence is unavailable.");
+  return {bundle,entries:manifest.evidence ?? []};
 }
 // Metadata comes only from the sealed manifest. No source/network/model fetch.
 export async function sourceCatalog(request, {state,current=()=>true}) {

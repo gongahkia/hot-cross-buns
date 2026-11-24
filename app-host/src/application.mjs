@@ -18,6 +18,7 @@ import { importPastedImages } from "./pasted-images.mjs";
 import { helper } from "./native.mjs";
 import { ExportStore } from "./export.mjs";
 import { sourceCatalog, sourcePreview } from "./source-preview.mjs";
+import { answerContext } from './answer-context.mjs';
 import { codePreview } from "./code-preview.mjs";
 import { TerminalPreferences } from "./terminal-preferences.mjs";
 import { ReadingStore } from "./reading-state.mjs";
@@ -154,6 +155,10 @@ export class Application extends EventEmitter {
   }
   sourceCatalog(request) { return sourceCatalog(request, this.evidenceOwner(request?.context)); }
   sourcePreview(request) { return sourcePreview(request, this.evidenceOwner(request?.context)); }
+  answerContext(request) {
+    const owner = this.evidenceOwner(request?.context), backend = this.backend;
+    return answerContext(request, owner, run => backend.inspectContext({ request_id: randomUUID(), run_id: run }));
+  }
   codePreview(request) { return codePreview(request, this.evidenceOwner(request?.context)); }
   async reviewExport(destination) { this.mutable(); return this.exports.review(destination); }
   async exportFile(request, destination, review) {

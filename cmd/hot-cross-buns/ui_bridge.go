@@ -18,6 +18,7 @@ import (
 )
 
 type uiFrame struct {
+	ContextInspect         *workapp.ContextInspectAction      `json:"context_inspect,omitempty"`
 	PersonalMemory         *personalization.CatalogAction     `json:"personal_memory,omitempty"`
 	NativeProvider         *modelcatalog.NativeProviderAction `json:"native_provider,omitempty"`
 	NativeWorkspace        *workapp.NativeWorkspaceAction     `json:"native_workspace,omitempty"`
@@ -77,6 +78,11 @@ func (m *uiBridgeModel) Update(value tea.Msg) (tea.Model, tea.Cmd) {
 	switch frame := value.(type) {
 	case uiFrame:
 		switch frame.Type {
+		case "context_inspect":
+			if frame.ContextInspect == nil {
+				return m, nil
+			}
+			next, command = m.model.InspectContext(*frame.ContextInspect)
 		case "personal_memory":
 			if frame.PersonalMemory == nil {
 				return m, nil
