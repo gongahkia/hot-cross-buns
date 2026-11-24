@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "date": "2026-11-24",
+  "feature": "macOS selected-app accessibility computer access",
+  "full_project_check": {
+    "status": "passed",
+    "command": "make check",
+    "node": "26.7.0",
+    "canonical_macos_tmpdir": true,
+    "go_tests": "passed",
+    "go_vet": "passed",
+    "web_tests": 122,
+    "host_tests": 142,
+    "oauth_build_tests": 1
+  },
+  "focused_race": "passed",
+  "cgo_disabled_controller_tests": "passed",
+  "text_model_fixture": "passed; deterministic tool calls and fake AX runtime",
+  "native_protocol_consent_fixture": "passed",
+  "native_fixture_syntax": "passed; Apple Clang",
+  "native_acceptance": {
+    "status": "skipped",
+    "reason": "No access: AXIsProcessTrusted returned false",
+    "existing_app_content_read": false,
+    "existing_app_actions_dispatched": false
+  },
+  "committed_snapshot": {
+    "commit": "5c03e6c0b",
+    "desktop_tools_workrun_workapp_tests": "passed",
+    "runtime_build": "passed",
+    "settings_test": "passed",
+    "command_tests_ambient_config": "failed: 13 tests; earlier uncommitted Codex login config not supported by snapshot",
+    "command_tests_isolated_config": "passed"
+  },
+  "local_servers": {
+    "4317": "HTTP 200; connected; Computer access served",
+    "4318": "HTTP 200; connected; Computer access served"
+  },
+  "live_local_model": "not exercised",
+  "real_app_compatibility": "unverified",
+  "rendered_visual_acceptance": "not performed; existing Settings and control-panel components reused",
+  "os_permissions_changed": false,
+  "external_actions_sent": false,
+  "verification_log": "/tmp/hcb-computer-complete-check.log"
+}

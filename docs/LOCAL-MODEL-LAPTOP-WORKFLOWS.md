@@ -16,7 +16,7 @@ A useful first task is to read a selected project folder and an approved project
 
 The browser controller continues to enforce origin and selected-tab policy. The model receives no arbitrary JavaScript execution, cookies, storage, browser-profile paths or arbitrary local uploads. Task grants remain bound to the reviewed browser policy. Explicit per-request browser opt-outs are preserved.
 
-This enables browser workflows for local models; it does not add arbitrary OS/app control. The separate screenshot-based desktop/CUA path still requires its supported OpenAI computer-use model and desktop grant. A user-facing localhost preview also remains separate from agent browser authority.
+Local models can also use [macOS computer access](COMPUTER-ACCESS.md) through bounded accessibility text and reviewed control references. It needs a separate app/session grant; a browser grant does not authorize desktop access. The screenshot-based desktop/CUA protocol still requires its supported OpenAI adapter and retention consent. A user-facing localhost preview remains separate from agent browser authority.
 
 Connected services are independent capabilities. For Calendar, see [Google Calendar](GOOGLE-CALENDAR.md). Local inference does not mean connected tools stop contacting their configured services.
 
