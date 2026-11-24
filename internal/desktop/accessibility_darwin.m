@@ -120,7 +120,9 @@ int hcb_desktop_accessibility_perform(int pid,double x,double y,double width,dou
   for(int i=0;i<count;i++){
     CFArrayRef children=NULL;
     if(path[i]<0 || path[i]>4096 || AXUIElementCopyAttributeValues(target,kAXChildrenAttribute,path[i],1,&children)!=kAXErrorSuccess || !children || CFArrayGetCount(children)!=1){if(children)CFRelease(children);CFRelease(target);CFRelease(root);return 2;}
-    AXUIElementRef next=(AXUIElementRef)CFArrayGetValueAtIndex(children,0);CFRetain(next);CFRelease(target);target=next;CFRelease(children);
+    AXUIElementRef next=(AXUIElementRef)CFArrayGetValueAtIndex(children,0);
+    if(CFGetTypeID(next)!=AXUIElementGetTypeID()){CFRelease(children);CFRelease(target);CFRelease(root);return 2;}
+    CFRetain(next);CFRelease(target);target=next;CFRelease(children);
   }
   BOOL allowed=NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier==pid;
   CFTypeRef focused=NULL;AXUIElementRef app=AXUIElementCreateApplication(pid);
