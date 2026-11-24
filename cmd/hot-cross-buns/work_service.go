@@ -17,6 +17,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/browser"
 	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/desktop"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
 	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"github.com/gongahkia/hot-cross-buns/internal/learning"
@@ -129,6 +130,24 @@ func configuredWorkService(provider, modelName, stateDir string, request *workru
 			return workrun.Service{}, errors.New("Work browser session has no developer-selected tabs")
 		}
 		executor.Browser = client
+	}
+	if request.DesktopSession != "" {
+		if request.DesktopPolicy == "" {
+			return workrun.Service{}, errors.New("computer access needs a reviewed next-task grant")
+		}
+		store, err := desktop.Open(stateDir)
+		if err != nil {
+			return workrun.Service{}, err
+		}
+		controller, err := desktop.NewController(store, desktop.DefaultRuntime())
+		if err != nil {
+			return workrun.Service{}, err
+		}
+		controller = controller.Reviewed(request.DesktopPolicy)
+		if _, err = controller.Session(context.Background(), request.DesktopSession); err != nil {
+			return workrun.Service{}, err
+		}
+		executor.Desktop = controller
 	}
 	if native, ok := backend.(*nativeWorkBackend); ok {
 		executor.Code = native.codeDelegate(stateDir)

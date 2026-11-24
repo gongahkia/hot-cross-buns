@@ -601,25 +601,39 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 			Policy:     browserPolicy,
 		})...)
 	}
+	accessibilityDesktop := false
 	if request.DesktopSession != "" {
 		if e.Desktop == nil {
 			return outcome, errors.New("Work desktop session is unavailable on this local runtime")
 		}
-		desktopSession, err := e.Desktop.Session(ctx, request.DesktopSession)
+		controller := e.Desktop
+		if request.DesktopPolicy != "" {
+			controller = controller.Reviewed(request.DesktopPolicy)
+		}
+		session, err := controller.Session(ctx, request.DesktopSession)
 		if err != nil {
 			return outcome, fmt.Errorf("load Work desktop session: %w", err)
 		}
-		if computer, ok := e.Model.(agent.ComputerUseModel); !ok {
-			return outcome, errors.New("Work desktop control requires an explicitly configured OpenAI computer-use model")
-		} else if _, enabled := computer.ComputerUse(); !enabled {
-			return outcome, errors.New("selected model is not enabled for OpenAI computer use")
+		policy := tools.CommandPolicy{Approve: request.ApproveDesktop, OnEvent: func(event agent.Event) { event.At = now(); emit(event) }}
+		options := tools.DesktopSessionOptions{SessionID: request.DesktopSession, Controller: controller, Policy: policy, ApprovedApplications: session.Apps}
+		nativeComputer := false
+		if computer, ok := e.Model.(agent.ComputerUseModel); ok {
+			_, nativeComputer = computer.ComputerUse()
 		}
-		desktopPolicy := tools.CommandPolicy{Approve: request.ApproveDesktop, OnEvent: func(event agent.Event) { event.At = now(); emit(event) }}
-		surface = append(surface, tools.ComputerAction{SessionID: request.DesktopSession, Controller: e.Desktop, Policy: desktopPolicy})
-		if activate := tools.DesktopActivationTool(tools.DesktopSessionOptions{SessionID: request.DesktopSession, Controller: e.Desktop, Policy: desktopPolicy, ApprovedApplications: desktopSession.Apps}); activate != nil {
-			surface = append(surface, activate)
+		if nativeComputer {
+			if !session.RetainProviderState {
+				return outcome, errors.New("native computer use requires explicit provider-state retention consent")
+			}
+			surface = append(surface, tools.ComputerAction{SessionID: request.DesktopSession, Controller: controller, Policy: policy}, tools.DesktopActivationTool(options))
+		} else {
+			if !controller.AccessibilityAvailable() {
+				return outcome, errors.New("this desktop runtime has no native accessibility driver")
+			}
+			accessibilityDesktop = true
+			surface = append(surface, tools.DesktopAccessibilityTools(options)...)
 		}
 	}
+
 	subagents := make([]artifact.SubagentEvidence, 0, 8)
 	integration := &codeIntegration{request: request, work: work, patches: map[string]string{}, accepted: map[string]string{}}
 	for path, hash := range parent.AcceptedCode {
@@ -696,6 +710,20 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		check = func(messages []agent.Message) error {
 			if err := directCode.Check(); err != nil {
 				return err
+			}
+			if previousCheck != nil {
+				return previousCheck(messages)
+			}
+			return nil
+		}
+	}
+
+	desktopNeedsVerification := false
+	if accessibilityDesktop {
+		previousCheck := check
+		check = func(messages []agent.Message) error {
+			if desktopNeedsVerification {
+				return errors.New("read desktop_snapshot after the last desktop action and verify the actual outcome before finishing")
 			}
 			if previousCheck != nil {
 				return previousCheck(messages)
@@ -812,7 +840,15 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	}
 	result, runErr := runner.Run(ctx, agent.RunOptions{
 		BeforeTool: beforeTool,
-		AfterTool: func(_ context.Context, call agent.ToolCall, _ agent.ToolResult, _ error) error {
+		AfterTool: func(_ context.Context, call agent.ToolCall, _ agent.ToolResult, toolErr error) error {
+			if accessibilityDesktop && toolErr == nil {
+				switch call.Name {
+				case "desktop_action", "desktop_activate":
+					desktopNeedsVerification = true
+				case "desktop_snapshot":
+					desktopNeedsVerification = false
+				}
+			}
 			tool, ok := registeredRecoveryTools[call.Name]
 			if !ok {
 				readOnlyAttempt = false

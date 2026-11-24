@@ -146,8 +146,10 @@ func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
 		return nil, errors.New("this dynamic coding integration is not supported by plan-first scope checking")
 	case "code_open", "code_read_file", "code_list_files", "code_search_files", "code_apply_patch", "code_run_command", "code_git_status", "code_git_diff", "code_stage", "code_terminal_start", "code_terminal_read", "code_terminal_write", "code_terminal_stop", "code_terminal_list", "code_terminal_detach", "complete_code", "integrate_code":
 		return []string{"read", "code", "checks"}, nil
-	case "browser_tabs", "browser_snapshot", "browser_screenshot":
+	case "browser_tabs", "browser_snapshot", "browser_screenshot", "desktop_snapshot", "desktop_window", "desktop_screenshot":
 		return []string{"read"}, nil
+	case "desktop_action", "desktop_activate", "computer_action":
+		return []string{"desktop"}, nil
 	case "browser_navigate", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_download", "browser_upload":
 		return []string{"browser"}, nil
 	case "delegate_agents":

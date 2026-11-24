@@ -12,8 +12,8 @@ import (
 )
 
 // DesktopSessionOptions supplies an explicitly approved macOS desktop
-// capability. The caller must not create these tools for a model that lacks a
-// computer-use protocol; ordinary local models therefore never see them.
+// capability. Screenshot/coordinate tools belong to visual computer protocols;
+// ordinary models receive DesktopAccessibilityTools instead.
 type DesktopSessionOptions struct {
 	SessionID            string
 	Controller           *desktop.Controller

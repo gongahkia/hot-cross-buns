@@ -178,9 +178,10 @@ type Request struct {
 	// ApproveBrowser is invoked for every browser mutation. Unlike command
 	// approval, an "always" decision is never remembered by browser tools.
 	ApproveBrowser func(context.Context, []string) (tools.CommandDecision, error)
-	// DesktopSession is a macOS app allowlist capability. The desktop tools are
-	// available only to an explicitly computer-use-capable provider model.
+	// DesktopSession is an explicit macOS app allowlist capability. Tools use
+	// native accessibility references or an explicitly enabled computer protocol.
 	DesktopSession string
+	DesktopPolicy  string
 	ApproveDesktop func(context.Context, []string) (tools.CommandDecision, error)
 	// RequireCode is reserved for internal evaluation of patch evidence.
 	// EnableCode grants isolated coding tools and the bounded coding specialist

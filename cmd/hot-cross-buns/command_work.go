@@ -130,7 +130,7 @@ func runWorkTask(arguments []string, in io.Reader, out io.Writer, modelFactory w
 	var documentPaths attachmentFlags
 	flags.Var(&documentPaths, "attach", "source-relative PDF or supported document/text file to include in the initial prompt (repeatable)")
 	workBrowserSession := flags.String("browser-session", "", "explicit browser session granted to the Work manager")
-	desktopSession := flags.String("desktop-session", "", "explicit macOS desktop session granted to an OpenAI computer-use Work manager")
+	desktopSession := flags.String("desktop-session", "", "explicit macOS app access granted to the Work manager")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
@@ -166,9 +166,6 @@ func runWorkTask(arguments []string, in io.Reader, out io.Writer, modelFactory w
 	resolvedProvider, resolvedModel, err := resolveConfiguredProvider(*providerName, *modelName)
 	if err != nil {
 		return err
-	}
-	if strings.TrimSpace(*desktopSession) != "" && resolvedProvider != "openai" {
-		return errors.New("--desktop-session is available only with provider openai; local and other provider models never receive desktop control")
 	}
 	stateDir, err := state.ResolveDir(os.Getenv("HOT_CROSS_BUNS_STATE_DIR"))
 	if err != nil {
@@ -279,19 +276,15 @@ func runWorkTask(arguments []string, in io.Reader, out io.Writer, modelFactory w
 		if session.State != desktop.StateRunning {
 			return errors.New("--desktop-session is stopped")
 		}
-		if !session.RetainProviderState {
-			return errors.New("--desktop-session requires a session created with --retain-provider-state for the OpenAI computer-use continuation")
-		}
 		controller, err := desktop.NewController(store, desktop.DefaultRuntime())
 		if err != nil {
 			return err
 		}
-		executor.Desktop = controller
+		executor.Desktop = controller.Reviewed(desktop.PolicyDigest(session))
 		native, ok := backend.(*nativeWorkBackend)
-		if !ok {
-			return errors.New("--desktop-session requires Hot Cross Buns's native OpenAI Responses adapter")
+		if ok && resolvedProvider == "openai" && session.RetainProviderState {
+			native.computer = &agent.ComputerUse{Environment: "computer", DisplayWidth: 1440, DisplayHeight: 900, RetainState: true}
 		}
-		native.computer = &agent.ComputerUse{Environment: "computer", DisplayWidth: 1440, DisplayHeight: 900, RetainState: session.RetainProviderState}
 	}
 	if native, ok := backend.(*nativeWorkBackend); ok {
 		executor.Code = native.codeDelegate(stateDir)

@@ -90,7 +90,7 @@ func planSourceID(id string) bool {
 	return true
 }
 func validPlanContent(content PlanContent, sources []string) bool {
-	if !boundedPlanText(content.Outcome, 4096) || len(content.Steps) < 1 || len(content.Steps) > 24 || len(content.Sources) > 16 || len(content.Effects) < 1 || len(content.Effects) > 7 {
+	if !boundedPlanText(content.Outcome, 4096) || len(content.Steps) < 1 || len(content.Steps) > 24 || len(content.Sources) > 16 || len(content.Effects) < 1 || len(content.Effects) > 8 {
 		return false
 	}
 	seen := map[string]bool{}
@@ -109,7 +109,7 @@ func validPlanContent(content PlanContent, sources []string) bool {
 	}
 	seen = map[string]bool{}
 	for _, effect := range content.Effects {
-		if !slices.Contains([]string{"read", "draft", "code", "checks", "connected_write", "settings", "browser"}, effect) || seen[effect] {
+		if !slices.Contains([]string{"read", "draft", "code", "checks", "connected_write", "settings", "browser", "desktop"}, effect) || seen[effect] {
 			return false
 		}
 		seen[effect] = true

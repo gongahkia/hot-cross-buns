@@ -111,6 +111,7 @@ func effectiveConfiguration(request Request) any {
 		DisableBrowser       bool
 		ExcludedKnowledgeIDs []string
 		DesktopSession       string
+		DesktopPolicy        string
 		ForegroundApp        bool
 		LearnFromChats       bool
 		MaintainMemory       bool              `json:",omitempty"`
@@ -121,7 +122,7 @@ func effectiveConfiguration(request Request) any {
 			return request.Project.SHA256
 		}
 		return ""
-	}(), request.DisableDelegation, request.DisabledRoles, request.EnableCode, request.RequireCode, request.BrowserPolicy, request.BrowserSession, request.DisableBrowser, request.ExcludedKnowledgeIDs, request.DesktopSession, request.ForegroundApp, request.LearnFromChats, request.MaintainMemory, request.DisableChatHistory, request.ExternalAgents}
+	}(), request.DisableDelegation, request.DisabledRoles, request.EnableCode, request.RequireCode, request.BrowserPolicy, request.BrowserSession, request.DisableBrowser, request.ExcludedKnowledgeIDs, request.DesktopSession, request.DesktopPolicy, request.ForegroundApp, request.LearnFromChats, request.MaintainMemory, request.DisableChatHistory, request.ExternalAgents}
 }
 
 type Interaction struct {
