@@ -374,6 +374,7 @@ func (m Model) admitConversation(request BridgeUploadSubmission, text string) (t
 	m.options.Attachments, m.options.Uploads, m.options.ExcludedKnowledgeIDs = nil, nil, nil
 	m.options.RefreshSource = false
 	m.options.BrowserSession, m.options.BrowserPolicy = "", ""
+	m.options.DesktopSession, m.options.DesktopPolicy = "", ""
 	if turn.State == "received" {
 		m.dialogueQueue = append(m.dialogueQueue, turn.ID)
 	}

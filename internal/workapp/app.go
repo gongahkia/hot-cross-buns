@@ -138,6 +138,8 @@ type RunOptions struct {
 	TaskPlanRequestID       string `json:"-"`
 	BrowserSession          string
 	BrowserPolicy           string
+	DesktopSession          string
+	DesktopPolicy           string
 	ReplyToUpdateID         string
 	ModelProvider           string
 	ModelName               string

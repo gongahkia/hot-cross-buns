@@ -95,6 +95,9 @@ func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 		if value.Screen.BrowserGrant != nil && value.Screen.BrowserGrant.ConversationID != m.conversation {
 			value.Err = errors.New("the chat changed; review browser access in this chat")
 		}
+		if value.Screen.DesktopGrant != nil && value.Screen.DesktopGrant.ConversationID != m.conversation {
+			value.Err = errors.New("the chat changed; review computer access in this chat")
+		}
 		m.controlBusy = false
 		m.controlBackground = false
 		if m.controlCancel != nil {
@@ -111,11 +114,11 @@ func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			selection := 0
-			if m.controlFamily == "overview" || m.controlFamily == "connections" || m.controlFamily == "browser" {
+			if m.controlFamily == "overview" || m.controlFamily == "connections" || m.controlFamily == "browser" || m.controlFamily == "computer" {
 				selection = preservedControlSelection(m.controlScreen, value.Screen, m.selected)
 			}
 			m.controlScreen = value.Screen
-			if m.controlFamily == "connections" || m.controlFamily == "browser" {
+			if m.controlFamily == "connections" || m.controlFamily == "browser" || m.controlFamily == "computer" {
 				m.controlRootArgs = nil
 				if value.Screen.Location != "" {
 					m.controlRootArgs = []string{value.Screen.Location}
@@ -125,6 +128,10 @@ func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 			if value.Screen.BrowserGrant != nil && m.controlFamily == "browser" {
 				m.options.BrowserSession = value.Screen.BrowserGrant.SessionID
 				m.options.BrowserPolicy = value.Screen.BrowserGrant.Policy
+			}
+			if value.Screen.DesktopGrant != nil && m.controlFamily == "computer" {
+				m.options.DesktopSession = value.Screen.DesktopGrant.SessionID
+				m.options.DesktopPolicy = value.Screen.DesktopGrant.Policy
 			}
 			m.sectionNotice = ""
 			m.clearRemovedData(value.Screen)
@@ -938,6 +945,7 @@ func (m Model) submitRunningInput() (tea.Model, tea.Cmd) {
 	m.options.ExcludedKnowledgeIDs = nil
 	m.options.RefreshSource = false
 	m.options.BrowserSession, m.options.BrowserPolicy = "", ""
+	m.options.DesktopSession, m.options.DesktopPolicy = "", ""
 	m.status = fmt.Sprintf("Working from an immutable snapshot… · %d queued", len(m.queue))
 	return m, nil
 }
@@ -1030,6 +1038,7 @@ func (m Model) submitComposerInput() (tea.Model, tea.Cmd) {
 	m.options.ExcludedKnowledgeIDs = nil
 	m.options.RefreshSource = false
 	m.options.BrowserSession, m.options.BrowserPolicy = "", ""
+	m.options.DesktopSession, m.options.DesktopPolicy = "", ""
 	return m.startWork(source, conversation, prompt, options)
 }
 

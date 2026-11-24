@@ -217,6 +217,7 @@ type BridgeFollowingGoal struct {
 // or assert that a selected connector is authenticated or authorized.
 type BridgeWorkDetails struct {
 	BrowserSession string         `json:"browser_session,omitempty"`
+	DesktopSession string         `json:"desktop_session,omitempty"`
 	Mode           string         `json:"mode"`
 	SnapshotID     string         `json:"snapshot_id,omitempty"`
 	Attachments    []string       `json:"attachments"`
@@ -313,6 +314,7 @@ func (m Model) BridgeState() BridgeState {
 	}
 	state.WorkDetails = BridgeWorkDetails{
 		BrowserSession: m.options.BrowserSession,
+		DesktopSession: m.options.DesktopSession,
 		Mode:           m.options.Mode, SnapshotID: m.snapshot,
 		Attachments:  append([]string{}, m.options.Attachments...),
 		ConnectorIDs: append([]string{}, m.options.ConnectorIDs...),
@@ -458,7 +460,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch command {
-	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/model", "/settings", "/help", "/search":
+	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/computer", "/model", "/settings", "/help", "/search":
 	default:
 		known := scopedContext
 		for _, entry := range m.availableCommandEntries() {
@@ -478,7 +480,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 		return m.openPrimaryConversation()
 	}
-	if m.config.ManagedSessions && (m.running && command != "/chat" && command != "/browser" || m.pendingConnection() != "" && command != "/connections") && !m.controlBusy && !m.followupSaving && !m.recallBusy && m.bridgeExternal == nil {
+	if m.config.ManagedSessions && (m.running && command != "/chat" && command != "/browser" && command != "/computer" || m.pendingConnection() != "" && command != "/connections") && !m.controlBusy && !m.followupSaving && !m.recallBusy && m.bridgeExternal == nil {
 		if command == "/new" {
 			m.requestSession(BridgeSessionRequest{New: true})
 		} else {
@@ -486,7 +488,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if (m.running && command != "/chat" && command != "/browser") || m.controlBusy || m.followupSaving || m.recallBusy || m.bridgeExternal != nil {
+	if (m.running && command != "/chat" && command != "/browser" && command != "/computer") || m.controlBusy || m.followupSaving || m.recallBusy || m.bridgeExternal != nil {
 		m.status = "Finish or stop the current operation before switching views."
 		m.bridgeNotice = m.status
 		return m, nil

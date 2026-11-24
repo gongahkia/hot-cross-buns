@@ -30,6 +30,8 @@ func workControlsWithConnections(stateDir string, connections *connectionControl
 			return checkTimingControl(ctx, stateDir, action, args)
 		case "search":
 			return search.call(ctx, action, args)
+		case "computer":
+			return computerControl(ctx, stateDir, action, args)
 		case "browser":
 			return browserControl(ctx, stateDir, action, args)
 		case "connections":

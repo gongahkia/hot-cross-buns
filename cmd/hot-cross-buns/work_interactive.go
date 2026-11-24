@@ -797,6 +797,8 @@ func runInteractiveWorkGoal(source, conversationID, prompt, stateDir string, opt
 	request := workrun.Request{
 		BrowserSession:  options.BrowserSession,
 		BrowserPolicy:   options.BrowserPolicy,
+		DesktopSession:  options.DesktopSession,
+		DesktopPolicy:   options.DesktopPolicy,
 		ReplyToUpdateID: options.ReplyToUpdateID,
 		AfterAppRun: func(change workrun.AppChange, mutation workrun.AppMutation) {
 			appChangesMu.Lock()
