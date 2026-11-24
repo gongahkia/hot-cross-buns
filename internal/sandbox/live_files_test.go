@@ -67,3 +67,31 @@ func TestReviewedFilesCannotEscapeOuterEnvelope(t *testing.T) {
 		t.Fatal("root enabled without full access")
 	}
 }
+
+func TestFullFilesystemEnvelopeStillProtectsControlRecords(t *testing.T) {
+	if _, err := StrictAvailability(); err != nil {
+		t.Skip(err)
+	}
+	canonical := func(path string) string {
+		v, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	checkout, target, control := canonical(t.TempDir()), canonical(t.TempDir()), canonical(t.TempDir())
+	policyFile := filepath.Join(control, "policy")
+	os.WriteFile(policyFile, []byte("private"), 0600)
+	script := "echo full > '" + filepath.Join(target, "created") + "' && ! cat '" + policyFile + "' >/dev/null 2>&1"
+	prepared, err := Prepare(context.Background(), Request{Dir: checkout, Argv: []string{"/bin/sh", "-c", script}, Policy: Policy{Mode: Strict, Network: DenyNetwork, LiveFiles: &LiveFilesystem{Read: []string{string(filepath.Separator)}, Write: []string{string(filepath.Separator)}, Protected: []string{control}, Full: true, Fingerprint: "explicit-full-fixture"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.Cleanup()
+	if err := prepared.Command.Run(); err != nil {
+		t.Fatal("full filesystem scope or protected overlay failed", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(target, "created")); err != nil || string(data) != "full\n" {
+		t.Fatal(string(data), err)
+	}
+}

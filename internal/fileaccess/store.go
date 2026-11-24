@@ -50,11 +50,26 @@ func Open(stateDir string, protected ...string) (*Store, error) {
 	if home, err := os.UserHomeDir(); err == nil {
 		s.protected = append(s.protected, filepath.Join(home, ".config", "hot-cross-buns"))
 	}
-	for i, p := range s.protected {
+	protectedPaths := s.protected
+	s.protected = nil
+	seen := map[string]bool{}
+	for _, p := range protectedPaths {
 		if !filepath.IsAbs(p) {
 			return nil, errors.New("protected filesystem paths must be absolute")
 		}
-		s.protected[i] = filepath.Clean(p)
+		clean := filepath.Clean(p)
+		candidates := []string{clean}
+		if actual, err := filepath.EvalSymlinks(clean); err == nil {
+			candidates = append(candidates, actual)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		for _, candidate := range candidates {
+			if !seen[candidate] {
+				s.protected = append(s.protected, candidate)
+				seen[candidate] = true
+			}
+		}
 	}
 	if err := privatefs.MkdirAll(s.directory); err != nil {
 		return nil, err

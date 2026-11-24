@@ -250,3 +250,25 @@ func TestStoredCRUDGrantOnlyDelegatesRequestedReadScope(t *testing.T) {
 		t.Fatal(scope, err)
 	}
 }
+
+func TestProtectedConfigDirectoryAliasesStayProtectedInFullMode(t *testing.T) {
+	state, config, links := t.TempDir(), t.TempDir(), t.TempDir()
+	alias := filepath.Join(links, "config")
+	if err := os.Symlink(config, alias); err != nil {
+		t.Fatal(err)
+	}
+	secret := filepath.Join(config, "settings.json")
+	os.WriteFile(secret, []byte("private control data"), 0600)
+	store, err := Open(state, alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, _ := store.Get()
+	store.SetFull(policy.Revision, true)
+	v, _ := NewTask(store, false, nil)
+	for _, path := range []string{secret, filepath.Join(alias, "settings.json")} {
+		if _, err := v.Execute(context.Background(), "read", path, "", "", "", ""); err == nil {
+			t.Fatal("protected alias readable", path)
+		}
+	}
+}
