@@ -91,7 +91,7 @@ func computerControlWithRuntime(ctx context.Context, stateDir, operation string,
 		}
 		switch operation {
 		case "pause":
-			_, err = store.SetPaused(id, true)
+			_, err = store.SetPausedReviewed(id, true, args[1])
 			notice = "Computer access paused. Earlier task grants are invalid; take over privately."
 		case "resume", "grant":
 			trusted, accessErr := runtime.AccessibilityTrusted()
@@ -105,7 +105,7 @@ func computerControlWithRuntime(ctx context.Context, stateDir, operation string,
 				return workapp.ControlScreen{}, errors.New("native accessibility driver is unavailable")
 			}
 			if operation == "resume" {
-				_, err = store.SetPaused(id, false)
+				_, err = store.SetPausedReviewed(id, false, args[1])
 				notice = "Access enabled. Review a next-task grant to share the app with this chat."
 			} else {
 				if session.Paused {
@@ -197,7 +197,7 @@ func computerControlScreen(_ context.Context, store *desktop.Store, runtime desk
 				if session.Paused {
 					screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "E", Label: "Resume access", Action: "resume", Args: args, Review: true, Description: "Enable accessibility reads for " + computerAppNames(session) + ". Any earlier task grant remains invalid. Review a new next-task grant to let the model use the app."})
 				} else {
-					screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "G", Label: "Use for next task", Action: "grant", Args: args, Review: true, Description: "Grant " + computerAppNames(session) + " to the next submitted or queued task in this chat only. Visible accessibility text from approved windows can be sent to the selected model. App activations and control actions each require fresh approval. Secure fields, modal/file dialogs, Terminal, Finder, Keychain and system settings are unavailable. No screenshots or coordinate/keyboard control are granted."})
+					screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "G", Label: "Use for next task", Action: "grant", Args: args, Review: true, Description: "Grant " + computerAppNames(session) + " to the next submitted or queued task in this chat only. Visible accessibility text from approved windows can be sent to the selected model and retained in task history. App activations and control actions each require fresh approval. Secure fields, modal/file dialogs, Terminal, Finder, Keychain and system settings are unavailable. No screenshots or coordinate/keyboard control are granted."})
 				}
 			}
 			screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "S", Label: "Revoke access", Action: "stop", Args: args})

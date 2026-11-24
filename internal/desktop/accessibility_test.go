@@ -15,10 +15,17 @@ type axRuntime struct {
 	performed int
 	err       error
 	activated string
+	afterRead func()
+	readErr   error
 }
 
 func (r *axRuntime) ReadAccessibility(context.Context, Window) (AccessibilityTree, error) {
-	return r.tree, nil
+	if r.afterRead != nil {
+		hook := r.afterRead
+		r.afterRead = nil
+		hook()
+	}
+	return r.tree, r.readErr
 }
 func (r *axRuntime) PerformAccessibility(_ context.Context, _ Window, _ AccessibilityTree, _ AccessibilityElement, _, _ string) error {
 	r.performed++
@@ -64,7 +71,7 @@ func TestAccessibilityReviewedTargetAndSingleUse(t *testing.T) {
 	}
 }
 func TestAccessibilityRejectsChangedTargets(t *testing.T) {
-	for _, change := range []string{"tree", "window", "geometry", "revision", "stopped", "expired", "ref", "action", "value"} {
+	for _, change := range []string{"tree", "control", "window", "geometry", "revision", "stopped", "expired", "ref", "action", "value"} {
 		t.Run(change, func(t *testing.T) {
 			c, store, s, r := axFixture(t)
 			ctx := context.Background()
@@ -76,6 +83,8 @@ func TestAccessibilityRejectsChangedTargets(t *testing.T) {
 			switch change {
 			case "tree":
 				r.tree.Title = "Different window content"
+			case "control":
+				r.tree.Elements[0].Label = "Different field"
 			case "window":
 				r.window.ID++
 			case "geometry":
@@ -162,5 +171,44 @@ func TestReviewedDesktopPolicyDoesNotReviveAfterPause(t *testing.T) {
 	}
 	if _, err = c.AccessibilitySnapshot(ctx, s.ID); !errors.Is(err, ErrPolicyChanged) {
 		t.Fatalf("old grant revived: %v", err)
+	}
+}
+
+func TestAccessibilityReadWithdrawalAndFailureReturnNoContent(t *testing.T) {
+	for _, kind := range []string{"paused-during-read", "read-failed"} {
+		t.Run(kind, func(t *testing.T) {
+			c, store, s, r := axFixture(t)
+			if kind == "paused-during-read" {
+				r.afterRead = func() { _, _ = store.SetPaused(s.ID, true) }
+			} else {
+				r.readErr = errors.New("app did not respond")
+			}
+			snapshot, err := c.AccessibilitySnapshot(context.Background(), s.ID)
+			if err == nil || snapshot.ID != "" || len(snapshot.Elements) != 0 {
+				t.Fatal("withdrawn/unreadable content escaped", snapshot, err)
+			}
+		})
+	}
+}
+
+func TestDelayedReviewedResumeCannotUndoPrivateTakeover(t *testing.T) {
+	_, store, s, _ := axFixture(t)
+	paused, err := store.SetPaused(s.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldResume := PolicyDigest(paused)
+	if _, err = store.SetPaused(s.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.SetPaused(s.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.SetPausedReviewed(s.ID, false, oldResume); !errors.Is(err, ErrPolicyChanged) {
+		t.Fatalf("stale resume applied: %v", err)
+	}
+	current, _ := store.Get(s.ID)
+	if !current.Paused {
+		t.Fatal("private takeover undone")
 	}
 }

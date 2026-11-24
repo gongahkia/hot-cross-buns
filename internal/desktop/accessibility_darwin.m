@@ -32,7 +32,12 @@ static BOOL hcb_ax_rect(AXUIElementRef window, double x, double y, double width,
 }
 static NSString *hcb_ax_text(AXUIElementRef element, BOOL *truncated) {
   CFTypeRef count=NULL; long length=0;
-  if(AXUIElementCopyAttributeValue(element,kAXNumberOfCharactersAttribute,&count)!=kAXErrorSuccess || !count || CFGetTypeID(count)!=CFNumberGetTypeID()) {if(count)CFRelease(count);NSString *text=hcb_ax_string(element,kAXValueAttribute,513);*truncated=text.length>512;return *truncated?[text substringToIndex:512]:text;}
+  if(AXUIElementCopyAttributeValue(element,kAXNumberOfCharactersAttribute,&count)!=kAXErrorSuccess || !count || CFGetTypeID(count)!=CFNumberGetTypeID()) {if(count)CFRelease(count);
+    CFTypeRef raw=NULL;AXError error=AXUIElementCopyAttributeValue(element,kAXValueAttribute,&raw);
+    if(error!=kAXErrorSuccess || !raw || CFGetTypeID(raw)!=CFStringGetTypeID()){if(raw)CFRelease(raw);*truncated=YES;return @"";}
+    NSString *full=(__bridge NSString*)raw;*truncated=full.length>512;NSUInteger length=MIN(full.length,512);
+    if(length<full.length && length>0 && CFStringIsSurrogateHighCharacter([full characterAtIndex:length-1]))length--;
+    NSString *text=[[full substringToIndex:length]copy];CFRelease(raw);return [text autorelease];}
   CFNumberGetValue((CFNumberRef)count,kCFNumberLongType,&length);CFRelease(count);
   if(length<0){*truncated=YES;return @"";}
   *truncated=length>512;
@@ -46,7 +51,7 @@ static void hcb_ax_walk(AXUIElementRef element, NSArray *path, NSMutableArray *n
   if(nodes.count>=128 || path.count>12 || CFAbsoluteTimeGetCurrent()>deadline){*truncated=YES;return;}
   AXUIElementSetMessagingTimeout(element,0.15);
   NSString *role=hcb_ax_string(element,kAXRoleAttribute,128), *subrole=hcb_ax_string(element,kAXSubroleAttribute,128);
-  if([role isEqualToString:@"AXSheet"] || [role isEqualToString:@"AXDialog"] || [subrole isEqualToString:@"AXSecureTextField"] || [subrole isEqualToString:@"AXSystemDialog"] || hcb_ax_bool(element,CFSTR("AXProtectedContent"),NO) || hcb_ax_bool(element,kAXModalAttribute,NO)){*restricted=YES;return;}
+  if([role isEqualToString:@"AXSheet"] || [role isEqualToString:@"AXDialog"] || [subrole isEqualToString:@"AXSecureTextField"] || ([subrole isEqualToString:@"AXSystemDialog"] || [subrole isEqualToString:@"AXDialog"]) || hcb_ax_bool(element,CFSTR("AXProtectedContent"),NO) || hcb_ax_bool(element,kAXModalAttribute,NO)){*restricted=YES;return;}
   if(role.length==0){*truncated=YES;return;}
   NSString *label=hcb_ax_string(element,kAXTitleAttribute,256);
   if(label.length==0)label=hcb_ax_string(element,kAXDescriptionAttribute,256);

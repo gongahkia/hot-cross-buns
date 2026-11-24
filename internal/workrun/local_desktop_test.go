@@ -126,3 +126,38 @@ func TestTextOnlyLocalDesktopRequiresReviewAndPostActionRead(t *testing.T) {
 		t.Fatalf("reviews=%d actions=%d model=%+v final=%s", reviews, runtime.actions, model, out.Result.FinalText)
 	}
 }
+
+type nativeDesktopModel struct{ scriptedModel }
+
+func (*nativeDesktopModel) ComputerUse() (agent.ComputerUse, bool) {
+	return agent.ComputerUse{Environment: "computer", DisplayWidth: 1440, DisplayHeight: 900, RetainState: true}, true
+}
+func TestNativeComputerProtocolStillRequiresRetentionConsent(t *testing.T) {
+	for _, retain := range []bool{false, true} {
+		t.Run(map[bool]string{false: "no-consent", true: "consented"}[retain], func(t *testing.T) {
+			state := t.TempDir()
+			store, _ := desktop.Open(state)
+			session, _ := store.Start(desktop.StartOptions{Apps: []desktop.Application{{BundleID: "dev.hcb.fixture"}}, RetainProviderState: retain})
+			controller, _ := desktop.NewController(store, &localAXRuntime{})
+			model := &nativeDesktopModel{scriptedModel: scriptedModel{turns: []agent.Turn{{Text: "No desktop changes requested."}}}}
+			_, err := (Executor{Model: model, Desktop: controller, StateDir: state}).Execute(context.Background(), Request{SourcePath: t.TempDir(), Objective: "Confirm access only", Mode: action.Inspect, Contract: artifact.InspectionContract(), DisableDelegation: true, DesktopSession: session.ID})
+			if !retain {
+				if err == nil || !strings.Contains(err.Error(), "retention consent") {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(model.requests) != 1 || model.requests[0].Computer == nil {
+				t.Fatal("native computer continuation was lost")
+			}
+			for _, tool := range model.requests[0].Tools {
+				if tool.Name == "desktop_snapshot" || tool.Name == "desktop_action" {
+					t.Fatal("native protocol mixed with accessibility path")
+				}
+			}
+		})
+	}
+}

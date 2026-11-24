@@ -100,6 +100,9 @@ func (c *Controller) AccessibilitySnapshot(ctx context.Context, id string) (Acce
 	if err := validateAccessibilityTree(tree); err != nil {
 		return AccessibilitySnapshot{}, err
 	}
+	if _, err = c.running(id); err != nil {
+		return AccessibilitySnapshot{}, err
+	}
 	fresh, err := c.allowedFront(ctx, session)
 	if err != nil || !sameWindow(window, fresh) {
 		return AccessibilitySnapshot{}, errors.New("desktop window changed while reading; inspect it again")
@@ -108,10 +111,10 @@ func (c *Controller) AccessibilitySnapshot(ctx context.Context, id string) (Acce
 	if _, err := rand.Read(bytes); err != nil {
 		return AccessibilitySnapshot{}, err
 	}
-	capture := accessibilityCapture{expires: time.Now().Add(5 * time.Minute), window: window, tree: tree, id: hex.EncodeToString(bytes), policy: PolicyDigest(session), refs: map[string]AccessibilityElement{}}
+	capture := accessibilityCapture{expires: time.Now().Add(5 * time.Minute), window: window, tree: cloneAccessibilityTree(tree), id: hex.EncodeToString(bytes), policy: PolicyDigest(session), refs: map[string]AccessibilityElement{}}
 	out := AccessibilitySnapshot{ID: capture.id, Window: window, Truncated: tree.Truncated, Elements: []Element{}}
 	out.Window.Title = tree.Title
-	for i, node := range tree.Elements {
+	for i, node := range capture.tree.Elements {
 		ref := fmt.Sprintf("e%d", i+1)
 		capture.refs[ref] = node
 		out.Elements = append(out.Elements, Element{Ref: ref, Role: node.Role, Label: node.Label, Value: node.Value, Enabled: node.Enabled, Actions: append([]string{}, node.Actions...), ValueTruncated: node.ValueTruncated})
@@ -129,7 +132,11 @@ func (c *Controller) DescribeAccessibilityAction(ctx context.Context, id, snapsh
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Return to approved %s window %q; %s %s %q (%s)", capture.window.Application.BundleID, capture.tree.Title, action, node.Role, node.Label, ref), nil
+	description := fmt.Sprintf("Return to approved %s window %q; %s %s %q (%s)", capture.window.Application.BundleID, capture.tree.Title, action, node.Role, node.Label, ref)
+	if action == "set_value" {
+		description += fmt.Sprintf("; current field content %q", node.Value)
+	}
+	return description, nil
 }
 func (c *Controller) AccessibilityAction(ctx context.Context, id, snapshot, ref, action, value string) (Window, error) {
 	c.mu.Lock()
@@ -144,7 +151,7 @@ func (c *Controller) AccessibilityAction(ctx context.Context, id, snapshot, ref,
 		return Window{}, errors.New("Accessibility permission is no longer available")
 	}
 	// Approval happens in HCB. Returning to the frozen target is part of the
-	// reviewed action; another window of the same app is never substituted.
+	// reviewed action; recheck its window identity and bounds before dispatch.
 	if err := c.runtime.Activate(ctx, capture.window.Application.BundleID); err != nil {
 		return Window{}, err
 	}
@@ -249,4 +256,14 @@ func sameWindow(a, b Window) bool {
 func treeDigest(tree AccessibilityTree) [32]byte {
 	encoded, _ := json.Marshal(tree)
 	return sha256.Sum256(encoded)
+}
+
+func cloneAccessibilityTree(tree AccessibilityTree) AccessibilityTree {
+	tree.Elements = append([]AccessibilityElement(nil), tree.Elements...)
+	tree.Witness = append([]byte(nil), tree.Witness...)
+	for i := range tree.Elements {
+		tree.Elements[i].Path = append([]int(nil), tree.Elements[i].Path...)
+		tree.Elements[i].Actions = append([]string(nil), tree.Elements[i].Actions...)
+	}
+	return tree
 }

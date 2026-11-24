@@ -280,6 +280,18 @@ func (s *Store) lock() (func(), error) {
 }
 
 func (s *Store) SetPaused(id string, paused bool) (Session, error) {
+	return s.setPaused(id, paused, "")
+}
+
+// SetPausedReviewed compares the reviewed revision under the same store lock
+// as the update, so a delayed resume cannot undo a newer private takeover.
+func (s *Store) SetPausedReviewed(id string, paused bool, policy string) (Session, error) {
+	if policy == "" {
+		return Session{}, ErrPolicyChanged
+	}
+	return s.setPaused(id, paused, policy)
+}
+func (s *Store) setPaused(id string, paused bool, policy string) (Session, error) {
 	if err := validateSessionID(id); err != nil {
 		return Session{}, err
 	}
@@ -299,6 +311,9 @@ func (s *Store) SetPaused(id string, paused bool) (Session, error) {
 		}
 		if session.State != StateRunning {
 			return Session{}, ErrStopped
+		}
+		if policy != "" && PolicyDigest(*session) != policy {
+			return Session{}, ErrPolicyChanged
 		}
 		if session.Paused != paused {
 			if session.Revision == ^uint64(0) {
