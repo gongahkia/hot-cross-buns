@@ -63,7 +63,7 @@ func TestCalendarWindowIsRetiredButLocalFollowupWorks(t *testing.T) {
 		t.Fatal(err)
 	}
 	draft.CalendarDays = 14
-	if err := draft.Validate(); err == nil || !strings.Contains(err.Error(), "support was removed") {
+	if err := draft.Validate(); err == nil || !strings.Contains(err.Error(), "change-only watches are unavailable") {
 		t.Fatalf("calendar draft = %v", err)
 	}
 	draft.CalendarDays = 0

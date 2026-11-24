@@ -38,7 +38,7 @@ func connectedGoalWatchSnapshotWithPrevious(ctx context.Context, definition jobs
 	// Diagnose retired sources before credential refresh or any network access.
 	for _, source := range definition.WatchSources {
 		if source.Operation == "calendar_events" {
-			return "", nil, nil, errors.New("Google Calendar support was removed; edit this follow-up to use local plan dates")
+			return "", nil, nil, errors.New("Calendar change-only watches are unavailable; remove the legacy source and use Calendar tools in a regular selected-account task")
 		}
 	}
 	local, err := localJobInputHashAt(definition, stateDir, now)

@@ -46,7 +46,7 @@ func New(source, goalID string) (Draft, error) {
 
 func (d Draft) Validate() error {
 	if d.CalendarDays != 0 {
-		return errors.New("Google Calendar support was removed; clear the calendar window and track dates in Hot Cross Buns's local plan")
+		return errors.New("Calendar change-only watches are unavailable; clear the old window. Calendar tools can be enabled separately in Connections")
 	}
 	if _, err := d.EndTime(); err != nil {
 		return err

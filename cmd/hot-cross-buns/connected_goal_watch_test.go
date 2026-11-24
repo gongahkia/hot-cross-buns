@@ -23,7 +23,7 @@ func TestRetiredCalendarWatchFailsBeforeAnyNetworkAccess(t *testing.T) {
 	definition := jobs.Definition{WatchSources: []jobs.WatchSource{{ConnectorID: "old-google", Operation: "calendar_events", Days: 14}}}
 	// No profile, credentials, or local workspace: retirement must be checked first.
 	_, err := connectedGoalWatchHash(context.Background(), definition, t.TempDir(), time.Now())
-	if err == nil || !strings.Contains(err.Error(), "Google Calendar support was removed") {
+	if err == nil || !strings.Contains(err.Error(), "Calendar change-only watches are unavailable") {
 		t.Fatalf("retired Calendar watch = %v", err)
 	}
 }

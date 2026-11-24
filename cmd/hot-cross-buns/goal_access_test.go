@@ -76,7 +76,7 @@ func TestGoalAccessChecksSelectedReadsWithoutChangingWatchHistory(t *testing.T) 
 		t.Fatal(err)
 	}
 	text := output.String()
-	if !strings.Contains(text, "list and one message detail reachable") || !strings.Contains(text, "Calendar support was removed") || strings.Contains(text, "private mail content") || strings.Contains(text, "label:offsite") {
+	if !strings.Contains(text, "list and one message detail reachable") || !strings.Contains(text, "Calendar change-only watches are unavailable") || strings.Contains(text, "private mail content") || strings.Contains(text, "label:offsite") {
 		t.Fatalf("goal access output = %q", text)
 	}
 	if len(requests) != 2 {

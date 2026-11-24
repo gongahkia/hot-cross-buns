@@ -229,7 +229,7 @@ func goalCommand(args []string, out io.Writer) error {
 			return errors.New("usage: hot-cross-buns goal watch ID [--task TEXT] [--artifact PATH] [--connector ID] [--gmail-query QUERY] [--calendar-days N]")
 		}
 		if *calendarDays != 0 {
-			return errors.New("Google Calendar support was removed; track dates in Hot Cross Buns plans instead")
+			return errors.New("Calendar change-only watches are unavailable; use Calendar tools in a regular selected-account task instead")
 		}
 		if len(selected) == 0 && *gmailQuery != "" {
 			return errors.New("goal watch needs a selected Google connector for Gmail reads")

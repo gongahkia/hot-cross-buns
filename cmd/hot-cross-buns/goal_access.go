@@ -97,7 +97,7 @@ func probeGoalAccess(ctx context.Context, stateDir, goalID string, out io.Writer
 
 func probeGoalWatchSource(ctx context.Context, runtime connector.Runtime, registry connector.Registry, permissions connector.PermissionSet, credentials auth.Store, source jobs.WatchSource, _ time.Time) string {
 	if source.Operation == "calendar_events" {
-		return "Google Calendar support was removed; edit this follow-up to use local plan dates"
+		return "Calendar change-only watches are unavailable; remove the legacy source and use Calendar tools in a regular selected-account task"
 	}
 	descriptor, found := registry.Get(source.ConnectorID)
 	if !found {
