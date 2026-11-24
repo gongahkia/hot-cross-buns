@@ -226,3 +226,27 @@ func TestSymlinkedConfigFolderResolvesExactScopeBeforeReview(t *testing.T) {
 		t.Fatal(read, err, calls)
 	}
 }
+
+func TestStoredCRUDGrantOnlyDelegatesRequestedReadScope(t *testing.T) {
+	s, folder := fixture(t)
+	root, identity, _ := Folder(folder)
+	policy, _ := s.Get()
+	if _, err := s.Add(policy.Revision, root, "write", identity); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := NewTask(s, false, nil)
+	if _, err := v.Access(context.Background(), root, "read", "request_access", ""); err != nil {
+		t.Fatal(err)
+	}
+	scope, err := v.Envelope()
+	if err != nil || len(scope.Read) != 1 || len(scope.Write) != 0 {
+		t.Fatalf("read request inherited saved write authority: %+v %v", scope, err)
+	}
+	if _, err := v.Access(context.Background(), root, "write", "request_access", ""); err != nil {
+		t.Fatal(err)
+	}
+	scope, err = v.Envelope()
+	if err != nil || len(scope.Write) != 1 {
+		t.Fatal(scope, err)
+	}
+}

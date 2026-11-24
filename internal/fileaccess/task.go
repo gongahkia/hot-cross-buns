@@ -138,6 +138,7 @@ func (t *Task) Access(ctx context.Context, path, access, operation, reason strin
 	}
 	for _, g := range append(append([]Grant(nil), t.grants...), p.Grants...) {
 		if matches(g) {
+			g.Access = access
 			return target, remember(g)
 		}
 	}
