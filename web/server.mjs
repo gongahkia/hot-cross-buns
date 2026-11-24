@@ -12,6 +12,9 @@ import { buildBrowserDependencies } from "./build.mjs";
 import { Application } from "../app-host/src/application.mjs";
 import { attachmentLimit, uploadLimits } from "../app-host/src/attachment-limits.mjs";
 
+import { browserVoice } from "./voice-service.mjs";
+import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
+
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
@@ -113,9 +116,10 @@ function projection(host, corrections) {
   };
 }
 
-export async function startWeb(options, port = 4317) {
+export async function startWeb(options, port = 4317, voiceOptions = {}) {
   await buildBrowserDependencies();
   const host = new Application(options);
+  const voice = browserVoice(host, voiceOptions);
   const inspection = taskDetails(host);
   const corrections = correctionDrafts(host, reviewFor);
   const streams = new Set();
@@ -488,6 +492,23 @@ export async function startWeb(options, port = 4317) {
         res.on("close", () => streams.delete(res));
         return;
       }
+      if (req.method === "POST" && url.pathname === "/api/voice") {
+        if (req.headers["content-type"] !== "application/json") throw new RequestError(415, "Use JSON for voice controls.");
+        let body;
+        try { body = JSON.parse(await readBody(req, 4096)); }
+        catch (error) { if (error.status) throw error; throw new RequestError(400, "Invalid voice request."); }
+        if (!body || typeof body !== "object" || Array.isArray(body)) throw new RequestError(400, "Choose a voice action.");
+        return json(res, 200, await voice.action(body));
+      }
+      if (req.method === "POST" && url.pathname === "/api/voice/audio") {
+        if (req.headers["content-type"] !== "audio/wav") throw new RequestError(415, "Record PCM WAV audio.");
+        const bytes = await readBody(req, MAX_AUDIO_BYTES);
+        const controller = new AbortController();
+        const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+        res.on("close", disconnected);
+        try { return json(res, 200, await voice.transcribe(url.searchParams.get("grant"), bytes, "audio/wav", controller.signal)); }
+        finally { res.off("close", disconnected); }
+      }
       if (req.method === "POST" && req.url === "/api/action") {
         if (req.headers["content-type"] !== "application/json") throw new RequestError(415, "Use JSON for browser actions.");
         let body;
@@ -535,6 +556,7 @@ export async function startWeb(options, port = 4317) {
       server.listen(port, "127.0.0.1", resolve);
     });
   } catch (error) {
+    voice.close();
     await host.close().catch(() => {});
     throw error;
   }
@@ -542,6 +564,7 @@ export async function startWeb(options, port = 4317) {
     url: "http://127.0.0.1:" + server.address().port,
     async close() {
       closing = true;
+      voice.close();
       host.off("change", broadcast);
       const finished = new Promise(resolve => server.close(resolve));
       for (const stream of streams) stream.end();

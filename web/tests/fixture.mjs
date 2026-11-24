@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false } = {}) {
+export async function fixture({ voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -82,7 +82,7 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
   let app;
   const appOptions={binary,workspace,userData:join(root,'app'),env};
   try {
-    app = await startWeb(appOptions, 0);
+    app = await startWeb(appOptions, 0, voiceOptions);
     if (startInSide) {
       const abort=new AbortController();
       try {
@@ -100,7 +100,7 @@ export async function fixture({ memories = [], chatCount = 0, dialogueCount = 0,
   }
   return {
     get url() {return app.url;}, payloads, seededChats, draftFile,
-    async restart() { await app.close(); app=await startWeb(appOptions,0); },
+    async restart() { await app.close(); app=await startWeb(appOptions,0,voiceOptions); },
     block() { blocked = true; },
     blockAfterTool() { afterTool = true; },
     release() { blocked = false; afterTool = false; release?.(); },
