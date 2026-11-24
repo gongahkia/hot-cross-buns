@@ -966,6 +966,9 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		err := HTTPStatusError{ConnectorID: descriptor.ID, StatusCode: response.StatusCode}
+		if descriptor.Kind == KindGoogle && strings.HasPrefix(operation, "calendar_event_") && ifMatch != "" && response.StatusCode == http.StatusPreconditionFailed {
+			return Result{}, err
+		}
 		if uncertain {
 			return Result{}, action.MarkUncertain(err)
 		}

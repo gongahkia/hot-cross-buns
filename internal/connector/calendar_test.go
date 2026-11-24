@@ -144,6 +144,10 @@ func TestCalendarRejectsAmbiguousTargetsTimesAndStaleEventWrites(t *testing.T) {
 	}
 	_, err = runtime.ExecutePreparedWithEvidence(context.Background(), action.Act, prepared)
 	var status HTTPStatusError
+	var uncertain interface{ OutcomeUncertain() bool }
+	if errors.As(err, &uncertain) {
+		t.Fatal("rejected ETag was incorrectly reported as an uncertain mutation", err)
+	}
 	if err == nil || !errors.As(err, &status) || status.StatusCode != 412 || *calls != 1 {
 		t.Fatal("stale write was not rejected", err, *calls)
 	}
