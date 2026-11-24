@@ -103,6 +103,15 @@ func (t *Task) Access(ctx context.Context, path, access, operation, reason strin
 		tail = filepath.Join(filepath.Base(parent), tail)
 		parent = filepath.Dir(parent)
 	}
+	// Reading a symlinked config folder resolves the actual directory before
+	// review; mutations keep their final component unfollowed.
+	if operation == "read" || operation == "list" || operation == "request_access" {
+		resolved, resolveErr := filepath.EvalSymlinks(target)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		target = resolved
+	}
 	if t.store.blocked(target) {
 		return "", errors.New("HCB permission, credential and execution records are outside live filesystem tools")
 	}

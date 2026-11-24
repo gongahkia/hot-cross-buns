@@ -200,3 +200,29 @@ func TestReadGrantDoesNotAuthorizeWriteAndDirectoryDeleteIsEmptyOnly(t *testing.
 		t.Fatal(err)
 	}
 }
+
+func TestSymlinkedConfigFolderResolvesExactScopeBeforeReview(t *testing.T) {
+	s, actual := fixture(t)
+	links := t.TempDir()
+	alias := filepath.Join(links, "nvim")
+	if err := os.Symlink(actual, alias); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(actual, "init.lua"), []byte("return {}"), 0600)
+	calls := 0
+	v, _ := NewTask(s, true, func(_ context.Context, r Review) (string, error) {
+		calls++
+		if r.Folder != actual {
+			t.Fatalf("review selected %q instead of actual config %q", r.Folder, actual)
+		}
+		return "once", nil
+	})
+	result, err := v.Execute(context.Background(), "list", alias, "", "", "", "")
+	if err != nil || result.Path != actual {
+		t.Fatal(result, err)
+	}
+	read, err := v.Execute(context.Background(), "read", filepath.Join(alias, "init.lua"), "", "", "", "")
+	if err != nil || read.Text != "return {}" || calls != 1 {
+		t.Fatal(read, err, calls)
+	}
+}

@@ -46,6 +46,14 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 			}
 			if len(envelope.Read) > 0 {
 				invocationConfig.LiveFiles = &sandbox.LiveFilesystem{Read: envelope.Read, Write: envelope.Write, Protected: envelope.Protected, Full: envelope.Full, Fingerprint: envelope.Digest}
+				witnesses := map[string]os.FileInfo{}
+				for _, path := range envelope.Read {
+					info, err := os.Stat(path)
+					if err != nil {
+						return orchestrator.Result{}, err
+					}
+					witnesses[path] = info
+				}
 				workerCtx, cancel := context.WithCancel(ctx)
 				defer cancel()
 				ctx = workerCtx
@@ -57,7 +65,15 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 						case <-workerCtx.Done():
 							return
 						case <-ticker.C:
-							if request.files.CheckPolicy() != nil {
+							changed := request.files.CheckPolicy() != nil
+							for path, before := range witnesses {
+								after, err := os.Stat(path)
+								if err != nil || !os.SameFile(before, after) {
+									changed = true
+									break
+								}
+							}
+							if changed {
 								cancel()
 								return
 							}
