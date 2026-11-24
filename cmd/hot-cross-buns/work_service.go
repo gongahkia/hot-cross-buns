@@ -70,7 +70,6 @@ func configuredWorkService(provider, modelName, stateDir string, request *workru
 	request.LearnFromChats = request.ForegroundApp && settings.Desktop.LearnsFromChats()
 	request.MaintainMemory = settings.Desktop.LearnsFromChats()
 	request.DisableChatHistory = !settings.Desktop.RefersToChats()
-	request.DisableBrowser = provider == "hot-cross-buns-local"
 	request.StateDir = stateDir
 	// CLI subprocess costs are separate from scheduled-job model budgets.
 	// Scheduled jobs never inherit new CLI authority from user settings.

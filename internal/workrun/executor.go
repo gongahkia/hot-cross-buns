@@ -580,7 +580,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	}
 	if request.BrowserSession != "" {
 		if request.DisableBrowser {
-			return outcome, errors.New("selected local model does not support Work browser or computer-use capability")
+			return outcome, errors.New("browser tools are disabled for this request")
 		}
 		controller := e.Browser
 		if controller == nil {
@@ -593,7 +593,9 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 				emit(event)
 			},
 		}
+		visual, visualKnown := e.Model.(agent.VisualInputModel)
 		surface = append(surface, tools.BrowserSessionTools(tools.BrowserSessionOptions{
+			TextOnly:   visualKnown && !visual.SupportsVisualInput(),
 			SessionID:  request.BrowserSession,
 			Controller: controller,
 			Policy:     browserPolicy,

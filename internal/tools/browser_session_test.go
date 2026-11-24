@@ -144,3 +144,24 @@ func (f *fakeBrowserController) Download(context.Context, string, string, string
 func (f *fakeBrowserController) Upload(context.Context, string, string, string, string) (hotcrossbunsbrowser.Snapshot, error) {
 	return f.snapshot, nil
 }
+
+func TestTextOnlyBrowserSurfaceRetainsReferencesAndReviewsWithoutImages(t *testing.T) {
+	controller := &fakeBrowserController{session: selectedBrowserSession()}
+	surface := BrowserSessionTools(BrowserSessionOptions{SessionID: controller.session.ID, Controller: controller, TextOnly: true})
+	if len(surface) != 9 {
+		t.Fatalf("text browser tool count: %d", len(surface))
+	}
+	names := map[string]bool{}
+	for _, tool := range surface {
+		names[tool.Definition().Name] = true
+	}
+	if names["browser_screenshot"] || !names["browser_snapshot"] || !names["browser_click"] {
+		t.Fatal("incorrect text-only browser surface", names)
+	}
+	if _, err := toolNamed(t, surface, "browser_click").Execute(context.Background(), json.RawMessage(`{"tab_id":"tab-1","ref":"e1"}`)); err == nil {
+		t.Fatal("text-only model bypassed mutation approval")
+	}
+	if controller.clickRef != "" {
+		t.Fatal("denied click reached browser")
+	}
+}

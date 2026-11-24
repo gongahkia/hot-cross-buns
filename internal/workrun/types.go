@@ -172,8 +172,8 @@ type Request struct {
 	// Code.BrowserSession: the manager cannot silently borrow a Code grant.
 	BrowserSession string
 	BrowserPolicy  string
-	// DisableBrowser is set by the local-model route. A local model must never
-	// receive browser/computer-use capability merely because a session exists.
+	// DisableBrowser is an explicit per-request opt-out. Browser access still
+	// requires the captured session grant, regardless of the model provider.
 	DisableBrowser bool
 	// ApproveBrowser is invoked for every browser mutation. Unlike command
 	// approval, an "always" decision is never remembered by browser tools.

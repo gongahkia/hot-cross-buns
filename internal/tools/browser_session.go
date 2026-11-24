@@ -20,6 +20,7 @@ const (
 // single native run. A zero SessionID means no real browser tool is exposed.
 type BrowserSessionOptions struct {
 	SessionID  string
+	TextOnly   bool
 	Controller hotcrossbunsbrowser.Controller
 	Policy     CommandPolicy
 }
@@ -33,7 +34,7 @@ func BrowserSessionTools(options BrowserSessionOptions) []agent.Tool {
 		return nil
 	}
 	shared := browserSessionTool{sessionID: options.SessionID, controller: options.Controller, policy: options.Policy}
-	return []agent.Tool{
+	surface := []agent.Tool{
 		browserTabsTool{shared},
 		browserSnapshotTool{shared},
 		browserScreenshotTool{shared},
@@ -45,6 +46,10 @@ func BrowserSessionTools(options BrowserSessionOptions) []agent.Tool {
 		browserDownloadTool{shared},
 		browserUploadTool{shared},
 	}
+	if options.TextOnly {
+		return append(surface[:2], surface[3:]...)
+	}
+	return surface
 }
 
 type browserSessionTool struct {
