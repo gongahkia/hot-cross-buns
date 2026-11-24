@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 	"github.com/gongahkia/hot-cross-buns/internal/privatefs"
 )
 
@@ -59,8 +60,11 @@ func (s *Store) Start(options StartOptions) (Session, error) {
 		}
 		seen[app.BundleID] = true
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return Session{}, err
+	}
+	defer unlock()
 	record, err := s.loadLocked()
 	if err != nil {
 		return Session{}, err
@@ -69,7 +73,7 @@ func (s *Store) Start(options StartOptions) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	session := Session{ID: id, State: StateRunning, Apps: append([]Application(nil), options.Apps...), RetainProviderState: options.RetainProviderState, CreatedAt: s.now().UTC()}
+	session := Session{Paused: options.Paused, Revision: 1, ID: id, State: StateRunning, Apps: append([]Application(nil), options.Apps...), RetainProviderState: options.RetainProviderState, CreatedAt: s.now().UTC()}
 	record.Sessions = append(record.Sessions, session)
 	if err := s.saveLocked(record); err != nil {
 		return Session{}, err
@@ -81,8 +85,11 @@ func (s *Store) Get(id string) (Session, error) {
 	if err := validateSessionID(id); err != nil {
 		return Session{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return Session{}, err
+	}
+	defer unlock()
 	record, err := s.loadLocked()
 	if err != nil {
 		return Session{}, err
@@ -96,8 +103,11 @@ func (s *Store) Get(id string) (Session, error) {
 }
 
 func (s *Store) List() ([]Session, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	record, err := s.loadLocked()
 	if err != nil {
 		return nil, err
@@ -114,8 +124,11 @@ func (s *Store) Stop(id string) (Session, error) {
 	if err := validateSessionID(id); err != nil {
 		return Session{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	unlock, err := s.lock()
+	if err != nil {
+		return Session{}, err
+	}
+	defer unlock()
 	record, err := s.loadLocked()
 	if err != nil {
 		return Session{}, err
@@ -242,4 +255,62 @@ func cloneSession(value Session) Session {
 		value.StoppedAt = &copied
 	}
 	return value
+}
+
+func (s *Store) lock() (func(), error) {
+	s.mu.Lock()
+	root, err := os.OpenRoot(s.directory)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+	file, err := filelock.OpenRootFile(root, ".sessions-lock", os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		root.Close()
+		s.mu.Unlock()
+		return nil, err
+	}
+	if err = filelock.Lock(file, filelock.Exclusive); err != nil {
+		file.Close()
+		root.Close()
+		s.mu.Unlock()
+		return nil, err
+	}
+	return func() { _ = filelock.Unlock(file); _ = file.Close(); _ = root.Close(); s.mu.Unlock() }, nil
+}
+
+func (s *Store) SetPaused(id string, paused bool) (Session, error) {
+	if err := validateSessionID(id); err != nil {
+		return Session{}, err
+	}
+	unlock, err := s.lock()
+	if err != nil {
+		return Session{}, err
+	}
+	defer unlock()
+	record, err := s.loadLocked()
+	if err != nil {
+		return Session{}, err
+	}
+	for i := range record.Sessions {
+		session := &record.Sessions[i]
+		if session.ID != id {
+			continue
+		}
+		if session.State != StateRunning {
+			return Session{}, ErrStopped
+		}
+		if session.Paused != paused {
+			if session.Revision == ^uint64(0) {
+				return Session{}, errors.New("desktop revision exhausted")
+			}
+			session.Revision++
+			session.Paused = paused
+			if err := s.saveLocked(record); err != nil {
+				return Session{}, err
+			}
+		}
+		return cloneSession(*session), nil
+	}
+	return Session{}, ErrNotFound
 }

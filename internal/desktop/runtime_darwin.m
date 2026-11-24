@@ -26,6 +26,7 @@ int hot_cross_buns_desktop_front_window(uint32_t *window_id, int *pid, double *x
       NSNumber *layer = window[(id)kCGWindowLayer];
       NSNumber *number = window[(id)kCGWindowNumber];
       NSNumber *ownerPID = window[(id)kCGWindowOwnerPID];
+      if ([ownerPID intValue] != NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier) continue;
       if (layer == nil || [layer intValue] != 0 || number == nil || ownerPID == nil) continue;
       NSRunningApplication *application = [NSRunningApplication runningApplicationWithProcessIdentifier:[ownerPID intValue]];
       if (application == nil || application.bundleIdentifier == nil) continue;

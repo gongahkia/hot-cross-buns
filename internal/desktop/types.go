@@ -32,6 +32,8 @@ type Application struct {
 // retained in this record or in Work evidence.
 type Session struct {
 	ID                  string        `json:"id"`
+	Paused              bool          `json:"paused,omitempty"`
+	Revision            uint64        `json:"revision,omitempty"`
 	State               State         `json:"state"`
 	Apps                []Application `json:"apps"`
 	RetainProviderState bool          `json:"retain_provider_state"`
@@ -40,6 +42,7 @@ type Session struct {
 }
 
 type StartOptions struct {
+	Paused              bool
 	Apps                []Application
 	RetainProviderState bool
 }
@@ -90,8 +93,10 @@ type Runtime interface {
 }
 
 var (
-	ErrNotFound = errors.New("desktop session was not found")
-	ErrStopped  = errors.New("desktop session is stopped")
+	ErrNotFound      = errors.New("desktop session was not found")
+	ErrStopped       = errors.New("desktop session is stopped")
+	ErrPaused        = errors.New("desktop access is paused for private takeover")
+	ErrPolicyChanged = errors.New("desktop grant changed; review access for a new task")
 )
 
 func validateSessionID(value string) error {

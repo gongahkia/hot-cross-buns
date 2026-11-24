@@ -3,6 +3,9 @@ package desktop
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -15,10 +18,13 @@ import (
 // foreground application's bundle identifier before every read or action, so
 // an allowed action cannot drift into a different app after a user takeover.
 type Controller struct {
-	store    *Store
-	runtime  Runtime
-	mu       sync.Mutex
-	captures map[string]captureGeometry
+	store         *Store
+	runtime       Runtime
+	mu            sync.Mutex
+	captures      map[string]captureGeometry
+	accessibility map[string]accessibilityCapture
+	policy        string
+	uncertain     map[string]bool
 }
 
 type captureGeometry struct {
@@ -34,7 +40,7 @@ func NewController(store *Store, runtime Runtime) (*Controller, error) {
 	if store == nil || runtime == nil {
 		return nil, errors.New("desktop controller requires a store and runtime")
 	}
-	return &Controller{store: store, runtime: runtime, captures: map[string]captureGeometry{}}, nil
+	return &Controller{store: store, runtime: runtime, captures: map[string]captureGeometry{}, uncertain: map[string]bool{}, accessibility: map[string]accessibilityCapture{}}, nil
 }
 
 func (c *Controller) Session(_ context.Context, id string) (Session, error) { return c.running(id) }
@@ -264,6 +270,12 @@ func (c *Controller) running(id string) (Session, error) {
 	if session.State != StateRunning {
 		return Session{}, ErrStopped
 	}
+	if session.Paused {
+		return Session{}, ErrPaused
+	}
+	if c.policy != "" && PolicyDigest(session) != c.policy {
+		return Session{}, ErrPolicyChanged
+	}
 	return session, nil
 }
 
@@ -299,4 +311,13 @@ func safeKey(value string) bool {
 	default:
 		return false
 	}
+}
+
+func PolicyDigest(session Session) string {
+	data, _ := json.Marshal(session)
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
+}
+func (c *Controller) Reviewed(policy string) *Controller {
+	return &Controller{store: c.store, runtime: c.runtime, policy: policy, captures: map[string]captureGeometry{}, uncertain: map[string]bool{}, accessibility: map[string]accessibilityCapture{}}
 }
