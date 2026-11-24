@@ -1,6 +1,6 @@
 # Local controlled browser sessions
 
-The terminal distribution exposes browser commands and a `/browser` panel. The shared application panel also appears in desktop command navigation. Source-checkout shell examples below use an explicit internal opt-in; see [development instructions](DEVELOPMENT.md).
+The local browser app exposes the shared `/browser` management panel. The controlled Chromium session is separate from the browser tab displaying Hot Cross Buns. Source-checkout shell examples below use an explicit internal opt-in; see [development instructions](DEVELOPMENT.md).
 
 Hot Cross Buns can control a real local Chromium session for browser-based development
 and visual verification. It is not a hosted browser, a remote executor, or a
@@ -9,7 +9,7 @@ developer explicitly starts or attaches a local session, selects specific tabs,
 and grants that session to one Work run. The browser capability is separate
 from ordinary HTTP research and does not imply desktop/app control.
 
-## In the terminal or desktop application
+## In the local browser app
 
 Open `/browser` from the command palette. The shared panel provides:
 
@@ -39,12 +39,12 @@ The browser panel shows the next-task selection; clearing it affects future
 submission only. Pause or stop the session to block already submitted tasks.
 Managed windows have temporary sign-in state; a new window starts fresh. Existing
 attached sessions are manageable here, but attaching a CDP browser and registering
-uploads still use the advanced CLI. This is not proof of a real account sign-in.
+uploads still use private source-checkout commands. This is not proof of a real account sign-in.
 
 ## Setup and lifecycle
 
 Install the pinned Playwright package and Chromium explicitly. Hot Cross Buns never
-downloads a browser while starting a run or opening the TUI:
+downloads a browser while starting a run or opening the app:
 
 ```sh
 HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns browser install
@@ -131,7 +131,7 @@ Actual provider sign-in and redirect requirements still need real-account testin
 ## Network and profile boundary
 
 Every session begins with no permitted origins. The developer adds exact
-origins through the CLI or TUI. Public origins are HTTPS on port 443;
+origins through private developer commands or the application panel. Public origins are HTTPS on port 443;
 `localhost`, `127.0.0.1`, and `::1` may use HTTP or HTTPS on an explicitly
 approved port. Localhost is resolved before approval and must resolve only to
 loopback; other private, link-local, multicast, file, data, and credentialed
@@ -167,7 +167,7 @@ Hot Cross Buns's private state directory. Installation requires locally installe
 18+ and npm; it uses the checked-in lockfile and Playwright's explicit Chromium
 installer. When a Hot Cross Buns update changes the embedded controller or lockfile,
 `hot-cross-buns browser status` requires an explicit `hot-cross-buns browser install` refresh.
-Hot Cross Buns does not currently bundle Node in release archives.
+The current source-checkout workflow requires Node to be installed separately; see [Development](DEVELOPMENT.md).
 
 Browser requests have a 30-second controller/driver limit and also honor caller
 cancellation. Stop can interrupt a stalled request. Losing an admitted browser

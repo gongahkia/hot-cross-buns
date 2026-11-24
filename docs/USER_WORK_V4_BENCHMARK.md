@@ -1,6 +1,6 @@
 # User Work benchmark, fifty-task corpus
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-16. [Version 4](../internal/eval/testdata/user-work-v4/dataset.json) preserves the 30 version 3 cases and adds 20 jobs across documents, design, spreadsheets, presentations, research, and file organization. The new cases have 14 development and 6 held-out tasks. The full corpus has 37 development and 13 held-out tasks. The four inherited version 2 held-out cases were inspected in earlier live work; they are no longer unseen.
 

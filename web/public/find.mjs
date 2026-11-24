@@ -1,18 +1,5 @@
-import { element } from './text.mjs';
-import { icon } from './icons.mjs';
-
 export function transcriptFind({ transcript, revealed = () => {} }) {
-  const bar = element('section', undefined, 'transcript-find'); bar.hidden = true; bar.setAttribute('aria-label', 'Find in conversation');
-  const input = element('input'); input.type = 'search'; input.maxLength = 256; input.placeholder = 'Find in this chat…'; input.setAttribute('aria-label', 'Find in this chat');
-  const count = element('span', '', 'hint find-count'); count.setAttribute('role', 'status'); count.setAttribute('aria-live', 'polite');
-  const hint = element('span', 'Loaded text only; closed details and previews are excluded.', 'hint find-scope');
-  const excerpt = element('span', '', 'sr-only');
-  const controls = [];
-  for (const [name, glyph, action] of [['Previous match', 'chevron-up', () => move(-1)], ['Next match', 'chevron-down', () => move(1)], ['Close Find', 'close', close]]) {
-    const button = element('button', undefined, 'quiet icon-button'); button.type = 'button'; button.title = name; button.setAttribute('aria-label', name); button.append(icon(glyph)); button.addEventListener('click', action); controls.push(button);
-  }
-  bar.append(icon('search'), input, count, ...controls, hint, excerpt);
-  let matches = [], selected = -1, context = '', limited = false;
+  let matches = [], selected = -1, context = '', limited = false, query = '';
   function clear() {
     window.CSS?.highlights?.delete('chat-find'); window.CSS?.highlights?.delete('chat-find-current');
     for (const node of transcript.querySelectorAll('mark.chat-find-mark')) node.replaceWith(...node.childNodes);
@@ -26,21 +13,16 @@ export function transcriptFind({ transcript, revealed = () => {} }) {
       // wrapping individual text segments preserves code, links, and their handlers.
       for (let i = matches.length - 1; i >= 0; i--) {
         for (const range of [...matches[i].segments].reverse()) {
-          const mark = element('mark', undefined, 'chat-find-mark'); mark.dataset.current = String(i === selected);
+          const mark = document.createElement('mark'); mark.className = 'chat-find-mark'; mark.dataset.current = String(i === selected);
           range.surroundContents(mark);
         }
       }
     }
-    count.textContent = !input.value ? '' : matches.length ? `${selected < 0 ? 0 : selected + 1} of ${matches.length}${limited ? '+' : ''}` : 'No matches';
-    for (const button of controls.slice(0, 2)) button.disabled = !matches.length;
-    excerpt.textContent = matches[selected]?.excerpt || '';
-    hint.textContent = limited ? 'Limited to 500 matches and 8 MiB of loaded text.' : 'Loaded text only; closed details and previews are excluded.';
   }
-  function update(reveal = false, forcedIndex) {
-    if (bar.hidden) return;
+  function update(forcedIndex) {
     const old = matches[selected], oldID = old?.node.dataset.messageId, oldOffset = old?.offset;
     clear(); matches = []; limited = false;
-    const query = input.value; let bytes = 0;
+    let bytes = 0;
     if (query) outer: for (const node of transcript.querySelectorAll('.turn')) {
       const walker = document.createTreeWalker(node, window.NodeFilter.SHOW_TEXT);
       const parts = []; let text = '', child;
@@ -69,8 +51,8 @@ export function transcriptFind({ transcript, revealed = () => {} }) {
         }
       }
     }
-    selected = forcedIndex !== undefined ? forcedIndex : reveal && matches.length ? 0 : matches.findIndex(item => item.node.dataset.messageId === oldID && item.offset === oldOffset);
-    paint(); if (reveal && matches.length) show();
+    selected = forcedIndex !== undefined ? forcedIndex : matches.findIndex(item => item.node.dataset.messageId === oldID && item.offset === oldOffset);
+    paint();
   }
   function show() {
     const item = matches[selected]; if (!item) return;
@@ -80,22 +62,29 @@ export function transcriptFind({ transcript, revealed = () => {} }) {
     else item.node.scrollIntoView?.({ block: 'center', behavior: reduce ? 'instant' : 'smooth' });
     revealed();
   }
-  function move(delta) {
-    if (!matches.length) return;
-    const next = selected < 0 ? (delta < 0 ? matches.length - 1 : 0) : (selected + delta + matches.length) % matches.length;
-    update(false, next);
-    show();
+  function close() { clear(); matches = []; selected = -1; query = ''; }
+  function search(text) {
+    query = text.slice(0, 256);
+    update();
+    return {
+      items: matches.slice(0, 30).map((item, index) => ({
+        label: item.excerpt, group: `Match ${index + 1}`,
+        action() { update(index); show(); },
+      })),
+      notice: limited || matches.length > 30 ? 'Showing the first 30 matches. Refine your search.' : '',
+    };
   }
-  function close() { bar.hidden = true; clear(); matches = []; selected = -1; input.value = ''; }
-  function open() { if (document.querySelector('dialog[open]')) return; bar.hidden = false; update(); input.focus(); input.select(); }
-  input.addEventListener('input', () => update(true));
-  input.addEventListener('keydown', event => {
-    if (event.key === 'Enter') { event.preventDefault(); move(event.shiftKey ? -1 : 1); }
-    else if (event.key === 'Escape') { event.preventDefault(); close(); document.querySelector('#message')?.focus({ preventScroll: true }); }
-  });
   transcript.addEventListener('toggle', () => update(), true);
-  window.addEventListener('keydown', event => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f' && !event.altKey && !document.querySelector('dialog[open]')) { event.preventDefault(); open(); }
-  });
-  return { element: bar, open, close, refresh(id) { if (context && context !== id) close(); context = id; update(); } };
+  return {
+    search, close,
+    open() { document.dispatchEvent(new window.Event('open-chat-find')); },
+    refresh(id) {
+      if (context && context !== id) {
+        close();
+        document.dispatchEvent(new window.Event('chat-find-context-changed'));
+      }
+      context = id;
+      update();
+    },
+  };
 }

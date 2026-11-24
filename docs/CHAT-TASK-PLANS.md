@@ -1,5 +1,10 @@
 # Reviewed task-plan gate
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Status: implemented and connected through the real Go owner, typed bridge and Electron interface. Final whole-application acceptance passed: 81 Electron journeys passed, 2 opt-in live API journeys skipped. After the final scoped list-marker fix, all four plan journeys passed again (18.2 s). See [final acceptance](CHAT-UX-ACCEPTANCE.md). Earlier verification sections preserve historical checkpoints; the resumed/final records supersede their pending status.
 
 ## Existing stores and owners

@@ -1,7 +1,7 @@
 # Control Hot Cross Buns through conversation
 
 Ask Hot Cross Buns to inspect or change its own settings. It uses the same stores and
-services as the desktop screens, with tool results confirming actual changes.
+services as the browser application panels, with tool results confirming actual changes.
 
 | Example request | Behavior |
 | --- | --- |

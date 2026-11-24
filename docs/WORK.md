@@ -1,6 +1,6 @@
 # Hot Cross Buns Work architecture
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Current execution, continuity, evidence, Code candidates and bounds: [WORK_DEPTH.md](WORK_DEPTH.md).
 
@@ -8,7 +8,8 @@ Current local browser, desktop, PPTX, and scheduling boundaries: [WORK_CAPABILIT
 
 ## Product contract
 
-Hot Cross Buns is a desktop personal agent with a local-first Work service. A work run accepts a clear
+Hot Cross Buns is a personal agent with a local browser interface and a local-first
+Work service. A work run accepts a clear
 objective and an explicit set of sources, performs bounded work through approved
 capabilities, and returns a reviewable artifact bundle. It does not silently
 overwrite source material or perform an external action merely because a model
@@ -18,20 +19,21 @@ The product is designed for technical operators, founders, researchers,
 analysts, and developers who want assistance that is
 composable, inspectable, and provider-independent.
 
-The desktop is conversation-first. A first launch uses a private empty folder;
+The browser app is conversation-first. A first launch uses a private empty folder;
 users explicitly select local sources or connections when their work needs them.
 Questions use inspection mode automatically; requests to create work use draft
 mode and infer a conservative deliverable name. Session controls and reviewed
 forms remain available when the automatic contract needs changing.
 
-The Electron app bundles the Go runtime. React displays native desktop panels
-from the Go application's display-safe state. Conversation ownership, approvals,
-commands and evidence stay in Go. Packaged users do not install Node.js, a
-terminal renderer or a public CLI. See [desktop setup](DESKTOP.md) and
-[developer/service instructions](DEVELOPMENT.md).
+The Node browser host launches the private Go runtime and exchanges JSON-line
+actions and display-safe state. The browser UI receives state through the local
+HTTP gateway and event stream. Conversation ownership, approvals, commands and
+evidence stay in Go. `make run` builds the runtime and starts the host; development
+requires Go 1.25.13+ and Node 22.12+. See [development instructions](DEVELOPMENT.md)
+and [runtime ownership](WEB-ONLY-RUNTIME.md).
 
 Completed files appear in the conversation as a verified deliverable card.
-`/review` previews them inside the desktop app. `/save [DIRECTORY]` preflights
+`/review` previews them inside the browser app. `/save [DIRECTORY]` preflights
 and saves ordinary artifacts after one explicit confirmation; `/apply` does the
 same for a verified Code candidate. Both paths recheck retained evidence and
 target state at execution time. The selected source remains immutable during the

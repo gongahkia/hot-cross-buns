@@ -1,5 +1,10 @@
 # Code-to-Hot Cross Buns product migration
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 ## Product decision
 
 Hot Cross Buns is the only user-facing agent. The original Code application is no

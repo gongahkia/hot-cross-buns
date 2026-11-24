@@ -1,5 +1,10 @@
 # Retained-source citation chips
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Assistant file references and explicit evidence references render as compact numbered chips. Hovering or focusing a chip reads a bounded retained excerpt; clicking it, or **View in source**, opens the existing source sidebar. Ordinary unretained web links remain ordinary links. A source reference is not proof that a generated claim follows from it.
 
 ## Supported evidence

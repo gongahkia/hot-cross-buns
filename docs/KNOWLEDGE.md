@@ -1,6 +1,6 @@
 # Personal knowledge and skills
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Hot Cross Buns keeps short facts and decisions in `hot-cross-buns memory`. Longer Markdown notes
 and reusable procedures live in a private filesystem knowledge base under the
@@ -49,7 +49,7 @@ The private vector index contains embeddings and content hashes rather than
 plain text. It updates changed records incrementally and removes forgotten
 records. Saved source text and instructions never grant tool authority.
 
-## Memory and privacy in the desktop
+## Memory and privacy in the browser app
 
 Settings → **Memory & privacy** separates two preferences:
 
@@ -62,7 +62,7 @@ A collapsed **Saved to memory** receipt beneath an answer opens the current save
 
 ## Notes
 
-In the desktop, Memory & privacy (or `/memory` in command search) opens the readiness and setup panel. It explains
+In the browser app, Memory & privacy (or `/memory` in command search) opens the readiness and setup panel. It explains
 three separate stages: private local storage, retrieval through basic matching
 or the selected embedding provider, and chat processing through `/model`.
 Local retrieval does not prevent selected memories from being sent to a cloud
@@ -117,8 +117,8 @@ match can be irrelevant. Corrected or removed notes are reflected in the next
 Work run, and notes from another goal never enter the selection. Work uses the
 current request and ongoing goal context to rank eligible notes.
 
-In the TUI, `/note add TITLE | BODY`, `/note list`, `/note search QUERY`, and
-`/note edit ID | BODY` use the current goal by default. The terminal CLI supports
+In the shared application commands, `/note add TITLE | BODY`, `/note list`, `/note search QUERY`, and
+`/note edit ID | BODY` use the current goal by default. The private source-checkout commands above support
 larger files and full metadata options.
 
 ## Skills
@@ -133,7 +133,7 @@ HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill enable dail
 HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns skill remove daily-brief --yes
 ```
 
-In the TUI, `/skill create NAME | WHEN_TO_USE | BODY` and
+In the shared application commands, `/skill create NAME | WHEN_TO_USE | BODY` and
 `/skill edit NAME | WHEN_TO_USE | BODY` save a procedure directly. During Work,
 the model can call `skill_list` to see enabled descriptions and `skill_read` to
 load one full procedure. Skills are not automatically copied into every prompt.
@@ -162,7 +162,7 @@ the knowledge tools themselves do not start a process.
 During Work, Hot Cross Buns may queue a candidate ongoing goal, note, skill, goal-plan edit, or
 goal-linked recurring check. A goal proposal includes a starting plan and may include an inspect-only recurring check. The
 candidate records its source Work ID and is not used as knowledge until you
-accept it. Review from the terminal UI with `/suggestions` or from the shell:
+accept it. Review from the application panel with `/suggestions` or from the shell:
 
 ```sh
 HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns suggestion list

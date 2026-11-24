@@ -1,6 +1,6 @@
 # Review surfaces
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Current Work candidate review and explicit code application: [WORK_DEPTH.md](WORK_DEPTH.md).
 
@@ -8,7 +8,10 @@ Hot Cross Buns reviews only a retained run worktree. Staging, feedback, and brow
 review never write to the checkout from which the run was started. Export and
 apply remain the explicit handoff to that checkout.
 
-## Terminal review
+## Historical terminal review
+
+The shortcuts and layout in this section describe the retired terminal frontend.
+For current Work review and application, use [Work depth](WORK_DEPTH.md).
 
 After a run, open `/review`. Hot Cross Buns loads one bounded review snapshot split into
 three scopes:

@@ -1,5 +1,10 @@
 # Observed chat activity
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Electron's existing ordered activity trace now includes a finite projection of actual native tool results:
 
 - Search-result domains and fetched-source domains. A search result is not labelled as a page read. Fetched evidence can open the retained source after the run is saved.

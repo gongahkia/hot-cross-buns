@@ -1,5 +1,10 @@
 # Agent continuity implementation
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Implemented 30 October 2026. Hot Cross Buns remains a general-purpose CLI agent with
 native local tracking; none of these features requires a connector.
 

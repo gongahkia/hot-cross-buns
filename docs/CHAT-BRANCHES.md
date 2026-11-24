@@ -1,5 +1,10 @@
 # Independent chat branches
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Implemented and verified against the real Go owner and Electron. All three branch/speech journeys passed after the operator resumed app testing, including the final whole-application run (81 passed / 2 opt-in paid tests skipped). Earlier checkpoints below are historical. Native audible speech remains separate manual acceptance. See [final acceptance](CHAT-UX-ACCEPTANCE.md).
 
 ## Durable boundary and publication

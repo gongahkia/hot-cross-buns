@@ -119,11 +119,14 @@ without a measured need.
 Settings `work_roles` version-1 entries select per-role provider/model pairs and
 narrow step limits. Configured routing is recorded in effective policy and task
 evidence. A shared request/token/wall budget covers the entire tree and retries.
-TUI and Work headless controls inspect the same live tasks. `hot-cross-buns work tasks RUN`
+The browser app and Work headless controls inspect the same live tasks.
+The `hot-cross-buns ...` commands below are private backend shorthand: use
+`HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns ...` from a
+source checkout. See [Development](DEVELOPMENT.md). `hot-cross-buns work tasks RUN`
 inspects retained records without taking ownership. Completed parent-revision
 tasks can be explicitly continued by global ID; interrupted outcomes require
 inspection. `hot-cross-buns work activity` joins running Work records, retained
-specialist checkpoints, and pending decision IDs in one read-only CLI view;
+specialist checkpoints, and pending decision IDs in one read-only developer view;
 stale run records are labeled and their task status is only a checkpoint.
 Interactive `/activity` shows this Work view alongside the selected goal's
 checks, or shows Work alone when no goal is selected.

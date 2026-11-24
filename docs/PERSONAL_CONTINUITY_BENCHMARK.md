@@ -1,6 +1,6 @@
 # Personal agent continuity benchmark
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 This corpus tests whether Hot Cross Buns can resume an ongoing goal after facts or user
 direction change. It is separate from the deliverable-focused Work corpus.

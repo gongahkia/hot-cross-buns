@@ -1,6 +1,6 @@
 # User Work benchmark, thirty-task corpus
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-16. [Version 3](../internal/eval/testdata/user-work-v3/dataset.json) preserves the 21-case [version 2 corpus](USER_WORK_V2_BENCHMARK.md) and adds nine tasks for a terminal-based knowledge worker. The prior live reports remain version 2 results; they are not scores for this new manifest. The new fixtures are synthetic and local. They exercise decisions and deliverables from source material, not live web retrieval or connected apps.
 

@@ -1,5 +1,10 @@
 # Hot Cross Buns terminal interface
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 The optional [desktop companion](DESKTOP.md) adapts Referene's React DOM /
 Tailwind layout and shares the Go UI bridge with this terminal. Desktop
 components live under `desktop/`; the Claude Code Kit terminal conventions

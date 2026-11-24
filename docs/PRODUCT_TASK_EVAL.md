@@ -1,6 +1,6 @@
 # Product task comparison: brief, email, and deck
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 This is a **live-model evaluation plan and attempt log**, not a product-quality score. The three selected cases in `internal/eval/testdata/user-work-v4/dataset.json` use synthetic but task-shaped source folders. They cover a recovered incident versus open work, a customer-safe email versus internal notes, and a slide deck with a measurement caveat. These are useful smoke tasks; actual user material and independent reviewers are still needed for a market claim.
 

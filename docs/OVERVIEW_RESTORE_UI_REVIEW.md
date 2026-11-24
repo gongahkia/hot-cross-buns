@@ -1,5 +1,10 @@
 # Overview and restore interface review
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Mode: full. Scope: the everyday home, overview section/item pickers, restore and
 source relink forms, confirmations, return navigation, and refresh behavior.
 Framework: the existing Claude Code Kit React terminal renderer, with Go owning

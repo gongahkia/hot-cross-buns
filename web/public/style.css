@@ -458,10 +458,6 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .chat-rename label, .chat-rename input { width: 100%; font-size: .8rem; }
 @media (hover: none) { .chat-item .rename-chat { opacity: 1; } }
 
-.transcript-find { position: sticky; top: 3.3rem; z-index: 2; display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; padding: .55rem max(1rem, calc((100vw - var(--measure)) / 2)); background: var(--paper); border-block: 1px solid var(--line); }
-.transcript-find input { flex: 1; width: 8rem; min-width: 6rem; padding: .3rem; border: 0; background: var(--wash); font-size: .85rem; }
-.find-count { font-variant-numeric: tabular-nums; font-size: .75rem; white-space: nowrap; }
-.find-scope { width: 100%; font-size: .68rem; }
 ::highlight(chat-find) { background: #e9e8cf; color: #37352f; }
 ::highlight(chat-find-current) { background: #ced8c4; color: #37352f; }
 .chat-find-mark { background: #e9e8cf; color: inherit; }

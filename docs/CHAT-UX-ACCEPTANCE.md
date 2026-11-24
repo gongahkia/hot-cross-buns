@@ -1,5 +1,10 @@
 # Chat UX final automated acceptance
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Automated integration: **PASS** for the five patterns in [the implementation plan](CHAT-UX-PATTERNS-PLAN.md). The real Electron application and Go backend were exercised with disposable profiles, scripted model replies and private HTTP services. This is not physical-device, native audio or real-account acceptance. The operator explicitly resumed app-opening tests after the earlier temporary hold.
 
 ## Shipped functionality

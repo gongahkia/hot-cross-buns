@@ -20,12 +20,13 @@ three-worker concurrency and eight-assignment default limit. Each worker has its
 the manager can inspect, await, steer, answer or cancel it and remains responsible
 for the final response. Existing task/activity controls show custom role names.
 
-While the parent task is running, desktop chat also shows a **Specialists**
-section with each worker's name, purpose, expandable assignment and live status.
+In the browser app, **Delegated work** shows public specialist assignments,
+status, engine and the owning chat. See [Development](DEVELOPMENT.md) for
+the current navigation.
 Use **Guide** to send focused instructions to one worker, or **Stop** to cancel
 that worker without stopping the parent or its peers. Guidance applies at the
 next model boundary: an in-flight response is superseded before its tools run.
-The desktop confirms that guidance was queued, not that it was already applied.
+The application confirms that guidance was queued, not that it was already applied.
 Guidance is unavailable for reviewed-plan execution and workers whose adapter
 does not support steering; stopping remains available. Source/permission changes
 still require the normal task and approval flow. A stopped worker is shown as

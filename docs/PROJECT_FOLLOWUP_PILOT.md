@@ -1,6 +1,6 @@
 # Project follow-up pilot
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Hot Cross Buns's first guided workflow is: **watch selected project changes, identify the
 next useful step, and prepare a response for review**. The target participant

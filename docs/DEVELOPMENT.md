@@ -48,6 +48,20 @@ server startup. Streaming responses show code until the response is complete.
 Node and Go are the development requirements; there is no terminal frontend or
 Bun packaging dependency.
 
+## Documentation status and verification
+
+This guide, [runtime ownership](WEB-ONLY-RUNTIME.md), and
+[conversation continuity](CONVERSATION-CONTINUITY.md) describe the current browser
+application. Documents marked as historical retain their original interface,
+commands and test results; terminal/Electron acceptance does not establish browser
+acceptance. There is no current `desktop/` or terminal frontend package to build.
+
+Use `make web-check` for browser gateway and rendering checks, or `make check`
+for the runtime build, Go tests/vet, web tests, shared-host tests and OAuth build
+checks. CI adds companion, native-service, race, controlled-browser and Office
+validation jobs; those are not all included in `make check`. Live-provider and
+physical-device checks require their separately documented setup.
+
 ## Boundaries
 
 - `web/`: local HTTP server, typed host actions, event stream and browser UI.
@@ -59,7 +73,7 @@ Bun packaging dependency.
 - `cmd/hot-cross-buns/ui_bridge.go`: JSON-lines application transport.
 - Other Go packages: tools, connectors, memory, scheduling, specialists,
   coding, usage and storage. Frontend changes do not grant execution authority.
-- `companion/`: optional authenticated phone extension, independent of Electron.
+- `companion/`: optional authenticated phone extension with its own listener and access controls.
 
 The Go executable is a private application runtime. The browser host, scheduled
 workers and optional companion use explicit internal transport roles. It does not
@@ -74,9 +88,10 @@ their original observations; current frontend work lives in `web/`.
 
 
 Code blocks and artifact sources include syntax highlighting and a Copy button.
-Press Cmd+K / Ctrl+K for commands, loaded chat titles, and text in
-the current conversation. Use arrow keys and Enter to select a result, or Escape
-to close the palette. This search covers the loaded conversation and menu rows.
+Press Cmd+K / Ctrl+K for commands, Cmd+P / Ctrl+P to search retained chats,
+and Cmd+F / Ctrl+F to find text within the current chat. All three use the same
+palette, with separate commands, chats, and current-chat results. Use arrow keys and Enter to select a result, or Escape
+to close the palette. Chat search uses the retained catalog; in-chat Find covers loaded conversation text.
 
 Drag a Markdown table header's right edge to resize its column. The resize handles
 also accept Left/Right arrow keys in 20px steps. Widths survive message rerenders

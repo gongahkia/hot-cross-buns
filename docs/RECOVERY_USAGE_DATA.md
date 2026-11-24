@@ -1,6 +1,6 @@
 # Recovery, shared usage, and private data
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 These controls use the existing Claude Code Kit terminal pickers, forms, and
 confirmation screens. Open them from chat or the command palette. Tab moves

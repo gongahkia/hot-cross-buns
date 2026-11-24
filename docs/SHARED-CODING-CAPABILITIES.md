@@ -2,7 +2,7 @@
 
 Hot Cross Buns's user-facing conversation runner and bounded coding workers use the same
 provider-neutral coding harness. Coding is an agent capability, not a second
-product or a requirement to install Codex, Pi, or Claude. Electron remains the
+product or a requirement to install Codex, Pi, or Claude. The local browser app is the
 primary product surface. Explicitly read-only assignments and research/review
 specialists retain their narrower authority.
 
@@ -19,7 +19,7 @@ Work source and host-captured project configuration. They return patches rather
 than write the selected live checkout. No original repository is required to be
 Git initialized, and no Git history in that repository is rewritten.
 
-The ordinary Electron path enables coding for draft/act work. It does not require
+The ordinary foreground Work path enables coding for draft/act work. It does not require
 an unrelated document for a coding request. Code references such as SPEC.md or
 “CSV importer” do not by themselves require an output document. Explicit inspect
 mode stays read-only. Automatic classification is a convenience, not authority to

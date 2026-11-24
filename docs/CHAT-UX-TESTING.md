@@ -1,5 +1,10 @@
 # Chat UX application verification
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 The implementation uses real Electron and Go owners with disposable profiles, scripted models and private loopback services. An authored journey is not a passing journey. Physical speech/microphone, real external accounts, phones and signed installers require separate acceptance.
 
 ## Isolated local runs

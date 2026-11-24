@@ -1,5 +1,10 @@
 # Conversation source selection
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 The Electron composer’s **Sources** button opens **Add sources**. It lists only the configured, supported Hot Cross Buns connections. Selected account labels appear beside the button in wider windows; the source count remains available in compact windows. The menu supports keyboard navigation, Escape/focus return, refresh, clearing selections and **Manage connections**.
 
 Connecting an account and selecting it for a request are separate actions. Selection does not authenticate, widen tool permissions, authorize writes or imply live access. A saved credential is shown as saved, not verified. Missing/expired credentials and action-only connections cannot be newly selected as read sources. Existing invalid selections can be cleared. Removed accounts are never substituted.

@@ -1,12 +1,14 @@
 # Durable jobs design
 
-**Interface status:** The [terminal distribution](TERMINAL.md) exposes these
-retained command families as `hot-cross-buns job ...`. Source-checkout examples below use
-the Go runtime's explicit internal opt-in; see [development instructions](DEVELOPMENT.md).
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`).
+The `hot-cross-buns job ...` shorthand below describes private backend command
+families. From a source checkout, invoke them as
+`HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job ...`;
+see [development instructions](DEVELOPMENT.md). There is no public CLI installation.
 
 ## Implemented boundary
 
-Hot Cross Buns does not turn the process-local terminal registry, TUI queue, or app
+Hot Cross Buns does not turn the process-local terminal registry, conversation queue, or app
 server into a scheduler. Those components own live resources in one process;
 they do not provide durable ownership, missed-run policy, or restart safety.
 
@@ -16,7 +18,7 @@ terminal with `hot-cross-buns job supervisor`. On macOS, `hot-cross-buns job lau
 installs an opt-in per-user service; on Linux, `hot-cross-buns job systemd install` installs
 a per-user systemd service. Both keep the supervisor running while the
 host is on and the user manager is active. Hot Cross Buns does not stretch its process-local
-TUI queue into a scheduler.
+conversation queue into a scheduler.
 
 This is a product boundary. The supervisor reconciles interrupted attempts and
 applies the configured missed-run policy after a restart. It does not run when
@@ -172,7 +174,7 @@ desktop alerts. A watch's urgent label is a model judgment, not a verified
 severity assessment; older watch responses without the field count as routine.
 These settings only narrow desktop alerts when the supervisor's global
 notification option is enabled. Completed results and failures still go to
-the terminal inbox; quiet hours do not defer or drop them. The same policy
+the application inbox; quiet hours do not defer or drop them. The same policy
 applies to due plan-review reminders. A reminder retained during quiet hours
 is not replayed as a desktop notification when quiet hours end.
 
@@ -218,12 +220,12 @@ not create an inbox entry. These ratings describe only alerts that were shown;
 they cannot measure missed important changes or establish alert accuracy on
 their own.
 
-In interactive Hot Cross Buns, `ctrl+b` or `/inbox` opens a freshly loaded inbox panel.
+In the browser app, `/inbox` opens the shared inbox panel.
 Each row shows its entry ID, read state, and rating. Press `esc` to return to
 chat, then use `/inbox show ENTRY_ID`, `/inbox read ENTRY_ID`, or
 `/inbox rate ENTRY_ID useful|noise|wrong|clear`. The panel refreshes when reopened
 and after an inbox action, including actions through `/jobs inbox ...`.
-Urgent job alerts show an explicit marker in the CLI and terminal inbox; a
+Urgent job alerts show an explicit marker in the private command output and application inbox; a
 user rating is independent of that model-assigned label.
 
 `hot-cross-buns job quiet-audit JOB_ID` lists the newest 50 completed goal-watch checks
@@ -255,13 +257,13 @@ source root, outcome contract, provider configuration, connector descriptors,
 and credential availability. Remote response content and credentials are not
 written to scheduler lifecycle events.
 
-## CLI
+## Private developer commands
 
-To route a CLI-created check's updates to an existing chat, use the terminal
+To route a developer-created check's updates to an existing chat, use the private runtime
 launcher with that chat's exact ID:
 
 ```sh
-hot-cross-buns job add 'Weekly review' --conversation work-EXISTING_ID \
+HOT_CROSS_BUNS_INTERNAL_COMMANDS=1 go run ./cmd/hot-cross-buns job add 'Weekly review' --conversation work-EXISTING_ID \
   --schedule '0 9 * * 1' --timezone Asia/Singapore --mode inspect \
   -- 'Review this project and report changes needing attention'
 ```

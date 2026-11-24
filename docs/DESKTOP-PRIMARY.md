@@ -1,9 +1,10 @@
 # Desktop as Hot Cross Buns's primary interface
 
-> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
-> standalone-CLI retirement instructions below are historical. Current commands
-> and verification are in [the terminal port](CLI-TUI-PORT.md) and
-> [development](DEVELOPMENT.md).
+> Historical interface record: the Electron and terminal frontends are retired.
+> The implementation and verification below describe their original checkpoint,
+> not the current browser app. Use [Development](DEVELOPMENT.md) for setup and
+> checks, and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md)
+> for current ownership and interface boundaries.
 
 Reconfirmed 1 November 2026: Electron is the sole primary app. The later OpenTUI
 migration is cancelled after a capability inventory and Electron ports; see

@@ -1,6 +1,6 @@
 # Trusted MCP servers
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Hot Cross Buns exposes trusted Model Context Protocol (MCP) tools from a repository
 configuration at `.hot-cross-buns/mcp.json`. The configuration is inert until the

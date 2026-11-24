@@ -1,6 +1,6 @@
 # User Work benchmark, first iteration
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-15. The corpus is
 [`internal/eval/testdata/user-work-v1/dataset.json`](../internal/eval/testdata/user-work-v1/dataset.json).

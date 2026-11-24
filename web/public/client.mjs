@@ -57,8 +57,7 @@ async function respondTo(ref,action,text){
 function quotedTurn(text,name){const parsed=parseQuotedRequest(text);const article=turn(parsed?.text??text,true,name);if(parsed){const quote=element('blockquote',parsed.quote.text,'message-quote');quote.prepend(element('small','In reply to Hot Cross Buns'));article.prepend(quote);}return article;}
 const reading = readingPosition({ transcript: $('transcript'), streaming: $('streaming') });
 document.querySelector('.composer-wrap').prepend(reading.element);
-const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
-document.querySelector('.top').after(find.element);
+export const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
 let reactionMode = reactionPreference();
 const chats = chatMenu({ request: body => call({ op: 'chats', ...body }), open: async selection => {
   await flush(); await call({ op: 'open-chat', ...selection }); showHistory(false);
@@ -945,11 +944,25 @@ export function paletteCommands() {
     { label: 'Delegated work', action: inspector.open },
     { label: 'Scheduled tasks', action: scheduled.open },
   ];
-  for (const node of document.querySelectorAll("[data-route], #chat-list .chat-row")) {
+  for (const node of document.querySelectorAll("[data-route]")) {
     if (!node.disabled) commands.push({
-      label: node.textContent.trim(), group: node.closest("#chat-list") ? "Chat" : "Command",
+      label: node.textContent.trim(), group: "Command",
       action: () => node.click(),
     });
   }
   return commands;
+}
+
+export async function paletteChats(query) {
+  const context = snapshot.context;
+  const page = await call({ op: 'chats', context, query });
+  if (context !== snapshot.context) throw new Error('The conversation changed. Reopen Chats to refresh.');
+  return {
+    items: page.items.map(item => ({ label: item.title || 'New chat', group: 'Chat', action: () => void execute(async () => {
+      await flush();
+      await call({ op: 'open-chat', context, selection: item.selection });
+    }) })),
+    notice: page.incomplete || page.skipped ? 'Some retained chats could not be read. Reopen Chats to retry.' :
+      page.next || page.items.length > 30 ? 'Showing the first 30 chats. Type to search, or use All chats for more.' : '',
+  };
 }

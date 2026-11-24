@@ -135,27 +135,66 @@ A price of $5 and $10.
   assert.match(result.querySelector("code").textContent, /\$literal\$/);
 });
 
-test("command palette filters commands and conversation text and supports keyboard selection", () => {
-  document.body.innerHTML = '<div id="transcript"><article class="turn">Read in the sunshine</article></div>';
+test("command and chat shortcuts stay scoped, switch modes, and reject stale search results", async () => {
+  document.body.innerHTML = '<textarea id="message"></textarea><div id="transcript"><article class="turn">Read in the sunshine</article></div>';
   dom.window.HTMLDialogElement.prototype.showModal = function() { this.open = true; };
   dom.window.HTMLDialogElement.prototype.close = function() { this.open = false; this.dispatchEvent(new dom.window.Event("close")); };
-  let opened = false;
-  installPalette(() => [{ label: "New chat", action: () => { opened = true; } }, { label: "Models", action: () => {} }]);
-  document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
-  const input = document.getElementById("command-search");
-  assert.equal(document.querySelector("dialog").open, true);
-  input.value = "sunshine";
-  input.dispatchEvent(new dom.window.Event("input"));
-  assert.match(document.getElementById("command-results").textContent, /Read in the sunshine/);
-  input.value = "missing term";
-  input.dispatchEvent(new dom.window.Event("input"));
-  assert.equal(document.querySelectorAll("[role=option]").length, 0);
-  assert.equal(input.hasAttribute("aria-activedescendant"), false);
-  input.value = "new";
-  input.dispatchEvent(new dom.window.Event("input"));
-  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter" }));
-  assert.equal(opened, true);
-  assert.equal(document.querySelector("dialog").open, false);
+  let opened = '', finishOld;
+  const queries = [];
+  installPalette(() => [{ label: "New chat", action: () => { opened = 'command'; } }, { label: "Models", action: () => {} }], async query => {
+    queries.push(query);
+    if (query === 'old') return new Promise(resolve => { finishOld = resolve; });
+    if (query === 'broken') throw new Error('Chat catalog unavailable');
+    return { items: [{ label: 'Project notes', group: 'Chat', action: () => { opened = 'chat'; } }] };
+  });
+  const input = document.getElementById("command-search"), dialog = document.querySelector('dialog');
+  const key = (value, modifiers) => {
+    const event = new dom.window.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...modifiers });
+    document.dispatchEvent(event); return event;
+  };
+  const query = value => { input.value = value; input.dispatchEvent(new dom.window.Event('input')); };
+  const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+  document.getElementById('message').focus();
+  assert.equal(key('k', { ctrlKey: true }).defaultPrevented, true);
+  assert.equal(dialog.getAttribute('aria-label'), 'Commands');
+  assert.equal(document.activeElement, input);
+  query('sunshine');
+  assert.equal(document.querySelectorAll('[role=option]').length, 0);
+  assert.equal(input.hasAttribute('aria-activedescendant'), false);
+  assert.deepEqual(queries, []);
+  query('new'); input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+  assert.equal(opened, 'command'); assert.equal(dialog.open, false);
+  assert.equal(document.activeElement, document.getElementById('message'));
+  for (const modifier of ['ctrlKey', 'metaKey']) {
+    assert.equal(key('p', { [modifier]: true }).defaultPrevented, true); await tick();
+    assert.equal(dialog.getAttribute('aria-label'), 'Chats');
+    assert.equal(input.placeholder, 'Search chats…');
+    assert.match(document.getElementById('command-results').textContent, /Project notes/);
+    assert.doesNotMatch(document.getElementById('command-results').textContent, /Models|sunshine/);
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    assert.equal(opened, 'chat'); assert.equal(dialog.open, false);
+    key('k', { [modifier]: true });
+    assert.equal(dialog.getAttribute('aria-label'), 'Commands');
+    assert.doesNotMatch(document.getElementById('command-results').textContent, /Project notes/);
+    key('k', { [modifier]: true }); assert.equal(dialog.open, false);
+  }
+  key('p', { ctrlKey: true }); await tick();
+  query('old');
+  assert.equal(document.querySelectorAll('[role=option]').length, 0);
+  query('recent'); await tick();
+  finishOld({ items: [{ label: 'Stale chat', action() {} }] }); await tick();
+  assert.doesNotMatch(document.getElementById('command-results').textContent, /Stale chat/);
+  query('broken'); await tick();
+  assert.equal(document.querySelectorAll('[role=option]').length, 0);
+  assert.match(dialog.textContent, /Chat catalog unavailable/);
+  key('k', { metaKey: true });
+  assert.equal(dialog.getAttribute('aria-label'), 'Commands');
+  assert.match(document.getElementById('command-results').textContent, /Models/);
+  key('p', { ctrlKey: true }); await tick();
+  key('p', { ctrlKey: true }); assert.equal(dialog.open, false);
+  assert.equal(key('p', { ctrlKey: true, altKey: true }).defaultPrevented, false);
+  assert.equal(key('k', { metaKey: true, isComposing: true }).defaultPrevented, false);
 });
 
 
@@ -484,16 +523,43 @@ test('chat search retires prior results and renames the exact returned selection
   assert.deepEqual(renamed, [{ context: 'owner', selection: 'searched', title: 'My notes' }]);
 });
 
-test('Find highlights visible occurrences across inline markup, wraps navigation, excludes closed sources, and clears on chat changes', () => {
-  document.body.innerHTML = '<div id="transcript"><article class="turn" data-message-id="one"><p>Hello <strong>quiet</strong> world. Quiet again.</p><details><summary>Source</summary><pre>quiet hidden</pre></details><button>quiet action</button></article></div>';
-  const find = transcriptFind({ transcript: document.querySelector('#transcript') }); document.body.prepend(find.element); find.refresh('one'); find.open();
-  const input = find.element.querySelector('input'); input.value = 'quiet'; input.dispatchEvent(new window.Event('input'));
-  assert.match(find.element.textContent, /1 of 2/); assert.equal(document.querySelectorAll('mark').length, 2);
-  [...find.element.querySelectorAll('button')].find(node => node.getAttribute('aria-label') === 'Next match').click(); assert.match(find.element.textContent, /2 of 2/);
-  input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter' })); assert.match(find.element.textContent, /1 of 2/);
-  input.value = 'quiet world'; input.dispatchEvent(new window.Event('input')); assert.match(find.element.textContent, /1 of 1/);
-  assert.equal(document.querySelector('strong').textContent, 'quiet');
-  find.refresh('two'); assert.equal(find.element.hidden, true); assert.equal(document.querySelector('mark'), null);
+test('Find uses the command palette, scopes matches to the current chat, and jumps to selected text', () => {
+  document.body.innerHTML = '<textarea id="message"></textarea><div id="transcript"><article class="turn" data-message-id="one"><p>Hello <strong>quiet</strong> world. Quiet again.</p><details><summary>Source</summary><pre>quiet hidden</pre></details><button>quiet action</button></article></div><aside>quiet other chat</aside>';
+  const node = document.querySelector('.turn'); node.scrollIntoView = () => {};
+  let revealed = 0;
+  const find = transcriptFind({ transcript: document.querySelector('#transcript'), revealed: () => revealed++ });
+  installPalette(() => [], async () => ({items: []}), find);
+  const dialog = document.querySelector('dialog'), input = dialog.querySelector('input'); find.refresh('one');
+  for (const modifier of ['ctrlKey', 'metaKey']) {
+    document.getElementById('message').focus();
+    const event = new window.KeyboardEvent('keydown', { key: 'f', [modifier]: true, cancelable: true });
+    window.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, true); assert.equal(dialog.open, true);
+    assert.equal(dialog.className, 'command-palette');
+    assert.equal(dialog.getAttribute('aria-label'), 'Find in this chat');
+    assert.equal(document.activeElement, input);
+    assert.equal(dialog.querySelector('.palette-empty').hidden, true);
+    assert.equal(dialog.querySelector('[role="listbox"]').hidden, true);
+    assert.equal(dialog.querySelector('.palette-footer').textContent, '↑ ↓ to move · Enter to open · Esc to close');
+    assert.doesNotMatch(dialog.textContent, /Type to search this chat|Current chat’s loaded text only/);
+    input.value = 'quiet'; input.dispatchEvent(new window.Event('input'));
+    assert.equal(dialog.querySelectorAll('[role="option"]').length, 2);
+    assert.equal(document.querySelectorAll('mark').length, 2);
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter' }));
+    assert.equal(dialog.open, false); assert.equal(document.activeElement.id, 'message');
+    assert.equal(revealed > 0, true);
+    find.open();
+    input.value = 'quiet world'; input.dispatchEvent(new window.Event('input'));
+    assert.equal(dialog.querySelectorAll('[role="option"]').length, 1);
+    assert.equal(document.querySelector('strong').textContent, 'quiet');
+    input.value = 'missing'; input.dispatchEvent(new window.Event('input'));
+    assert.equal(dialog.querySelectorAll('[role="option"]').length, 0);
+    assert.match(dialog.textContent, /No matches in this chat/);
+    dialog.close(); assert.equal(document.querySelector('mark'), null);
+  }
+  find.open(); input.value = 'quiet'; input.dispatchEvent(new window.Event('input'));
+  find.refresh('two'); assert.equal(dialog.open, false); assert.equal(document.querySelector('mark'), null);
 });
 
 test('reactions require exact durable answered-turn metadata and preferences preserve text fallbacks', () => {

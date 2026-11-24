@@ -1,6 +1,6 @@
 # Trusted local LSP
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Hot Cross Buns can expose bounded read-only inspection from a repository-local Language
 Server Protocol (LSP) server to an Execute-mode native agent. For one existing

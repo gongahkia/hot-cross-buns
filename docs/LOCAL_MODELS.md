@@ -1,4 +1,29 @@
-# Local models in the Work TUI
+# Local models in the browser app
+
+Run `make run`, then open **Models → Local models**. The current app can start a
+separately owned Ollama process after reviewing the installed executable and its
+SHA-256. It does not install Ollama automatically. Start, Stop and Download have
+separate, expiring reviews; downloading does not select or run a model.
+
+The controller uses a private profile-scoped model cache and a pinned loopback
+TLS proxy for cooperating backend requests. The owned process remains available
+after a browser or host disconnect so scheduled tasks can use it. Stop applies
+to the process created by that controller and is blocked while requests are active.
+Interrupted operations require inspection and are not automatically replayed.
+See [runtime ownership and verification limits](WEB-ONLY-RUNTIME.md#local-runtime-controls).
+
+Chat model selection and memory embeddings are separate. See
+[Knowledge](KNOWLEDGE.md) and [Conversation continuity](CONVERSATION-CONTINUITY.md)
+for retrieval settings, upload permissions and fallback behavior.
+
+## Historical terminal implementation
+
+The following record describes the retired Work TUI, including its installer,
+shortcuts, cache layout and shutdown behavior. It is retained as historical
+evidence, not instructions for the current browser app. Its model inventory and
+verification results apply to that checkpoint only.
+
+### Local models in the Work TUI
 
 Start `hot-cross-buns`, enter `/model`, then choose **Local model**. The first screen
 always asks whether you want a **Cloud API key** or **Local model**; the same

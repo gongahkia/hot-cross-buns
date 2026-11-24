@@ -1,9 +1,10 @@
 # Codex Desktop presentation audit
 
-> Interface status, 7 November 2026: Hot Cross Buns is CLI/TUI only. Electron and earlier
-> standalone-CLI retirement instructions below are historical. Current commands
-> and verification are in [the terminal port](CLI-TUI-PORT.md) and
-> [development](DEVELOPMENT.md).
+> Historical interface record: the Electron and terminal frontends are retired.
+> The implementation and verification below describe their original checkpoint,
+> not the current browser app. Use [Development](DEVELOPMENT.md) for setup and
+> checks, and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md)
+> for current ownership and interface boundaries.
 
 Latest app-wide check: [Desktop screen audit](DESKTOP-SCREEN-AUDIT.md), against
 `a14182fb9`. It records remaining gaps across the whole application; the scoped

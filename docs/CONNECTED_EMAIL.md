@@ -1,7 +1,7 @@
 # Connected email composition
 
 November 2026 implementation of part of competitive item 5. The same Work
-connector tools serve the foreground desktop conversation. Gmail sending still
+connector tools serve the foreground browser conversation. Gmail sending still
 requires a selected account with the send OAuth scope and exact foreground
 approval. No real account is connected or message sent by this implementation.
 
@@ -167,7 +167,7 @@ provenance, existing permissions and receipt privacy have regressions.
 
 The original-upload route additionally verifies real DOCX extraction and binary
 preservation, immutable metadata/reader copies, selected-file boundaries and
-cross-request isolation with retained chat history. An Electron journey picks
+cross-request isolation with retained chat history. A historical Electron journey picks
 DOCX, XLSX and PPTX together, checks all three hashes/sizes in the approval,
 confirms that the model receives extracted views, and independently decodes the
 single outgoing MIME message to compare each file with its selected bytes.

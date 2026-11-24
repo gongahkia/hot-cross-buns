@@ -1,6 +1,6 @@
 # User Work benchmark, twenty-one-task corpus
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Recorded 2026-10-15. The product target for this iteration is a terminal-comfortable knowledge worker who wants to prepare a daily brief, a presentation, or an email draft from local files and saved web material. The primary interaction is an ongoing terminal conversation. Connected apps are a later benchmark layer. Coding is not a user job in this corpus.
 

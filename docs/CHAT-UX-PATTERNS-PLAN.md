@@ -1,5 +1,10 @@
 # Chat UX patterns: implementation plan
 
+> Historical interface record: this document retains terminal/Electron implementation
+> details and verification from its original checkpoint. Those frontends are retired;
+> these results do not establish browser acceptance. Use [Development](DEVELOPMENT.md)
+> and [Browser application and private Go runtime](WEB-ONLY-RUNTIME.md) for current guidance.
+
 Status: **implemented and automated acceptance passed**. All five patterns are connected to the existing Go owner and Electron product surface. Final whole-application verification: 81 Electron journeys passed / 2 opt-in paid journeys skipped; all four plan journeys passed again after scoped list-marker polish. Full evidence, commits and manual limitations: [Chat UX acceptance](CHAT-UX-ACCEPTANCE.md). The starting audit at HEAD `79763f45c` and delivery plan below are retained as design history; earlier shared-coding/local-voice work was preserved and committed separately.
 
 References: Shape of AI’s [connectors](https://www.shapeof.ai/patterns/connectors), [action plans](https://www.shapeof.ai/patterns/action-plan), [citations](https://www.shapeof.ai/patterns/citations), [stream of thought](https://www.shapeof.ai/patterns/stream-of-thought), and [branches](https://www.shapeof.ai/patterns/branches). Adapt the interaction ideas to Hot Cross Buns’s existing visual language. Do not import example products’ application code, branding or screenshot assets.

@@ -1,11 +1,11 @@
 # Shared product capability descriptions
 
-The runtime and native terminal interface consume
+The Go application consumes
 `internal/productguide/capabilities.json` for connected-account onboarding,
 empty source selection, everyday help, pilot setup and assistant self-knowledge.
-The Go binary embeds it; Bun bundles the same JSON for the TUI. No runtime file or network
-lookup is needed. The guide contains no user configuration or credentials and
-cannot grant tools or permissions.
+The Go binary embeds the guide and projects its descriptions through the
+application bridge. No runtime file or network lookup is needed. The guide contains
+no user configuration or credentials and cannot grant tools or permissions.
 
 The shared descriptions distinguish supported Google tools from an individual
 run's selected account, scopes, access checks and exact action approval. They
@@ -25,7 +25,7 @@ account access must be checked rather than inferred from the product guide.
 Assistant guidance also removes an obsolete statement that a remote companion
 does not exist. It describes the experimental companion as a separately
 configured online host, without claiming deployment, pairing, availability,
-access to offline laptop files or automatic migration of desktop tasks.
+access to offline laptop files or automatic migration of tasks between hosts.
 
 Scope: this centralizes the connected-account and execution-availability claims
 identified in competitive finding 15. Other navigation, voice, file-format and

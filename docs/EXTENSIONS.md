@@ -1,6 +1,6 @@
 # Extensions
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 Hot Cross Buns extensions add reusable prompt guidance, skills, and optional executable
 tools to native Hot Cross Buns runs. There is one lifecycle:

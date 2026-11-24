@@ -1,6 +1,6 @@
 # Cross-source goal benchmark
 
-**Interface status:** Hot Cross Buns is a desktop app. Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
+**Interface status:** Hot Cross Buns runs as a local browser app (`make run`). Shell examples below are source-checkout developer operations with an explicit internal opt-in; see [development instructions](DEVELOPMENT.md). They do not install or enable a public CLI.
 
 `internal/eval/testdata/cross-source-goals-v1/dataset.json` contains eight
 two-turn goal tasks. Each begins with selected mail, calendar, and notes files;
