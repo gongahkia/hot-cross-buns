@@ -15,7 +15,7 @@ func TestConnectionCatalogOffersServicesWithoutAnAdvancedCategory(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"Connect Google email": connector.KindGoogle, "Slack": connector.KindSlack, "Notion": connector.KindNotion, "Atlassian": connector.KindAtlassian, "JSON API": connector.KindHTTPJSON, "Personal Google": connector.KindGoogle}
+	want := map[string]string{"Connect Google": connector.KindGoogle, "Slack": connector.KindSlack, "Notion": connector.KindNotion, "Atlassian": connector.KindAtlassian, "JSON API": connector.KindHTTPJSON, "Personal Google": connector.KindGoogle}
 	for _, a := range screen.Actions {
 		if strings.Contains(strings.ToLower(a.Label), "advanced") || a.Action == "add-token" {
 			t.Fatal("service discovery still requires a generic advanced flow")

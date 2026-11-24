@@ -103,6 +103,52 @@ func (c *connectionControls) call(ctx context.Context, operation string, args []
 		if _, err := c.signIn.EnableGmailSending(c.stateDir, id, args[1], args[2], args[3]); err != nil {
 			return workapp.ControlScreen{}, err
 		}
+	case "enable-calendar-reading", "enable-calendar-changes":
+		if len(args) != 4 {
+			return workapp.ControlScreen{}, errors.New("review the account and calendar permissions again")
+		}
+		mode := "read"
+		if operation == "enable-calendar-changes" {
+			mode = "write"
+		}
+		if _, err := c.signIn.EnableCalendar(c.stateDir, id, args[1], args[2], args[3], mode); err != nil {
+			return workapp.ControlScreen{}, err
+		}
+	case "disable-calendar-changes", "disable-calendar-access":
+		if len(args) != 3 {
+			return workapp.ControlScreen{}, errors.New("review the account before changing calendar access")
+		}
+		d, credentials, err := configuredConnector(id)
+		if err != nil {
+			return workapp.ControlScreen{}, err
+		}
+		if connectorLoginReview(d) != args[1] {
+			return workapp.ControlScreen{}, errors.New("connection changed; review its permissions again")
+		}
+		prior, err := connectionCredential(credentials, d)
+		if err != nil {
+			return workapp.ControlScreen{}, err
+		}
+		if credentialReview(prior) != args[2] {
+			return workapp.ControlScreen{}, auth.ErrCredentialChanged
+		}
+		mode := "off"
+		if operation == "disable-calendar-changes" {
+			mode = "read"
+		}
+		next, err := calendarDescriptor(d, mode)
+		if err != nil {
+			return workapp.ControlScreen{}, err
+		}
+		c.signIn.Cancel(id)
+		store, err := config.DefaultStore()
+		if err != nil {
+			return workapp.ControlScreen{}, err
+		}
+		if err := replaceReviewedConnection(store, d, next); err != nil {
+			return workapp.ControlScreen{}, err
+		}
+		notice = "Calendar permissions narrowed for new tasks. Already submitted tasks keep their captured grant. Revoke Google's grant in account settings for service-side revocation."
 	case "disable-email-sending":
 		if len(args) != 3 {
 			return workapp.ControlScreen{}, errors.New("review the connection before changing sending permission")
@@ -308,7 +354,7 @@ func (c *connectionControls) screen(id string) (workapp.ControlScreen, error) {
 			screen.Panel.Notice = "A browser sign-in is waiting. Open its connection to continue or cancel."
 		}
 		screen.Actions = append(screen.Actions,
-			workapp.ControlAction{Key: "G", Label: "Connect Google email", Icon: connector.KindGoogle, Detail: "Read Gmail and optionally enable reviewed email sending.", Action: "add-google", Description: "Read email. This setup requires your own Google Cloud desktop OAuth client; Hot Cross Buns does not yet provide a managed Google sign-in app. You will sign in after saving, and choose access per chat or follow-up.", Links: []uisnapshot.Link{{Label: "Google desktop sign-in guide", URL: "https://developers.google.com/identity/protocols/oauth2/native-app"}}, Review: true, Fields: []workapp.ControlField{{Label: "Connection ID", Value: "google", Help: "A unique lowercase name, for example google-personal."}, {Label: "Display name", Value: "Google"}, {Label: "Desktop OAuth client ID", Help: "From a Google Cloud OAuth client of type Desktop app. No client secret here."}}},
+			workapp.ControlAction{Key: "G", Label: "Connect Google", Icon: connector.KindGoogle, Detail: "Read Gmail and optionally enable calendar access and reviewed event or email changes.", Action: "add-google", Description: "Read email. This setup requires your own Google Cloud desktop OAuth client; Hot Cross Buns does not yet provide a managed Google sign-in app. You will sign in after saving, and choose access per chat or follow-up.", Links: []uisnapshot.Link{{Label: "Google desktop sign-in guide", URL: "https://developers.google.com/identity/protocols/oauth2/native-app"}}, Review: true, Fields: []workapp.ControlField{{Label: "Connection ID", Value: "google", Help: "A unique lowercase name, for example google-personal."}, {Label: "Display name", Value: "Google"}, {Label: "Desktop OAuth client ID", Help: "From a Google Cloud OAuth client of type Desktop app. No client secret here."}}},
 			workapp.ControlAction{Key: "R", Label: "Refresh", Action: "status"})
 		if bundledGoogleAvailable() {
 			for i := range screen.Actions {
@@ -383,7 +429,7 @@ func (c *connectionControls) screen(id string) (workapp.ControlScreen, error) {
 					if err != nil {
 						return screen, err
 					}
-					a := workapp.ControlAction{Key: "E", Label: "Enable email sending", Action: "enable-email-sending", Args: review, Review: true, Description: "Sign in again to request sending alongside existing API permissions. Review the account in your browser. Existing access stays configured until authorization succeeds. Choosing this account in chat and approving each exact send are still required. Requested permissions: " + strings.Join(withoutGooglePlannerScopes(strings.Fields(requested.OAuthScopes)), " "), Fields: []workapp.ControlField{{Label: "OAuth client secret (optional)", Secret: true, Help: "Leave blank to keep the stored secret for your own desktop OAuth client."}}}
+					a := workapp.ControlAction{Key: "E", Label: "Enable email sending", Action: "enable-email-sending", Args: review, Review: true, Description: "Sign in again to request sending alongside existing API permissions. Review the account in your browser. Existing access stays configured until authorization succeeds. Choosing this account in chat and approving each exact send are still required. Requested permissions: " + strings.Join(withoutGoogleTasksScopes(strings.Fields(requested.OAuthScopes)), " "), Fields: []workapp.ControlField{{Label: "OAuth client secret (optional)", Secret: true, Help: "Leave blank to keep the stored secret for your own desktop OAuth client."}}}
 					if usesBundledGoogle(d) {
 						a.Fields = nil
 						a.Args = append(append([]string(nil), a.Args...), "")
@@ -391,6 +437,7 @@ func (c *connectionControls) screen(id string) (workapp.ControlScreen, error) {
 					screen.Actions = append(screen.Actions, a)
 				}
 			}
+			screen.Actions = append(screen.Actions, calendarPermissionActions(d, review, prior != nil)...)
 		} else if d.Authentication == connector.AuthBearer {
 			screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "S", Label: "Set access token", Action: "token", Args: review, Review: true, Description: "Replace the private token for " + d.Name + " at " + d.Resource + ". No chat or follow-up permissions change.", Fields: []workapp.ControlField{{Label: "Access token", Secret: true, Help: "Enter a new access token. It is stored privately on this device."}}})
 		}
@@ -446,6 +493,13 @@ func connectionReadProbes(d connector.Descriptor, now time.Time) []connectionRea
 	if slices.Contains(scopes, "https://www.googleapis.com/auth/drive.metadata.readonly") {
 		probes = append(probes, connectionReadProbe{"drive_search", "Drive metadata", json.RawMessage(`{"limit":1}`)})
 	}
+	for _, op := range d.Operations() {
+		if op.ID == "calendar_events" {
+			input, _ := json.Marshal(map[string]any{"calendar_id": "primary", "time_min": now.UTC().Format(time.RFC3339), "time_max": now.UTC().Add(24 * time.Hour).Format(time.RFC3339), "limit": 1})
+			probes = append(probes, connectionReadProbe{"calendar_events", "Calendar events", input})
+			break
+		}
+	}
 	return probes
 }
 
@@ -461,7 +515,7 @@ func connectionAccessLabel(d connector.Descriptor) string {
 	}
 	var access []string
 	scopes := strings.Fields(d.OAuthScopes)
-	for _, item := range []struct{ scope, label string }{{"gmail.readonly", "Read email"}, {"calendar.events.readonly", "Calendar access retired; revoke in Google account settings if no longer needed"}, {"drive.metadata.readonly", "Read Drive metadata"}, {"documents", "Read and edit documents"}, {"spreadsheets", "Read and edit spreadsheets"}, {"gmail.send", "Send email"}} {
+	for _, item := range []struct{ scope, label string }{{"gmail.readonly", "Read email"}, {"calendar.readonly", "Read calendars"}, {"calendar.events.readonly", "Read calendar events"}, {"calendar.events", "Review calendar event changes"}, {"calendar", "Read and change calendars (existing grant)"}, {"drive.metadata.readonly", "Read Drive metadata"}, {"documents", "Read and edit documents"}, {"spreadsheets", "Read and edit spreadsheets"}, {"gmail.send", "Send email"}} {
 		if slices.Contains(scopes, "https://www.googleapis.com/auth/"+item.scope) {
 			access = append(access, item.label)
 		}

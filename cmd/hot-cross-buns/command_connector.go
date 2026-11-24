@@ -366,7 +366,7 @@ func loginConnectorOAuth(descriptor connector.Descriptor, credentials auth.Store
 	}
 	scopes := strings.Fields(descriptor.OAuthScopes)
 	if descriptor.Kind == connector.KindGoogle {
-		scopes = withoutGooglePlannerScopes(scopes)
+		scopes = withoutGoogleTasksScopes(scopes)
 	}
 	flow := auth.BrowserFlow{
 		ClientID: descriptor.OAuthClientID, AuthorizationURL: descriptor.OAuthAuthorizeURL,
@@ -409,10 +409,10 @@ func loginConnectorOAuth(descriptor connector.Descriptor, credentials auth.Store
 	return err
 }
 
-func withoutGooglePlannerScopes(scopes []string) []string {
+func withoutGoogleTasksScopes(scopes []string) []string {
 	filtered := make([]string, 0, len(scopes))
 	for _, scope := range scopes {
-		if scope == "https://www.googleapis.com/auth/tasks" || strings.HasPrefix(scope, "https://www.googleapis.com/auth/tasks.") || scope == "https://www.googleapis.com/auth/calendar" || strings.HasPrefix(scope, "https://www.googleapis.com/auth/calendar.") {
+		if scope == "https://www.googleapis.com/auth/tasks" || strings.HasPrefix(scope, "https://www.googleapis.com/auth/tasks.") {
 			continue
 		}
 		filtered = append(filtered, scope)

@@ -57,14 +57,21 @@ func (s *connectionSignIn) Cancel(id string) {
 }
 
 func (s *connectionSignIn) Begin(stateDir, id, digest, clientSecret string) (connectionSignInStatus, error) {
-	return s.begin(stateDir, id, digest, clientSecret, "", false)
+	return s.begin(stateDir, id, digest, clientSecret, "", false, "")
 }
 
 func (s *connectionSignIn) EnableGmailSending(stateDir, id, digest, credentialDigest, clientSecret string) (connectionSignInStatus, error) {
-	return s.begin(stateDir, id, digest, clientSecret, credentialDigest, true)
+	return s.begin(stateDir, id, digest, clientSecret, credentialDigest, true, "")
 }
 
-func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialDigest string, enableSending bool) (connectionSignInStatus, error) {
+func (s *connectionSignIn) EnableCalendar(stateDir, id, digest, credentialDigest, clientSecret, mode string) (connectionSignInStatus, error) {
+	if mode != "read" && mode != "write" {
+		return connectionSignInStatus{}, errors.New("choose calendar reading or event changes")
+	}
+	return s.begin(stateDir, id, digest, clientSecret, credentialDigest, false, mode)
+}
+
+func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialDigest string, enableSending bool, calendarMode string) (connectionSignInStatus, error) {
 	release, err := state.Guard(stateDir, false)
 	if err != nil {
 		return connectionSignInStatus{}, err
@@ -100,11 +107,16 @@ func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialD
 		}
 	}
 	requested := descriptor
-	if enableSending {
+	upgrade := enableSending || calendarMode != ""
+	if upgrade {
 		if credentialDigest == "" || credentialDigest != credentialReview(expected) {
 			return connectionSignInStatus{}, auth.ErrCredentialChanged
 		}
-		requested, err = gmailSendingDescriptor(descriptor, true)
+		if enableSending {
+			requested, err = gmailSendingDescriptor(descriptor, true)
+		} else {
+			requested, err = calendarDescriptor(descriptor, calendarMode)
+		}
 		if err != nil {
 			return connectionSignInStatus{}, err
 		}
@@ -116,9 +128,9 @@ func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialD
 	var attempt auth.BrowserAttempt
 	var callback *auth.Callback
 	if descriptor.Kind == connector.KindGoogle {
-		flow.Scopes = withoutGooglePlannerScopes(flow.Scopes)
+		flow.Scopes = withoutGoogleTasksScopes(flow.Scopes)
 		flow.AuthorizeParams = map[string]string{"access_type": "offline", "prompt": "consent"}
-		if enableSending {
+		if upgrade || strings.Contains(requested.OAuthScopes, "/auth/calendar") {
 			// Google may return an identity-scope alias. Require its existing API
 			// permissions and the new send scope exactly; identity is checked by
 			// the separate account/read verification rather than inferred here.
@@ -165,7 +177,7 @@ func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialD
 			err = errors.New("authorization could not be verified; check the OAuth app details and try again")
 		}
 		credential.OAuthClientSecret = clientSecret
-		if err == nil && enableSending && credential.Refresh == "" {
+		if err == nil && upgrade && credential.Refresh == "" {
 			err = errors.New("Google did not provide a new offline grant; review access and try again")
 		}
 		s.mu.Lock()
@@ -185,8 +197,8 @@ func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialD
 			}
 		}
 		if err == nil {
-			if enableSending {
-				err = publishGmailSendingPermission(descriptor, requested, credentials, expected, credential)
+			if upgrade {
+				err = publishGooglePermission(descriptor, requested, credentials, expected, credential)
 			} else {
 				err = credentials.ReplaceReviewed(descriptor.CredentialRef(), expected, &credential)
 			}
@@ -195,6 +207,8 @@ func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialD
 		next.url = ""
 		if err != nil {
 			next.issue = "Sign-in did not complete: " + err.Error()
+		} else if calendarMode != "" {
+			next.notice = "Calendar permissions enabled for new tasks. Select this account for the chat; event changes still require exact approval."
 		} else if enableSending {
 			next.notice = "Email sending enabled for new tasks. Each send still needs your exact approval. Check account and read access to verify the selected account."
 		}

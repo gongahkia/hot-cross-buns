@@ -213,6 +213,11 @@ func TestNativeConnectionChecksEachGrantedReadAndReportsPartialFailure(t *testin
 			_, _ = w.Write([]byte(`{"sub":"stable-account","email":"me@example.com","email_verified":true}`))
 		case "/gmail/v1/users/me/messages":
 			_, _ = w.Write([]byte(`{"messages":[]}`))
+		case "/calendar/v3/calendars/primary/events":
+			if r.URL.Query().Get("maxResults") != "1" || r.URL.Query().Get("timeMin") == "" || r.URL.Query().Get("timeMax") == "" {
+				t.Error("calendar probe was not bounded")
+			}
+			_, _ = w.Write([]byte(`{"items":[]}`))
 		case "/drive/v3/files":
 			if driveFails {
 				w.WriteHeader(http.StatusForbidden)
@@ -247,10 +252,10 @@ func TestNativeConnectionChecksEachGrantedReadAndReportsPartialFailure(t *testin
 	}
 	driveFails = false
 	screen, err := controls.call(context.Background(), "verify", []string{d.ID, connectorLoginReview(d)})
-	if err != nil || !strings.Contains(screen.Panel.Notice, "me@example.com") || !strings.Contains(screen.Panel.Notice, "email, Drive metadata") {
+	if err != nil || !strings.Contains(screen.Panel.Notice, "me@example.com") || !strings.Contains(screen.Panel.Notice, "email, Drive metadata, Calendar events") {
 		t.Fatal("verification missing", err, screen.Panel.Notice)
 	}
-	if seen["/gmail/v1/users/me/messages"] != 2 || seen["/drive/v3/files"] != 2 || seen["/calendar/v3/calendars/primary/events"] != 0 {
+	if seen["/gmail/v1/users/me/messages"] != 2 || seen["/drive/v3/files"] != 2 || seen["/calendar/v3/calendars/primary/events"] != 1 {
 		t.Fatal("granted surfaces not checked", seen)
 	}
 }

@@ -33,7 +33,7 @@ func gmailSendingDescriptor(d connector.Descriptor, enabled bool) (connector.Des
 // configuration cannot be published, restore the prior credential using CAS;
 // a concurrently replaced/disconnected account is never overwritten. A crash
 // between stores leaves the old, narrower operation surface configured.
-func publishGmailSendingPermission(prior, next connector.Descriptor, credentials auth.Store, expected *auth.Credential, credential auth.Credential) error {
+func publishGooglePermission(prior, next connector.Descriptor, credentials auth.Store, expected *auth.Credential, credential auth.Credential) error {
 	store, err := config.DefaultStore()
 	if err != nil {
 		return err
@@ -46,9 +46,9 @@ func publishGmailSendingPermission(prior, next connector.Descriptor, credentials
 		return nil
 	}
 	if restoreErr := credentials.ReplaceReviewed(prior.CredentialRef(), &credential, expected); restoreErr != nil {
-		return fmt.Errorf("sending settings were not updated (%v); sign-in also changed, so check this connection before continuing", err)
+		return fmt.Errorf("connection permissions were not updated (%v); sign-in also changed, so check this connection before continuing", err)
 	}
-	return fmt.Errorf("sending settings were not updated; prior local sign-in restored: %w", err)
+	return fmt.Errorf("connection permissions were not updated; prior local sign-in restored: %w", err)
 }
 
 func replaceReviewedConnection(store config.Store, prior, next connector.Descriptor) error {

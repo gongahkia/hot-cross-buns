@@ -291,7 +291,7 @@ func TestNativeEmailPermissionPublicationRestoresPriorGrantOnStaleConfig(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = publishGmailSendingPermission(d, next, credentials, &old, auth.Credential{Type: "oauth", Access: "new-access", Refresh: "new-refresh"})
+	err = publishGooglePermission(d, next, credentials, &old, auth.Credential{Type: "oauth", Access: "new-access", Refresh: "new-refresh"})
 	if err == nil {
 		t.Fatal("stale publication accepted")
 	}

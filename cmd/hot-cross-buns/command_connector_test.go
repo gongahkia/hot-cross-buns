@@ -251,9 +251,9 @@ func TestGoogleDailyContextRequiresExplicitScopes(t *testing.T) {
 	}
 }
 
-func TestWithoutGooglePlannerScopesPreservesOtherOAuthScopes(t *testing.T) {
-	scopes := withoutGooglePlannerScopes([]string{"openid", "https://www.googleapis.com/auth/calendar.events.readonly", "https://www.googleapis.com/auth/tasks.readonly", "https://www.googleapis.com/auth/tasks", "https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/calendar"})
-	if actual := strings.Join(scopes, " "); actual != "openid https://www.googleapis.com/auth/documents" {
+func TestWithoutGoogleTasksScopesPreservesCalendarAndOtherOAuthScopes(t *testing.T) {
+	scopes := withoutGoogleTasksScopes([]string{"openid", "https://www.googleapis.com/auth/calendar.events.readonly", "https://www.googleapis.com/auth/tasks.readonly", "https://www.googleapis.com/auth/tasks", "https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/calendar"})
+	if actual := strings.Join(scopes, " "); actual != "openid https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/calendar" {
 		t.Fatalf("scopes = %q", actual)
 	}
 }
