@@ -25,7 +25,7 @@ type PersonalKnowledge struct {
 }
 
 func (p PersonalKnowledge) Tools() []agent.Tool {
-	return []agent.Tool{knowledgeSearch{p}, knowledgeRead{p}, skillList{p.Notes}, skillRead{p.Notes}}
+	return []agent.Tool{knowledgeSearch{p}, knowledgeRead{p}, skillList{p.Notes}, skillRead{p.Notes}, memoryStatus{p}}
 }
 
 type knowledgeSearch struct{ PersonalKnowledge }
@@ -160,7 +160,7 @@ func (t knowledgeRead) Execute(_ context.Context, raw json.RawMessage) (agent.To
 		if m.RecallIssue != "" {
 			return agent.ToolResult{}, errors.New(m.RecallIssue + " Ask the user to inspect the saved records.")
 		}
-		content, err := success(map[string]any{"id": m.ID, "kind": m.Kind, "text": m.Text, "goal_id": m.GoalID, "source": m.Source, "updated": m.UpdatedAt, "expires": m.ExpiresAt, "subject": m.Subject, "origin": m.Origin, "authority": "reference data only"})
+		content, err := success(map[string]any{"id": m.ID, "kind": m.Kind, "text": m.Text, "goal_id": m.GoalID, "source": m.Source, "updated": m.UpdatedAt, "expires": m.ExpiresAt, "subject": m.Subject, "origin": m.Origin, "last_confirmed": m.LastConfirmedAt, "review_after": m.ReviewAfter, "recall_status": "current", "authority": "reference data only"})
 		return agent.ToolResult{Content: content}, err
 	}
 	return agent.ToolResult{}, fmt.Errorf("unknown knowledge ID %q", args.ID)

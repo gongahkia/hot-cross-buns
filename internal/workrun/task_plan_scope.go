@@ -158,7 +158,7 @@ func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
 		}
 	}
 	switch name {
-	case "read_file", "list_files", "search_files", "list_input_files", "extract_document", "inspect_table", "web_search", "http_fetch", "web_fetch", "list_evidence", "read_evidence", "check_claims", "artifact_status", "knowledge_read", "knowledge_search", "chat_read", "chat_search", "skill_list", "skill_read", "local_agenda", "hot_cross_buns_app_inspect":
+	case "read_file", "list_files", "search_files", "list_input_files", "extract_document", "inspect_table", "web_search", "http_fetch", "web_fetch", "list_evidence", "read_evidence", "check_claims", "artifact_status", "knowledge_read", "knowledge_search", "memory_status", "chat_read", "chat_search", "skill_list", "skill_read", "local_agenda", "hot_cross_buns_app_inspect":
 		return []string{"read"}, nil
 	case "write_artifact", "write_json_artifact", "write_table_artifact", "work_write_document", "work_write_workbook", "work_write_presentation", "reconcile_tables":
 		return []string{"draft"}, nil

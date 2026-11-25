@@ -135,8 +135,12 @@ func TestChatHistoryRetrievesSelectedAncestryAndRejectsCurrentAndOtherGoalChats(
 	}
 	notes, _ := knowledge.Open(root)
 	memories, _ := memory.Open(root)
-	if tools := (PersonalKnowledge{Notes: notes, Memories: memories}).Tools(); len(tools) != 4 {
-		t.Fatal("read-only knowledge acquired mutation tools")
+	for _, tool := range (PersonalKnowledge{Notes: notes, Memories: memories}).Tools() {
+		switch tool.Definition().Name {
+		case "knowledge_search", "knowledge_read", "skill_list", "skill_read", "memory_status":
+		default:
+			t.Fatal("read-only knowledge acquired mutation tools", tool.Definition().Name)
+		}
 	}
 }
 
