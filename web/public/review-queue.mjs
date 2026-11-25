@@ -20,9 +20,8 @@ function structured(value) {
 export function reviewQueue({ request }) {
   const root = element('aside', undefined, 'task-inspector review-queue'); root.id = 'review-queue';
   root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', 'review-queue-title');
-  const trigger = element('button', undefined, 'quiet review-queue-trigger'); trigger.type = 'button';
-  const count = element('span', '', 'review-queue-count'); count.hidden = true;
-  trigger.append(icon('list-checks'), element('span', 'Review'), count); trigger.title = 'Review queue'; trigger.setAttribute('aria-label', 'Review queue'); trigger.setAttribute('popovertarget', root.id);
+  const trigger = element('button', undefined, 'quiet icon-button'); trigger.type = 'button'; trigger.hidden=true;
+  trigger.append(icon('list-checks')); trigger.title = 'Review queue'; trigger.setAttribute('aria-label', 'Review queue'); trigger.setAttribute('popovertarget', root.id);
   const head = element('div', undefined, 'section-head');
   const close = element('button', undefined, 'quiet icon-button'); close.type = 'button'; close.append(icon('close')); close.setAttribute('aria-label', 'Close review queue'); close.setAttribute('popovertarget', root.id); close.setAttribute('popovertargetaction', 'hide');
   const title = element('h2', 'Review queue'); title.id = 'review-queue-title'; head.append(title, close);
@@ -72,7 +71,7 @@ export function reviewQueue({ request }) {
       if (owned !== generation) return;
       entries = value.entries || [];
       review = value.review;
-      count.textContent = String(entries.length); count.hidden = !entries.length;
+      trigger.hidden = !entries.length;
       trigger.setAttribute('aria-label', 'Review queue · ' + entries.length + ' pending');
       notice.textContent = value.notice || ''; notice.hidden = !notice.textContent;
     } catch (error) {
@@ -90,7 +89,7 @@ export function reviewQueue({ request }) {
   function observe(value) {
     if (value === signature) return;
     signature = value; generation++; review = undefined; entries = undefined;
-    count.hidden = true; trigger.setAttribute('aria-label', 'Review queue');
+    trigger.hidden = true; trigger.setAttribute('aria-label', 'Review queue');
     clearTimeout(timer); timer = setTimeout(() => void perform({ action: 'list' }), 180);
   }
   render(); animateSurfaceHeight(root);

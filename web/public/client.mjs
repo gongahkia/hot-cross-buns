@@ -96,14 +96,14 @@ $("send").replaceChildren(icon("send"));
 $("model-picker").append(icon("chevron"));
 const progress = composerProgress();
 document.querySelector('.composer-wrap').prepend(progress.element);
-const inspector = taskInspector({ iconName: 'helpers', showEmpty: true, openChat: async id => {
+const inspector = taskInspector({ iconName: 'helpers', visibleWhen: tasks=>tasks.some(task=>task.active), openChat: async id => {
   await flush();
   if (id !== snapshot.state?.conversation_id) await call({ op: 'open-work', id });
 } });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
 const agents = taskInspector({ id: 'agent-inspector', title: 'Agents', iconName: 'bot',
-  visibleWhen: tasks => tasks.length >= 2,
+  visibleWhen: tasks => tasks.filter(task=>task.active).length >= 2,
   openChat: async id => { await flush(); if (id !== snapshot.state?.conversation_id) await call({ op: 'open-work', id }); },
 });
 document.querySelector('.top-actions').append(agents.trigger);
@@ -1027,7 +1027,7 @@ export function paletteCommands() {
     { label: 'Skills and routines', action: () => void execute(() => backendRoute('/routines')) },
   ];
   for (const node of document.querySelectorAll("[data-route]")) {
-    if (!node.disabled) commands.push({
+    if (!node.disabled && !commands.some(command=>command.label===node.textContent.trim())) commands.push({
       label: node.textContent.trim(), group: "Command",
       action: () => node.click(),
     });

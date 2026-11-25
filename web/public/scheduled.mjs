@@ -34,6 +34,7 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
     finally { busy = false; refresh.disabled = false; }
   }
   function update(value = {}) {
+    trigger.hidden=!(value.entries?.length);
     latest=value;
     for(const [index,node] of [...filters.children].entries())node.setAttribute("aria-pressed",String(["all","once","recurring"][index]===selected));
     const next = JSON.stringify(value); if (next === fingerprint) return; fingerprint = next;

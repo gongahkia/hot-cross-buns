@@ -40,7 +40,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
   trigger.setAttribute('popovertarget', root.id); trigger.setAttribute('aria-label', 'Activity');
   const pulse = element('span', undefined, 'task-pulse'); pulse.setAttribute('aria-hidden', 'true');
   const triggerLabel = element('span', 'Activity'); trigger.append(pulse, triggerLabel);
-  if (iconName) { triggerLabel.classList.add('sr-only'); pulse.hidden = true; trigger.prepend(icon(iconName)); trigger.classList.add('icon-button'); }
+  if (iconName) { triggerLabel.remove(); pulse.remove(); trigger.prepend(icon(iconName)); trigger.classList.add('icon-button'); }
   trigger.title = headingText;
   const header = element('div', undefined, 'section-head');
   const title = element('h2', headingText); title.id = id + '-title';
@@ -75,7 +75,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
     tasks = values; available = connected;
     const active = tasks.filter(task => task.active).length;
     const waiting = tasks.filter(task => task.state === 'waiting').length;
-    trigger.hidden = !visibleWhen(tasks) || !showEmpty && !tasks.length;
+    trigger.hidden = !connected || !visibleWhen(tasks) || !showEmpty && !tasks.length;
     triggerLabel.textContent = !connected ? 'Activity' : waiting ? `Needs you · ${waiting}` : active ? `In progress · ${active}` : 'Activity';
     trigger.dataset.active = String(connected && active > 0 && !waiting);
     trigger.setAttribute('aria-label', headingText + (active ? ' · ' + active + ' active' : ''));

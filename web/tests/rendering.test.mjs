@@ -999,13 +999,13 @@ test('review queue shows exact proposal content before accepting and retains an 
   let fail=false;
   const queue=reviewQueue({request:async action=>{calls.push(action);if(fail)throw Error('Proposal changed.');return action.action==='inspect'?{entries:[record],review:{...record,revision,reference_integrity:{status:'no_references',note:'No supporting sources supplied.'}}}:action.action==='accept'?{entries:[],notice:'Proposal accepted.'}:{entries:[record]};}});
   document.body.append(queue.element,queue.trigger);await queue.refresh();
-  assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 1 pending');
+  assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 1 pending');assert.equal(queue.trigger.hidden,false);assert.equal(queue.trigger.textContent,'');
   assert.equal([...queue.element.querySelectorAll('button')].some(node=>node.textContent==='Accept proposal'),false);
   const click=async label=>{[...queue.element.querySelectorAll('button')].find(node=>node.textContent===label).click();await new Promise(resolve=>setTimeout(resolve,0));};
   await click('Daily reminder');assert.match(queue.element.textContent,/Asia\/Singapore/);assert.match(queue.element.textContent,/Read the report/);assert.match(queue.element.textContent,/<img src=x/);assert.equal(queue.element.querySelector('img'),null);
   fail=true;await click('Accept proposal');assert.match(queue.element.querySelector('[role=alert]').textContent,/Refresh to confirm/);assert.equal(calls.at(-1).revision,revision);assert.equal(calls.at(-1).id,id);
   fail=false;await click('Refresh');await click('Daily reminder');await click('Accept proposal');
-  assert.match(queue.element.textContent,/Nothing awaiting review/);assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 0 pending');assert.match(queue.element.querySelector('[role=status]').textContent,/accepted/);
+  assert.match(queue.element.textContent,/Nothing awaiting review/);assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 0 pending');assert.equal(queue.trigger.hidden,true);assert.match(queue.element.querySelector('[role=status]').textContent,/accepted/);
   queue.element.remove();queue.trigger.remove();
 });
 
@@ -1023,6 +1023,16 @@ test('introduction collects optional answers before one save and does not repeat
 test('scheduled tasks distinguish one-time and recurring tasks and never render their cron rule',()=>{
  const pane=scheduledPane({request:async()=>({})});document.body.append(pane.element);
  pane.update({running:false,entries:[{id:'once',kind:'once',title:'A one-time task',timing:'Once tomorrow at 8:00 PM',enabled:true,state:'completed'},{id:'repeat',kind:'recurring',title:'A recurring task',schedule:'0 20 * * *',timing:'At 8:00 PM, every day',enabled:true}]});
+ assert.equal(pane.trigger.hidden,false);assert.equal(pane.trigger.textContent,'');
  assert.doesNotMatch(pane.element.textContent,/0 20 \* \* \*/);assert.match(pane.element.textContent,/Local scheduler is stopped/);
- [...pane.element.querySelectorAll('button')].find(node=>node.textContent==='One-time').click();assert.equal(pane.element.querySelectorAll('.task-item').length,1);assert.match(pane.element.textContent,/A one-time task/);assert.equal([...pane.element.querySelectorAll('button')].some(node=>node.textContent==='Pause'),false);pane.element.remove();
+ [...pane.element.querySelectorAll('button')].find(node=>node.textContent==='One-time').click();assert.equal(pane.element.querySelectorAll('.task-item').length,1);assert.match(pane.element.textContent,/A one-time task/);assert.equal([...pane.element.querySelectorAll('button')].some(node=>node.textContent==='Pause'),false);pane.update({entries:[],running:false});assert.equal(pane.trigger.hidden,true);pane.element.remove();
+});
+
+
+test('icon-only delegated-work control hides completed and disconnected work while retaining inspection',()=>{
+ const view=taskInspector({iconName:'workflow',visibleWhen:values=>values.some(task=>task.active),openChat:async()=>{}});
+ view.update([]);assert.equal(view.trigger.hidden,true);assert.equal(view.trigger.textContent,'');
+ const task={id:'worker',title:'Review the note',state:'running',active:true,steps:[]};view.update([task]);assert.equal(view.trigger.hidden,false);
+ view.update([{...task,active:false,state:'completed'}]);assert.equal(view.trigger.hidden,true);assert.match(view.element.textContent,/Review the note/);
+ view.update([task],{connected:false});assert.equal(view.trigger.hidden,true);
 });
