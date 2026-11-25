@@ -112,6 +112,7 @@ const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...bo
 document.querySelector('.top-actions').prepend(scheduled.trigger);
 document.body.append(scheduled.element);
 const voice = voiceInput({
+  closeSettings: () => dialog.close(),
   getDraft: () => ({ context: snapshot.context, text: input.value, files: draft?.uploads?.length || 0,
     attachments: JSON.stringify(draft?.uploads?.map(file => file.id) || []), quoted: draft?.response_quote?.id,
     correction: draft?.correction?.id, messages: snapshot.state?.messages, running: snapshot.state?.running || snapshot.state?.working }),
@@ -128,8 +129,7 @@ const voice = voiceInput({
     finally { busy = false; controls(); status(); }
   },
 });
-document.querySelector('#attach').after(voice.trigger);
-document.body.append(voice.settings);
+document.querySelector('#send').before(voice.trigger);
 document.querySelector('.composer-wrap').prepend(voice.bar);
 
 function renderProgress() {
@@ -451,13 +451,14 @@ async function navigate(route) {
     const view = workspaceView({ source: snapshot.state?.source, request: body => call({ context, ...body }), selected: () => dialog.close() });
     openDetail('Workspace', view.element); await view.load(); return;
   }
-  if (['/settings', '/memory', '/knowledge', '/model', '/scheduled'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
+  if (['/settings', '/voice', '/memory', '/knowledge', '/model', '/scheduled'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
   if (route === '/settings') {
     openDetail('Settings', settingsView({ state: snapshot.state, scheduled: snapshot.scheduled,
       reactionMode, setReactionMode: mode => { reactionMode = reactionPreference(mode); transcriptKey = ''; renderTranscript(snapshot.state || {}); },
       navigate: route => void execute(() => navigate(route)), backend: route => void execute(() => route === '/recovery' ? showTaskDetails() : backendRoute(route)) }));
     return;
   }
+  if (route === '/voice') { openDetail('Voice models', voice.settings); await voice.load(); return; }
   if (route === '/scheduled') { dialog.close(); scheduled.open(); return; }
   if (route === "/model") { await showModels(); return; }
   if (route === "/memory" || route === '/knowledge') {

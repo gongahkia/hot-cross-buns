@@ -11,7 +11,7 @@ export function pcmWAV(samples, sampleRate = 16000) {
 
 // Capture stays in the browser. Only a stopped, bounded mono PCM recording is
 // sent to the selected local helper or explicitly selected transcription API.
-export async function captureSpeech({ silence = false, environment = globalThis } = {}) {
+export async function captureSpeech({ silence = false, onLevel, environment = globalThis } = {}) {
   const stream = await environment.navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
   let recorder, audio, timer, raf, cancelled = false, stopped = false, elapsed = 0;
   const cleanup = () => { clearTimeout(timer); environment.cancelAnimationFrame(raf); stream.getTracks().forEach(track => track.stop()); };
@@ -37,17 +37,18 @@ export async function captureSpeech({ silence = false, environment = globalThis 
       } catch (error) { reject(error); }
       finally { await audio.close().catch(() => {}); }
     };
-    if (silence) {
+    if (silence || onLevel) {
       const source = audio.createMediaStreamSource(stream), analyser = audio.createAnalyser(); analyser.fftSize = 1024; source.connect(analyser);
-      const samples = new Float32Array(analyser.fftSize); let heard = 0, quiet = 0, last = environment.performance.now();
+      const samples = new Float32Array(analyser.fftSize); let heard = 0, quiet = 0, last = environment.performance.now(), metered = last;
       const tick = () => {
         if (stopped) return;
         const now = environment.performance.now(), delta = Math.min(100, now - last); last = now; elapsed += delta;
         analyser.getFloatTimeDomainData(samples);
         const rms = Math.sqrt(samples.reduce((sum, sample) => sum + sample * sample, 0) / samples.length);
+        if (onLevel && now - metered >= 50) { onLevel(Math.min(1, rms * 8)); metered = now; }
         if (rms > 0.015) { heard += delta; quiet = 0; } else quiet += delta;
-        if (heard >= 250 && quiet >= 1100) stop();
-        else if (elapsed >= 15000 && heard < 250) fail(new Error('No speech detected. Start listening again when you’re ready.'));
+        if (silence && heard >= 250 && quiet >= 1100) stop();
+        else if (silence && elapsed >= 15000 && heard < 250) fail(new Error('No speech detected. Start listening again when you’re ready.'));
         else raf = environment.requestAnimationFrame(tick);
       };
       raf = environment.requestAnimationFrame(tick);

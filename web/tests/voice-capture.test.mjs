@@ -38,3 +38,17 @@ test('cancel and recorder startup errors release microphone and audio resources'
   const unavailable = environment({ recorderFailure: true }); await assert.rejects(captureSpeech(unavailable), /Recorder unavailable/);
   assert.ok(unavailable.stopped()); assert.ok(unavailable.closed());
 });
+
+test('waveform levels come from microphone samples and stop with capture', async () => {
+  const mock = environment(); let tick, cancelled = 0, timestamp = 0;
+  mock.environment.requestAnimationFrame = callback => { tick = callback; return 1; };
+  mock.environment.cancelAnimationFrame = () => { cancelled++; };
+  mock.environment.performance = { now: () => timestamp };
+  mock.environment.AudioContext.prototype.createMediaStreamSource = () => ({ connect() {} });
+  mock.environment.AudioContext.prototype.createAnalyser = () => ({ fftSize: 1024, getFloatTimeDomainData(samples) { samples.fill(.05); } });
+  const levels = [];
+  const recording = await captureSpeech({ ...mock, onLevel: level => levels.push(level) });
+  timestamp = 60; tick(); assert.ok(Math.abs(levels[0] - .4) < .001);
+  recording.stop(); await recording.audio; const count = levels.length;
+  timestamp = 120; tick(); assert.equal(levels.length, count); assert.ok(cancelled);
+});

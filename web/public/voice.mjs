@@ -3,57 +3,72 @@ import { icon } from './icons.mjs';
 import { captureSpeech } from './voice-capture.mjs';
 import { voiceController } from './voice-controller.mjs';
 
-export function voiceInput({ getDraft, append, submit, capture = captureSpeech, environment = globalThis }) {
-  const trigger = element('button', undefined, 'quiet icon-button'); trigger.type = 'button'; trigger.append(icon('mic')); trigger.setAttribute('aria-label', 'Voice input'); trigger.title = 'Voice input';
-  const settings = element('section', undefined, 'voice-settings'); settings.id = 'voice-settings'; settings.setAttribute('popover', 'auto'); settings.setAttribute('aria-label', 'Voice settings');
-  settings.setAttribute('role', 'dialog');
-  trigger.setAttribute('aria-expanded', 'false');
-  settings.addEventListener('toggle', event => trigger.setAttribute('aria-expanded', String(event.newState === 'open')));
-  trigger.setAttribute('aria-controls', settings.id); trigger.setAttribute('aria-haspopup', 'dialog');
-  const heading = element('div', undefined, 'section-head'); heading.append(element('h2', 'Voice'));
-  const close = element('button', undefined, 'quiet icon-button'); close.type = 'button'; close.append(icon('x')); close.setAttribute('aria-label', 'Close voice settings'); close.onclick = () => settings.hidePopover(); heading.append(close);
+export function voiceInput({ getDraft, append, submit, closeSettings = () => {}, capture = captureSpeech, environment = globalThis }) {
+  const trigger = element('button', undefined, 'quiet icon-button'); trigger.type = 'button'; trigger.append(icon('mic'));
+  const settings = element('section', undefined, 'voice-settings');
+  const enabled = element('input'); enabled.type = 'checkbox'; enabled.id = 'voice-enabled';
+  const enabledLabel = element('label', undefined, 'voice-toggle'); enabledLabel.append(enabled, element('span', 'Enable transcription'));
   const destination = element('select'); destination.id = 'voice-provider';
   for (const [value, label] of [['whisper-local', 'Whisper · on this laptop'], ['openai', 'OpenAI · cloud transcription'], ['gemini', 'Gemini · cloud transcription']]) { const option = element('option', label); option.value = value; destination.append(option); }
-  const placeholder = element('option', 'Choose transcription…'); placeholder.value = ''; placeholder.disabled = true; destination.prepend(placeholder);
-  const providerLabel = element('label', 'Transcription'); providerLabel.htmlFor = destination.id;
+  const providerLabel = element('label', 'Transcription provider'); providerLabel.htmlFor = destination.id;
   const model = element('select'); model.id = 'voice-model';
   for (const [value, label] of [['tiny', 'Tiny · faster'], ['base', 'Base · balanced'], ['small', 'Small · more accurate']]) { const option = element('option', label); option.value = value; model.append(option); }
+  model.value = 'base';
+  const cloudModel = element('input'); cloudModel.type = 'text'; cloudModel.id = 'voice-cloud-model'; cloudModel.maxLength = 128;
   const modelLabel = element('label', 'Whisper model'); modelLabel.htmlFor = model.id;
+  const cloudLabel = element('label', 'Cloud model'); cloudLabel.htmlFor = cloudModel.id;
   const note = element('p', undefined, 'hint'), problem = element('p', undefined, 'issue'); problem.setAttribute('role', 'alert');
   const download = action('Download selected model', async () => {
     if (downloading) { await request({ action: 'cancel-download' }); return; }
-    downloading = true; render();
-    try { status = await request({ action: 'download', model: model.value }); }
-    catch (error) { problem.textContent = error.message; }
+    downloading = true; render(); const target = context;
+    try { const value = await request({ action: 'download', model: model.value }); if (context === target) status = value; }
     finally { downloading = false; render(); }
   });
-  const dictate = action('Dictate', () => start(false)); dictate.prepend(icon('mic'));
   const conversation = action('Start voice conversation', () => start(true)); conversation.prepend(icon('audio-lines'));
-  const actions = element('div', undefined, 'voice-actions'); actions.append(dictate, conversation);
-  const modeNote = element('p', 'Dictation adds text for review. Voice conversation sends each spoken turn and reads replies aloud using an installed local voice.', 'hint');
-  settings.append(heading, providerLabel, destination, modelLabel, model, note, download, problem, actions, modeNote);
-  const bar = element('div', undefined, 'voice-bar'); bar.hidden = true; bar.setAttribute('role', 'status'); bar.setAttribute('aria-live', 'polite');
-  const phaseLabel = element('span'), finish = action('Finish turn', () => controller.stop()), end = action('Cancel', () => controller.cancel()); bar.append(icon('audio-lines'), phaseLabel, finish, end);
-  let latest, context, status, allowed = false, loading = false, downloading = false, speaking, speechGeneration = 0;
+  const refresh = action('Check availability', () => load());
+  const actions = element('div', undefined, 'voice-actions'); actions.append(refresh, conversation);
+  settings.append(element('p', 'Transcription is off until you enable it. The microphone button adds spoken text to your draft for review.', 'hint'), enabledLabel, providerLabel, destination, modelLabel, model, cloudLabel, cloudModel, note, download, problem, actions,
+    element('p', 'Voice conversation sends each spoken turn and reads replies aloud using an installed local voice.', 'hint'));
+  const bar = element('div', undefined, 'voice-bar'); bar.hidden = true;
+  const phaseLabel = element('span', undefined, 'voice-phase'); phaseLabel.setAttribute('role', 'status'); phaseLabel.setAttribute('aria-live', 'polite');
+  const waveform = element('div', undefined, 'voice-waveform'); waveform.setAttribute('aria-hidden', 'true');
+  const bars = Array.from({ length: 48 }, () => element('i')); waveform.append(...bars);
+  const levels = Array(bars.length).fill(0);
+  const finish = action('Finish transcription', () => controller.stop(), true, 'square');
+  const end = action('Cancel recording', () => controller.cancel(), true, 'x');
+  bar.append(end, waveform, finish, phaseLabel);
+  let latest, context, status, allowed = false, loading = false, downloading = false, speaking, speechGeneration = 0, revision = 0, starting = false;
+  function meter(level) {
+    levels.shift(); levels.push(Math.min(1, Math.max(0, level)));
+    bars.forEach((node, i) => node.style.setProperty('--level', String(levels[i])));
+  }
   async function request(body, signal) {
     const response = await environment.fetch('/api/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context, ...body }), signal });
     const value = await response.json(); if (!response.ok) throw new Error(value.error || 'Voice request failed.'); return value;
   }
-  function action(label, run) {
-    const button = element('button', label, 'quiet'); button.type = 'button';
+  function action(label, run, compact = false, glyph) {
+    const button = element('button', compact ? undefined : label, compact ? 'quiet icon-button' : 'quiet'); button.type = 'button';
+    if (compact) { button.append(icon(glyph)); button.setAttribute('aria-label', label); button.title = label; }
     button.onclick = () => { problem.textContent = ''; void Promise.resolve().then(run).catch(error => { problem.textContent = error.message; }); }; return button;
   }
+  const browserReady = () => !!(environment.navigator?.mediaDevices?.getUserMedia && environment.MediaRecorder && environment.AudioContext && environment.OfflineAudioContext);
   function render() {
+    const idle = controller.state.phase === 'idle', local = destination.value === 'whisper-local';
     download.textContent = downloading ? 'Cancel download' : 'Download selected model';
-    model.hidden = modelLabel.hidden = destination.value !== 'whisper-local';
-    download.hidden = destination.value !== 'whisper-local' || !!status?.local?.models?.find(row => row.id === model.value)?.available;
+    model.hidden = modelLabel.hidden = !local;
+    cloudModel.hidden = cloudLabel.hidden = local;
+    download.hidden = !local || !!status?.local?.models?.find(row => row.id === model.value)?.available;
     download.disabled = loading || destination.value !== status?.provider;
-    const ready = controller.state.phase === 'idle' && !loading && !downloading && status?.ready && destination.value === status.provider && (destination.value !== 'whisper-local' || model.value === status.model);
-    dictate.disabled = conversation.disabled = !allowed || !ready;
-    destination.disabled = model.disabled = loading || downloading || controller.state.phase !== 'idle';
-    note.textContent = downloading ? 'Downloading the selected Whisper model…' : loading ? 'Checking voice settings…' : status?.issue || (destination.value === 'whisper-local' ? 'Audio is transcribed on this laptop.' : 'Audio is sent to ' + destination.options[destination.selectedIndex].textContent.split(' · ')[0] + '. This uses that provider’s configured API credentials.');
-    if (!environment.navigator?.mediaDevices?.getUserMedia || !environment.MediaRecorder || !environment.AudioContext || !environment.OfflineAudioContext) { dictate.disabled = conversation.disabled = true; note.textContent = 'This browser cannot record audio. Open the app in a current browser at its local address.'; }
-    if (!environment.speechSynthesis) { conversation.disabled = true; }
+    enabled.disabled = destination.disabled = model.disabled = cloudModel.disabled = loading || downloading || !idle || starting;
+    refresh.disabled = loading || downloading || !idle;
+    conversation.disabled = !allowed || !idle || starting || loading || downloading || !status?.ready || !browserReady() || !environment.speechSynthesis;
+    note.textContent = downloading ? 'Downloading the selected Whisper model…' : loading ? 'Checking voice settings…' : status?.issue || (local ? 'Audio is transcribed on this laptop. No API key is needed.' : 'Audio is sent to ' + destination.options[destination.selectedIndex].textContent.split(' · ')[0] + ' using its configured API credentials. Configure credentials in Settings → Models.');
+    const recording = controller.state.phase === 'recording';
+    trigger.disabled = !recording && (!idle || !allowed || starting || loading || downloading || !status?.ready || !browserReady());
+    const label = recording ? 'Finish transcription' : 'Transcribe';
+    trigger.setAttribute('aria-label', label);
+    trigger.title = !status?.preferences?.enabled ? 'Enable transcription in Settings → Voice models' : !browserReady() ? 'Microphone capture is unavailable in this browser' : status?.issue || label;
+    trigger.replaceChildren(icon(recording ? 'square' : 'mic'));
   }
   function stopSpeaking() { speechGeneration++; environment.speechSynthesis?.cancel(); speaking?.(); speaking = undefined; }
   async function speak(text) {
@@ -75,44 +90,68 @@ export function voiceInput({ getDraft, append, submit, capture = captureSpeech, 
     authorize: (route, target) => request({ action: 'authorize', context: target, route }),
     cancelGrant: (grant, target) => request({ action: 'cancel', context: target, grant }),
     transcribe: async (grant, audio, signal) => { const response = await environment.fetch('/api/voice/audio?grant=' + encodeURIComponent(grant), { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: audio, signal }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Transcription failed.'); return result; },
-    capture, draft: () => ({ ...getDraft(), allowed }), append, submit, speak, stopSpeaking,
+    capture: options => capture({ ...options, onLevel: meter }), draft: () => ({ ...getDraft(), allowed }), append, submit, speak, stopSpeaking,
     changed: ({ phase, live, issue }) => {
       bar.hidden = phase === 'idle' && !issue;
       phaseLabel.textContent = issue || ({ starting: 'Opening microphone…', recording: live ? 'Listening…' : 'Recording…', transcribing: 'Transcribing…', sending: 'Sending your turn…', waiting: 'Waiting for reply…', speaking: 'Speaking…' }[phase] || '');
-      finish.hidden = phase !== 'recording'; end.textContent = phase === 'idle' ? 'Dismiss' : live ? 'End voice conversation' : 'Cancel';
+      finish.hidden = phase !== 'recording';
+      end.setAttribute('aria-label', phase === 'idle' ? 'Dismiss transcription message' : live ? 'End voice conversation' : 'Cancel recording'); end.title = end.getAttribute('aria-label');
+      bar.dataset.phase = phase;
+      phaseLabel.classList.toggle('sr-only', phase === 'recording');
+      waveform.hidden = phase !== 'recording';
+      if (phase === 'starting' || phase === 'idle') { levels.fill(0); meter(0); }
       if (phase === 'waiting') queueMicrotask(() => void controller.update(latest || {}, status?.route));
-      trigger.replaceChildren(icon(phase === 'recording' ? 'square' : 'mic')); trigger.setAttribute('aria-label', phase === 'recording' ? 'Finish recording' : 'Voice input'); render();
+      render();
     },
   });
-  async function configure() {
-    loading = true; render(); const target = context;
-    try {
-      const value = await request({ action: 'configure', preferences: { provider: destination.value, model: destination.value === 'whisper-local' ? model.value : '' } });
-      if (context === target) status = value;
-    } finally { loading = false; render(); }
+  function selectStatus(value) {
+    status = value; enabled.checked = !!status.preferences?.enabled;
+    destination.value = status.provider || 'whisper-local';
+    if (destination.value === 'whisper-local') model.value = status.model || 'base';
+    else cloudModel.value = status.model || '';
   }
-  destination.onchange = model.onchange = () => { void configure().catch(error => { problem.textContent = error.message; }); };
-  async function open() {
-    settings.showPopover(); loading = true; render(); problem.textContent = ''; const target = context;
-    try {
-      const result = await request({ action: 'status' }); if (target !== context) return;
-      status = result; destination.value = status.preferences?.provider || 'whisper-local'; model.value = status.preferences?.provider === 'whisper-local' ? status.model : 'base';
-      // Choosing local here is explicit setup. Opening a menu never writes preferences.
-      if (!status.preferences?.provider) { status = { ...status, ready: false, provider: '', issue: 'Choose Whisper to set up local voice. Cloud transcription is optional.' }; destination.value = ''; }
-    } catch (error) { problem.textContent = error.message; }
-    finally { loading = false; render(); }
+  async function load() {
+    const version = ++revision, target = context; loading = true; problem.textContent = ''; render();
+    try { const value = await request({ action: 'status' }); if (version === revision && context === target) selectStatus(value); }
+    catch (error) { if (version === revision) problem.textContent = error.message; }
+    finally { if (version === revision) { loading = false; render(); } }
   }
-  async function start(live) { settings.hidePopover(); await controller.listen(status.route, live); }
-  trigger.onclick = () => controller.state.phase === 'recording' ? controller.stop() : void open();
+  async function configure(event) {
+    const version = ++revision, target = context; loading = true; problem.textContent = ''; render();
+    if (event.target === destination) cloudModel.value = '';
+    try {
+      const value = await request({ action: 'configure', preferences: { enabled: enabled.checked, provider: destination.value, model: destination.value === 'whisper-local' ? model.value : cloudModel.value.trim() } });
+      if (version === revision && context === target) selectStatus(value);
+    } catch (error) { if (version === revision) { enabled.checked = !!status?.preferences?.enabled; problem.textContent = error.message; } }
+    finally { if (version === revision) { loading = false; render(); } }
+  }
+  enabled.onchange = destination.onchange = model.onchange = cloudModel.onchange = configure;
+  async function start(live) {
+    if (starting || controller.state.phase !== 'idle') return;
+    starting = true; render(); const target = context;
+    try {
+      const reviewedRoute = status?.route;
+      const fresh = await request({ action: 'status' });
+      if (target !== context) return;
+      if (!fresh.ready) throw new Error(fresh.issue || 'Enable and configure transcription in Settings → Voice models.');
+      // An external settings edit must be seen before consenting to a new route.
+      if (fresh.route !== reviewedRoute) throw new Error('Voice settings changed. Check Settings → Voice models before recording.');
+      selectStatus(fresh); closeSettings(); await controller.listen(fresh.route, live);
+    } catch (error) { if (target === context) controller.cancel(error.message); }
+    finally { starting = false; render(); }
+  }
+  trigger.onclick = () => controller.state.phase === 'recording' ? controller.stop() : void start(false);
   environment.addEventListener?.('pagehide', () => controller.cancel());
   environment.document?.addEventListener('visibilitychange', () => { if (environment.document.hidden) controller.cancel('Voice paused while this tab is hidden.'); });
+  render();
   return {
-    trigger, settings, bar,
-    update(value, enabled) {
+    trigger, settings, bar, load,
+    update(value, editable) {
       latest = value;
-      if (context !== value.context) { controller.cancel(); settings.hidePopover?.(); status = undefined; }
-      context = value.context; allowed = enabled; trigger.disabled = !enabled && controller.state.phase === 'idle';
+      if (context !== value.context) { controller.cancel(); status = undefined; revision++; loading = false; }
+      context = value.context; allowed = editable;
       void controller.update(value, status?.route); render();
+      if (allowed && !status && !loading) void load();
     },
   };
 }
