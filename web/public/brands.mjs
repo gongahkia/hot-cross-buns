@@ -4,6 +4,9 @@ const catalog = new Map(brandCatalog.map(brand => [brand.id, brand]));
 export function providerBrand(provider) {
   return brandCatalog.find(brand => brand.providers.includes(provider))?.id || '';
 }
+export function specialistBrand(specialist) {
+  return brandCatalog.find(brand => brand.specialists.includes(specialist))?.id || '';
+}
 export function brandLabel(id) { return catalog.get(id)?.label || ''; }
 export function providerLabel(provider) { return brandLabel(providerBrand(provider)) || provider; }
 // Only catalog identities can select local files; display names never select logos.

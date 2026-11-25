@@ -79,7 +79,9 @@ test('the detailed Models view separates orchestrator choices from native and CL
   document.body.append(view.element);await view.load();assert.equal(view.element.querySelector('.model-menu'),null);assert.match(view.element.textContent,/Allowed orchestrator models/);
   [...view.element.querySelectorAll('.orchestrator-model-row button')].find(button=>!button.disabled).click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(chosen.model,'worker');
   view.element.querySelector('#models-tab-native').click();assert.match(view.element.textContent,/source researcher/);assert.match(view.element.textContent,/Uses the orchestrator model/);
+  assert.equal(view.element.querySelector('details .brand-logo').getAttribute('src'),'/brands/openai.png');
   view.element.querySelector('#models-tab-cli').click();assert.match(view.element.textContent,/Local Codex ChatGPT login/);assert.match(view.element.textContent,/Native session/);
+  assert.equal(view.element.querySelector('details .brand-logo').getAttribute('src'),'/brands/codex.png');
   const row=view.element.querySelector('details');row.open=true;state.model='another-manager';view.update();assert.equal(view.element.querySelector('details').open,true);
   assert.equal(view.element.querySelector('script'),null);view.element.remove();
 });

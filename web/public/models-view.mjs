@@ -1,5 +1,5 @@
 import { element } from './text.mjs';
-import { brandIcon, providerBrand, providerLabel } from './brands.mjs';
+import { brandIcon, providerBrand, providerLabel, specialistBrand } from './brands.mjs';
 import { viewTransition } from './surface-motion.mjs';
 
 export function modelsView({ state, request, choose, local, providers }) {
@@ -18,7 +18,8 @@ export function modelsView({ state, request, choose, local, providers }) {
     const row=element('details',undefined,'model-detail-row'), summary=element('summary');row.dataset.agent=agent.kind+':'+agent.name;row.open=expanded.has(row.dataset.agent);
     const source=agent.inherits ? state() : agent;
     const title=element('span',undefined,'model-detail-label');title.append(element('strong',agent.name.replaceAll('_',' ')),element('small',agent.inherits ? 'Uses the orchestrator model' : agent.model || 'CLI default','hint'));
-    summary.append(brandIcon(providerBrand(source.provider)),title,element('span',agent.kind==='cli'?'Local CLI':'Native specialist','hint'));row.append(summary);
+    const brand=agent.kind==='cli' ? specialistBrand('cli_'+agent.name) : providerBrand(source.provider);
+    summary.append(brandIcon(brand),title,element('span',agent.kind==='cli'?'Local CLI':'Native specialist','hint'));row.append(summary);
     row.append(facts([['Provider',source.provider ? providerLabel(source.provider) : 'CLI default'],['Model',source.model || 'CLI default'],['Authentication',agent.auth],['Continuation',agent.continuation],['Live guidance',agent.steering?'Supported':'Unavailable'],['Structured questions',agent.questions?'Supported':'Unavailable'],['Edits',agent.kind==='cli'?(agent.allow_edits?'Reviewable patches when task scope permits':'Read only'):(agent.name==='code'?'Isolated coding when enabled':'Read only')],['Step limit',agent.max_steps||undefined],['Timeout',agent.timeout_seconds?agent.timeout_seconds+' seconds':undefined]]));
     return row;
   }
