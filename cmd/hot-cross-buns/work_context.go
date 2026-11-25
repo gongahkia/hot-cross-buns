@@ -57,7 +57,7 @@ func readWorkContext(stateDir, workID, goalID string) (workapp.ContextState, err
 				}
 			}
 		} else if strings.HasPrefix(id, "note-") {
-			if r, err := notes.LoadNote(id); err == nil && (r.GoalID == "" || r.GoalID == result.GoalID) {
+			if r, err := notes.LoadNote(id); err == nil && r.SourceIssue == "" && (r.GoalID == "" || r.GoalID == result.GoalID) {
 				item.Kind, item.Title, item.Text, item.CurrentText, item.Scope, item.Source, item.Available = "note", r.Title, r.Body, r.Body, contextScope(r.GoalID), strings.Join(r.SourceRefs, ", "), true
 				item.Updated = r.UpdatedAt.Local().Format("Jan 2 15:04")
 				item.Revision = r.Revision()
@@ -100,11 +100,13 @@ func readWorkContext(stateDir, workID, goalID string) (workapp.ContextState, err
 	}
 	result.Outcome = record.ObjectiveSummary
 	if decision := record.Decision; decision != nil {
+		result.RecallTrace = decision.RecallTrace
 		result.GoalID, result.Permission, result.Recall = decision.GoalID, string(decision.Mode), decision.RecallStatus
 		if len(decision.ContextItems) > 0 {
 			for _, snapshot := range decision.ContextItems {
 				item := load(snapshot.ID)
 				item.Kind, item.Title, item.Text, item.Scope, item.Source = snapshot.Kind, snapshot.Title, snapshot.Excerpt, snapshot.Scope, snapshot.Source
+				item.SelectionReason = snapshot.SelectionReason
 				item.Updated = "Supplied at run start · saved revision " + snapshot.UpdatedAt.Local().Format("Jan 2 15:04")
 				result.Items = append(result.Items, item)
 			}

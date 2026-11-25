@@ -95,6 +95,9 @@ func configuredWorkService(provider, modelName, stateDir string, request *workru
 	if err := applyNoteContext(stateDir, request); err != nil {
 		return workrun.Service{}, err
 	}
+	if err := applyKnowledgeSelection(stateDir, request); err != nil {
+		return workrun.Service{}, err
+	}
 	if err := applyGoalPlanContext(stateDir, request); err != nil {
 		return workrun.Service{}, err
 	}
@@ -223,6 +226,9 @@ func applyMemoryContext(stateDir string, request *workrun.Request) error {
 				continue
 			}
 			available[record.ID] = record
+			if !record.Applies(query) {
+				continue
+			}
 			documents = append(documents, retrieval.Document{ID: record.ID, Text: record.Text})
 		}
 		ctx, cancel := retrieval.Timeout(preparationContext(request))
@@ -339,6 +345,9 @@ func applyNoteContext(stateDir string, request *workrun.Request) error {
 			full, err := store.LoadNote(note.ID)
 			if err != nil {
 				return err
+			}
+			if full.SourceIssue != "" {
+				continue
 			}
 			available[note.ID] = full
 			documents = append(documents, retrieval.Document{ID: note.ID, Text: full.Title + "\n" + full.Body})

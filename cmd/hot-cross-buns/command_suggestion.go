@@ -178,10 +178,11 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 		id := "note-" + strings.TrimPrefix(record.ID, "suggestion-")
 		refs := append(append([]string(nil), record.SourceRefs...), "work:"+record.WorkID)
 		if record.NoteID != "" {
-			updated, err := store.ApplyNoteUpdate(record.NoteID, record.GoalID, record.ExpectedNoteRevision, record.ID, record.Title, record.Body, refs)
+
+			updated, err := store.ApplyNoteUpdateWithDependencies(record.NoteID, record.GoalID, record.ExpectedNoteRevision, record.ID, record.Title, record.Body, refs, record.Dependencies)
 			return updated.ID, err
 		}
-		created, err := store.AddNoteWithIDAndRefs(id, record.Title, record.Body, record.GoalID, refs)
+		created, err := store.AddNoteWithIDAndDependencies(id, record.Title, record.Body, record.GoalID, refs, record.Dependencies)
 		if os.IsExist(err) {
 			existing, loadErr := store.LoadNote(id)
 			if loadErr == nil && existing.Title == record.Title && existing.Body == record.Body && existing.GoalID == record.GoalID && strings.Join(existing.SourceRefs, "\x00") == strings.Join(refs, "\x00") {
@@ -194,7 +195,7 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 		if err != nil {
 			return "", err
 		}
-		created, err := store.AddSkillWithRoutine(record.SkillID, record.Description, record.Body, record.Routine)
+		created, err := store.AddSkillWithDependencies(record.SkillID, record.Description, record.Body, record.Routine, record.Dependencies)
 		if os.IsExist(err) {
 			existing, loadErr := store.LoadSkill(record.SkillID)
 			if loadErr == nil && existing.Description == record.Description && existing.Body == record.Body && reflect.DeepEqual(existing.Routine, record.Routine) {

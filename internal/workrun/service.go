@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"os"
 	"path/filepath"
 	"slices"
@@ -60,6 +61,7 @@ func (s Service) Execute(ctx context.Context, request Request) (Outcome, error) 
 		request.NoteContext = s.Defaults.NoteContext
 		request.ContextRefs = append([]string(nil), s.Defaults.ContextRefs...)
 		request.ContextItems = append([]workhistory.ContextItem(nil), s.Defaults.ContextItems...)
+		request.RecallTrace = append([]knowledge.RecallTrace(nil), s.Defaults.RecallTrace...)
 		request.RecallStatus = s.Defaults.RecallStatus
 		request.GoalID = s.Defaults.GoalID
 		request.GoalPlanContext = s.Defaults.GoalPlanContext

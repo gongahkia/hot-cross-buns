@@ -17,6 +17,10 @@ import (
 // ApplyNoteUpdate edits one inspected note and preserves its identity and scope.
 // The receipt makes retrying acceptance safe if suggestion resolution was interrupted.
 func (s Store) ApplyNoteUpdate(id, goalID, revision, mutationID, title, body string, refs []string) (Document, error) {
+	return s.ApplyNoteUpdateWithDependencies(id, goalID, revision, mutationID, title, body, refs, nil)
+}
+
+func (s Store) ApplyNoteUpdateWithDependencies(id, goalID, revision, mutationID, title, body string, refs []string, deps []Dependency) (Document, error) {
 	if !strings.HasPrefix(mutationID, "suggestion-") || len(mutationID) != 35 {
 		return Document{}, errors.New("note update requires a suggestion identity")
 	}
@@ -35,7 +39,7 @@ func (s Store) ApplyNoteUpdate(id, goalID, revision, mutationID, title, body str
 	if d.GoalID != goalID {
 		return Document{}, errors.New("note update scope changed")
 	}
-	input, _ := json.Marshal([]any{id, goalID, revision, title, body, refs})
+	input, _ := json.Marshal([]any{id, goalID, revision, title, body, refs, deps})
 	digest := sha256.Sum256(input)
 	inputHash := hex.EncodeToString(digest[:])
 	if d.LastUpdate != nil && d.LastUpdate.ID == mutationID {
@@ -46,6 +50,16 @@ func (s Store) ApplyNoteUpdate(id, goalID, revision, mutationID, title, body str
 	}
 	if revision == "" || d.Revision() != revision {
 		return Document{}, errors.New("this note changed; read its current saved revision before updating")
+	}
+	if len(deps) > 0 {
+		if err := ValidateDependencies(deps); err != nil {
+			return Document{}, err
+		}
+		d.Dependencies = deps
+		d.Version = 2
+		if issue := s.dependencyIssue(d); issue != "" {
+			return Document{}, errors.New(issue)
+		}
 	}
 	d.Title, d.Body, d.UpdatedAt = strings.TrimSpace(title), strings.TrimSpace(body), s.nextUpdate(d.UpdatedAt)
 	for _, ref := range refs {

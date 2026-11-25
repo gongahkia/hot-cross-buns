@@ -6,6 +6,7 @@ package workrun
 import (
 	"context"
 	"encoding/json"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
@@ -146,6 +147,7 @@ type Request struct {
 	// remains available through knowledge_read and is never tool authority.
 	NoteContext          string
 	ContextRefs          []string
+	RecallTrace          []knowledge.RecallTrace
 	ContextItems         []workhistory.ContextItem
 	ExcludedKnowledgeIDs []string
 	RecallStatus         string

@@ -41,6 +41,9 @@ type NoteUpdateReceipt struct {
 }
 
 type Document struct {
+	Policy       *RecallPolicy      `json:"recall_policy,omitempty"`
+	Dependencies []Dependency       `json:"dependencies,omitempty"`
+	SourceIssue  string             `json:"-"`
 	Routine      *Routine           `json:"routine,omitempty"`
 	LastUpdate   *NoteUpdateReceipt `json:"last_update,omitempty"`
 	Version      int                `json:"version"`
@@ -127,6 +130,10 @@ func (s Store) AddNoteWithID(id, title, body, goalID string) (Document, error) {
 }
 
 func (s Store) AddNoteWithIDAndRefs(id, title, body, goalID string, refs []string) (Document, error) {
+	return s.AddNoteWithIDAndDependencies(id, title, body, goalID, refs, nil)
+}
+
+func (s Store) AddNoteWithIDAndDependencies(id, title, body, goalID string, refs []string, deps []Dependency) (Document, error) {
 	release, err := s.lock(false)
 	if err != nil {
 		return Document{}, err
@@ -137,6 +144,13 @@ func (s Store) AddNoteWithIDAndRefs(id, title, body, goalID string, refs []strin
 	if err := validate(d); err != nil {
 		return Document{}, err
 	}
+	d.Dependencies = deps
+	if len(deps) > 0 {
+		d.Version = 2
+		if issue := s.dependencyIssue(d); issue != "" {
+			return Document{}, errors.New(issue)
+		}
+	}
 	return d, s.create(d)
 }
 
@@ -145,6 +159,10 @@ func (s Store) AddSkill(id, description, body string) (Document, error) {
 }
 
 func (s Store) AddSkillWithRoutine(id, description, body string, routine *Routine) (Document, error) {
+	return s.AddSkillWithDependencies(id, description, body, routine, nil)
+}
+
+func (s Store) AddSkillWithDependencies(id, description, body string, routine *Routine, deps []Dependency) (Document, error) {
 	release, err := s.lock(false)
 	if err != nil {
 		return Document{}, err
@@ -153,6 +171,13 @@ func (s Store) AddSkillWithRoutine(id, description, body string, routine *Routin
 	now := s.clock()
 	d := Document{Version: Version, ID: strings.TrimSpace(id), Kind: "skill", Title: strings.TrimSpace(id), Description: strings.TrimSpace(description), Enabled: true, CreatedAt: now, UpdatedAt: now, Body: strings.TrimSpace(body)}
 	d.Routine = routine
+	d.Dependencies = deps
+	if len(deps) > 0 {
+		d.Version = 2
+		if issue := s.dependencyIssue(d); issue != "" {
+			return Document{}, errors.New(issue)
+		}
+	}
 	if err := validate(d); err != nil {
 		return Document{}, err
 	}
@@ -220,7 +245,7 @@ func (s Store) ListSkills(enabledOnly bool) ([]Document, error) {
 	}
 	result := documents[:0]
 	for _, d := range documents {
-		if d.Enabled {
+		if d.Enabled && d.SourceIssue == "" {
 			result = append(result, d)
 		}
 	}
@@ -245,6 +270,9 @@ func (s Store) SearchNotes(query, goalID string, limit int) ([]Document, error) 
 		d, err = s.LoadNote(d.ID)
 		if err != nil {
 			return nil, err
+		}
+		if d.SourceIssue != "" {
+			continue
 		}
 		words := tokenize(d.Title + " " + d.Body + " " + strings.Join(d.SourceRefs, " "))
 		score := 0
@@ -454,7 +482,11 @@ func (s Store) load(kind, id string) (Document, error) {
 			return Document{}, err
 		}
 	}
-	return s.loadRaw(kind, id)
+	d, err := s.loadRaw(kind, id)
+	if err == nil {
+		d.SourceIssue = s.dependencyIssue(d)
+	}
+	return d, err
 }
 
 func (s Store) loadRaw(kind, id string) (Document, error) {
@@ -561,6 +593,12 @@ func validID(kind, id string) bool {
 	return kind == "note" && noteIDPattern.MatchString(id)
 }
 func validate(d Document) error {
+	if err := ValidateDependencies(d.Dependencies); err != nil {
+		return err
+	}
+	if d.Version == 1 && (len(d.Dependencies) > 0 || d.Policy != nil) {
+		return errors.New("derived knowledge requires version 2")
+	}
 	if d.Routine != nil {
 		if d.Kind != "skill" {
 			return errors.New("routine metadata belongs to a skill")
@@ -569,7 +607,7 @@ func validate(d Document) error {
 			return err
 		}
 	}
-	if d.Version != Version || !validID(d.Kind, d.ID) || d.CreatedAt.IsZero() || d.UpdatedAt.Before(d.CreatedAt) {
+	if (d.Version != Version && d.Version != 2) || !validID(d.Kind, d.ID) || d.CreatedAt.IsZero() || d.UpdatedAt.Before(d.CreatedAt) {
 		return errors.New("invalid knowledge identity")
 	}
 	if d.Title == "" || len(d.Title) > 256 || strings.ContainsAny(d.Title, "\x00\r\n") || !utf8.ValidString(d.Title) {

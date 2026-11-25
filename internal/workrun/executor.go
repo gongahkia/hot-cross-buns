@@ -413,6 +413,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		if !request.DisableChatHistory {
 			surface = append(surface, (tools.ChatHistory{StateDir: request.StateDir, CurrentConversation: conversation.ID, GoalID: request.GoalID, Semantics: e.Model}).Tools()...)
 		}
+		surface = append(surface, tools.ConsolidateKnowledge{Store: knowledgeStore, GoalID: request.GoalID, ExcludedIDs: request.ExcludedKnowledgeIDs, Review: request.ApproveAppChange})
 		surface = append(surface, (tools.ChatMemory{Store: memoryStore, UserMessage: request.Objective, ConversationID: conversation.ID, RunID: request.RunID, GoalID: request.GoalID, Automatic: request.LearnFromChats, Review: request.ApproveAppChange, ExcludedIDs: request.ExcludedKnowledgeIDs, Semantics: e.Model}).Tools()...)
 	}
 	memories, err := memoryStore.List(request.GoalID, false)

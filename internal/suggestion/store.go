@@ -30,6 +30,7 @@ const Version = 1
 var skillIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 type Record struct {
+	Dependencies         []knowledge.Dependency  `json:"dependencies,omitempty"`
 	Routine              *knowledge.Routine      `json:"routine,omitempty"`
 	ConflictSources      []reconciliation.Source `json:"conflict_sources,omitempty"`
 	NoteID               string                  `json:"note_id,omitempty"`
@@ -274,6 +275,12 @@ func validID(id string) bool {
 }
 
 func validate(record Record) error {
+	if err := knowledge.ValidateDependencies(record.Dependencies); err != nil {
+		return err
+	}
+	if len(record.Dependencies) > 0 && record.Kind != "note" && record.Kind != "skill" {
+		return errors.New("derived sources belong to notes or skills")
+	}
 	if record.Routine != nil && record.Kind != "skill" {
 		return errors.New("routine metadata requires a skill proposal")
 	}

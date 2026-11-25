@@ -162,7 +162,7 @@ func planToolEffects(tool agent.Tool, call agent.ToolCall) ([]string, error) {
 		return []string{"read"}, nil
 	case "write_artifact", "write_json_artifact", "write_table_artifact", "work_write_document", "work_write_workbook", "work_write_presentation", "reconcile_tables":
 		return []string{"draft"}, nil
-	case "memory_remember", "memory_forget", "local_plan", "suggest_change", "hot_cross_buns_app_update":
+	case "memory_remember", "memory_forget", "memory_propose", "knowledge_consolidate", "local_plan", "suggest_change", "hot_cross_buns_app_update":
 		return []string{"settings"}, nil
 	case "code_use_integration":
 		return nil, errors.New("this dynamic coding integration is not supported by plan-first scope checking")

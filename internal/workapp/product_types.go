@@ -1,5 +1,7 @@
 package workapp
 
+import "github.com/gongahkia/hot-cross-buns/internal/knowledge"
+
 type RecallStatus struct {
 	PersonalSummary          []string
 	HistoryEmbeddings        bool
@@ -11,6 +13,7 @@ type RecallStatus struct {
 }
 
 type KnowledgeItem struct {
+	SelectionReason                                                      string
 	SourceReviewNeeded                                                   bool
 	ID, Kind, Title, Text, Scope, Source, Updated, CurrentText, Revision string
 	Available                                                            bool
@@ -19,6 +22,7 @@ type KnowledgeItem struct {
 }
 
 type ContextState struct {
+	RecallTrace                                        []knowledge.RecallTrace
 	WorkID, GoalID, Outcome, Permission, Recall, Usage string
 	Items                                              []KnowledgeItem
 	Sources                                            []string

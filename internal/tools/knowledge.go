@@ -83,6 +83,9 @@ func (t knowledgeSearch) Execute(_ context.Context, raw json.RawMessage) (agent.
 				if err != nil {
 					return agent.ToolResult{}, err
 				}
+				if current.SourceIssue != "" {
+					continue
+				}
 				if current.GoalID != "" && current.GoalID != t.GoalID {
 					continue
 				}
@@ -137,6 +140,9 @@ func (t knowledgeRead) Execute(_ context.Context, raw json.RawMessage) (agent.To
 		if err != nil {
 			return agent.ToolResult{}, err
 		}
+		if d.SourceIssue != "" {
+			return agent.ToolResult{}, errors.New(d.SourceIssue)
+		}
 		if d.GoalID != "" && d.GoalID != t.GoalID {
 			return agent.ToolResult{}, errors.New("note is outside this goal")
 		}
@@ -160,7 +166,7 @@ func (t knowledgeRead) Execute(_ context.Context, raw json.RawMessage) (agent.To
 		if m.RecallIssue != "" {
 			return agent.ToolResult{}, errors.New(m.RecallIssue + " Ask the user to inspect the saved records.")
 		}
-		content, err := success(map[string]any{"id": m.ID, "kind": m.Kind, "text": m.Text, "goal_id": m.GoalID, "source": m.Source, "updated": m.UpdatedAt, "expires": m.ExpiresAt, "subject": m.Subject, "origin": m.Origin, "last_confirmed": m.LastConfirmedAt, "review_after": m.ReviewAfter, "recall_status": "current", "authority": "reference data only"})
+		content, err := success(map[string]any{"id": m.ID, "kind": m.Kind, "text": m.Text, "goal_id": m.GoalID, "source": m.Source, "updated": m.UpdatedAt, "replacement_guard": map[string]string{"replace_id": m.ID, "expected_updated": m.UpdatedAt.Format(time.RFC3339Nano)}, "context": m.Context, "expires": m.ExpiresAt, "subject": m.Subject, "origin": m.Origin, "last_confirmed": m.LastConfirmedAt, "review_after": m.ReviewAfter, "recall_status": "current", "authority": "reference data only"})
 		return agent.ToolResult{Content: content}, err
 	}
 	return agent.ToolResult{}, fmt.Errorf("unknown knowledge ID %q", args.ID)
@@ -211,6 +217,9 @@ func (t skillRead) Execute(_ context.Context, raw json.RawMessage) (agent.ToolRe
 	d, err := t.Store.LoadSkill(args.Name)
 	if err != nil {
 		return agent.ToolResult{}, err
+	}
+	if d.SourceIssue != "" {
+		return agent.ToolResult{}, errors.New(d.SourceIssue)
 	}
 	if !d.Enabled {
 		return agent.ToolResult{}, errors.New("skill is disabled")

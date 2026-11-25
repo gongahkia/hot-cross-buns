@@ -11,6 +11,7 @@ import (
 func TestPassiveMemorySuitabilityUsesWholeMessage(t *testing.T) {
 	for _, tc := range []struct{ name, message, quote, action string }{
 		{"preference", "I prefer brief answers.", "I prefer brief answers.", "save"},
+		{"explicit prefix", "Please remember: I prefer brief answers.", "Please remember: I prefer brief answers.", "save"},
 		{"fact", "I live in Harbor City.", "I live in Harbor City.", "save"},
 		{"credential", "My password is SYNTHETIC_NOT_A_REAL_SECRET_123!", "SYNTHETIC_NOT_A_REAL_SECRET_123!", "deny"},
 		{"cropped secret", "My API key is SYNTHETIC_ONLY. I prefer concise answers.", "I prefer concise answers.", "deny"},

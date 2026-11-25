@@ -34,7 +34,8 @@ func memorySuitability(message, quote string) (deny, review string) {
 	if memorySensitive.MatchString(message) {
 		return "", "This may be sensitive personal information. Saving it for future chats requires your confirmation."
 	}
-	if !memoryPersonal.MatchString(strings.TrimSpace(quote)) {
+	personalQuote := regexp.MustCompile(`(?i)^(?:please\s+)?remember\s*[:,]?\s*(?:that\s+)?`).ReplaceAllString(strings.TrimSpace(quote), "")
+	if !memoryPersonal.MatchString(personalQuote) {
 		return "", "The host cannot establish that these words describe an enduring fact or preference about you. Review before saving."
 	}
 	return "", ""

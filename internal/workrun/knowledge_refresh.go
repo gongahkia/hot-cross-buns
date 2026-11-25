@@ -156,6 +156,8 @@ func refreshKnowledge(refs []string, overflow bool, goal string, excluded []stri
 			case err != nil:
 			case record.GoalID != "" && record.GoalID != goal:
 				item.Status = "outside_scope"
+			case record.SourceIssue != "":
+				item.Status = "needs_review"
 			default:
 				item.Status, item.Title, item.GoalID = "current", record.Title, record.GoalID
 				item.Body, item.Truncated = refreshExcerpt(record.Body, 1024)

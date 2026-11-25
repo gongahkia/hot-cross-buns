@@ -2,6 +2,7 @@ package workrun
 
 import (
 	"errors"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"slices"
 	"strings"
 
@@ -13,6 +14,14 @@ import (
 // Model inference may explain a route, but the validated Request remains the
 // only source of authority and selected connected services.
 func resolveDecision(request Request) (*workhistory.Decision, error) {
+	if len(request.RecallTrace) > 128 {
+		return nil, errors.New("too many recall trace entries")
+	}
+	for _, trace := range request.RecallTrace {
+		if len(trace.ID) > 128 || len(trace.Reason) > 512 || len(trace.Revision) > 64 || trace.TokenUpperBound < 0 {
+			return nil, errors.New("invalid recall trace entry")
+		}
+	}
 	if len(request.ContextRefs) > 32 || len(request.ContextItems) > 32 || len(request.ExcludedKnowledgeIDs) > 128 {
 		return nil, errors.New("too many saved context references")
 	}
@@ -40,6 +49,7 @@ func resolveDecision(request Request) (*workhistory.Decision, error) {
 	decision := &workhistory.Decision{Version: 1, Origin: origin, GoalID: request.GoalID, Mode: request.Mode,
 		Connectors: append([]string(nil), request.ConnectorIDs...), ContextRefs: append([]string(nil), request.ContextRefs...), RecallStatus: request.RecallStatus, Reason: reason}
 	decision.ToolGroups = []string{"source", "evidence"}
+	decision.RecallTrace = append([]knowledge.RecallTrace(nil), request.RecallTrace...)
 	decision.ContextItems = append([]workhistory.ContextItem(nil), request.ContextItems...)
 	if request.Mode == action.Inspect {
 		decision.Intent = "inspect"

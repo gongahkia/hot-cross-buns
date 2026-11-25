@@ -41,6 +41,9 @@ func (t PrepareSkill) Execute(ctx context.Context, raw json.RawMessage) (agent.T
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
+	if skill.SourceIssue != "" {
+		return agent.ToolResult{}, errors.New(skill.SourceIssue)
+	}
 	if !skill.Enabled || skill.Routine == nil {
 		return agent.ToolResult{}, errors.New("choose an enabled parameterized routine from the skills library")
 	}
@@ -64,7 +67,7 @@ func (t PrepareSkill) Execute(ctx context.Context, raw json.RawMessage) (agent.T
 	if err != nil {
 		return agent.ToolResult{}, err
 	}
-	if !current.Enabled || current.Revision() != revision {
+	if current.SourceIssue != "" || !current.Enabled || current.Revision() != revision {
 		return agent.ToolResult{}, errors.New("routine changed during review; inspect and prepare the current revision again")
 	}
 	if t.CheckReady != nil {
