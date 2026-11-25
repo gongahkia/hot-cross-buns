@@ -249,17 +249,17 @@ func checkTimingScreen(definition jobs.Definition) workapp.ControlScreen {
 			action("Every week", "weekly", workapp.ControlField{Label: "Day", Kind: "select", Value: "1", Options: []uisnapshot.Option{{Value: "1", Label: "Monday"}, {Value: "2", Label: "Tuesday"}, {Value: "3", Label: "Wednesday"}, {Value: "4", Label: "Thursday"}, {Value: "5", Label: "Friday"}, {Value: "6", Label: "Saturday"}, {Value: "0", Label: "Sunday"}}}, timeField, zoneField),
 			action("Every month", "monthly", workapp.ControlField{Label: "Day of month", Kind: "number", Value: "1", Help: "Days absent from a month are skipped."}, timeField, zoneField),
 			action("Edit task prompt", "prompt", workapp.ControlField{Label: "Task name", Value: definition.Name}, workapp.ControlField{Label: "What should HCB do?", Value: definition.Objective, Help: "This prompt runs through HCB with this task's existing read/draft permissions."}),
-			action("Missed-check behavior", "missed", workapp.ControlField{Label: "When this computer returns", Value: definition.Missed, Kind: "select", Options: []uisnapshot.Option{{Value: "skip", Label: "Skip missed checks; wait for the next due time"}, {Value: "run_once", Label: "Run one catch-up check, then follow the schedule"}}}),
+			action("Missed-check behavior", "missed", workapp.ControlField{Label: "When this computer returns", Value: definition.Missed, Kind: "select", Options: []uisnapshot.Option{{Value: "skip", Label: "Skip work missed while offline"}, {Value: "run_once", Label: "Run one catch-up check after returning"}}}),
 			action("Change or remove end date", "end", workapp.ControlField{Label: "End date and time (blank for no end)", Value: end, Kind: "datetime", Help: "Include a timezone, for example 2030-11-12T18:00:00+08:00. An existing check may finish."}),
-			{Label: "All recurring checks", Command: "/followup"},
+			{Label: "All scheduled tasks", Command: "/followup"},
 		}}
 }
 
 func missedCheckLabel(value string) string {
 	if value == "run_once" {
-		return "One catch-up check after returning, then the regular schedule"
+		return "One catch-up check after returning"
 	}
-	return "Skip missed checks and wait for the next scheduled time"
+	return "Skip work missed while offline"
 }
 func checkEndLabel(value time.Time) string {
 	if value.IsZero() {
