@@ -20,6 +20,7 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
       ['Web search', 'search', 'Choose a search service and check its access.', () => backend('/search')],
       ['Memory & privacy', 'brain', 'Chat learning, earlier-chat retrieval, and recall settings.', () => backend('/memory')],
       ['Skills and routines', 'book-open', 'Inspect saved procedures and manage future availability.', () => backend('/routines')],
+      ['Review queue', 'list-checks', 'Inspect and accept or reject proposed lasting changes.', () => navigate('/reviews')],
       ['Scheduled tasks', 'calendar-days', 'Recurring checks and ongoing responsibilities.', () => navigate('/scheduled')],
     ]],
     ['This device', [

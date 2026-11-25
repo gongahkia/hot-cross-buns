@@ -57,6 +57,7 @@ const assets = new Map([
   ["/task-inspector.mjs", ["task-inspector.mjs", "text/javascript; charset=utf-8"]],
   ["/surface-motion.mjs", ["surface-motion.mjs", "text/javascript; charset=utf-8"]],
   ["/scheduled.mjs", ["scheduled.mjs", "text/javascript; charset=utf-8"]],
+  ["/review-queue.mjs", ["review-queue.mjs", "text/javascript; charset=utf-8"]],
   ["/palette.mjs", ["palette.mjs", "text/javascript; charset=utf-8"]],
 ]);
 const headers = {
@@ -439,6 +440,18 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         return host.sourceCatalog({ context, run: body.run });
       case "source":
         return host.sourcePreview({ context, run: body.run, path: body.path });
+      case "review-queue": {
+        host.mutable();
+        if (!['list', 'inspect', 'accept', 'reject'].includes(body.action) ||
+            body.action !== 'list' && (typeof body.id !== 'string' || !/^suggestion-[a-f0-9]{24}$/.test(body.id)) ||
+            ['accept', 'reject'].includes(body.action) && (typeof body.revision !== 'string' || !/^[a-f0-9]{64}$/.test(body.revision))) throw new RequestError(400, 'Open the proposal and review it before deciding.');
+        const owner = host.backend;
+        const result = await owner.reviewQueue({ request_id: randomUUID(), action: body.action, id: body.id || '', revision: body.revision || '' });
+        requireContext(context);
+        if (owner !== host.backend) throw new RequestError(409, 'The conversation changed. Reopen the review queue.');
+        if (result.error) throw new RequestError(409, result.error);
+        return result;
+      }
       case "memory": {
         host.mutable();
         const owner = host.backend;

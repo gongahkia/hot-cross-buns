@@ -8,6 +8,7 @@ import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
 import { taskInspector, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
+import { reviewQueue } from './review-queue.mjs';
 import { canvasWorkspace } from './canvas.mjs';
 import { fileReferences } from './file-references.mjs';
 import { localBrowser } from './local-browser.mjs';
@@ -111,6 +112,9 @@ const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...bo
   manage: () => execute(() => backendRoute('/followup')), goals: () => execute(() => backendRoute('/goals')) });
 document.querySelector('.top-actions').prepend(scheduled.trigger);
 document.body.append(scheduled.element);
+const reviews = reviewQueue({ request: body => call({ op: 'review-queue', ...body }) });
+document.querySelector('.top-actions').prepend(reviews.trigger);
+document.body.append(reviews.element);
 const voice = voiceInput({
   closeSettings: () => dialog.close(),
   getDraft: () => ({ context: snapshot.context, text: input.value, files: draft?.uploads?.length || 0,
@@ -451,7 +455,7 @@ async function navigate(route) {
     const view = workspaceView({ source: snapshot.state?.source, request: body => call({ context, ...body }), selected: () => dialog.close() });
     openDetail('Workspace', view.element); await view.load(); return;
   }
-  if (['/settings', '/voice', '/memory', '/knowledge', '/model', '/scheduled'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
+  if (['/settings', '/voice', '/memory', '/knowledge', '/model', '/scheduled', '/reviews'].includes(route) && snapshot.state?.panel) await call({ op: 'navigate', route: '/chat' });
   if (route === '/settings') {
     openDetail('Settings', settingsView({ state: snapshot.state, scheduled: snapshot.scheduled,
       reactionMode, setReactionMode: mode => { reactionMode = reactionPreference(mode); transcriptKey = ''; renderTranscript(snapshot.state || {}); },
@@ -459,6 +463,7 @@ async function navigate(route) {
     return;
   }
   if (route === '/voice') { openDetail('Voice models', voice.settings); await voice.load(); return; }
+  if (route === '/reviews') { dialog.close(); reviews.open(); return; }
   if (route === '/scheduled') { dialog.close(); scheduled.open(); return; }
   if (route === "/model") { await showModels(); return; }
   if (route === "/memory" || route === '/knowledge') {
@@ -988,6 +993,7 @@ events.onmessage = ({ data }) => {
   }
   $("title").textContent = state.title && state.title !== "Hot Cross Buns" ? state.title : "New chat";
   document.title = state.conversation_id ? $("title").textContent + " · Hot Cross Buns" : "Hot Cross Buns";
+  reviews.observe(JSON.stringify([snapshot.context, snapshot.connection, state.running, state.working, state.dialogue?.length, state.messages?.length, (snapshot.tasks || []).map(task => [task.id, task.state])]));
   renderHistory(state);
   renderProgress();
   renderTranscript(state);
@@ -1010,6 +1016,7 @@ export function paletteCommands() {
     { label: 'Task recovery', action: () => void execute(() => showTaskDetails()) },
     { label: 'Delegated work', action: inspector.open },
     { label: 'Agents', action: agents.open },
+    { label: 'Review queue', action: reviews.open },
     { label: 'Scheduled tasks', action: scheduled.open },
     { label: 'Skills and routines', action: () => void execute(() => backendRoute('/routines')) },
   ];

@@ -331,6 +331,13 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .task-inspector .section-head h2 { font-size: .9rem; font-weight: 500; }
 .task-inspector .icon-button { width: 1.6rem; height: 1.6rem; }
 .task-inspector .icon-button svg { width: 1rem; height: 1rem; }
+.review-queue { width: min(32rem, calc(100vw - 2rem)); overflow-wrap: anywhere; }
+.review-queue h3 { font-size: .9rem; margin-block: 1rem .5rem; }
+.review-queue .view-facts { font-size: .8rem; }
+.review-queue .view-facts dd { min-width: 0; white-space: pre-wrap; }
+.review-queue .view-facts ul { margin: 0; padding-left: 1rem; }
+.review-queue-trigger { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; }
+.review-queue-count { min-width: 1.2em; padding-inline: .25em; border-radius: .3rem; background: var(--wash); font-variant-numeric: tabular-nums; }
 .surface-content > .hint, .task-body .hint { font-size: .76rem; }
 .task-item { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .35rem; }
 .task-item > summary { display: flex; align-items: center; gap: .7rem; padding-block: .5rem; list-style: none; }

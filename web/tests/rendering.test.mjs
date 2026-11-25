@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -990,4 +990,21 @@ test('Memory exposes significance review and recall controls without activating 
 test('answer context discloses selected and omitted source revisions without inventing model reasoning',async()=>{
  const pane=answerContextView({request:async()=>({context:{Items:[],RecallTrace:[{id:'mem-one',selected:true,reason:'pinned by you',token_upper_bound:30},{id:'mem-two',selected:false,reason:'source changed'}]}})});
  await pane.load();assert.match(pane.element.textContent,/Supplied · mem-one/);assert.match(pane.element.textContent,/Omitted · mem-two/);assert.match(pane.element.textContent,/not the model’s hidden reasoning/);
+});
+
+
+test('review queue shows exact proposal content before accepting and retains an actionable failure', async () => {
+  const id='suggestion-0123456789abcdef01234567', revision='a'.repeat(64), calls=[];
+  const record={id,kind:'goal',status:'pending',title:'Daily reminder',goal_outcome:'Review the day',goal_steps:['Read the report'],cron:'0 20 * * *',timezone:'Asia/Singapore',task:'<img src=x onerror=bad()>',work_id:'work-fixture'};
+  let fail=false;
+  const queue=reviewQueue({request:async action=>{calls.push(action);if(fail)throw Error('Proposal changed.');return action.action==='inspect'?{entries:[record],review:{...record,revision,reference_integrity:{status:'no_references',note:'No supporting sources supplied.'}}}:action.action==='accept'?{entries:[],notice:'Proposal accepted.'}:{entries:[record]};}});
+  document.body.append(queue.element,queue.trigger);await queue.refresh();
+  assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 1 pending');
+  assert.equal([...queue.element.querySelectorAll('button')].some(node=>node.textContent==='Accept proposal'),false);
+  const click=async label=>{[...queue.element.querySelectorAll('button')].find(node=>node.textContent===label).click();await new Promise(resolve=>setTimeout(resolve,0));};
+  await click('Daily reminder');assert.match(queue.element.textContent,/Asia\/Singapore/);assert.match(queue.element.textContent,/Read the report/);assert.match(queue.element.textContent,/<img src=x/);assert.equal(queue.element.querySelector('img'),null);
+  fail=true;await click('Accept proposal');assert.match(queue.element.querySelector('[role=alert]').textContent,/Refresh to confirm/);assert.equal(calls.at(-1).revision,revision);assert.equal(calls.at(-1).id,id);
+  fail=false;await click('Refresh');await click('Daily reminder');await click('Accept proposal');
+  assert.match(queue.element.textContent,/Nothing awaiting review/);assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 0 pending');assert.match(queue.element.querySelector('[role=status]').textContent,/accepted/);
+  queue.element.remove();queue.trigger.remove();
 });
