@@ -55,7 +55,8 @@ test('switching away aborts transcription even when its helper ignores cancellat
 test('reconfiguration revokes consent, validates fields and does not expose credentials', async () => {
   const { voice, grant } = setup(); const { grant: id } = await grant();
   await assert.rejects(voice.action({ context: 'chat-a', action: 'configure', preferences: { provider: 'openai', model: '', api_key: 'private' } }), /valid voice settings/);
-  await voice.action({ context: 'chat-a', action: 'configure', preferences: { provider: 'whisper-local', model: 'base' } });
+  await assert.rejects(voice.action({ context: 'chat-a', action: 'configure', preferences: { enabled: 'yes', provider: 'openai', model: '' } }), /valid voice settings/);
+  await voice.action({ context: 'chat-a', action: 'configure', preferences: { enabled: false, provider: 'whisper-local', model: 'base' } });
   await assert.rejects(voice.transcribe(id, Buffer.from('wav'), 'audio/wav'), /new recording/);
   voice.close();
 });

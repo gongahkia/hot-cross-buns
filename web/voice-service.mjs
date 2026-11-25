@@ -48,7 +48,7 @@ export function browserVoice(host, { run = runSpeechRequest, now = Date.now } = 
       }
       if (action === 'configure') {
         const p = body.preferences;
-        if (!p || typeof p !== 'object' || Array.isArray(p) || Object.keys(p).some(key => !['provider', 'model', 'language'].includes(key)) || !['whisper-local', 'openai', 'gemini'].includes(p.provider) || typeof p.model !== 'string' || p.model.length > 128 || typeof (p.language ?? '') !== 'string' || (p.language ?? '').length > 32) throw new Error('Choose valid voice settings.');
+        if (!p || typeof p !== 'object' || Array.isArray(p) || Object.keys(p).some(key => !['enabled', 'provider', 'model', 'language'].includes(key)) || (p.enabled !== undefined && typeof p.enabled !== 'boolean') || !['whisper-local', 'openai', 'gemini'].includes(p.provider) || typeof p.model !== 'string' || p.model.length > 128 || typeof (p.language ?? '') !== 'string' || (p.language ?? '').length > 32) throw new Error('Choose valid voice settings.');
         // Reconfiguration revokes capture consent even when the chat is unchanged.
         for (const grant of grants.values()) grant.controller.abort(); grants.clear();
         const status = await call({ action: 'configure', preferences: p });

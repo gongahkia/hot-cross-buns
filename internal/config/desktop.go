@@ -20,6 +20,7 @@ func (d DesktopSettings) RefersToChats() bool { return d.ReferToChats == nil || 
 func (d DesktopSettings) LearnsFromChats() bool { return d.LearnFromChats == nil || *d.LearnFromChats }
 
 type VoiceSettings struct {
+	Enabled       bool    `json:"enabled"`
 	SpokenReplies bool    `json:"spoken_replies"`
 	SystemVoice   string  `json:"system_voice,omitempty"`
 	Provider      string  `json:"provider,omitempty"`

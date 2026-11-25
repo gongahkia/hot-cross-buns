@@ -30,6 +30,7 @@ func TestDesktopSpeechKeepsKeysPrivateAndChargesSharedUsage(t *testing.T) {
 	store, _ := config.DefaultStore()
 	settings := config.Default()
 	settings.Defaults = config.Defaults{Provider: "gemini", Model: "fixture-speech"}
+	settings.Desktop.Voice = config.VoiceSettings{Enabled: true, Provider: "gemini"}
 	settings.ProviderEndpoints = map[string]string{"gemini": server.URL + "/v1beta"}
 	if err := store.Save(settings); err != nil {
 		t.Fatal(err)
@@ -125,7 +126,7 @@ func TestNativeDesktopLocalVoice(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("GEMINI_API_KEY", "")
 	var output bytes.Buffer
-	if err := runDesktopSpeech(strings.NewReader(`{"action":"configure","preferences":{"provider":"whisper-local","model":"tiny","language":"en"}}`), &output); err != nil {
+	if err := runDesktopSpeech(strings.NewReader(`{"action":"configure","preferences":{"enabled":true,"provider":"whisper-local","model":"tiny","language":"en"}}`), &output); err != nil {
 		t.Fatal(err)
 	}
 	output.Reset()
@@ -164,4 +165,46 @@ func TestNativeDesktopLocalVoice(t *testing.T) {
 		t.Fatalf("local inference charged remote usage: %#v %v", snapshot, err)
 	}
 	t.Log("native Go voice-helper setup/download/route/transcription passed with no API key and paused commercial usage")
+}
+
+func TestVoiceIsOffByDefaultAndDisablingInvalidatesRecordedRoute(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOT_CROSS_BUNS_STATE_DIR", root)
+	t.Setenv("HOT_CROSS_BUNS_CONFIG_DIR", t.TempDir())
+	t.Setenv("OPENAI_API_KEY", "fixture-private-key")
+	store, _ := config.DefaultStore()
+	settings := config.Default()
+	settings.Desktop.Voice.Provider = "openai"
+	if err := store.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+	_, off, err := voiceConfiguration(settings, root)
+	if err != nil || off.Ready || off.Preferences.Enabled {
+		t.Fatal(off, err)
+	}
+	var output bytes.Buffer
+	if err := runDesktopSpeech(strings.NewReader(`{"action":"configure","preferences":{"enabled":true}}`), &output); err != nil {
+		t.Fatal(err)
+	}
+	var on desktopVoiceStatus
+	if err := json.Unmarshal(output.Bytes(), &on); err != nil || !on.Ready || !on.Preferences.Enabled {
+		t.Fatal(on, err)
+	}
+	output.Reset()
+	if err := runDesktopSpeech(strings.NewReader(`{"action":"configure","preferences":{"enabled":false}}`), &output); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(desktopSpeechRequest{Action: "transcribe", Route: on.Route, Recording: &speech.Recording{MediaType: "audio/wav", Data: []byte("fixture")}})
+	if err := runDesktopSpeech(bytes.NewReader(payload), io.Discard); err == nil || !strings.Contains(err.Error(), "off") {
+		t.Fatal("disabled transcription accepted audio", err)
+	}
+	var disabled desktopVoiceStatus
+	if err := json.Unmarshal(output.Bytes(), &disabled); err != nil || disabled.Route == on.Route || disabled.Ready {
+		t.Fatal(disabled, err)
+	}
+	defaultSettings := config.Default()
+	_, defaultStatus, err := voiceConfiguration(defaultSettings, root)
+	if err != nil || defaultStatus.Provider != speech.LocalProvider || defaultStatus.Ready {
+		t.Fatal("default voice used chat provider", defaultStatus, err)
+	}
 }

@@ -63,6 +63,7 @@ func (c hotCrossBunsAppController) prepareDesktopPreferences(change workrun.AppC
 		}}, nil
 	}
 	var v struct {
+		Enabled     *bool    `json:"enabled"`
 		Spoken      *bool    `json:"spoken_replies"`
 		SystemVoice *string  `json:"system_voice"`
 		Provider    *string  `json:"provider"`
@@ -73,10 +74,13 @@ func (c hotCrossBunsAppController) prepareDesktopPreferences(change workrun.AppC
 	if err := workrun.DecodeAppArguments(change.Value, &v); err != nil {
 		return workrun.AppMutation{}, err
 	}
-	if v.SystemVoice == nil && v.Spoken == nil && v.Provider == nil && v.Model == nil && v.Language == nil && v.Rate == nil {
+	if v.Enabled == nil && v.SystemVoice == nil && v.Spoken == nil && v.Provider == nil && v.Model == nil && v.Language == nil && v.Rate == nil {
 		return workrun.AppMutation{}, errors.New("provide a voice preference to change")
 	}
 	next := prior.Desktop.Voice
+	if v.Enabled != nil {
+		next.Enabled = *v.Enabled
+	}
 	if v.SystemVoice != nil {
 		next.SystemVoice = *v.SystemVoice
 	}

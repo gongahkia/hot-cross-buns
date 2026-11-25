@@ -48,10 +48,21 @@ type desktopVoiceStatus struct {
 }
 
 func voiceConfiguration(settings config.Settings, stateDir string) (speech.Config, desktopVoiceStatus, error) {
+	backend, status, err := resolveVoiceConfiguration(settings, stateDir)
+	if !settings.Desktop.Voice.Enabled {
+		status.Ready = false
+		if status.Issue == "" {
+			status.Issue = "Transcription is off. Enable it in Settings → Voice models."
+		}
+	}
+	return backend, status, err
+}
+
+func resolveVoiceConfiguration(settings config.Settings, stateDir string) (speech.Config, desktopVoiceStatus, error) {
 	voice := settings.Desktop.Voice
 	provider := voice.Provider
 	if provider == "" {
-		provider = settings.Defaults.Provider
+		provider = speech.LocalProvider
 	}
 	selected := voice.Model
 	if selected == "" {
