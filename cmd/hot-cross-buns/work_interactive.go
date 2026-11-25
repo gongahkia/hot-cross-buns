@@ -31,6 +31,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/personalization"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	sharedusage "github.com/gongahkia/hot-cross-buns/internal/usage"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
@@ -223,6 +224,7 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 			return current.Desktop, err
 		},
 		NativeProviders: nativeProviders.Apply,
+		ReviewQueue:     func(action suggestion.QueueAction) suggestion.QueueResult { return applyReviewQueue(stateDir, action) },
 		PersonalMemory: func(action personalization.CatalogAction) personalization.CatalogResult {
 			release, err := state.Guard(stateDir, false)
 			if err != nil {

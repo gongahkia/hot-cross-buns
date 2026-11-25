@@ -14,11 +14,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
 	"github.com/gongahkia/hot-cross-buns/internal/personalization"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
 )
 
 type uiFrame struct {
 	ContextInspect         *workapp.ContextInspectAction      `json:"context_inspect,omitempty"`
+	ReviewQueue            *suggestion.QueueAction            `json:"review_queue,omitempty"`
 	PersonalMemory         *personalization.CatalogAction     `json:"personal_memory,omitempty"`
 	NativeProvider         *modelcatalog.NativeProviderAction `json:"native_provider,omitempty"`
 	NativeWorkspace        *workapp.NativeWorkspaceAction     `json:"native_workspace,omitempty"`
@@ -83,6 +85,11 @@ func (m *uiBridgeModel) Update(value tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			next, command = m.model.InspectContext(*frame.ContextInspect)
+		case "review_queue":
+			if frame.ReviewQueue == nil {
+				return m, nil
+			}
+			next, command = m.model.ApplyReviewQueue(*frame.ReviewQueue)
 		case "personal_memory":
 			if frame.PersonalMemory == nil {
 				return m, nil

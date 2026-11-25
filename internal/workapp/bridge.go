@@ -14,6 +14,7 @@ import (
 	appconfig "github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
 	"github.com/gongahkia/hot-cross-buns/internal/personalization"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
 	"github.com/gongahkia/hot-cross-buns/internal/workhome"
@@ -26,6 +27,7 @@ type BridgeState struct {
 	ContextInspectResult      *ContextInspectResult              `json:"context_inspect_result,omitempty"`
 	CanCorrectAction          bool                               `json:"can_correct_action"`
 	CanRevisePlans            []string                           `json:"can_revise_plans,omitempty"`
+	ReviewQueueResult         *suggestion.QueueResult            `json:"review_queue_result,omitempty"`
 	PersonalMemoryResult      *personalization.CatalogResult     `json:"personal_memory_result,omitempty"`
 	NativeProviderResult      *modelcatalog.NativeProviderResult `json:"native_provider_result,omitempty"`
 	NativeWorkspaceResult     *NativeWorkspaceResult             `json:"native_workspace_result,omitempty"`
@@ -235,6 +237,7 @@ func (m Model) BridgeState() BridgeState {
 	state := BridgeState{
 		ContextInspectResult:     m.contextInspectResult,
 		CanCorrectAction:         m.bridgeCanCorrectAction(),
+		ReviewQueueResult:        m.reviewQueueResult,
 		PersonalMemoryResult:     m.personalMemoryResult,
 		NativeProviderResult:     m.nativeProviderResult,
 		NativeWorkspaceResult:    m.nativeWorkspaceResult,

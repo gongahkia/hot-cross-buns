@@ -61,42 +61,13 @@ func suggestionCommand(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		var currentNote any
-		if record.NoteID != "" {
-			notes, err := knowledge.Open(stateDir)
-			if err != nil {
-				return err
-			}
-			note, err := notes.LoadNote(record.NoteID)
-			if err != nil {
-				return err
-			}
-			currentNote = map[string]any{"id": note.ID, "title": note.Title, "body": note.Body, "source_refs": note.SourceRefs, "revision": note.Revision(), "matches_proposal": note.Revision() == record.ExpectedNoteRevision}
-		}
-
-		conflictCheck := ""
-		if record.Kind == "conflict" {
-			goals, err := goal.Open(stateDir)
-			if err != nil {
-				return err
-			}
-			notes, err := knowledge.Open(stateDir)
-			if err != nil {
-				return err
-			}
-			conflictCheck = "Sources match the inspected revisions. Accept acknowledges review only; it does not correct any source."
-			if err := reconciliation.Check(goals, notes, record.ConflictSources, record.GoalID, record.GoalID == "", nil); err != nil {
-				conflictCheck = "Source check failed: " + err.Error()
-			}
+		review, err := inspectSuggestion(stateDir, record)
+		if err != nil {
+			return err
 		}
 		encoder := json.NewEncoder(out)
 		encoder.SetIndent("", "  ")
-		return encoder.Encode(struct {
-			suggestion.Record
-			ReferenceIntegrity suggestionEvidenceCheck `json:"reference_integrity"`
-			CurrentNote        any                     `json:"current_note,omitempty"`
-			ConflictCheck      string                  `json:"conflict_check,omitempty"`
-		}{Record: record, CurrentNote: currentNote, ConflictCheck: conflictCheck, ReferenceIntegrity: checkSuggestionEvidence(stateDir, record)})
+		return encoder.Encode(review)
 	case "accept", "reject":
 		record, err := store.Resolve(args[1], args[0], func(record suggestion.Record) (string, error) {
 			return applySuggestion(stateDir, record)
@@ -243,4 +214,36 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 	default:
 		return "", errors.New("unsupported suggestion kind")
 	}
+}
+
+func inspectSuggestion(stateDir string, record suggestion.Record) (*suggestion.Review, error) {
+	var currentNote any
+	if record.NoteID != "" {
+		notes, err := knowledge.Open(stateDir)
+		if err != nil {
+			return nil, err
+		}
+		note, err := notes.LoadNote(record.NoteID)
+		if err != nil {
+			return nil, err
+		}
+		currentNote = map[string]any{"id": note.ID, "title": note.Title, "body": note.Body, "source_refs": note.SourceRefs, "revision": note.Revision(), "matches_proposal": note.Revision() == record.ExpectedNoteRevision}
+	}
+
+	conflictCheck := ""
+	if record.Kind == "conflict" {
+		goals, err := goal.Open(stateDir)
+		if err != nil {
+			return nil, err
+		}
+		notes, err := knowledge.Open(stateDir)
+		if err != nil {
+			return nil, err
+		}
+		conflictCheck = "Sources match the inspected revisions. Accept acknowledges review only; it does not correct any source."
+		if err := reconciliation.Check(goals, notes, record.ConflictSources, record.GoalID, record.GoalID == "", nil); err != nil {
+			conflictCheck = "Source check failed: " + err.Error()
+		}
+	}
+	return &suggestion.Review{Record: record, Revision: record.Revision(), CurrentNote: currentNote, ConflictCheck: conflictCheck, ReferenceIntegrity: checkSuggestionEvidence(stateDir, record)}, nil
 }

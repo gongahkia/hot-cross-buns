@@ -11,12 +11,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
-type suggestionEvidenceCheck struct {
-	Status     string   `json:"status"`
-	Verified   []string `json:"verified,omitempty"`
-	Unverified []string `json:"unverified,omitempty"`
-	Note       string   `json:"note"`
-}
+type suggestionEvidenceCheck = suggestion.EvidenceCheck
 
 // checkSuggestionEvidence checks only reference integrity. Even a valid
 // locator can be irrelevant to, or contradict, the suggested claim.

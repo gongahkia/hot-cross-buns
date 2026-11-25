@@ -198,6 +198,17 @@ func (s Store) List(status string) ([]Record, error) {
 // failed application leaves the suggestion pending, including a stale plan
 // revision that needs user correction before acceptance.
 func (s Store) Resolve(id, decision string, apply func(Record) (string, error)) (Record, error) {
+	return s.resolve(id, decision, "", apply)
+}
+
+func (s Store) ResolveRevision(id, decision, revision string, apply func(Record) (string, error)) (Record, error) {
+	if len(revision) != 64 {
+		return Record{}, errors.New("inspect this proposal before deciding")
+	}
+	return s.resolve(id, decision, revision, apply)
+}
+
+func (s Store) resolve(id, decision, revision string, apply func(Record) (string, error)) (Record, error) {
 	if !validID(id) || decision != "accept" && decision != "reject" {
 		return Record{}, errors.New("invalid suggestion decision")
 	}
@@ -212,6 +223,9 @@ func (s Store) Resolve(id, decision string, apply func(Record) (string, error)) 
 	}
 	if record.Status != "pending" {
 		return Record{}, errors.New("suggestion is already resolved")
+	}
+	if revision != "" && record.Revision() != revision {
+		return Record{}, errors.New("proposal changed; inspect the current version before deciding")
 	}
 	if decision == "accept" {
 		if apply == nil {

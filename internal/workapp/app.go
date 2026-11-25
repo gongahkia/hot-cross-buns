@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
 	"github.com/gongahkia/hot-cross-buns/internal/personalization"
+	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -191,6 +192,7 @@ type GoalState struct{ Title, SourcePath, ConversationID string }
 type Config struct {
 	ConfigureHistoryEmbeddings func(provider string, enabled bool) error
 
+	ReviewQueue              func(suggestion.QueueAction) suggestion.QueueResult
 	PersonalMemory           func(personalization.CatalogAction) personalization.CatalogResult
 	NativeProviders          func(modelcatalog.NativeProviderAction) modelcatalog.NativeProviderResult
 	ReviewRequestAccess      func(worksession.Request, []string) (RequestAccessReview, error)
@@ -411,6 +413,8 @@ type Model struct {
 	planResult                *TaskPlanResult
 	requestRecoveryResult     *RequestRecoveryResult
 	catalog                   *conversationCatalog
+	reviewQueuePending        string
+	reviewQueueResult         *suggestion.QueueResult
 	personalMemoryPending     string
 	personalMemoryAction      *personalization.CatalogAction
 	personalMemoryOwner       string

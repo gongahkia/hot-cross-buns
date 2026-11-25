@@ -28,6 +28,8 @@ func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.historySweepCommand()
+	case reviewQueueFinished:
+		return m.finishReviewQueue(value.Result)
 	case personalMemoryFinished:
 		return m.finishPersonalMemory(value.Result)
 	case nativeProviderFinished:

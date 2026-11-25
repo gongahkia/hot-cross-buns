@@ -118,6 +118,12 @@ export class Backend extends EventEmitter {
     return this.state.personal_memory_result;
   }
 
+  async reviewQueue(action) {
+    await this.#waitForState(state => state.review_queue_result?.request_id === action.request_id,
+      () => this.#write({ version: 1, type: "review_queue", review_queue: action }), 30000);
+    return this.state.review_queue_result;
+  }
+
   async catalog(action) {
     const field = action.action === 'query' ? 'native_catalog_query_result' : 'native_catalog_action_result';
     await this.#waitForState(state => state[field]?.request_id === action.request_id,
