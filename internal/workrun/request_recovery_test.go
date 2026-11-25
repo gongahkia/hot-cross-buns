@@ -1,6 +1,7 @@
 package workrun
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
@@ -28,5 +29,22 @@ func TestRequestRecoveryRetainsStructuredStatusAndEffectSafety(t *testing.T) {
 	}
 	if recovery := classifyRequestRecovery(agent.ErrBudget, true); recovery == nil || recovery.RetrySafe || recovery.Kind != "work_budget" {
 		t.Fatal("exhausted budget reset", recovery)
+	}
+}
+
+func TestRecoveryForTimeoutAndCLIRequiresRetainedWorkInspection(t *testing.T) {
+	for _, safe := range []bool{true, false} {
+		r := classifyRequestRecovery(context.DeadlineExceeded, safe)
+		if r == nil || r.Kind != "execution_timeout" || r.RetrySafe {
+			t.Fatal("a timeout authorized repeating partially completed work", r)
+		}
+		err := agent.ProviderRequestError{Diagnostic: agent.ProviderDiagnostic{Transport: "cli", Provider: "fixture"}, Summary: "worker failed"}
+		r = classifyRequestRecovery(err, safe)
+		if r == nil || r.Kind != "worker_unavailable" || r.RetrySafe != safe {
+			t.Fatal(r)
+		}
+	}
+	if r := classifyRequestRecovery(context.Canceled, true); r != nil {
+		t.Fatal("explicit cancellation offered automatic recovery", r)
 	}
 }

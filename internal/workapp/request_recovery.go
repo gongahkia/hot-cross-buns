@@ -173,7 +173,7 @@ func (m Model) ApplyRequestRecovery(action RequestRecoveryAction) (tea.Model, te
 		return fail(err)
 	}
 	raw, _ := json.Marshal(input)
-	text := "Prepare a reviewed retry of the original request after provider setup repair. Preserve its inputs, scope and remaining budget."
+	text := "Prepare reviewed recovery of the original request from its retained work after setup repair. Inspect completed steps, outputs and action receipts first. Preserve its inputs, scope and remaining budget; do not repeat completed steps or uncertain external actions."
 	if access != nil {
 		text = "Prepare the original task using the explicitly reviewed account access. Preserve its original inputs, previous results, instructions and remaining budget. Earlier account failures are evidence, not new grants or reasons to repeat completed actions."
 	}

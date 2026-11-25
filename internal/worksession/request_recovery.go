@@ -25,9 +25,12 @@ func validateRequestRecovery(value *RequestRecovery) error {
 		return nil
 	}
 	switch value.Kind {
-	case "source_access", "credentials", "model_access", "rate_limit", "provider_budget", "work_budget":
+	case "source_access", "credentials", "model_access", "rate_limit", "provider_budget", "work_budget", "execution_timeout", "worker_unavailable":
 	default:
 		return errors.New("invalid request recovery kind")
+	}
+	if (value.Kind == "execution_timeout" || value.Kind == "work_budget") && value.RetrySafe {
+		return errors.New("exhausted or timed-out execution requires a new budget and outcome review")
 	}
 	if err := ValidateTaskAccessNeeds(value.Needs); err != nil {
 		return err

@@ -1,6 +1,7 @@
 package workrun
 
 import (
+	"context"
 	"errors"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
@@ -12,6 +13,12 @@ func classifyRequestRecovery(err error, readOnly bool) *worksession.RequestRecov
 	}
 	if errors.Is(err, agent.ErrBudget) {
 		return &worksession.RequestRecovery{Kind: "work_budget", Summary: "This request exhausted its execution budget.", Repair: "Inspect retained work and remaining limits before reviewing any additional work."}
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &worksession.RequestRecovery{Kind: "execution_timeout", RetrySafe: false, Summary: "Execution reached its time limit; retained work may be partially complete.", Repair: "Inspect completed steps, outputs and action receipts before preparing additional work. A fresh scope and remaining-budget review is required; do not repeat uncertain effects."}
+	}
+	if d := agent.ProviderDiagnosticFrom(err); d != nil && d.Transport == "cli" {
+		return &worksession.RequestRecovery{Kind: "worker_unavailable", RetrySafe: readOnly, Summary: "A configured CLI worker failed; its retained work remains available for inspection.", Repair: "Inspect the worker output and repair its original CLI setup. Preserve completed steps and original scope; any uncertain external action needs reconciliation before a reviewed retry."}
 	}
 	var status agent.ProviderHTTPError
 	if !errors.As(err, &status) {
