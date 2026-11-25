@@ -719,6 +719,22 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		})
 	}
 
+	for _, tool := range delegationSurface {
+		if coordination, ok := tool.(interface{ CheckCompletion() error }); ok {
+			previousCheck := check
+			check = func(messages []agent.Message) error {
+				if err := coordination.CheckCompletion(); err != nil {
+					return err
+				}
+				if previousCheck != nil {
+					return previousCheck(messages)
+				}
+				return nil
+			}
+			break
+		}
+	}
+
 	if directCode != nil {
 		previousCheck := check
 		check = func(messages []agent.Message) error {
