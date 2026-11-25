@@ -23,7 +23,7 @@ function observedStep(step, state, rows, owner) {
     if (rows.size > 320) rows.delete(rows.keys().next().value);
   }
   row.item.dataset.state = state;
-  row.name.textContent = step.text || toolLabel(step.tool);
+  row.name.textContent = step.text || toolLabel(step.tool, step.state);
   row.status.textContent = labels[state] || state;
   setIcon(row.mark, stepIcon(step, state));
   row.summary.querySelector('.brand-mark')?.remove();

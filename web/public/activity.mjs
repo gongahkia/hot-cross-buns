@@ -13,8 +13,12 @@ const toolNames = {
   work_write_presentation: 'Creating a presentation', artifact_status: 'Checking outputs',
   start_agent: 'Starting a specialist', await_agent: 'Waiting for a specialist',
   delegate_agents: 'Consulting specialists', code_git_diff: 'Reviewing changes',
+  memory_remember: 'Saving to memory',
 };
-export function toolLabel(name) { return toolNames[name] || String(name || 'Step').replaceAll('_', ' '); }
+export function toolLabel(name, state) {
+  if (name === 'memory_remember' && state === 'completed') return 'Saved to memory';
+  return toolNames[name] || String(name || 'Step').replaceAll('_', ' ');
+}
 function disclosureIcon() { const node = libraryIcon('chevron-right'); node.classList.add('disclosure-icon'); return node; }
 export function elapsed(start, finish) {
   const from = Date.parse(start), to = Date.parse(finish);
@@ -112,7 +116,7 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
         rows.set(entry.id, row);
         list.append(node);
       }
-      row.title.textContent = entry.kind === 'tool' ? toolLabel(entry.tool) : entry.text || 'Working';
+      row.title.textContent = entry.kind === 'tool' ? toolLabel(entry.tool, entry.state) : entry.text || 'Working';
       row.status.textContent = entry.kind === 'tool' ? entry.state : '';
       row.node.dataset.state = options.active ? entry.state : entry.state === 'running' ? 'stopped' : entry.state;
       row.mark.dataset.active = String(options.active && entry.state === 'running' && !options.disconnected);
