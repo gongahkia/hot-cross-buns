@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
@@ -193,10 +194,10 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 		if err != nil {
 			return "", err
 		}
-		created, err := store.AddSkill(record.SkillID, record.Description, record.Body)
+		created, err := store.AddSkillWithRoutine(record.SkillID, record.Description, record.Body, record.Routine)
 		if os.IsExist(err) {
 			existing, loadErr := store.LoadSkill(record.SkillID)
-			if loadErr == nil && existing.Description == record.Description && existing.Body == record.Body {
+			if loadErr == nil && existing.Description == record.Description && existing.Body == record.Body && reflect.DeepEqual(existing.Routine, record.Routine) {
 				return record.SkillID, nil
 			}
 		}

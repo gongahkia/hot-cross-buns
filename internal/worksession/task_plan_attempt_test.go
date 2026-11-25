@@ -10,6 +10,19 @@ import (
 func budgetAttempt() PlanAttempt {
 	return PlanAttempt{RunID: "original-run", RevisionID: "original-revision", ManifestSHA256: strings.Repeat("a", 64), Execution: artifact.ExecutionAccounting{Limits: agent.Limits{ModelRequests: 10, Tokens: 100, WallSeconds: 60}, MaxSteps: 8, CodeMaxSteps: 6, Steps: 2}, Usage: agent.Usage{ModelRequests: 3, InputTokens: 20, OutputTokens: 5}, CodeSteps: 1, WallSeconds: 7}
 }
+
+func TestRecoveryPreservesLaterRoutineBudgetRestrictions(t *testing.T) {
+	first := budgetAttempt()
+	second := budgetAttempt()
+	second.RunID, second.RevisionID, second.ManifestSHA256 = "retry-run", "retry-revision", strings.Repeat("b", 64)
+	second.Execution.Limits.ModelRequests, second.Execution.Limits.Tokens = 4, 40
+	second.Usage = agent.Usage{ModelRequests: 1, InputTokens: 5, OutputTokens: 5}
+	p := TaskPlan{Attempts: []PlanAttempt{first, second}}
+	_, limits, err := p.RemainingExecutionBudget()
+	if err != nil || limits.ModelRequests != 3 || limits.Tokens != 30 {
+		t.Fatal("recovery reset a later routine cap", limits, err)
+	}
+}
 func TestRemainingPlanExecutionBudgetSurvivesPersistenceWithoutDefaultReset(t *testing.T) {
 	p := TaskPlan{Budget: PlanBudget{MaxSteps: 8, CodeMaxSteps: 6}, Attempts: []PlanAttempt{budgetAttempt()}}
 	budget, limits, err := p.RemainingExecutionBudget()

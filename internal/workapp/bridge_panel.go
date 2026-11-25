@@ -63,7 +63,7 @@ func (m Model) panelNavigation(panel uisnapshot.Panel) string {
 		return "chats"
 	case "goals", "agenda", "plan", "suggestions", "followup", "inbox", "overview", "jobs", "check-timing":
 		return "following"
-	case "context", "knowledge", "history", "learnings":
+	case "context", "knowledge", "history", "learnings", "routines":
 		return "saved"
 	case "models", "appearance", "memory", "settings", "connections", "browser", "computer", "permissions", "usage", "data", "recovery":
 		return "settings"

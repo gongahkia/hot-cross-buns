@@ -473,7 +473,7 @@ func (m Model) NavigateBridge(command string) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch command {
-	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/computer", "/permissions", "/model", "/settings", "/help", "/search":
+	case "/hot-cross-buns", "/chat", "/knowledge", "/new", "/overview", "/goals", "/conversations", "/inbox", "/followup", "/history", "/memory", "/context", "/usage", "/data", "/recovery", "/connections", "/browser", "/computer", "/permissions", "/model", "/settings", "/help", "/search", "/routines":
 	default:
 		known := scopedContext
 		for _, entry := range m.availableCommandEntries() {

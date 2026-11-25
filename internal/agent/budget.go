@@ -29,6 +29,26 @@ type Budget struct {
 
 var ErrBudget = errors.New("aggregate model budget exhausted")
 
+// RestrictRemaining narrows future reservations without resetting usage or
+// increasing the enclosing task/parent budget. In-flight calls stay accounted.
+func (b *Budget) RestrictRemaining(requests int, tokens int64) error {
+	if requests < 1 || requests > 128 || tokens < 1000 || tokens > 1000000 {
+		return errors.New("invalid routine budget")
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	used := b.usage.InputTokens + b.usage.OutputTokens
+	if used < 0 || used > int64(^uint64(0)>>1)-tokens {
+		return ErrBudget
+	}
+	b.Limits.ModelRequests = min(b.Limits.ModelRequests, b.usage.ModelRequests+requests)
+	cap := used + tokens
+	if b.Limits.Tokens == 0 || cap < b.Limits.Tokens {
+		b.Limits.Tokens = cap
+	}
+	return nil
+}
+
 func (b *Budget) reserve() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -69,6 +89,8 @@ func (b *Budget) record(usage Usage) {
 	}
 }
 func (b *Budget) Usage() Usage { b.mu.Lock(); defer b.mu.Unlock(); return b.usage }
+
+func (b *Budget) CurrentLimits() Limits { b.mu.Lock(); defer b.mu.Unlock(); return b.Limits }
 
 type budgetModel struct {
 	model  Model

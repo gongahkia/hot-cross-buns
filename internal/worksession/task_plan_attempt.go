@@ -87,6 +87,12 @@ func (p TaskPlan) RemainingExecutionBudget() (PlanBudget, agent.Limits, error) {
 		budget.CodeMaxSteps = first.CodeMaxSteps
 	}
 	for _, a := range p.Attempts {
+		// Later reviewed routines may narrow capacity further; retaining an
+		// earlier larger ceiling must not reset those limits during recovery.
+		limits.ModelRequests = min(limits.ModelRequests, a.Execution.Limits.ModelRequests)
+		if a.Execution.Limits.Tokens > 0 && (limits.Tokens == 0 || a.Execution.Limits.Tokens < limits.Tokens) {
+			limits.Tokens = a.Execution.Limits.Tokens
+		}
 		budget.MaxSteps -= a.Execution.Steps
 		budget.CodeMaxSteps -= a.CodeSteps
 		limits.ModelRequests -= a.Usage.ModelRequests

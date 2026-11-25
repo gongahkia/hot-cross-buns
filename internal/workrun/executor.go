@@ -422,6 +422,23 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	if len(notes)+len(skills)+len(memories) > 0 {
 		surface = append(surface, (tools.PersonalKnowledge{Notes: knowledgeStore, Memories: memoryStore, GoalID: request.GoalID, ExcludedIDs: request.ExcludedKnowledgeIDs}).Tools()...)
 	}
+	var routineEffects []string
+	var routineCoordinator *orchestrator.Supervisor
+	if request.ForegroundApp && len(skills) > 0 {
+		previousSupervisor := request.OnSupervisor
+		request.OnSupervisor = func(s *orchestrator.Supervisor) {
+			routineCoordinator = s
+			if previousSupervisor != nil {
+				previousSupervisor(s)
+			}
+		}
+		surface = append(surface, tools.PrepareSkill{Store: knowledgeStore, Budget: request.Budget, Review: request.ApproveAppChange, Activate: func(effects []string) { routineEffects = effects }, CheckReady: func() error {
+			if routineCoordinator != nil {
+				return routineCoordinator.CheckCompletion()
+			}
+			return nil
+		}})
+	}
 	suggestions, err := suggestion.Open(request.StateDir)
 	if err != nil {
 		return outcome, fmt.Errorf("open change suggestions: %w", err)
@@ -856,6 +873,10 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 			return nil
 		}
 	}
+	registeredRecoveryTools := map[string]agent.Tool{}
+	for _, tool := range surface {
+		registeredRecoveryTools[tool.Definition().Name] = tool
+	}
 	originalBeforeTool := beforeTool
 	beforeTool = func(ctx context.Context, call agent.ToolCall) error {
 		if request.ForegroundApp {
@@ -868,16 +889,19 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		if len(accessNeeds.snapshot()) > 0 && call.Name != "hot_cross_buns_request_access" && call.Name != "hot_cross_buns_app_inspect" {
 			return errTaskAccess
 		}
+		if len(routineEffects) > 0 {
+			if tool, known := registeredRecoveryTools[call.Name]; known {
+				if err := checkRoutineEffects(routineEffects, tool, call); err != nil {
+					return err
+				}
+			}
+		}
 		if originalBeforeTool != nil {
 			return originalBeforeTool(ctx, call)
 		}
 		return nil
 	}
 	readOnlyAttempt := true
-	registeredRecoveryTools := map[string]agent.Tool{}
-	for _, tool := range surface {
-		registeredRecoveryTools[tool.Definition().Name] = tool
-	}
 	result, runErr := runner.Run(ctx, agent.RunOptions{
 		BeforeTool: beforeTool,
 		AfterTool: func(_ context.Context, call agent.ToolCall, _ agent.ToolResult, toolErr error) error {
@@ -970,7 +994,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		return outcome, fmt.Errorf("seal work artifacts: %w", sealErr)
 	}
 	manifest.PolicySHA256, _ = PolicyDigest(request)
-	manifest.Execution = &artifact.ExecutionAccounting{Limits: request.Limits, MaxSteps: request.MaxSteps, CodeMaxSteps: request.Code.MaxSteps, Steps: result.Steps}
+	manifest.Execution = &artifact.ExecutionAccounting{Limits: request.Budget.CurrentLimits(), MaxSteps: request.MaxSteps, CodeMaxSteps: request.Code.MaxSteps, Steps: result.Steps}
 	manifest.Usage = request.Budget.Usage()
 	manifest.Usage.ModelRequests -= usageBefore.ModelRequests
 	manifest.Usage.UnknownRequests -= usageBefore.UnknownRequests

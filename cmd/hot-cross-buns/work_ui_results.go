@@ -181,6 +181,9 @@ func workSkillResult(command string) (*uisnapshot.Result, error) {
 			if !skill.Enabled {
 				state, tone = "disabled", "muted"
 			}
+			if skill.Routine != nil {
+				state += " · routine"
+			}
 			result.Items = append(result.Items, uisnapshot.ResultItem{Label: skill.ID, Detail: skill.Description, State: state, Tone: tone})
 		}
 		return result, nil
@@ -196,9 +199,16 @@ func workSkillResult(command string) (*uisnapshot.Result, error) {
 		if skill.Enabled {
 			state = "enabled"
 		}
-		return &uisnapshot.Result{Kind: "details", Title: skill.Title, Summary: skill.Description, Fields: []uisnapshot.Field{
+		result := &uisnapshot.Result{Kind: "details", Title: skill.Title, Summary: skill.Description, Fields: []uisnapshot.Field{
 			{Label: "State", Value: state}, {Label: "Updated", Value: skill.UpdatedAt.Local().Format("2006-01-02 15:04")},
-		}, Markdown: skill.Body}, nil
+		}, Markdown: skill.Body}
+		if r := skill.Routine; r != nil {
+			result.Fields = append(result.Fields, uisnapshot.Field{Label: "Reuse", Value: "Fresh review required; existing permissions and task limits remain in force"}, uisnapshot.Field{Label: "Limits", Value: fmt.Sprintf("At most %d additional model requests and %d reported tokens; existing lower limits still apply", r.MaxRequests, r.MaxTokens)}, uisnapshot.Field{Label: "Source prerequisites", Value: strings.Join(r.Sources, ", ")}, uisnapshot.Field{Label: "Allowed future effects", Value: strings.Join(r.Effects, ", ")})
+			for _, p := range r.Parameters {
+				result.Fields = append(result.Fields, uisnapshot.Field{Label: "Parameter · " + p.Name, Value: p.Description})
+			}
+		}
+		return result, nil
 	}
 	return nil, nil
 }

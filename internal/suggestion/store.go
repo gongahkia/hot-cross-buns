@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"github.com/gongahkia/hot-cross-buns/internal/reconciliation"
 	"github.com/robfig/cron/v3"
 )
@@ -29,6 +30,7 @@ const Version = 1
 var skillIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 type Record struct {
+	Routine              *knowledge.Routine      `json:"routine,omitempty"`
 	ConflictSources      []reconciliation.Source `json:"conflict_sources,omitempty"`
 	NoteID               string                  `json:"note_id,omitempty"`
 	ExpectedNoteRevision string                  `json:"expected_note_revision,omitempty"`
@@ -272,6 +274,9 @@ func validID(id string) bool {
 }
 
 func validate(record Record) error {
+	if record.Routine != nil && record.Kind != "skill" {
+		return errors.New("routine metadata requires a skill proposal")
+	}
 	if record.Version != Version || !validID(record.ID) || record.CreatedAt.IsZero() || record.WorkID == "" || len(record.WorkID) > 128 || strings.ContainsAny(record.WorkID, "\x00\r\n") {
 		return errors.New("invalid suggestion identity")
 	}
@@ -347,6 +352,11 @@ func validate(record Record) error {
 			return errors.New("note suggestion needs title and body")
 		}
 	case "skill":
+		if record.Routine != nil {
+			if err := record.Routine.Validate(record.Body); err != nil {
+				return err
+			}
+		}
 		if !skillIDPattern.MatchString(record.SkillID) || strings.TrimSpace(record.Description) == "" || strings.TrimSpace(record.Body) == "" || record.GoalID != "" || len(record.SourceRefs) != 0 {
 			return errors.New("skill suggestion needs a global name, description, and procedure")
 		}

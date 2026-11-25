@@ -3,6 +3,7 @@ package workapp
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
@@ -24,6 +25,30 @@ func approvalMessage(interaction workrun.Interaction) message {
 			Fields:  []uisnapshot.Field{{Label: "Request", Value: fmt.Sprint(interaction.ID)}, {Label: "Action", Value: interaction.Kind}},
 			Preview: preview, Footer: "/approve to allow · /deny to refuse",
 		},
+	}
+	var routine struct {
+		Setting, Name, Description, Procedure, Effect string
+		Parameters                                    map[string]string
+		Sources, Effects                              []string
+		Requests                                      int   `json:"max_additional_model_requests"`
+		Tokens                                        int64 `json:"max_additional_reported_tokens"`
+	}
+	if interaction.Kind == "app_change" && json.Unmarshal(preview, &routine) == nil && routine.Setting == "routine" {
+		result.result.Title = "Use saved routine"
+		result.result.Summary = routine.Description
+		result.result.Preview = nil
+		result.result.Fields = []uisnapshot.Field{{Label: "Routine", Value: routine.Name}, {Label: "Source prerequisites", Value: strings.Join(routine.Sources, ", ")}, {Label: "Allowed future effects", Value: strings.Join(routine.Effects, ", ")}, {Label: "Additional limits", Value: fmt.Sprintf("%d model requests · %d reported tokens; existing lower task limits apply", routine.Requests, routine.Tokens)}}
+		names := []string{}
+		for name := range routine.Parameters {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			result.result.Fields = append(result.result.Fields, uisnapshot.Field{Label: name, Value: routine.Parameters[name]})
+		}
+		result.result.Sections = []uisnapshot.ResultSection{{Title: "Procedure", Lines: strings.Split(routine.Procedure, "\n")}}
+		result.result.Lines = []string{routine.Effect}
+		result.result.Footer = "Applies to this task only. File, account and computer access and external actions retain their separate reviews."
 	}
 	if agreement, ok := interaction.Preview.(workrun.AppAgreement); ok && interaction.Kind == "app_change" && agreement.Action != "" {
 		result.result.Title = "Review follow-up"

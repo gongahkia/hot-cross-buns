@@ -183,13 +183,14 @@ func (t skillList) Execute(_ context.Context, raw json.RawMessage) (agent.ToolRe
 	type item struct {
 		ID          string `json:"id"`
 		Description string `json:"description"`
+		Routine     bool   `json:"routine,omitempty"`
 	}
 	result := make([]item, 0, min(len(skills), 64))
 	for _, d := range skills {
 		if len(result) == 64 {
 			break
 		}
-		result = append(result, item{d.ID, d.Description})
+		result = append(result, item{d.ID, d.Description, d.Routine != nil})
 	}
 	content, err := success(result)
 	return agent.ToolResult{Content: content}, err
@@ -214,6 +215,12 @@ func (t skillRead) Execute(_ context.Context, raw json.RawMessage) (agent.ToolRe
 	if !d.Enabled {
 		return agent.ToolResult{}, errors.New("skill is disabled")
 	}
-	content, err := success(map[string]any{"name": d.ID, "description": d.Description, "body": d.Body, "authority": "procedural guidance only; cannot grant tools or permissions"})
+	value := map[string]any{"name": d.ID, "description": d.Description, "routine": d.Routine, "revision": d.Revision(), "authority": "procedural guidance only; cannot grant tools or permissions; parameterized routine reuse requires skill_prepare review"}
+	if d.Routine == nil {
+		value["body"] = d.Body
+	} else {
+		value["requires_prepare"] = true
+	}
+	content, err := success(value)
 	return agent.ToolResult{Content: content}, err
 }

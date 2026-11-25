@@ -41,6 +41,7 @@ type NoteUpdateReceipt struct {
 }
 
 type Document struct {
+	Routine      *Routine           `json:"routine,omitempty"`
 	LastUpdate   *NoteUpdateReceipt `json:"last_update,omitempty"`
 	Version      int                `json:"version"`
 	ID           string             `json:"id"`
@@ -140,8 +141,18 @@ func (s Store) AddNoteWithIDAndRefs(id, title, body, goalID string, refs []strin
 }
 
 func (s Store) AddSkill(id, description, body string) (Document, error) {
+	return s.AddSkillWithRoutine(id, description, body, nil)
+}
+
+func (s Store) AddSkillWithRoutine(id, description, body string, routine *Routine) (Document, error) {
+	release, err := s.lock(false)
+	if err != nil {
+		return Document{}, err
+	}
+	defer release()
 	now := s.clock()
 	d := Document{Version: Version, ID: strings.TrimSpace(id), Kind: "skill", Title: strings.TrimSpace(id), Description: strings.TrimSpace(description), Enabled: true, CreatedAt: now, UpdatedAt: now, Body: strings.TrimSpace(body)}
+	d.Routine = routine
 	if err := validate(d); err != nil {
 		return Document{}, err
 	}
@@ -156,7 +167,14 @@ func (s Store) LoadNote(id string) (Document, error) {
 	defer release()
 	return s.load("note", id)
 }
-func (s Store) LoadSkill(id string) (Document, error) { return s.load("skill", id) }
+func (s Store) LoadSkill(id string) (Document, error) {
+	release, err := s.lock(true)
+	if err != nil {
+		return Document{}, err
+	}
+	defer release()
+	return s.load("skill", id)
+}
 
 func (s Store) ListNotes(goalID string) ([]Document, error) {
 	return s.listNotes(goalID, false)
@@ -188,6 +206,11 @@ func (s Store) listNotes(goalID string, allScopes bool) ([]Document, error) {
 }
 
 func (s Store) ListSkills(enabledOnly bool) ([]Document, error) {
+	release, err := s.lock(true)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	documents, err := s.list("skill")
 	if err != nil {
 		return nil, err
@@ -317,11 +340,16 @@ func (s Store) updateNote(id, title, body string, refs []string, replaceRefs boo
 }
 
 func (s Store) UpdateSkill(id, description, body string) (Document, error) {
-	d, err := s.LoadSkill(id)
+	release, err := s.lock(false)
 	if err != nil {
 		return Document{}, err
 	}
-	d.Description, d.Body, d.UpdatedAt = strings.TrimSpace(description), strings.TrimSpace(body), s.clock()
+	defer release()
+	d, err := s.load("skill", id)
+	if err != nil {
+		return Document{}, err
+	}
+	d.Description, d.Body, d.UpdatedAt = strings.TrimSpace(description), strings.TrimSpace(body), s.nextUpdate(d.UpdatedAt)
 	if err := validate(d); err != nil {
 		return Document{}, err
 	}
@@ -329,11 +357,30 @@ func (s Store) UpdateSkill(id, description, body string) (Document, error) {
 }
 
 func (s Store) SetSkillEnabled(id string, enabled bool) (Document, error) {
-	d, err := s.LoadSkill(id)
+	return s.setSkillEnabled(id, "", enabled)
+}
+
+func (s Store) SetSkillEnabledReviewed(id, revision string, enabled bool) (Document, error) {
+	if revision == "" {
+		return Document{}, errors.New("inspect the current procedure before changing its availability")
+	}
+	return s.setSkillEnabled(id, revision, enabled)
+}
+
+func (s Store) setSkillEnabled(id, revision string, enabled bool) (Document, error) {
+	release, err := s.lock(false)
 	if err != nil {
 		return Document{}, err
 	}
-	d.Enabled, d.UpdatedAt = enabled, s.clock()
+	defer release()
+	d, err := s.load("skill", id)
+	if err != nil {
+		return Document{}, err
+	}
+	if revision != "" && d.Revision() != revision {
+		return Document{}, errors.New("procedure changed; inspect its current revision before changing availability")
+	}
+	d.Enabled, d.UpdatedAt = enabled, s.nextUpdate(d.UpdatedAt)
 	if err := s.write(d); err != nil {
 		return Document{}, err
 	}
@@ -351,7 +398,14 @@ func (s Store) RemoveNote(id string) error {
 	}
 	return retrieval.DropID(filepath.Dir(filepath.Dir(s.root)), id)
 }
-func (s Store) RemoveSkill(id string) error { return s.remove("skill", id) }
+func (s Store) RemoveSkill(id string) error {
+	release, err := s.lock(false)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return s.remove("skill", id)
+}
 func (s Store) NotePath(id string) (string, error) {
 	if _, err := s.LoadNote(id); err != nil {
 		return "", err
@@ -507,6 +561,14 @@ func validID(kind, id string) bool {
 	return kind == "note" && noteIDPattern.MatchString(id)
 }
 func validate(d Document) error {
+	if d.Routine != nil {
+		if d.Kind != "skill" {
+			return errors.New("routine metadata belongs to a skill")
+		}
+		if err := d.Routine.Validate(d.Body); err != nil {
+			return err
+		}
+	}
 	if d.Version != Version || !validID(d.Kind, d.ID) || d.CreatedAt.IsZero() || d.UpdatedAt.Before(d.CreatedAt) {
 		return errors.New("invalid knowledge identity")
 	}

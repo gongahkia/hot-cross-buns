@@ -224,6 +224,7 @@ func commandPaletteEntries() []entry {
 		{title: "/memory", subtitle: "Set up recall and manage saved context", kind: "command", command: "/memory"},
 		{title: "/note", subtitle: "Save or search personal notes", kind: "command-input", command: "/note"},
 		{title: "/skill", subtitle: "Create or manage reusable procedures", kind: "command-input", command: "/skill"},
+		{title: "Skills and routines", subtitle: "Browse saved procedures and reviewed parameterized routines", kind: "command", command: "/routines"},
 		{title: "/learnings", subtitle: "Review guidance from earlier work", kind: "command", command: "/learnings"},
 		{title: "/feedback", subtitle: "Rate or correct this result", kind: "command-input", command: "/feedback"},
 		{title: "/review", subtitle: "Preview the latest output", kind: "command", command: "/review"},
@@ -359,6 +360,8 @@ func (m Model) commandAvailable(command string) bool {
 		return m.config.PilotAction != nil
 	case "/note":
 		return m.config.NoteAction != nil
+	case "/routines":
+		return m.config.Controls != nil
 	case "/skill":
 		return m.config.SkillAction != nil
 	case "/history":
@@ -411,7 +414,7 @@ func (m Model) runLocalCommand(command string) (tea.Model, tea.Cmd) {
 	var result string
 	var err error
 	switch fields[0] {
-	case "/usage", "/data", "/recovery", "/overview", "/connections", "/browser", "/computer", "/search":
+	case "/usage", "/data", "/recovery", "/overview", "/connections", "/browser", "/computer", "/search", "/routines":
 		if m.config.Controls == nil {
 			err = errorsUnavailable("product controls")
 			break

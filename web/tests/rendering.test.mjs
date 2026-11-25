@@ -565,7 +565,8 @@ test('settings routes to real management pages', () => {
   assert.match(settings.textContent, /Configured model/);
   [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Memory & privacy')).click();
   [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Web search')).click();
-  assert.deepEqual(destinations, ['/memory', '/search']);
+  [...settings.querySelectorAll('button')].find(node => node.textContent.startsWith('Skills and routines')).click();
+  assert.deepEqual(destinations, ['/memory', '/search', '/routines']);
 
 });
 

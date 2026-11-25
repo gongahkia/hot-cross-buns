@@ -1010,6 +1010,7 @@ export function paletteCommands() {
     { label: 'Delegated work', action: inspector.open },
     { label: 'Agents', action: agents.open },
     { label: 'Scheduled tasks', action: scheduled.open },
+    { label: 'Skills and routines', action: () => void execute(() => backendRoute('/routines')) },
   ];
   for (const node of document.querySelectorAll("[data-route]")) {
     if (!node.disabled) commands.push({

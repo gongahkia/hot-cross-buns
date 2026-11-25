@@ -18,6 +18,7 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
       ['Connections', 'link', 'Accounts, connected sources, and their permissions.', () => navigate('/connections')],
       ['Web search', 'search', 'Choose a search service and check its access.', () => backend('/search')],
       ['Memory & privacy', 'brain', 'Chat learning, earlier-chat retrieval, and recall settings.', () => backend('/memory')],
+      ['Skills and routines', 'book-open', 'Inspect saved procedures and manage future availability.', () => backend('/routines')],
       ['Scheduled tasks', 'calendar-days', 'Recurring checks and ongoing responsibilities.', () => navigate('/scheduled')],
     ]],
     ['This device', [
