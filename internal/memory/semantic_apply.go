@@ -27,6 +27,10 @@ func (s Store) ApplySemanticChat(ctx context.Context, input ChatInput, plan Sema
 		return Record{}, err
 	}
 	defer release()
+	return s.applySemanticChatUnlocked(ctx, input, plan, reviewed)
+}
+
+func (s Store) applySemanticChatUnlocked(ctx context.Context, input ChatInput, plan SemanticPlan, reviewed bool) (Record, error) {
 	current, err := s.semanticSnapshotUnlocked(input.GoalID, input.ExcludedIDs)
 	if err != nil {
 		return Record{}, err

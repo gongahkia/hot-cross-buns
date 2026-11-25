@@ -138,7 +138,7 @@ func codePolicyPrompt(policy CodePolicy) string {
 func MemoryPrompt(learnFromChats, disableChatHistory bool) string {
 	policy := "Learning from chats is off. Save memory only when the user explicitly asks you to remember."
 	if learnFromChats {
-		policy = "Learning from chats is on. When the user states an enduring personal preference or useful stable fact, save it with memory_remember without requiring a special command. Skip routine chatter and one-off task details."
+		policy = "Learning from chats is on. When the user states an enduring personal preference or useful stable fact, save it with memory_remember without requiring a special command. Skip routine chatter and one-off task details. For potentially useful decisions, plans or conditional context, use memory_propose to create a significance candidate for review rather than asserting it is already active. Preserve planned/current/past distinctions; do not infer a completed event from a date passing."
 	}
 	historyPolicy := "Use chat_search/chat_read when earlier chat details are relevant, rather than claiming every past chat is already in context. Retrieved history may be stale: current user corrections and newer saved facts take precedence."
 	if disableChatHistory {

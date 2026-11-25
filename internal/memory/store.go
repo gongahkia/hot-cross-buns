@@ -30,28 +30,30 @@ type ChatOrigin struct {
 }
 
 type Record struct {
-	ConceptID       string      `json:"concept_id,omitempty"`
-	RecallIssue     string      `json:"recall_issue,omitempty"`
-	ReviewAfter     time.Time   `json:"review_after,omitzero"`
-	Subject         string      `json:"subject,omitempty"`
-	Origin          *ChatOrigin `json:"origin,omitempty"`
-	Version         int         `json:"version"`
-	ID              string      `json:"id"`
-	Kind            string      `json:"kind"`
-	Text            string      `json:"text"`
-	GoalID          string      `json:"goal_id,omitempty"`
-	Source          string      `json:"source,omitempty"`
-	SourceSHA256    string      `json:"source_sha256,omitempty"`
-	SourceStatus    string      `json:"-"`
-	MatchedTerms    []string    `json:"-"`
-	MatchScope      string      `json:"-"`
-	MatchMethod     string      `json:"-"`
-	ExpiresAt       time.Time   `json:"expires_at,omitempty"`
-	CreatedAt       time.Time   `json:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at"`
-	LastObservedAt  time.Time   `json:"last_observed_at,omitempty"`
-	LastConfirmedAt time.Time   `json:"last_confirmed_at,omitempty"`
-	Evidence        []Evidence  `json:"evidence,omitempty"`
+	Context         *Context      `json:"context,omitempty"`
+	Policy          *RecallPolicy `json:"recall_policy,omitempty"`
+	ConceptID       string        `json:"concept_id,omitempty"`
+	RecallIssue     string        `json:"recall_issue,omitempty"`
+	ReviewAfter     time.Time     `json:"review_after,omitzero"`
+	Subject         string        `json:"subject,omitempty"`
+	Origin          *ChatOrigin   `json:"origin,omitempty"`
+	Version         int           `json:"version"`
+	ID              string        `json:"id"`
+	Kind            string        `json:"kind"`
+	Text            string        `json:"text"`
+	GoalID          string        `json:"goal_id,omitempty"`
+	Source          string        `json:"source,omitempty"`
+	SourceSHA256    string        `json:"source_sha256,omitempty"`
+	SourceStatus    string        `json:"-"`
+	MatchedTerms    []string      `json:"-"`
+	MatchScope      string        `json:"-"`
+	MatchMethod     string        `json:"-"`
+	ExpiresAt       time.Time     `json:"expires_at,omitempty"`
+	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       time.Time     `json:"updated_at"`
+	LastObservedAt  time.Time     `json:"last_observed_at,omitempty"`
+	LastConfirmedAt time.Time     `json:"last_confirmed_at,omitempty"`
+	Evidence        []Evidence    `json:"evidence,omitempty"`
 }
 
 type Store struct {
@@ -224,6 +226,7 @@ func (s Store) list(goalID string, includeExpired bool, load func(string) (Recor
 	if err := s.annotateConcepts(result); err != nil {
 		return nil, err
 	}
+	s.annotateContext(result)
 	s.annotateFreshness(result)
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].UpdatedAt.Equal(result[j].UpdatedAt) {
@@ -254,6 +257,9 @@ func (s Store) Search(query, goalID string, limit int) ([]Record, error) {
 	}
 	var matches []scored
 	for _, record := range records {
+		if !record.Applies(query) {
+			continue
+		}
 		if !record.Recallable() {
 			continue
 		}
@@ -469,6 +475,9 @@ func RenderSelection(records []Record) (string, []Record) {
 		if !record.ExpiresAt.IsZero() {
 			line += ", expires: " + record.ExpiresAt.Format("2006-01-02")
 		}
+		if record.Context != nil {
+			line += ", state: " + record.Context.State + ", why saved: " + record.Context.Why
+		}
 		line += ")"
 		if len(line) > remaining {
 			break
@@ -500,6 +509,12 @@ func validID(id string) bool {
 	return err == nil
 }
 func validate(r Record) error {
+	if err := r.Context.Validate(); err != nil {
+		return err
+	}
+	if r.Version == 1 && (r.Context != nil || r.Policy != nil) {
+		return errors.New("memory context requires version 2")
+	}
 	if err := validateEvidence(r); err != nil {
 		return err
 	}
@@ -509,7 +524,7 @@ func validate(r Record) error {
 	if r.Origin != nil && (len(r.Origin.Quote) > 4096 || len(r.Origin.ConversationID) > 128 || len(r.Origin.RunID) > 128 || (r.Origin.Basis != "user-stated" && r.Origin.Basis != "user-corrected")) {
 		return errors.New("invalid memory provenance")
 	}
-	if r.Version != Version || !validID(r.ID) || r.CreatedAt.IsZero() || r.UpdatedAt.Before(r.CreatedAt) {
+	if (r.Version != Version && r.Version != 2) || !validID(r.ID) || r.CreatedAt.IsZero() || r.UpdatedAt.Before(r.CreatedAt) {
 		return errors.New("invalid memory identity")
 	}
 	if r.Kind != "fact" && r.Kind != "preference" && r.Kind != "decision" && r.Kind != "note" {

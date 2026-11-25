@@ -91,6 +91,7 @@ func blockMarker(path string) error {
 }
 
 type ChatInput struct {
+	Context                                                                         *Context
 	Subject, Kind, GoalID, Quote, ConversationID, RunID, ReplaceID, ExpectedUpdated string
 	Explicit                                                                        bool
 	ExcludedIDs                                                                     []string
@@ -174,6 +175,10 @@ func (s Store) rememberChatUnlocked(input ChatInput) (Record, error) {
 	current.ConceptID = bindings.resolve(input.GoalID, input.Subject)
 	current.RecallIssue = ""
 	current.Origin = &ChatOrigin{ConversationID: input.ConversationID, RunID: input.RunID, Quote: strings.TrimSpace(input.Quote), Basis: "user-stated"}
+	if input.Context != nil {
+		current.Context = input.Context
+		current.Version = 2
+	}
 	current.observe("user-stated", current.Origin)
 	if err := validate(current); err != nil {
 		return Record{}, err
@@ -210,6 +215,9 @@ func (s Store) Profile(excluded []string) ([]Record, error) {
 			skip = skip || id == record.ID
 		}
 		if skip || !record.Recallable() {
+			continue
+		}
+		if record.Context != nil && (record.Context.State != "current" || len(record.Context.AppliesTo) != 0) {
 			continue
 		}
 		if record.Kind != "preference" && !(record.Subject == "profile.name" || record.Subject == "profile.timezone" || record.Subject == "profile.language") {
