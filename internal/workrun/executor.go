@@ -117,6 +117,16 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 			return Outcome{}, err
 		}
 	}
+	if !request.ForegroundApp && request.ScheduledJobID != "" {
+		store, err := fileaccess.Open(request.StateDir, request.FilesystemProtected...)
+		if err != nil {
+			return Outcome{}, err
+		}
+		request.files, err = fileaccess.NewScheduledTask(store, request.ScheduledJobID, request.ScheduledJobPolicy, request.CheckScheduledFiles)
+		if err != nil {
+			return Outcome{}, err
+		}
+	}
 	startedAt := now()
 	policySHA256, err := PolicyDigest(request)
 	if err != nil {
@@ -590,7 +600,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		}
 	}
 	if request.files != nil {
-		surface = append(surface, tools.Filesystem{Task: request.files, ReadOnly: request.Mode == action.Inspect})
+		surface = append(surface, tools.Filesystem{Task: request.files, ReadOnly: request.Mode == action.Inspect || !request.ForegroundApp})
 	}
 	if request.BrowserSession != "" {
 		if request.DisableBrowser {

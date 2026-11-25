@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -21,10 +22,12 @@ var ErrChanged = errors.New("filesystem permissions changed; review access in a 
 const MaxBytes = 1024 * 1024
 
 type Grant struct {
-	ID       string `json:"id"`
-	Root     string `json:"root"`
-	Access   string `json:"access"`
-	Identity string `json:"identity"`
+	JobID     string `json:"job_id,omitempty"`
+	JobPolicy string `json:"job_policy_sha256,omitempty"`
+	ID        string `json:"id"`
+	Root      string `json:"root"`
+	Access    string `json:"access"`
+	Identity  string `json:"identity"`
 }
 type Policy struct {
 	Version  int     `json:"version"`
@@ -112,11 +115,14 @@ func (s *Store) load() (Policy, error) {
 		return Policy{}, err
 	}
 	var p Policy
-	if len(data) > 128*1024 || json.Unmarshal(data, &p) != nil || p.Version != 1 || p.Revision == 0 || len(p.Grants) > 128 {
+	if len(data) > 128*1024 || json.Unmarshal(data, &p) != nil || (p.Version != 1 && p.Version != 2) || p.Revision == 0 || len(p.Grants) > 128 {
 		return p, errors.New("invalid filesystem permission policy")
 	}
 	seen := map[string]bool{}
 	for _, g := range p.Grants {
+		if (g.JobID != "" || g.JobPolicy != "") && (p.Version != 2 || g.Access != "read" || !ValidJobScope(g.JobID, g.JobPolicy)) {
+			return p, errors.New("invalid scheduled folder grant")
+		}
 		if len(g.ID) != 32 || seen[g.ID] || !filepath.IsAbs(g.Root) || filepath.Dir(g.Root) == g.Root || g.Identity == "" || (g.Access != "read" && g.Access != "write") {
 			return p, errors.New("invalid saved folder grant")
 		}
@@ -178,6 +184,24 @@ func (s *Store) RevokeAll(revision uint64) (Policy, error) {
 	return s.change(revision, func(p *Policy) error { p.Full = false; p.Grants = []Grant{}; return nil })
 }
 func (s *Store) Add(revision uint64, folder, access, identity string) (Policy, error) {
+	return s.add(revision, folder, access, identity, "", "")
+}
+
+var jobIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$`)
+var jobPolicyPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
+func ValidJobScope(id, policy string) bool {
+	return jobIDPattern.MatchString(id) && jobPolicyPattern.MatchString(policy)
+}
+
+func (s *Store) AddScheduled(revision uint64, folder, identity, jobID, jobPolicy string) (Policy, error) {
+	if !ValidJobScope(jobID, jobPolicy) {
+		return Policy{}, errors.New("review an exact scheduled job definition before granting folder reads")
+	}
+	return s.add(revision, folder, "read", identity, jobID, jobPolicy)
+}
+
+func (s *Store) add(revision uint64, folder, access, identity, jobID, jobPolicy string) (Policy, error) {
 	if access != "read" && access != "write" {
 		return Policy{}, errors.New("choose read or write access")
 	}
@@ -200,7 +224,7 @@ func (s *Store) Add(revision uint64, folder, access, identity string) (Policy, e
 			return errors.New("too many saved folder permissions")
 		}
 		for i, g := range p.Grants {
-			if g.Root == root {
+			if g.Root == root && g.JobID == jobID {
 				p.Grants = append(p.Grants[:i], p.Grants[i+1:]...)
 				break
 			}
@@ -209,7 +233,10 @@ func (s *Store) Add(revision uint64, folder, access, identity string) (Policy, e
 		if _, err := rand.Read(token); err != nil {
 			return err
 		}
-		p.Grants = append(p.Grants, Grant{ID: hex.EncodeToString(token), Root: root, Access: access, Identity: identity})
+		if jobID != "" {
+			p.Version = 2
+		}
+		p.Grants = append(p.Grants, Grant{ID: hex.EncodeToString(token), Root: root, Access: access, Identity: identity, JobID: jobID, JobPolicy: jobPolicy})
 		return nil
 	})
 }

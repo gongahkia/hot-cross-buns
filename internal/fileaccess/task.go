@@ -25,14 +25,17 @@ type Review struct {
 }
 type Decide func(context.Context, Review) (string, error)
 type Task struct {
-	mu       sync.Mutex
-	store    *Store
-	revision uint64
-	epoch    atomic.Uint64
-	full     bool
-	grants   []Grant
-	decide   Decide
-	readOnly bool
+	mu        sync.Mutex
+	store     *Store
+	revision  uint64
+	epoch     atomic.Uint64
+	full      bool
+	grants    []Grant
+	decide    Decide
+	readOnly  bool
+	jobID     string
+	jobPolicy string
+	checkJob  func() error
 }
 type Envelope struct {
 	Full      bool     `json:"full_access"`
@@ -51,12 +54,43 @@ func NewTask(store *Store, readOnly bool, decide Decide) (*Task, error) {
 	task.epoch.Store(p.Revision)
 	return task, nil
 }
+
+// A scheduled task gets only grants for its exact reviewed job revision.
+// Persistent foreground/full permissions and interactive approval are excluded.
+func NewScheduledTask(store *Store, jobID, policy string, check func() error) (*Task, error) {
+	if !ValidJobScope(jobID, policy) {
+		return nil, errors.New("scheduled file access requires an exact job revision")
+	}
+	p, err := store.Get()
+	if err != nil {
+		return nil, err
+	}
+	for _, g := range p.Grants {
+		if g.JobID == jobID && g.JobPolicy == policy {
+			if check == nil {
+				return nil, errors.New("scheduled file access requires host validation of the job revision")
+			}
+			if err := check(); err != nil {
+				return nil, err
+			}
+			t := &Task{store: store, revision: p.Revision, readOnly: true, jobID: jobID, jobPolicy: policy, checkJob: check}
+			t.epoch.Store(p.Revision)
+			return t, nil
+		}
+	}
+	return nil, nil
+}
 func ValidChoice(choice string) bool {
 	return choice == "once" || choice == "always" || choice == "full"
 }
 func (t *Task) Check() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.checkJob != nil {
+		if err := t.checkJob(); err != nil {
+			return err
+		}
+	}
 	p, err := t.store.Get()
 	if err != nil {
 		return err
@@ -75,6 +109,11 @@ func (t *Task) Check() error {
 func (t *Task) Access(ctx context.Context, path, access, operation, reason string) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.checkJob != nil {
+		if err := t.checkJob(); err != nil {
+			return "", err
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -122,7 +161,9 @@ func (t *Task) Access(ctx context.Context, path, access, operation, reason strin
 	if p.Revision != t.revision {
 		return "", ErrChanged
 	}
-	matches := func(g Grant) bool { return contains(g.Root, target) && (access == "read" || g.Access == "write") }
+	matches := func(g Grant) bool {
+		return g.JobID == t.jobID && (t.jobID == "" || g.JobPolicy == t.jobPolicy) && contains(g.Root, target) && (access == "read" || g.Access == "write")
+	}
 	remember := func(g Grant) error {
 		identity, err := folderIdentity(g.Root)
 		if err != nil || identity != g.Identity {
@@ -159,6 +200,9 @@ func (t *Task) Access(ctx context.Context, path, access, operation, reason strin
 	folder, identity, err := Folder(folder)
 	if err != nil {
 		return "", err
+	}
+	if t.jobID != "" {
+		return "", errors.New("this scheduled job has no reviewed read grant for this folder; manage its permissions in Settings")
 	}
 	if p.Full {
 		return target, remember(Grant{Root: folder, Identity: identity, Access: access})

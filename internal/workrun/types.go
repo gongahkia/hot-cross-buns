@@ -80,6 +80,9 @@ type Request struct {
 	UpdateContext        string
 	InputIDs             []string
 	ForegroundApp        bool
+	ScheduledJobID       string            `json:"-"`
+	ScheduledJobPolicy   string            `json:"-"`
+	CheckScheduledFiles  func() error      `json:"-"`
 	ApproveFilesystem    fileaccess.Decide `json:"-"`
 	FilesystemProtected  []string
 	files                *fileaccess.Task

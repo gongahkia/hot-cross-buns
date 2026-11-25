@@ -73,6 +73,9 @@ func configuredWorkService(provider, modelName, stateDir string, request *workru
 	request.MaintainMemory = settings.Desktop.LearnsFromChats()
 	request.DisableChatHistory = !settings.Desktop.RefersToChats()
 	request.StateDir = stateDir
+	if request.ScheduledJobID != "" {
+		request.CheckScheduledFiles = scheduledFilesCheck(stateDir, *request)
+	}
 	// CLI subprocess costs are separate from scheduled-job model budgets.
 	// Scheduled jobs never inherit new CLI authority from user settings.
 	request.ExternalAgents = nil
@@ -98,13 +101,13 @@ func configuredWorkService(provider, modelName, stateDir string, request *workru
 	request.ConnectorPermissions = connector.PermissionSet(settings.ConnectorPermissions)
 	request.SnapshotOptions = snapshot.Options{Limits: snapshot.Limits{MaxFiles: settings.Snapshots.MaxFiles, MaxTotal: settings.Snapshots.MaxTotalBytes, MaxFileBytes: settings.Snapshots.MaxFileBytes}, Excludes: settings.Snapshots.Excludes}
 	executor := workrun.Executor{Model: backend, StateDir: stateDir, HTTP: configuredWebSearch(settings, credentials, stateDir), Connectors: connector.Runtime{Registry: registry, Credentials: credentials}}
+	settingsStore, err := config.DefaultStore()
+	if err != nil {
+		return workrun.Service{}, err
+	}
+	request.FilesystemProtected = []string{filepath.Dir(settingsStore.Path())}
 	if request.ForegroundApp {
-		store, err := config.DefaultStore()
-		if err != nil {
-			return workrun.Service{}, err
-		}
-		request.FilesystemProtected = []string{filepath.Dir(store.Path())}
-		executor.App = hotCrossBunsAppController{stateDir: stateDir, settings: store, request: request}
+		executor.App = hotCrossBunsAppController{stateDir: stateDir, settings: settingsStore, request: request}
 	}
 	if request.BrowserSession != "" {
 		store, err := browser.Open(stateDir)

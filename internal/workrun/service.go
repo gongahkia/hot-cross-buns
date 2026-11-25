@@ -119,12 +119,14 @@ func effectiveConfiguration(request Request) any {
 		MaintainMemory       bool              `json:",omitempty"`
 		DisableChatHistory   bool              `json:",omitempty"`
 		ExternalAgents       []cliagent.Config `json:",omitempty"`
+		ScheduledJobID       string            `json:",omitempty"`
+		ScheduledJobPolicy   string            `json:",omitempty"`
 	}{request.TaskPlan, request.Contract, request.Mode, request.Code, request.ConnectorIDs, request.CredentialPins, request.OAuthRefreshPins, request.OAuthAccountPins, request.ConnectorPermissions, request.WebOrigins, request.IgnoredInstructionPaths, request.Limits, request.MaxSteps, request.Provider, request.GoalContext, request.GoalPlanContext, request.GoalID, request.MemoryContext, request.NoteContext, request.RoleConfiguration, func() string {
 		if request.Project != nil {
 			return request.Project.SHA256
 		}
 		return ""
-	}(), request.DisableDelegation, request.DisabledRoles, request.EnableCode, request.RequireCode, request.BrowserPolicy, request.BrowserSession, request.DisableBrowser, request.ExcludedKnowledgeIDs, request.DesktopSession, request.DesktopPolicy, request.ForegroundApp, request.LearnFromChats, request.MaintainMemory, request.DisableChatHistory, request.ExternalAgents}
+	}(), request.DisableDelegation, request.DisabledRoles, request.EnableCode, request.RequireCode, request.BrowserPolicy, request.BrowserSession, request.DisableBrowser, request.ExcludedKnowledgeIDs, request.DesktopSession, request.DesktopPolicy, request.ForegroundApp, request.LearnFromChats, request.MaintainMemory, request.DisableChatHistory, request.ExternalAgents, request.ScheduledJobID, request.ScheduledJobPolicy}
 }
 
 type Interaction struct {

@@ -47,6 +47,31 @@ Full mode authorizes requested live scopes; workers receive the folders acquired
 
 Saved grants are offered only to foreground tasks and their delegates. Scheduled work does not inherit them.
 
+## Separately reviewed scheduled reads
+
+Settings → Permissions offers **Allow a scheduled task to read a folder** when
+scheduled definitions exist. Select one task and one folder, review its actual
+objective, timing and read scope, then confirm. This does not enable the task or
+start the scheduler.
+
+The grant belongs to that exact job definition and canonical folder identity.
+The job receives read/list access through the existing filesystem tool. It
+cannot inherit foreground full access, write files, obtain an interactive grant,
+start configured CLI workers or acquire a desktop session through this grant.
+Ordinary foreground tasks cannot consume the scheduled grant either.
+
+Pausing blocks reads. Resuming the unchanged job preserves its grant; changing
+its objective, sources, timing or other definition settings requires reviewing
+the grant again. The host checks the current job before access. Revoking the
+grant or changing filesystem permissions invalidates active access; already read
+data and dispatched operations are not undone. Missing grants never fall back
+to foreground permissions.
+
+Scheduled grants use permission-policy version 2 so an older runtime rejects
+the policy instead of treating scheduled roots as foreground grants. Update and
+restart HCB before using this format. Existing foreground-only policies remain
+version 1 until a scheduled grant is saved.
+
 ## Verification and remaining limits
 
 The [verification record](verification/live-filesystem-2026-11-24.md) separates automated boundary tests, web/Go integration, and actual local Codex acceptance. A live OpenAI manager also acquired one read grant, delegated to local Codex, and returned the config values without reading the file itself. The Codex tests used its existing local login against disposable files; the organization API key was not used for that worker. Pi remains a separate adapter/configuration issue and was not live-validated by this change.
