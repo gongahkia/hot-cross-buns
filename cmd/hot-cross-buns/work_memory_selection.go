@@ -40,6 +40,15 @@ func applyKnowledgeSelection(state string, request *workrun.Request) error {
 			}
 		}
 	}
+	if saved, err := notes.ListNotes(request.GoalID); err == nil {
+		for _, d := range saved {
+			if d.Policy != nil && d.Policy.Pinned {
+				if _, found := items[d.ID]; !found {
+					items[d.ID] = workhistory.ContextItem{ID: d.ID, Kind: "note", Title: d.Title, Scope: contextScope(d.GoalID), UpdatedAt: d.UpdatedAt}
+				}
+			}
+		}
+	}
 	candidates := []knowledge.RecallCandidate{}
 	original := map[string]workhistory.ContextItem{}
 	for _, item := range request.ContextItems {
@@ -50,6 +59,13 @@ func applyKnowledgeSelection(state string, request *workrun.Request) error {
 	for _, r := range records {
 		if _, ok := original[r.ID]; !ok {
 			if item, found := items[r.ID]; found {
+				ordered = append(ordered, item)
+			}
+		}
+	}
+	for id, item := range items {
+		if item.Kind == "note" {
+			if _, found := original[id]; !found {
 				ordered = append(ordered, item)
 			}
 		}
@@ -67,6 +83,10 @@ func applyKnowledgeSelection(state string, request *workrun.Request) error {
 				c.Eligible = false
 				c.Reason = "derived source changed or unavailable"
 			} else {
+				if d.Policy != nil && d.Policy.Pinned {
+					c.Priority += 8
+					c.Reason = "pinned by you, within current scope"
+				}
 				c.Revision = d.Revision()
 				item.Excerpt = boundedContextExcerpt(d.Body)
 				item.UpdatedAt = d.UpdatedAt

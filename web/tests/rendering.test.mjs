@@ -468,7 +468,7 @@ test('Memory editing, forgetting, filtering, and reset use the real pane', async
   const findButton = (root, text) => [...root.querySelectorAll('button')].find(node => node.textContent === text);
   const settle = () => new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(pane.element.querySelectorAll('.memory-section').length, 1);
-  assert.equal(pane.element.querySelectorAll('.memory-topics button').length, 6);
+  assert.equal(pane.element.querySelectorAll('.memory-topics button').length, 8);
   let topic = pane.element.querySelector('.memory-topic');
   findButton(topic, 'Edit').click();
   topic.querySelector('textarea').value = 'An edited preview preference.';
@@ -966,4 +966,26 @@ test('Canvas opens model artifacts, preserves user drafts over incoming revision
  assert.equal(requests[0].source,'# My changes');assert.equal(requests[0].instruction,'Make it concise');assert.equal(requests[0].context,'conversation:one');
  const card=prose('```canvas\n'+JSON.stringify(doc)+'\n```');assert.match(card.querySelector('.canvas-card').textContent,/Open in Canvas/);
  canvas.reset('conversation:other');assert.equal(canvas.element.hidden,true);
+});
+
+
+test('Memory exposes significance review and recall controls without activating a proposal on inspection', async () => {
+  const actions=[];
+  const topic={id:'candidate-123',kind:'candidate',category:'Suggestions',title:'Travel context',text:'I plan to visit Singapore.',why_saved:'Useful for upcoming trip planning',memory_context:{state:'planned',applies_to:['travel']},status:'Awaiting review',revision:'v1',reviewable:true,related:['[mem-prior] Earlier planned destination']};
+  const pane=memoryPane({initialCategory:'Suggestions',request:async action=>{actions.push(action);return{entries:[topic],categories:{Suggestions:1},total:1,matched:1,page:0,pages:1}},manage(){}});
+  document.body.replaceChildren(pane.element);await pane.load();
+  assert.equal(actions.length,1);assert.equal(actions[0].action,'list');
+  const find=text=>[...pane.element.querySelectorAll('button')].find(node=>node.textContent===text);
+  find('Review and save').click();assert.match(pane.element.textContent,/State: planned/);assert.match(pane.element.textContent,/Earlier planned destination/);
+  find('Accept memory').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(actions.at(-1).action,'accept');assert.equal(actions.at(-1).revision,'v1');
+  topic.kind='memory';topic.category='Preferences';topic.reviewable=false;topic.can_manage_recall=true;
+  [...pane.element.querySelectorAll('.memory-topics button')].find(node=>node.textContent.startsWith('Preferences')).click();await new Promise(resolve=>setTimeout(resolve,0));
+  find('Pin for recall').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(actions.at(-1).action,'pin');
+  find('Not useful here · omit next task').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(actions.at(-1).action,'exclude');
+  find('Snooze for 7 days').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(actions.at(-1).action,'snooze');assert.ok(Date.parse(actions.at(-1).until)>Date.now());
+});
+
+test('answer context discloses selected and omitted source revisions without inventing model reasoning',async()=>{
+ const pane=answerContextView({request:async()=>({context:{Items:[],RecallTrace:[{id:'mem-one',selected:true,reason:'pinned by you',token_upper_bound:30},{id:'mem-two',selected:false,reason:'source changed'}]}})});
+ await pane.load();assert.match(pane.element.textContent,/Supplied · mem-one/);assert.match(pane.element.textContent,/Omitted · mem-two/);assert.match(pane.element.textContent,/not the model’s hidden reasoning/);
 });

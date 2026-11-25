@@ -70,6 +70,9 @@ func (s Store) dependencySource(kind, id, scope string, seen map[string]bool) (s
 	if err != nil {
 		return "", "", err
 	}
+	if d.Policy != nil && d.Policy.SnoozedUntil.After(s.clock()) {
+		return "", "", errors.New("source is snoozed")
+	}
 	if d.GoalID != "" && d.GoalID != scope || kind == "skill" && !d.Enabled {
 		return "", "", errors.New("knowledge source is outside scope or disabled")
 	}

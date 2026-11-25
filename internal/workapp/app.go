@@ -412,6 +412,8 @@ type Model struct {
 	requestRecoveryResult     *RequestRecoveryResult
 	catalog                   *conversationCatalog
 	personalMemoryPending     string
+	personalMemoryAction      *personalization.CatalogAction
+	personalMemoryOwner       string
 	personalMemoryResult      *personalization.CatalogResult
 	nativeProviderPending     string
 	nativeProviderResult      *modelcatalog.NativeProviderResult

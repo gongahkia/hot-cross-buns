@@ -19,6 +19,8 @@ func (m Model) ApplyPersonalMemory(action personalization.CatalogAction) (tea.Mo
 		return m, nil
 	}
 	m.personalMemoryPending = action.RequestID
+	m.personalMemoryAction = &action
+	m.personalMemoryOwner = m.conversation
 	apply := m.config.PersonalMemory
 	return m, func() tea.Msg { return personalMemoryFinished{Result: apply(action)} }
 }
@@ -26,6 +28,29 @@ func (m Model) finishPersonalMemory(result personalization.CatalogResult) (tea.M
 	if result.RequestID != m.personalMemoryPending {
 		return m, nil
 	}
+
+	if result.Error == "" && m.personalMemoryAction != nil {
+		a := m.personalMemoryAction
+		if a.Action == "exclude" || a.Action == "include" {
+			if m.personalMemoryOwner != m.conversation {
+				result.Error = "The conversation changed; recall exclusion was not applied."
+			} else if a.Action == "exclude" {
+				if !sliceContains(m.options.ExcludedKnowledgeIDs, a.ID) {
+					if len(m.options.ExcludedKnowledgeIDs) >= 128 {
+						result.Error = "Too many one-task recall exclusions"
+					} else {
+						m.options.ExcludedKnowledgeIDs = append(m.options.ExcludedKnowledgeIDs, a.ID)
+					}
+				}
+			} else {
+				m.options.ExcludedKnowledgeIDs = removeString(m.options.ExcludedKnowledgeIDs, a.ID)
+			}
+		}
+	}
+	if result.Catalog != nil {
+		result.Catalog.ExcludedIDs = append([]string(nil), m.options.ExcludedKnowledgeIDs...)
+	}
+	m.personalMemoryAction = nil
 	m.personalMemoryPending = ""
 	m.personalMemoryResult = &result
 	m.refreshChatMemories()

@@ -18,6 +18,12 @@ export function answerContextView({ request, current = () => true }) {
       if (text) facts.append(element('dt', label), element('dd', text));
     }
     if (facts.children.length) root.append(facts);
+    if(context?.RecallTrace?.length){
+      const trace=element('details');trace.append(element('summary','Why context was selected or omitted'));
+      trace.append(element('p','Selection records describe supplied inputs, not the model’s hidden reasoning. Token ceilings use conservative UTF-8 byte counts.','hint'));
+      for(const item of context.RecallTrace)trace.append(element('p',`${item.Selected??item.selected?'Supplied':'Omitted'} · ${item.ID??item.id} · ${item.Reason??item.reason}${item.selected?' · ceiling '+item.token_upper_bound+' tokens':''}`));
+      root.append(trace);
+    }
     root.append(element('h3', 'Saved context'));
     if (value.context_error) root.append(element('p', value.context_error, 'issue'));
     else if (!context?.Items?.length) root.append(element('p', 'No saved context was recorded for this answer.', 'hint'));
@@ -27,6 +33,7 @@ export function answerContextView({ request, current = () => true }) {
       const metadata = [item.Scope, item.Source, item.Updated].filter(Boolean).join(' · ');
       if (metadata) section.append(element('p', metadata, 'hint'));
       section.append(element('p', item.Text || 'No excerpt was retained.', 'context-excerpt'));
+      if (item.SelectionReason) section.append(element('p','Why supplied · '+item.SelectionReason,'hint'));
       if (item.UnavailableReason) section.append(element('p', item.UnavailableReason, 'hint'));
       root.append(section);
     }

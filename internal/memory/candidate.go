@@ -115,6 +115,7 @@ func (s Store) Candidates() ([]Candidate, error) {
 		return nil, err
 	}
 	result := []Candidate{}
+	snapshots := map[string]SemanticSnapshot{}
 	for _, entry := range entries {
 		if !strings.HasPrefix(entry.Name(), ".candidate-") || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -126,13 +127,20 @@ func (s Store) Candidates() ([]Candidate, error) {
 		if c.Status != "pending" {
 			continue
 		}
-		snapshot, err := s.semanticSnapshotUnlocked(c.Input.GoalID, c.Input.ExcludedIDs)
-		if err != nil {
-			return nil, err
+		key := c.Input.GoalID + strings.Join(c.Input.ExcludedIDs, "\x00")
+		snapshot, found := snapshots[key]
+		if !found {
+			snapshot, err = s.semanticSnapshotUnlocked(c.Input.GoalID, c.Input.ExcludedIDs)
+			if err != nil {
+				return nil, err
+			}
+			snapshots[key] = snapshot
 		}
 		if snapshot.Token != c.SnapshotToken {
 			c.Status = "stale"
 			c.Input.Quote = ""
+			c.Input.Subject = "Stale memory suggestion"
+			c.Input.Context = &Context{Why: "Sources changed; create a fresh proposal", Importance: "useful", State: "current"}
 		}
 		result = append(result, c)
 		if len(result) == 128 {

@@ -442,7 +442,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       case "memory": {
         host.mutable();
         const owner = host.backend;
-        if (!["list", "add", "correct", "forget"].includes(body.action) ||
+        if (!["list", "add", "correct", "forget", "accept", "reject", "pin", "unpin", "snooze", "unsnooze", "exclude", "include"].includes(body.action) ||
             typeof (body.query ?? "") !== "string" || (body.query || "").length > 512 ||
             typeof (body.category ?? "") !== "string" ||
             !Number.isSafeInteger(body.page ?? 0) || (body.page ?? 0) < 0 ||
@@ -452,7 +452,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         const result = await owner.personalMemory({
           request_id: randomUUID(), action: body.action, query: body.query || "", category: body.category || "",
           page: body.page || 0, id: body.id || "", revision: body.revision || "", text: body.text || "",
-          memory_kind: body.memory_kind || '',
+          memory_kind: body.memory_kind || '',until:typeof body.until==='string'?body.until:'',
         });
         requireContext(context);
         if (owner !== host.backend) throw new RequestError(409, "The conversation changed. Reopen Memory.");

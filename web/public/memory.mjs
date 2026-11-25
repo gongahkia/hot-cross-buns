@@ -1,8 +1,8 @@
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
-const categories = ['Preferences', 'About you', 'Personal context', 'Saved context', 'Projects and goals', 'Guidance'];
-const topicIcons = { Preferences: 'lightbulb', 'About you': 'brain', 'Personal context': 'book-open', 'Saved context': 'notebook-pen', 'Projects and goals': 'workflow', Guidance: 'list-checks' };
+const categories = ['Preferences', 'About you', 'Personal context', 'Saved context', 'Projects and goals', 'Guidance', 'Suggestions', 'Routines'];
+const topicIcons = { Preferences: 'lightbulb', 'About you': 'brain', 'Personal context': 'book-open', 'Saved context': 'notebook-pen', 'Projects and goals': 'workflow', Guidance: 'list-checks', Suggestions: 'lightbulb', Routines: 'book-open' };
 const topicDescriptions = {
   Preferences: 'How you like things: your style, habits, and preferences.',
   'About you': 'Facts you have shared about yourself.',
@@ -10,6 +10,8 @@ const topicDescriptions = {
   'Saved context': 'Saved notes and reference material. These are separate from personal facts.',
   'Projects and goals': 'Context scoped to a project or responsibility. Manage it with that goal.',
   Guidance: 'Learned instructions. Suggestions awaiting review are not active guidance.',
+  Suggestions: 'Potentially useful context awaiting your review. Proposals are not active memories.',
+  Routines: 'Reusable procedures and their source dependencies. Activation is reviewed separately.',
 };
 function button(label, action, className = 'quiet') {
   const node = element('button', label, className);
@@ -121,14 +123,43 @@ export function memoryPane({ request, manage, description = 'Facts and preferenc
     text.hidden = title === topic.text;
     const source = element('details', undefined, 'memory-source');
     source.append(element('summary', 'Source details'));
-    for (const [label, value] of [['Source', topic.source], ['Updated', date(topic.updated_at)], ['Source chat', topic.conversation_id], ['Record', topic.id]]) if (value) source.append(element('p', label + ' · ' + value));
+    for (const [label, value] of [['Why saved', topic.why_saved], ['Source', topic.source], ['Exact source statement', topic.source_quote], ['Updated', date(topic.updated_at)], ['Source chat', topic.conversation_id], ['Record', topic.id]]) if (value) source.append(element('p', label + ' · ' + value));
+    if (topic.memory_context) {
+      const context = topic.memory_context;
+      source.append(element('p', 'State · ' + context.state));
+      for (const [label,value] of [['Applies to',context.applies_to?.join(', ')],['Entity',context.entity],['Valid from',context.valid_from],['Valid until',context.valid_until],['Timezone',context.timezone]]) if(value)source.append(element('p',label+' · '+value));
+    }
+    for (const dependency of topic.dependencies || []) source.append(element('p','Depends on · '+dependency.id+' · revision '+dependency.revision));
+    for (const prior of topic.related || []) source.append(element('p','Existing memory under review · '+prior));
+    if (topic.recall_issue) source.append(element('p',topic.recall_issue,'hint'));
     const actions = element('div', undefined, 'memory-controls');
     if (topic.editable) {
       const editButton = button('Edit', edit), forgetButton = button('Forget', forget);
       editButton.prepend(icon('pencil')); forgetButton.prepend(icon('trash-2'));
       actions.append(editButton, forgetButton);
-    } else if (topic.kind === 'guidance') actions.append(button('Manage guidance', () => manage('/learnings')));
+    } else if (topic.kind === 'candidate') {
+      if (topic.reviewable) actions.append(button('Review and save', () => {
+        const confirmation=element('div');
+        confirmation.append(element('p','Save this exact statement and its shown applicability for future chats? Any listed existing memories will be reconciled with it.','hint'),element('p',topic.text,'memory-text'),element('p',topic.why_saved,'hint'));
+        if(topic.memory_context)confirmation.append(element('p','State: '+topic.memory_context.state+' · '+(topic.memory_context.applies_to?.join(', ')||'No task-topic restriction'),'hint'));
+        for(const prior of topic.related||[])confirmation.append(element('p','Existing: '+prior,'memory-text'));
+        confirmation.append(button('Accept memory',()=>void change('accept')),button('Cancel',()=>confirmation.replaceWith(actions)));
+        actions.replaceWith(confirmation);
+      }));
+      actions.append(button('Decline suggestion',()=>void change('reject')));
+    } else if (topic.kind === 'routine') actions.append(button('Manage routine',()=>manage('/routines')));
+    else if (topic.kind === 'note' && topic.recall_issue) actions.append(element('p','Recreate derived context from current sources before using it again.','hint'));
+    else if (topic.kind === 'guidance') actions.append(button('Manage guidance', () => manage('/learnings')));
     else actions.append(button('Manage goal', () => manage('/goals')));
+    if (topic.can_manage_recall) {
+      const controls=element('div',undefined,'memory-controls');
+      controls.append(button(topic.recall_policy?.pinned?'Unpin':'Pin for recall',()=>void change(topic.recall_policy?.pinned?'unpin':'pin')));
+      const snoozed=topic.recall_policy?.snoozed_until && new Date(topic.recall_policy.snoozed_until)>new Date();
+      controls.append(button(snoozed?'Resume recall':'Snooze for 7 days',()=>void change(snoozed?'unsnooze':'snooze','',snoozed?{}:{until:new Date(Date.now()+7*86400000).toISOString()})));
+      const excluded=catalog.excluded_ids?.includes(topic.id);
+      controls.append(button(excluded?'Include for next task':'Not useful here · omit next task',()=>void change(excluded?'include':'exclude')));
+      body.append(controls);
+    }
     body.append(text, source, actions); node.append(summary, body);
     function edit() {
       const label = element('label', 'Saved memory');
@@ -142,9 +173,9 @@ export function memoryPane({ request, manage, description = 'Facts and preferenc
       confirm.append(element('p', 'Remove this item from future recall? Original chat messages remain.', 'hint'), button('Forget memory', () => void change('forget')), button('Cancel', () => confirm.replaceWith(actions)));
       actions.replaceWith(confirm);
     }
-    async function change(action, text = '') {
+    async function change(action, text = '', extra = {}) {
       await perform(async () => {
-        catalog = await request({ action, id: topic.id, revision: topic.revision, text, ...params() });
+        catalog = await request({ action, id: topic.id, revision: topic.revision, text, ...params(), ...extra });
         render();
       });
     }

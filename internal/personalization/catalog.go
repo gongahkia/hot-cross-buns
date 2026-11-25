@@ -1,6 +1,7 @@
 package personalization
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"strings"
@@ -13,30 +14,41 @@ import (
 )
 
 type Topic struct {
-	Icon           string    `json:"icon"`
-	ID             string    `json:"id"`
-	Kind           string    `json:"kind"`
-	Category       string    `json:"category"`
-	Title          string    `json:"title"`
-	Text           string    `json:"text"`
-	Scope          string    `json:"scope"`
-	Source         string    `json:"source"`
-	Status         string    `json:"status"`
-	Revision       string    `json:"revision"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	ConversationID string    `json:"conversation_id,omitempty"`
-	Editable       bool      `json:"editable"`
+	Related         []string               `json:"related,omitempty"`
+	CanManageRecall bool                   `json:"can_manage_recall,omitempty"`
+	WhySaved        string                 `json:"why_saved,omitempty"`
+	Context         *memory.Context        `json:"memory_context,omitempty"`
+	Policy          *memory.RecallPolicy   `json:"recall_policy,omitempty"`
+	Dependencies    []knowledge.Dependency `json:"dependencies,omitempty"`
+	Reviewable      bool                   `json:"reviewable,omitempty"`
+	RecallIssue     string                 `json:"recall_issue,omitempty"`
+	SourceQuote     string                 `json:"source_quote,omitempty"`
+	Icon            string                 `json:"icon"`
+	ID              string                 `json:"id"`
+	Kind            string                 `json:"kind"`
+	Category        string                 `json:"category"`
+	Title           string                 `json:"title"`
+	Text            string                 `json:"text"`
+	Scope           string                 `json:"scope"`
+	Source          string                 `json:"source"`
+	Status          string                 `json:"status"`
+	Revision        string                 `json:"revision"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+	ConversationID  string                 `json:"conversation_id,omitempty"`
+	Editable        bool                   `json:"editable"`
 }
 type Catalog struct {
-	Categories map[string]int `json:"categories"`
-	Entries    []Topic        `json:"entries"`
-	Total      int            `json:"total"`
-	Matched    int            `json:"matched"`
-	Page       int            `json:"page"`
-	Pages      int            `json:"pages"`
-	Warnings   []string       `json:"warnings,omitempty"`
+	ExcludedIDs []string       `json:"excluded_ids,omitempty"`
+	Categories  map[string]int `json:"categories"`
+	Entries     []Topic        `json:"entries"`
+	Total       int            `json:"total"`
+	Matched     int            `json:"matched"`
+	Page        int            `json:"page"`
+	Pages       int            `json:"pages"`
+	Warnings    []string       `json:"warnings,omitempty"`
 }
 type CatalogAction struct {
+	Until      string `json:"until,omitempty"`
 	MemoryKind string `json:"memory_kind,omitempty"`
 	Category   string `json:"category,omitempty"`
 	RequestID  string `json:"request_id"`
@@ -99,6 +111,17 @@ func ReadCatalog(stateDir, query, category string, page int) (Catalog, error) {
 		}
 		memoryIcon := map[string]string{"fact": "brain", "preference": "lightbulb", "note": "notebook-pen", "decision": "list-checks"}[record.Kind]
 		item := Topic{Icon: memoryIcon, ID: record.ID, Kind: "memory", Category: category, Title: title, Text: record.Text, Scope: "Across chats", Source: record.Source, Status: status, Revision: record.UpdatedAt.Format(time.RFC3339Nano), UpdatedAt: record.UpdatedAt, Editable: true}
+		item.CanManageRecall = record.GoalID == ""
+		item.Context = record.Context
+		item.Policy = record.Policy
+		item.RecallIssue = record.RecallIssue
+		item.WhySaved = "Saved by you or from an eligible exact user statement"
+		if record.Context != nil {
+			item.WhySaved = record.Context.Why
+		}
+		if record.Origin != nil {
+			item.SourceQuote = record.Origin.Quote
+		}
 		if record.GoalID != "" {
 			item.Category = "Projects and goals"
 			item.Scope = scopeName(record.GoalID)
@@ -123,7 +146,26 @@ func ReadCatalog(stateDir, query, category string, page int) (Catalog, error) {
 			result.Warnings = append(result.Warnings, "Saved notes unavailable: "+readErr.Error())
 		}
 		for _, note := range documents {
+			full, err := notes.LoadNote(note.ID)
+			if err != nil {
+				result.Warnings = append(result.Warnings, "A saved note could not be read")
+				continue
+			}
+			note = full
 			item := Topic{Icon: "notebook-pen", ID: note.ID, Kind: "note", Category: "Saved context", Title: note.Title, Text: note.Body, Scope: "Across chats", Source: strings.Join(note.SourceRefs, ", "), Status: "Saved", Revision: note.Revision(), UpdatedAt: note.UpdatedAt, Editable: true}
+			item.CanManageRecall = note.GoalID == ""
+			item.Dependencies = note.Dependencies
+			item.Policy = note.Policy
+			item.RecallIssue = note.SourceIssue
+			item.WhySaved = "Saved reference material"
+			if len(note.Dependencies) > 0 {
+				item.WhySaved = "Reviewed consolidation derived from pinned source revisions"
+			}
+			if note.SourceIssue != "" {
+				item.Editable = false
+				item.Status = "Needs review"
+				item.Text = "Derived or snoozed content is unavailable for recall. " + note.SourceIssue
+			}
 			if note.GoalID != "" {
 				item.Category = "Projects and goals"
 				item.Scope = scopeName(note.GoalID)
@@ -147,6 +189,48 @@ func ReadCatalog(stateDir, query, category string, page int) (Catalog, error) {
 			}
 			status := map[learning.Status]string{learning.Active: "Active", learning.Candidate: "Awaiting review", learning.Disabled: "Disabled", learning.Rejected: "Rejected"}[record.Status]
 			topics = append(topics, Topic{Icon: "list-checks", ID: record.ID, Kind: "guidance", Category: "Guidance", Title: record.Key, Text: record.Content, Scope: scope, Source: string(record.Origin), Status: status, UpdatedAt: record.UpdatedAt, Revision: record.UpdatedAt.Format(time.RFC3339Nano)})
+		}
+	}
+
+	candidates, candidateErr := memories.Candidates()
+	if candidateErr != nil {
+		result.Warnings = append(result.Warnings, "Memory proposals unavailable: "+candidateErr.Error())
+	}
+	for _, c := range candidates {
+		text := c.Input.Quote
+		status := "Awaiting review"
+		if c.Status == "stale" {
+			text = "Sources changed. Ask for a fresh significance proposal."
+			status = "Stale proposal"
+		}
+		var related []string
+		if c.Status == "pending" {
+			for _, id := range c.Plan.MatchIDs {
+				if r, err := memories.Inspect(id); err == nil && r.GoalID == c.Input.GoalID {
+					related = append(related, "["+r.ID+"] "+r.Text)
+				}
+			}
+		}
+		topics = append(topics, Topic{Related: related, Icon: "lightbulb", ID: c.ID, Kind: "candidate", Category: "Suggestions", Title: c.Input.Subject, Text: text, Scope: contextScopeName(c.Input.GoalID), Source: "Current user statement · " + c.Input.RunID, SourceQuote: c.Input.Quote, WhySaved: c.Input.Context.Why, Context: c.Input.Context, Status: status, Revision: c.UpdatedAt.Format(time.RFC3339Nano), UpdatedAt: c.UpdatedAt, Reviewable: c.Status == "pending" && c.Input.GoalID == ""})
+	}
+	if notes.Root() != "" {
+		if skills, err := notes.ListSkills(false); err == nil {
+			for _, skill := range skills {
+				d, err := notes.LoadSkill(skill.ID)
+				if err != nil {
+					continue
+				}
+				status := "Disabled"
+				if d.Enabled {
+					status = "Enabled"
+				}
+				text := d.Description
+				if d.SourceIssue != "" {
+					status = "Needs review"
+					text = d.SourceIssue
+				}
+				topics = append(topics, Topic{Icon: "book-open", ID: d.ID, Kind: "routine", Category: "Routines", Title: d.Title, Text: text, Scope: "Across chats", Status: status, Revision: d.Revision(), UpdatedAt: d.UpdatedAt, Dependencies: d.Dependencies, RecallIssue: d.SourceIssue, WhySaved: "Reviewed reusable procedure; activation and access remain separate"})
+			}
 		}
 	}
 	sort.SliceStable(topics, func(i, j int) bool {
@@ -217,6 +301,57 @@ func changeTopic(stateDir string, action CatalogAction) error {
 		_, err = store.Add(action.MemoryKind, strings.TrimSpace(action.Text), "", "Added by you", time.Time{})
 		return err
 	}
+	if action.Action == "accept" || action.Action == "reject" {
+		store, err := memory.Open(stateDir)
+		if err != nil {
+			return err
+		}
+		candidates, err := store.Candidates()
+		if err != nil {
+			return err
+		}
+		for _, c := range candidates {
+			if c.ID == action.ID && c.Input.GoalID != "" {
+				return errors.New("review this proposal in its owning goal")
+			}
+		}
+		_, err = store.ReviewCandidate(context.Background(), action.ID, action.Revision, action.Action)
+		return err
+	}
+	if action.Action == "exclude" || action.Action == "include" {
+		if strings.HasPrefix(action.ID, "mem-") {
+			s, err := memory.Open(stateDir)
+			if err != nil {
+				return err
+			}
+			r, err := s.Load(action.ID)
+			if err != nil {
+				return err
+			}
+			if r.GoalID != "" || r.UpdatedAt.Format(time.RFC3339Nano) != action.Revision {
+				return errors.New("memory changed or belongs to a goal")
+			}
+			return nil
+		}
+		if strings.HasPrefix(action.ID, "note-") {
+			s, err := knowledge.Open(stateDir)
+			if err != nil {
+				return err
+			}
+			r, err := s.LoadNote(action.ID)
+			if err != nil {
+				return err
+			}
+			if r.GoalID != "" || r.Revision() != action.Revision {
+				return errors.New("note changed or belongs to a goal")
+			}
+			return nil
+		}
+		return errors.New("choose a personal memory or saved note")
+	}
+	if action.Action == "pin" || action.Action == "unpin" || action.Action == "snooze" || action.Action == "unsnooze" {
+		return changeRecallPolicy(stateDir, action)
+	}
 	if action.Action != "correct" && action.Action != "forget" {
 		return errors.New("unsupported memory action")
 	}
@@ -250,4 +385,76 @@ func changeTopic(stateDir string, action CatalogAction) error {
 		return err
 	}
 	return errors.New("manage this saved guidance through the guidance controls")
+}
+
+func contextScopeName(goal string) string {
+	if goal == "" {
+		return "Across chats"
+	}
+	return "Goal · " + goal
+}
+func changeRecallPolicy(state string, a CatalogAction) error {
+	var p memory.RecallPolicy
+	var until time.Time
+	var err error
+	if a.Action == "snooze" {
+		until, err = time.Parse(time.RFC3339, a.Until)
+		if err != nil {
+			return errors.New("choose an absolute snooze end time")
+		}
+	}
+	if strings.HasPrefix(a.ID, "mem-") {
+		s, err := memory.Open(state)
+		if err != nil {
+			return err
+		}
+		r, err := s.Load(a.ID)
+		if err != nil {
+			return err
+		}
+		if r.GoalID != "" {
+			return errors.New("open the owning goal to manage this context")
+		}
+		if r.Policy != nil {
+			p = *r.Policy
+		}
+		switch a.Action {
+		case "pin":
+			p.Pinned = true
+		case "unpin":
+			p.Pinned = false
+		case "snooze":
+			p.SnoozedUntil = until
+		case "unsnooze":
+			p.SnoozedUntil = time.Time{}
+		}
+		_, err = s.UpdatePolicy(a.ID, a.Revision, p)
+		return err
+	}
+	s, err := knowledge.Open(state)
+	if err != nil {
+		return err
+	}
+	r, err := s.LoadNote(a.ID)
+	if err != nil {
+		return err
+	}
+	if r.GoalID != "" {
+		return errors.New("open the owning goal to manage this note")
+	}
+	if r.Policy != nil {
+		p = *r.Policy
+	}
+	switch a.Action {
+	case "pin":
+		p.Pinned = true
+	case "unpin":
+		p.Pinned = false
+	case "snooze":
+		p.SnoozedUntil = until
+	case "unsnooze":
+		p.SnoozedUntil = time.Time{}
+	}
+	_, err = s.UpdateRecallPolicy(a.ID, a.Revision, p)
+	return err
 }
