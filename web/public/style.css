@@ -337,6 +337,7 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .review-queue .view-facts dd { min-width: 0; white-space: pre-wrap; }
 .review-queue .view-facts ul { margin: 0; padding-left: 1rem; }
 .memory-source code { overflow-wrap: anywhere; }
+.review-queue .review-actions { position: sticky; bottom: 0; padding-block: .6rem; background: var(--paper); border-top: 1px solid var(--line); }
 .review-queue-trigger { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; }
 .review-queue-count { min-width: 1.2em; padding-inline: .25em; border-radius: .3rem; background: var(--wash); font-variant-numeric: tabular-nums; }
 .surface-content > .hint, .task-body .hint { font-size: .76rem; }
