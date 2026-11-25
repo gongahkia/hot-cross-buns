@@ -937,7 +937,8 @@ func runJobSupervisor(arguments []string, out io.Writer) error {
 			select {
 			case <-ctx.Done():
 				return
-			case now := <-ticker.C:
+			case <-ticker.C:
+				now := time.Now()
 				_ = store.Observe(now, false)
 			}
 		}
@@ -992,7 +993,8 @@ func runJobSupervisor(arguments []string, out io.Writer) error {
 			defer stop()
 			_ = server.Shutdown(shutdown)
 			return nil
-		case now := <-ticker.C:
+		case <-ticker.C:
+			now := time.Now()
 			_, _ = lifecycle.Maintain(ctx, stateDir, now)
 			runDueJobsContext(ctx, store, stateDir, *notify, now)
 			runDueGoalReviews(stateDir, *notify, now)
