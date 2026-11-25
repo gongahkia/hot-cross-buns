@@ -103,3 +103,18 @@ func TestSemanticConflictRequiresActualInspection(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSignificanceProposalNormalizesCaseWithoutActivatingOrBypassingWithdrawals(t *testing.T) {
+	s, _ := memory.Open(t.TempDir())
+	m := &memoryRelationModel{response: `{"relation":"distinct","match_ids":[],"suggested_subject":"trip.destination","reason":"A planned destination distinct from current home."}`}
+	tool := proposeMemory{ChatMemory{Store: s, UserMessage: "I plan to visit Singapore.", ConversationID: "work-proposal", RunID: "run-proposal", Automatic: true, Semantics: m}}
+	_, err := tool.Execute(context.Background(), json.RawMessage(`{"subject":"planned_travel_to_Singapore","kind":"fact","quote":"I plan to visit Singapore.","scope":"personal","context":{"why":"Future travel planning","importance":"useful","state":"planned"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := s.List("", true)
+	candidates, err := s.Candidates()
+	if err != nil || len(rows) != 0 || len(candidates) != 1 {
+		t.Fatal(rows, candidates, err)
+	}
+}

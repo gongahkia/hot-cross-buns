@@ -99,6 +99,14 @@ func TestLiveMemoryJourney(t *testing.T) {
 			item.Error = err.Error()
 		}
 		item.Passed = err == nil && len(rows) == wantCount && (required == "" || strings.Contains(strings.ToLower(item.Output), required)) && (forbidden == "" || !strings.Contains(strings.ToLower(item.Output), forbidden))
+		if name == "significance proposal" {
+			candidates, readErr := memories.Candidates()
+			item.Passed = item.Passed && readErr == nil && len(candidates) == 1 && candidates[0].Status == "pending" && candidates[0].Input.Context.State == "planned"
+		}
+		if name == "reviewed consolidation" {
+			documents, readErr := notes.ListAllNotes()
+			item.Passed = item.Passed && readErr == nil && len(documents) == 1 && len(documents[0].Dependencies) > 0
+		}
 		report.Steps = append(report.Steps, item)
 		metrics = append(metrics, eval.MemoryQualityTrial{ID: name, Important: name == "capture" || name == "correction", Captured: (name == "capture" || name == "correction") && len(rows) > 0, RecallExpected: required != "" && required != "unknown", Applied: required != "" && required != "unknown" && strings.Contains(strings.ToLower(item.Output), required), Forbidden: forbidden != "", Resurfaced: forbidden != "" && strings.Contains(strings.ToLower(item.Output), forbidden), Milliseconds: time.Since(started).Milliseconds()})
 		t.Logf("%s: passed=%t saved=%d", name, item.Passed, item.Saved)

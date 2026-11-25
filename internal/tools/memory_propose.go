@@ -6,12 +6,13 @@ import (
 	"errors"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
+	"strings"
 )
 
 type proposeMemory struct{ ChatMemory }
 
 func (proposeMemory) Definition() agent.ToolDefinition {
-	return agent.ToolDefinition{Name: "memory_propose", Description: "Propose potentially useful personal/goal context for the person's review, without activating it. Use for significant decisions, plans, conditional preferences or uncertain future usefulness. Quote the CURRENT user's exact words; give a reason for future usefulness and explicit state (planned is not occurred). context dates are absolute RFC3339 with IANA timezone; do not invent dates from ambiguous relative wording. applies_to contains optional task topics restricting automatic recall. No secrets, third-party facts or withdrawn topics. A candidate is not a saved active memory; tell the user to review it in Memory → Suggestions. Clear enduring user preferences still use memory_remember.", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["subject","kind","quote","scope","context"],"properties":{"subject":{"type":"string","maxLength":96},"kind":{"type":"string","enum":["fact","preference","decision"]},"quote":{"type":"string","maxLength":2000},"scope":{"type":"string","enum":["personal","goal"]},"context":{"type":"object","additionalProperties":false,"required":["why","importance","state"],"properties":{"why":{"type":"string","maxLength":512},"importance":{"type":"string","enum":["constraint","useful","incidental"]},"state":{"type":"string","enum":["current","planned","occurred","cancelled","historical"]},"entity":{"type":"string","maxLength":128},"applies_to":{"type":"array","maxItems":8,"items":{"type":"string","maxLength":80}},"valid_from":{"type":"string"},"valid_until":{"type":"string"},"timezone":{"type":"string"}}}}}`)}
+	return agent.ToolDefinition{Name: "memory_propose", Description: "Propose potentially useful personal/goal context for the person's review, without activating it. Use for significant decisions, plans, conditional preferences or uncertain future usefulness. Subject is a lowercase category such as trip.destination, never a fact value. Decision kind requires current-goal scope. Quote the CURRENT user's exact words; give a reason for future usefulness and explicit state (planned is not occurred). context dates are absolute RFC3339 with IANA timezone; do not invent dates from ambiguous relative wording. applies_to contains optional task topics restricting automatic recall. No secrets, third-party facts or withdrawn topics. A candidate is not a saved active memory; tell the user to review it in Memory → Suggestions. Clear enduring user preferences still use memory_remember.", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["subject","kind","quote","scope","context"],"properties":{"subject":{"type":"string","pattern":"^[a-z][a-z0-9_.-]{1,95}$","maxLength":96},"kind":{"type":"string","enum":["fact","preference","decision"]},"quote":{"type":"string","maxLength":2000},"scope":{"type":"string","enum":["personal","goal"]},"context":{"type":"object","additionalProperties":false,"required":["why","importance","state"],"properties":{"why":{"type":"string","maxLength":512},"importance":{"type":"string","enum":["constraint","useful","incidental"]},"state":{"type":"string","enum":["current","planned","occurred","cancelled","historical"]},"entity":{"type":"string","maxLength":128},"applies_to":{"type":"array","maxItems":8,"items":{"type":"string","maxLength":80}},"valid_from":{"type":"string"},"valid_until":{"type":"string"},"timezone":{"type":"string"}}}}}`)}
 }
 func (t proposeMemory) Execute(ctx context.Context, raw json.RawMessage) (agent.ToolResult, error) {
 	var a struct {
@@ -50,6 +51,9 @@ func (t proposeMemory) Execute(ctx context.Context, raw json.RawMessage) (agent.
 	if t.Semantics == nil {
 		return agent.ToolResult{}, errors.New("semantic review is unavailable for this memory proposal")
 	}
+	// Case normalization changes only a proposed label; full semantic comparison
+	// still checks identity, conflicts and withdrawals before any human review.
+	a.Subject = memory.CanonicalSubject(strings.ToLower(strings.TrimSpace(a.Subject)))
 	input := memory.ChatInput{Subject: a.Subject, Kind: a.Kind, Quote: a.Quote, GoalID: goal, ConversationID: t.ConversationID, RunID: t.RunID, Context: a.Context, ExcludedIDs: t.ExcludedIDs}
 	plan, err := t.Store.AnalyzeChat(ctx, t.Semantics, input, t.UserMessage)
 	if err != nil {
