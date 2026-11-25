@@ -54,5 +54,8 @@ func (m Model) finishPersonalMemory(result personalization.CatalogResult) (tea.M
 	m.personalMemoryPending = ""
 	m.personalMemoryResult = &result
 	m.refreshChatMemories()
+	if result.Introduction != nil {
+		m = m.RefreshDesktopPreferences()
+	}
 	return m, nil
 }

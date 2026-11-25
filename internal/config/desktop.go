@@ -9,6 +9,7 @@ import (
 )
 
 type DesktopSettings struct {
+	Introduction   string            `json:"introduction,omitempty"`
 	ReferToChats   *bool             `json:"refer_to_chats,omitempty"`
 	LearnFromChats *bool             `json:"learn_from_chats,omitempty"`
 	Shortcuts      map[string]string `json:"shortcuts,omitempty"`
@@ -155,6 +156,9 @@ func physicalShortcut(value string) string {
 }
 
 func (d DesktopSettings) Validate() error {
+	if d.Introduction != "" && d.Introduction != "completed" && d.Introduction != "skipped" {
+		return errors.New("invalid introduction status")
+	}
 	for action := range d.Shortcuts {
 		if _, exists := DefaultShortcuts[action]; !exists {
 			return fmt.Errorf("unknown shortcut action %q", action)

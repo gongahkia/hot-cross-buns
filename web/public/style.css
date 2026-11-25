@@ -339,6 +339,12 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .memory-source code { overflow-wrap: anywhere; }
 .review-queue .review-actions { position: sticky; bottom: 0; padding-block: .6rem; background: var(--paper); border-top: 1px solid var(--line); }
 .review-queue-trigger { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; }
+.introduction { margin-block: 1rem 2rem; padding-block: .5rem 1rem; border-bottom: 1px solid var(--line); }
+.introduction h2 { font-size: 1.1rem; font-weight: 500; margin-block: 0 .5rem; }
+.introduction form { display: grid; gap: .8rem; }
+.introduction label { display: grid; gap: .3rem; font-size: .85rem; }
+.introduction input, .introduction textarea, .introduction select { width: 100%; min-width: 0; padding: .5rem .65rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--paper); }
+.introduction select { text-overflow: ellipsis; }
 .review-queue-count { min-width: 1.2em; padding-inline: .25em; border-radius: .3rem; background: var(--wash); font-variant-numeric: tabular-nums; }
 .surface-content > .hint, .task-body .hint { font-size: .76rem; }
 .task-item { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .35rem; }

@@ -49,21 +49,35 @@ type Catalog struct {
 	Warnings      []string       `json:"warnings,omitempty"`
 }
 type CatalogAction struct {
-	Until      string `json:"until,omitempty"`
-	MemoryKind string `json:"memory_kind,omitempty"`
-	Category   string `json:"category,omitempty"`
-	RequestID  string `json:"request_id"`
-	Action     string `json:"action"`
-	ID         string `json:"id,omitempty"`
-	Revision   string `json:"revision,omitempty"`
-	Text       string `json:"text,omitempty"`
-	Query      string `json:"query,omitempty"`
-	Page       int    `json:"page,omitempty"`
+	Timezone        string `json:"timezone,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Style           string `json:"style,omitempty"`
+	PersonalContext string `json:"personal_context,omitempty"`
+	Until           string `json:"until,omitempty"`
+	MemoryKind      string `json:"memory_kind,omitempty"`
+	Category        string `json:"category,omitempty"`
+	RequestID       string `json:"request_id"`
+	Action          string `json:"action"`
+	ID              string `json:"id,omitempty"`
+	Revision        string `json:"revision,omitempty"`
+	Text            string `json:"text,omitempty"`
+	Query           string `json:"query,omitempty"`
+	Page            int    `json:"page,omitempty"`
 }
 type CatalogResult struct {
-	RequestID string   `json:"request_id"`
-	Catalog   *Catalog `json:"catalog,omitempty"`
-	Error     string   `json:"error,omitempty"`
+	Introduction *Introduction `json:"introduction,omitempty"`
+	RequestID    string        `json:"request_id"`
+	Catalog      *Catalog      `json:"catalog,omitempty"`
+	Error        string        `json:"error,omitempty"`
+}
+
+type Introduction struct {
+	Timezone     string `json:"timezone"`
+	Status       string `json:"status"`
+	Revision     string `json:"revision"`
+	NameKnown    bool   `json:"name_known"`
+	StyleKnown   bool   `json:"style_known"`
+	ContextKnown bool   `json:"context_known"`
 }
 
 // ReadCatalog projects owning stores without generating or persisting inferred personal traits.

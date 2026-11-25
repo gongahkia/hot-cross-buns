@@ -9,6 +9,7 @@ import { memoryPane } from "./memory.mjs";
 import { taskInspector, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
 import { reviewQueue } from './review-queue.mjs';
+import { introduction } from './introduction.mjs';
 import { canvasWorkspace } from './canvas.mjs';
 import { fileReferences } from './file-references.mjs';
 import { localBrowser } from './local-browser.mjs';
@@ -115,6 +116,8 @@ document.body.append(scheduled.element);
 const reviews = reviewQueue({ request: body => call({ op: 'review-queue', ...body }) });
 document.querySelector('.top-actions').prepend(reviews.trigger);
 document.body.append(reviews.element);
+const intro=introduction({request:body=>call({op:'introduction',...body})});
+document.querySelector('.paper').insertBefore(intro.element,$('transcript'));
 const voice = voiceInput({
   closeSettings: () => dialog.close(),
   getDraft: () => ({ context: snapshot.context, text: input.value, files: draft?.uploads?.length || 0,
@@ -464,6 +467,7 @@ async function navigate(route) {
   }
   if (route === '/voice') { openDetail('Voice models', voice.settings); await voice.load(); return; }
   if (route === '/reviews') { dialog.close(); reviews.open(); return; }
+  if (route === '/introduction') { dialog.close(); intro.open(); return; }
   if (route === '/scheduled') { dialog.close(); scheduled.open(); return; }
   if (route === "/model") { await showModels(); return; }
   if (route === "/memory" || route === '/knowledge') {
@@ -987,6 +991,7 @@ events.onmessage = ({ data }) => {
   const previous = snapshot;
   snapshot = JSON.parse(data);
   const state = snapshot.state || {};
+  if(snapshot.connection==='connected'&&!snapshot.switching)intro.observe(snapshot.context);
   const receipt = state.uploadResult;
   if (receipt?.request_id === pending?.id && pending) {
     if (!receipt.error) acceptMessage(receipt.request_id);

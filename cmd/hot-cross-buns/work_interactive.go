@@ -231,6 +231,9 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 				return personalization.CatalogResult{RequestID: action.RequestID, Error: err.Error()}
 			}
 			defer release()
+			if strings.HasPrefix(action.Action, "intro_") {
+				return introductionAction(stateDir, settingsStore, action)
+			}
 			return personalization.ApplyCatalog(stateDir, action)
 		},
 		Models:              workModelPanel(settingsStore, stateDir, localModels),

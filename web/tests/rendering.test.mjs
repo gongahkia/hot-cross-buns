@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/introduction.mjs"; export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -1007,4 +1007,22 @@ test('review queue shows exact proposal content before accepting and retains an 
   fail=false;await click('Refresh');await click('Daily reminder');await click('Accept proposal');
   assert.match(queue.element.textContent,/Nothing awaiting review/);assert.equal(queue.trigger.getAttribute('aria-label'),'Review queue · 0 pending');assert.match(queue.element.querySelector('[role=status]').textContent,/accepted/);
   queue.element.remove();queue.trigger.remove();
+});
+
+
+test('introduction collects optional answers before one save and does not repeat after completion',async()=>{
+ const calls=[];let completed=false;
+ const view=introduction({request:async action=>{calls.push(action);if(action.action==='intro_save')completed=true;return {status:completed?'completed':'',timezone:'Asia/Singapore',revision:'a'.repeat(64)};}});
+ document.body.append(view.element);view.observe('chat-one');await new Promise(resolve=>setTimeout(resolve,0));assert.equal(view.element.hidden,false);assert.equal(calls.length,1);
+ view.element.querySelector('[name=name]').value='Alice';view.element.querySelector('[name=style]').value='Casual';view.element.querySelector('[name=personal_context]').value='A garden project';
+ view.element.querySelector('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+ const saved=calls.filter(action=>action.action==='intro_save');assert.equal(saved.length,1);assert.equal(saved[0].personal_context,'A garden project');assert.equal(saved[0].timezone,'Asia/Singapore');assert.equal(view.element.hidden,true);
+ view.observe('chat-two');await new Promise(resolve=>setTimeout(resolve,0));assert.equal(view.element.hidden,true);assert.equal(calls.filter(action=>action.action==='intro_save').length,1);view.element.remove();
+});
+
+test('scheduled tasks distinguish one-time and recurring tasks and never render their cron rule',()=>{
+ const pane=scheduledPane({request:async()=>({})});document.body.append(pane.element);
+ pane.update({running:false,entries:[{id:'once',kind:'once',title:'A one-time task',timing:'Once tomorrow at 8:00 PM',enabled:true,state:'completed'},{id:'repeat',kind:'recurring',title:'A recurring task',schedule:'0 20 * * *',timing:'At 8:00 PM, every day',enabled:true}]});
+ assert.doesNotMatch(pane.element.textContent,/0 20 \* \* \*/);assert.match(pane.element.textContent,/Local scheduler is stopped/);
+ [...pane.element.querySelectorAll('button')].find(node=>node.textContent==='One-time').click();assert.equal(pane.element.querySelectorAll('.task-item').length,1);assert.match(pane.element.textContent,/A one-time task/);assert.equal([...pane.element.querySelectorAll('button')].some(node=>node.textContent==='Pause'),false);pane.element.remove();
 });

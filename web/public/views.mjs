@@ -15,6 +15,7 @@ export function settingsView({ state = {}, scheduled = {}, navigate, backend, re
   const groups = [
     ['Assistant', [
       ['Models', 'cpu', 'Choose a chat model or configure a provider.', () => navigate('/model')],
+      ['Your details & time zone', 'message-circle', 'Review your introduction answers and the time zone used for schedules.', () => navigate('/introduction')],
       ['Voice models', 'mic', 'Enable transcription and choose local or cloud voice models.', () => navigate('/voice')],
       ['Connections', 'link', 'Accounts, connected sources, and their permissions.', () => navigate('/connections')],
       ['Web search', 'search', 'Choose a search service and check its access.', () => backend('/search')],

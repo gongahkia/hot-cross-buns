@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
+export async function fixture({ startScheduler = false, voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -84,7 +84,7 @@ export async function fixture({ voiceOptions, memories = [], chatCount = 0, dial
   if (designateMain && seededChats.length) await writeFile(join(root,'state','hot-cross-buns','conversations','primary.json'),JSON.stringify({version:1,conversation_id:seededChats[0].id}),{mode:0o600});
   for (const text of memories) await promisify(execFile)(binary, ["memory", "add", "--kind", "preference", text], { env, timeout: 5000 });
   let app;
-  const appOptions={binary,workspace,userData:join(root,'app'),env};
+  const appOptions={binary,workspace,userData:join(root,'app'),env,startScheduler};
   try {
     app = await startWeb(appOptions, 0, voiceOptions);
     if (startInSide) {
