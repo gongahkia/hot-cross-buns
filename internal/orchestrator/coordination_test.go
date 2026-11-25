@@ -86,3 +86,43 @@ func TestFailedDependencyNeverRunsItsDependentAndCompletionWaitsForActiveWork(t 
 		t.Fatalf("dependency failure: %+v %v", result, err)
 	}
 }
+
+func TestEscapedDependencyResultsStayBoundedAndMarkOmittedText(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ids := []string{}
+	role := hostedReader(func(_ context.Context, invocation Invocation) (Result, error) {
+		if invocation.Task == "produce" {
+			return Result{Summary: strings.Repeat("\"\\\n", 5000)}, nil
+		}
+		if len(invocation.Task) > 41*1024 || !strings.Contains(invocation.Task, `"truncated":true`) {
+			return Result{}, errors.New("escaped dependency input was unbounded or silently omitted text")
+		}
+		for _, id := range ids {
+			if !strings.Contains(invocation.Task, id) {
+				return Result{}, errors.New("bounded context dropped a dependency identity")
+			}
+		}
+		return Result{Summary: "Reviewed bounded predecessor results."}, nil
+	})
+	s, err := NewSupervisor(ctx, []Specialist{role}, Options{StatePath: t.TempDir(), ParentRun: "escaped-pipeline", Source: "source", MaxDelegations: 9})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for range 8 {
+		task, err := s.Start(StartRequest{Agent: "reader", Task: "produce"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, task.ID)
+	}
+	review, err := s.Start(StartRequest{Agent: "reader", Task: "review", Dependencies: ids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := s.Await(ctx, review.ID)
+	if err != nil || result.Status != "completed" {
+		t.Fatal(result, err)
+	}
+}
