@@ -26,6 +26,20 @@ func approvalMessage(interaction workrun.Interaction) message {
 			Preview: preview, Footer: "/approve to allow · /deny to refuse",
 		},
 	}
+
+	var consolidation struct {
+		Setting, Action, Effect string
+		Title                   string `json:"proposed_title"`
+		Summary                 string `json:"proposed_summary"`
+		Sources                 []string
+	}
+	if interaction.Kind == "app_change" && json.Unmarshal(preview, &consolidation) == nil && consolidation.Setting == "memory" && consolidation.Action == "consolidate" {
+		result.result.Title = "Review memory consolidation"
+		result.result.Summary = consolidation.Title
+		result.result.Preview = nil
+		result.result.Sections = []uisnapshot.ResultSection{{Title: "Proposed summary", Lines: strings.Split(consolidation.Summary, "\n")}, {Title: "Original source statements", Lines: consolidation.Sources}}
+		result.result.Lines = []string{consolidation.Effect}
+	}
 	var routine struct {
 		Setting, Name, Description, Procedure, Effect string
 		Parameters                                    map[string]string

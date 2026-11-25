@@ -13,3 +13,11 @@ func TestRoutineReviewShowsActualProcedureParametersAndLimits(t *testing.T) {
 		t.Fatal(result)
 	}
 }
+
+func TestMemoryConsolidationReviewShowsActualSourcesAndProposedSummary(t *testing.T) {
+	value := approvalMessage(workrun.Interaction{Kind: "app_change", ID: 2, Preview: map[string]any{"setting": "memory", "action": "consolidate", "proposed_title": "Trip note", "proposed_summary": "The trip remains planned.", "sources": []string{"[mem-one] I plan to visit Singapore."}, "effect": "Save derived reference data after review."}})
+	r := value.result
+	if r.Title != "Review memory consolidation" || r.Preview != nil || len(r.Sections) != 2 || r.Sections[1].Lines[0] != "[mem-one] I plan to visit Singapore." {
+		t.Fatal(r)
+	}
+}
