@@ -6,13 +6,14 @@ import (
 )
 
 type RecallCandidate struct {
-	ID       string
-	Kind     string
-	Revision string
-	Text     string
-	Reason   string
-	Priority int
-	Eligible bool
+	ContentKey string
+	ID         string
+	Kind       string
+	Revision   string
+	Text       string
+	Reason     string
+	Priority   int
+	Eligible   bool
 }
 type RecallTrace struct {
 	ID              string `json:"id"`
@@ -38,7 +39,11 @@ func SelectRecall(candidates []RecallCandidate, budget int) ([]RecallCandidate, 
 		}
 		seen[c.ID] = true
 		entry := RecallTrace{ID: c.ID, Kind: c.Kind, Revision: c.Revision, Reason: c.Reason, TokenUpperBound: len(c.Text) + 1}
-		normalized := strings.Join(strings.Fields(strings.ToLower(c.Text)), " ")
+		content := c.ContentKey
+		if content == "" {
+			content = c.Text
+		}
+		normalized := strings.Join(strings.Fields(strings.ToLower(content)), " ")
 		switch {
 		case !c.Eligible:
 			entry.TokenUpperBound = 0

@@ -87,6 +87,7 @@ func applyKnowledgeSelection(state string, request *workrun.Request) error {
 					c.Priority += 8
 					c.Reason = "pinned by you, within current scope"
 				}
+				c.ContentKey = d.GoalID + "\x00" + d.Body
 				c.Revision = d.Revision()
 				item.Excerpt = boundedContextExcerpt(d.Body)
 				item.UpdatedAt = d.UpdatedAt
@@ -100,6 +101,7 @@ func applyKnowledgeSelection(state string, request *workrun.Request) error {
 				c.Eligible = false
 				c.Reason = "source no longer available"
 			} else {
+				c.ContentKey = r.GoalID + "\x00" + r.Text
 				c.Revision = r.Revision()
 				c.Text = memory.Render([]memory.Record{r})
 				if !r.Recallable() || !r.Applies(query) {

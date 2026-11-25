@@ -82,7 +82,7 @@ func (s Store) dependencySource(kind, id, scope string, seen map[string]bool) (s
 			return "", "", errors.New("a derived source changed, was forgotten or needs review")
 		}
 	}
-	return d.Revision(), d.Body, nil
+	return d.SourceRevision(), d.Body, nil
 }
 
 func (s Store) dependencyIssue(d Document) string {
@@ -180,4 +180,11 @@ func (s Store) UpdateRecallPolicy(id, revision string, policy RecallPolicy) (Doc
 	d.Version = 2
 	d.UpdatedAt = s.nextUpdate(d.UpdatedAt)
 	return d, s.write(d)
+}
+
+func (d Document) SourceRevision() string {
+	d.Policy = nil
+	d.UpdatedAt = time.Time{}
+	d.Version = Version
+	return d.Revision()
 }

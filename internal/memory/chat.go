@@ -157,6 +157,12 @@ func (s Store) rememberChatUnlocked(input ChatInput) (Record, error) {
 		if current.Text != strings.TrimSpace(input.Quote) && (current.ID != input.ReplaceID || current.UpdatedAt.Format(time.RFC3339Nano) != input.ExpectedUpdated) {
 			return Record{}, fmt.Errorf("memory conflict: inspect %s (updated %s) before replacing it", current.ID, current.UpdatedAt.Format(time.RFC3339Nano))
 		}
+		if current.Context != nil && input.Context == nil && current.Text != strings.TrimSpace(input.Quote) {
+			c := *current.Context
+			c.ReviewNeeded = true
+			c.Why = "Source statement changed; review its applicability before reuse"
+			current.Context = &c
+		}
 		current.Text, current.Kind, current.Source, current.SourceSHA256, current.SourceStatus, current.UpdatedAt = strings.TrimSpace(input.Quote), input.Kind, "Chat "+input.ConversationID, "", "", s.nextUpdate(current.UpdatedAt)
 	} else {
 		if input.ReplaceID != "" {

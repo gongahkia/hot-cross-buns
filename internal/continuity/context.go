@@ -17,6 +17,7 @@ import (
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
 	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
@@ -51,10 +52,12 @@ type Report struct {
 	Summary          string    `json:"summary,omitempty"`
 }
 type Memory struct {
-	ID        string    `json:"id"`
-	Text      string    `json:"text"`
-	Kind      string    `json:"kind"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Context   *memory.Context `json:"applicability,omitempty"`
+	Revision  string          `json:"revision,omitempty"`
+	ID        string          `json:"id"`
+	Text      string          `json:"text"`
+	Kind      string          `json:"kind"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 type Recall struct {
 	ConversationID string                  `json:"conversation_id"`
@@ -68,18 +71,19 @@ type Commitment struct {
 	Steps        []goal.Step `json:"unfinished_steps,omitempty"`
 }
 type Context struct {
-	Results     []Report     `json:"retained_task_results,omitempty"`
-	Reports     []Report     `json:"admitted_task_reports,omitempty"`
-	AsOf        time.Time    `json:"as_of"`
-	Summary     string       `json:"earlier_conversation_summary,omitempty"`
-	Covered     int          `json:"summarized_turns"`
-	Recent      []Message    `json:"recent_messages,omitempty"`
-	Memories    []Memory     `json:"current_memories,omitempty"`
-	Recalled    []Recall     `json:"recalled_history,omitempty"`
-	Commitments []Commitment `json:"current_commitments,omitempty"`
-	Tasks       []Task       `json:"retained_unfinished_tasks,omitempty"`
-	Schedules   []Schedule   `json:"configured_schedules,omitempty"`
-	Notices     []string     `json:"notices,omitempty"`
+	RecallTrace []knowledge.RecallTrace `json:"memory_selection,omitempty"`
+	Results     []Report                `json:"retained_task_results,omitempty"`
+	Reports     []Report                `json:"admitted_task_reports,omitempty"`
+	AsOf        time.Time               `json:"as_of"`
+	Summary     string                  `json:"earlier_conversation_summary,omitempty"`
+	Covered     int                     `json:"summarized_turns"`
+	Recent      []Message               `json:"recent_messages,omitempty"`
+	Memories    []Memory                `json:"current_memories,omitempty"`
+	Recalled    []Recall                `json:"recalled_history,omitempty"`
+	Commitments []Commitment            `json:"current_commitments,omitempty"`
+	Tasks       []Task                  `json:"retained_unfinished_tasks,omitempty"`
+	Schedules   []Schedule              `json:"configured_schedules,omitempty"`
+	Notices     []string                `json:"notices,omitempty"`
 }
 
 func Clip(text string, limit int) string {
@@ -186,13 +190,46 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	if matchErr != nil && memory.ReadWarning(matchErr) == "" {
 		return result, matchErr
 	}
+	combined := append(profile, matches...)
+	for _, record := range all {
+		if record.Policy != nil && record.Policy.Pinned {
+			combined = append(combined, record)
+		}
+	}
+	candidates := []knowledge.RecallCandidate{}
+	prepared := map[string]Memory{}
 	seen := map[string]bool{}
-	for _, record := range append(profile, matches...) {
-		if seen[record.ID] || slices.Contains(options.Excluded, record.ID) || !record.Recallable() || !record.ExpiresAt.IsZero() && !record.ExpiresAt.After(time.Now()) {
+	for _, record := range combined {
+		if seen[record.ID] {
 			continue
 		}
 		seen[record.ID] = true
-		result.Memories = append(result.Memories, Memory{ID: record.ID, Text: Clip(record.Text, 2048), Kind: record.Kind, UpdatedAt: record.UpdatedAt})
+		item := Memory{ID: record.ID, Text: record.Text, Kind: record.Kind, UpdatedAt: record.UpdatedAt, Context: record.Context, Revision: record.Revision()}
+		data, _ := json.Marshal(item)
+		c := knowledge.RecallCandidate{ContentKey: record.GoalID + "\x00" + record.Text, ID: record.ID, Kind: "memory", Text: string(data), Revision: record.Revision(), Eligible: record.Recallable() && (record.ExpiresAt.IsZero() || record.ExpiresAt.After(time.Now())) && record.Applies(options.Query), Priority: 2, Reason: "current profile or task relevance"}
+		if record.Policy != nil && record.Policy.Pinned {
+			c.Priority += 8
+			c.Reason = "pinned by you, within scope"
+		}
+		if record.Context != nil && record.Context.Importance == "constraint" {
+			c.Priority += 4
+		}
+		if slices.Contains(options.Excluded, record.ID) {
+			c.Eligible = false
+			c.Reason = "excluded for this task"
+		} else if !c.Eligible {
+			c.Reason = "source needs review or does not apply"
+		}
+		candidates = append(candidates, c)
+		prepared[record.ID] = item
+	}
+	chosen, trace := knowledge.SelectRecall(candidates, 4096)
+	result.RecallTrace = trace
+	for _, entry := range chosen {
+		result.Memories = append(result.Memories, prepared[entry.ID])
+	}
+	if len(chosen) < len(candidates) {
+		result.Notices = append(result.Notices, "Personal memory is selectively supplied within a conservative 4096-token ceiling. Omitted context is not evidence that a fact was never stated.")
 	}
 	result.Commitments, err = commitments(stateDir, options)
 	if err != nil {

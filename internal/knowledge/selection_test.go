@@ -8,3 +8,10 @@ func TestSelectionSkipsOversizedNoiseAndNeverPromotesIneligiblePinnedSource(t *t
 		t.Fatal(selected, trace)
 	}
 }
+
+func TestSelectionDeduplicatesContentDespiteDifferentSourceIdentifiers(t *testing.T) {
+	selected, trace := SelectRecall([]RecallCandidate{{ID: "mem-one", Text: "[mem-one] concise", ContentKey: "User prefers concise", Eligible: true, Priority: 5}, {ID: "mem-two", Text: "[mem-two] concise", ContentKey: "User prefers concise", Eligible: true}}, 100)
+	if len(selected) != 1 || len(trace) != 2 || trace[1].Reason != "duplicate supplied content" {
+		t.Fatal(selected, trace)
+	}
+}

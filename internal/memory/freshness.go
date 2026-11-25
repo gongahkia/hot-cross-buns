@@ -60,6 +60,9 @@ func (s Store) ConfirmReviewed(id, updated string) (Record, error) {
 	if record.UpdatedAt.Format(time.RFC3339Nano) != updated {
 		return Record{}, errors.New("this memory changed; inspect it again before confirming")
 	}
+	if record.Context != nil && record.Context.ReviewNeeded {
+		return Record{}, errors.New("review temporal applicability through a fresh memory proposal before reconfirming")
+	}
 	if record.SourceStatus == "changed" || record.SourceStatus == "unavailable" || !record.ExpiresAt.IsZero() && !record.ExpiresAt.After(s.clock()) {
 		return Record{}, errors.New("this memory expired or its source changed; review and correct its source or expiry instead")
 	}

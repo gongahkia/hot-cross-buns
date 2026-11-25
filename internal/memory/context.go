@@ -13,14 +13,15 @@ import (
 // Context describes the reviewed meaning and applicability of an exact source
 // statement. It is reference metadata, never a tool grant or evidence of truth.
 type Context struct {
-	Why        string    `json:"why"`
-	Importance string    `json:"importance"`
-	State      string    `json:"state"`
-	Entity     string    `json:"entity,omitempty"`
-	AppliesTo  []string  `json:"applies_to,omitempty"`
-	ValidFrom  time.Time `json:"valid_from,omitzero"`
-	ValidUntil time.Time `json:"valid_until,omitzero"`
-	Timezone   string    `json:"timezone,omitempty"`
+	ReviewNeeded bool      `json:"review_needed,omitempty"`
+	Why          string    `json:"why"`
+	Importance   string    `json:"importance"`
+	State        string    `json:"state"`
+	Entity       string    `json:"entity,omitempty"`
+	AppliesTo    []string  `json:"applies_to,omitempty"`
+	ValidFrom    time.Time `json:"valid_from,omitzero"`
+	ValidUntil   time.Time `json:"valid_until,omitzero"`
+	Timezone     string    `json:"timezone,omitempty"`
 }
 
 type RecallPolicy struct {
@@ -54,7 +55,12 @@ func (c *Context) Validate() error {
 	return nil
 }
 
+// Revision fingerprints source meaning and evidence. Selection preferences do
+// not rewrite that evidence; snooze is independently checked at lookup time.
 func (r Record) Revision() string {
+	r.Policy = nil
+	r.UpdatedAt = time.Time{}
+	r.Version = Version
 	r.ConceptID = ""
 	r.RecallIssue = ""
 	r.ReviewAfter = time.Time{}
@@ -74,6 +80,8 @@ func (s Store) annotateContext(records []Record) {
 			continue
 		}
 		switch {
+		case r.Context != nil && r.Context.ReviewNeeded:
+			r.RecallIssue = "The source statement changed; review its temporal applicability before recall."
 		case r.Policy != nil && r.Policy.SnoozedUntil.After(s.clock()):
 			r.RecallIssue = "Snoozed by you; excluded from automatic recall until " + r.Policy.SnoozedUntil.Format(time.RFC3339)
 		case r.Context != nil && !r.Context.ValidFrom.IsZero() && r.Context.ValidFrom.After(s.clock()):

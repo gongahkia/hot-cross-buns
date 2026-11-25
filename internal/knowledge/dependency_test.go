@@ -57,3 +57,39 @@ func TestDerivedSummaryAndRoutineInvalidateTransitivelyAfterCorrectionOrForget(t
 		}
 	}
 }
+
+func TestPinDoesNotInvalidateEvidenceButSnoozeStillBlocksDerivedRecall(t *testing.T) {
+	state := t.TempDir()
+	mem, _ := memory.Open(state)
+	notes, _ := Open(state)
+	fact, _ := mem.Add("preference", "I prefer concise reports.", "", "User", time.Time{})
+	deps, _, _ := notes.CaptureDependencies([]string{fact.ID}, "", nil)
+	summary, err := notes.AddDerivedNote("Report style", "Use concise reports.", "", deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := mem.UpdatePolicy(fact.ID, fact.UpdatedAt.Format(time.RFC3339Nano), memory.RecallPolicy{Pinned: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ := notes.LoadNote(summary.ID)
+	if d.SourceIssue != "" {
+		t.Fatal("pin changed source meaning", d.SourceIssue)
+	}
+	changed, err = mem.UpdatePolicy(changed.ID, changed.UpdatedAt.Format(time.RFC3339Nano), memory.RecallPolicy{Pinned: true, SnoozedUntil: time.Now().Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ = notes.LoadNote(summary.ID)
+	if d.SourceIssue == "" {
+		t.Fatal("snoozed source survived through summary")
+	}
+	_, err = mem.UpdatePolicy(changed.ID, changed.UpdatedAt.Format(time.RFC3339Nano), memory.RecallPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ = notes.LoadNote(summary.ID)
+	if d.SourceIssue != "" {
+		t.Fatal("unchanged source did not resume", d.SourceIssue)
+	}
+}

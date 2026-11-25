@@ -58,3 +58,22 @@ func TestPlannedContextDoesNotBecomeOccurredAsTimePasses(t *testing.T) {
 		t.Fatal("time mutated source")
 	}
 }
+
+func TestCorrectedTemporalClaimNeedsFreshApplicabilityReview(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	r, err := s.RememberChat(ChatInput{Subject: "trip.singapore", Kind: "fact", Quote: "I plan to visit Singapore.", ConversationID: "work-plan", RunID: "work-plan-first", Context: &Context{Why: "Future trip", Importance: "useful", State: "planned"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err = s.CorrectReviewed(r.ID, "I cancelled my Singapore visit.", r.Source, r.UpdatedAt.Format(time.RFC3339Nano))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := s.List("", true)
+	if rows[0].Recallable() || !rows[0].Context.ReviewNeeded {
+		t.Fatal("stale applicability survived correction", rows)
+	}
+	if _, err := s.ConfirmReviewed(r.ID, r.UpdatedAt.Format(time.RFC3339Nano)); err == nil {
+		t.Fatal("age confirmation bypassed applicability review")
+	}
+}

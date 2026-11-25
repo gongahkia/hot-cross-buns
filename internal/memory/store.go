@@ -333,6 +333,12 @@ func (s Store) correct(id, content, source, updated string) (Record, error) {
 	if source != record.Source {
 		record.SourceSHA256, record.SourceStatus = "", ""
 	}
+	if record.Context != nil {
+		c := *record.Context
+		c.ReviewNeeded = true
+		c.Why = "Source statement corrected; review its applicability before reuse"
+		record.Context = &c
+	}
 	record.Text, record.Source, record.UpdatedAt = strings.TrimSpace(content), source, s.nextUpdate(record.UpdatedAt)
 	if record.Origin != nil {
 		record.Origin = &ChatOrigin{ConversationID: record.Origin.ConversationID, RunID: record.Origin.RunID, Basis: "user-corrected"}

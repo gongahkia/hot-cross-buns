@@ -367,3 +367,31 @@ func TestMalformedSummariesCannotReplaceRetainedContext(t *testing.T) {
 		})
 	}
 }
+
+func TestChatSelectionKeepsConditionalPlannedContextScopedEvenWhenPinned(t *testing.T) {
+	root, _, chat := fixture(t, 0)
+	s, _ := memory.Open(root)
+	r, err := s.RememberChat(memory.ChatInput{Subject: "trip.singapore", Kind: "fact", Quote: "I plan to visit Singapore.", ConversationID: chat.ID, RunID: "run-planned", Context: &memory.Context{Why: "Future travel planning", Importance: "useful", State: "planned", AppliesTo: []string{"travel"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err = s.UpdatePolicy(r.ID, r.UpdatedAt.Format(time.RFC3339Nano), memory.RecallPolicy{Pinned: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelated, err := Build(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "Write a poem", Main: true})
+	if err != nil || len(unrelated.Memories) != 0 {
+		t.Fatal(unrelated, err)
+	}
+	relevant, err := Build(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "Help with travel planning", Main: true})
+	if err != nil || len(relevant.Memories) != 1 || relevant.Memories[0].Context.State != "planned" || len(relevant.RecallTrace) != 1 {
+		t.Fatal(relevant, err)
+	}
+	if _, err := s.CorrectReviewed(r.ID, "I cancelled the visit.", r.Source, r.UpdatedAt.Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	corrected, err := Build(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "travel planning", Main: true})
+	if err != nil || len(corrected.Memories) != 0 {
+		t.Fatal("uncertain applicability entered chat", corrected, err)
+	}
+}
