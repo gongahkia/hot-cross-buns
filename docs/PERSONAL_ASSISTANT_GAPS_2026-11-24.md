@@ -43,6 +43,11 @@ activation gap, not evidence that the corresponding framework is absent.
 
 The register below preserves the original assessment. Subsequent verified changes:
 
+- **Memory planning follow-up:** The [25 November memory roadmap](MEMORY_ROADMAP_2026-11-25.md)
+  identifies remaining significance, temporal, retrieval, consolidation and
+  management gaps against current source and primary Anthropic/OpenAI work.
+  These are proposed additions; no broader memory-learning policy is enabled.
+
 - **25 November follow-up:** Multi-agent dependency context/completion checks,
   memory review status, separate scheduled-folder read grants and reviewed
   parameterized routines/recovery are implemented. See the
