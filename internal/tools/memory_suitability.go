@@ -12,7 +12,7 @@ var memoryCredential = regexp.MustCompile(`(?i)(\b(password|passphrase|api[_ -]?
 var memoryTemporary = regexp.MustCompile(`(?i)\b(for (?:this|the next) (?:reply|answer|task|request|conversation|chat)|(?:today|tonight|this week|this time|right now|temporarily|just this once)|(?:if|suppose|imagine|pretend|hypothetically|roleplay|role-play)\b)`)
 var memoryReported = regexp.MustCompile(`(?i)(\b(?:said|says|wrote|writes|quoted|quote|example|translate|translation|fictional|character)\b|\b(?:he|she|they|my (?:friend|colleague|partner|wife|husband|child|client|customer))\b|["“”«»]|(?m)^\s*>|` + "```" + `)`)
 var memorySensitive = regexp.MustCompile(`(?i)\b(?:diagnos(?:ed|is)|medical|health|disease|allerg(?:y|ic)|medication|therapy|religion|religious|political|sexual|salary|income|debt|bank account|passport|social security|ssn)\b`)
-var memoryPersonal = regexp.MustCompile(`(?i)^\s*(?:I (?:prefer|like|dislike|live|work|speak|use|am|have|need|avoid)\b|my (?:name|timezone|time zone|language|pronouns|job|role|home|city|occupation)\b)`)
+var memoryPersonal = regexp.MustCompile(`(?i)^\s*(?:I (?:prefer|like|dislike|live|work|speak|use|am|have|need|avoid)\b|I['’]?m (?:working|building|developing|maintaining)\b|my (?:name|timezone|time zone|language|pronouns|job|role|home|city|occupation)\b)`)
 
 func memorySuitability(message, quote string) (deny, review string) {
 	// Examine the whole message: extracting a harmless-looking substring cannot

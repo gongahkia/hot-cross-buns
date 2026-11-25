@@ -926,6 +926,7 @@ function renderWork(state) {
   else if (state.approval) {
     const review = state.approval;
     nodes.push(element("span", "Approval requested", "hint"), button("Review action", () => approval(review, context)));
+    if (review.result?.preview?.setting === 'memory') nodes.push(element('p', review.result.preview.reason || 'Review the exact memory statement before it can be saved.', 'hint'));
   } else if (state.needsApproval) nodes.push(element("span", "Waiting for exact review details…", "hint"));
   if (state.running) {
     if (!state.cancelling) nodes.push(button("Stop", () => void execute(() => call({ op: "stop", context }))));

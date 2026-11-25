@@ -9,10 +9,14 @@ import (
 // These are deliberately narrow, documented label aliases. They do not claim
 // to resolve arbitrary paraphrases, infer ownership or merge unrelated facts.
 var conceptAliases = map[string]string{
-	"preference.length":       "preference.response_length",
-	"preference.reply_length": "preference.response_length",
-	"profile.home_city":       "profile.city",
-	"profile.residence_city":  "profile.city",
+	"preference.length":        "preference.response_length",
+	"preference.reply_length":  "preference.response_length",
+	"profile.home_city":        "profile.city",
+	"profile.residence_city":   "profile.city",
+	"profile.active_projects":  "profile.projects",
+	"profile.current_projects": "profile.projects",
+	"projects.current":         "profile.projects",
+	"projects.active":          "profile.projects",
 }
 
 func CanonicalSubject(subject string) string {

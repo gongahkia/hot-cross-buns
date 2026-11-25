@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
@@ -13,6 +14,9 @@ func TestPassiveMemorySuitabilityUsesWholeMessage(t *testing.T) {
 		{"preference", "I prefer brief answers.", "I prefer brief answers.", "save"},
 		{"explicit prefix", "Please remember: I prefer brief answers.", "Please remember: I prefer brief answers.", "save"},
 		{"fact", "I live in Harbor City.", "I live in Harbor City.", "save"},
+		{"casual project statement", "im working on 5 projects", "im working on 5 projects", "save"},
+		{"contracted project statement", "I’m maintaining a project", "I’m maintaining a project", "save"},
+		{"temporary project", "im working on this today", "im working on this today", "review"},
 		{"credential", "My password is SYNTHETIC_NOT_A_REAL_SECRET_123!", "SYNTHETIC_NOT_A_REAL_SECRET_123!", "deny"},
 		{"cropped secret", "My API key is SYNTHETIC_ONLY. I prefer concise answers.", "I prefer concise answers.", "deny"},
 		{"third party", "My colleague said: I prefer brief answers.", "I prefer brief answers.", "review"},
@@ -40,6 +44,9 @@ func TestPassiveMemorySuitabilityUsesWholeMessage(t *testing.T) {
 				subject, kind := "preference.response_length", "preference"
 				if tc.name == "fact" {
 					subject, kind = "profile.city", "fact"
+				}
+				if strings.Contains(tc.name, "project") {
+					subject, kind = "profile.projects", "fact"
 				}
 				raw, _ := json.Marshal(map[string]any{"subject": subject, "kind": kind, "quote": tc.quote, "scope": "personal"})
 				_, err := tool.Execute(context.Background(), raw)

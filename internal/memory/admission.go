@@ -8,7 +8,7 @@ package memory
 func ConceptReviewReason(subject, kind string) string {
 	expected := ""
 	switch CanonicalSubject(subject) {
-	case "profile.name", "profile.pronouns", "profile.city", "profile.timezone", "profile.language", "profile.job", "profile.role", "profile.employer", "profile.workplace":
+	case "profile.name", "profile.pronouns", "profile.city", "profile.timezone", "profile.language", "profile.job", "profile.role", "profile.employer", "profile.workplace", "profile.projects":
 		expected = "fact"
 	case "preference.response_length", "preference.language", "preference.format", "preference.tone", "preference.units", "preference.accessibility":
 		expected = "preference"
