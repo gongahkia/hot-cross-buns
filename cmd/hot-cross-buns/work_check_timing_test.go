@@ -53,7 +53,7 @@ func TestCheckTimingReviewedSavePreservesCanonicalAgreementAndBookkeeping(t *tes
 		t.Fatal(err)
 	}
 	encoded, _ := json.Marshal(review.Panel)
-	for _, text := range []string{original.ID, "30 9 * * 1-5", "Asia/Singapore", "Retained account pin: mail-one", "Enabled state retained: false", "retained-provider/retained-model"} {
+	for _, text := range []string{original.ID, "At 9:30 AM, every weekday", "Asia/Singapore", "Retained account pin: mail-one", "Enabled state retained: false", "retained-provider/retained-model"} {
 		if !strings.Contains(string(encoded), text) {
 			t.Fatalf("missing exact review %q: %s", text, encoded)
 		}

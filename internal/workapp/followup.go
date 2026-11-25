@@ -516,7 +516,7 @@ func checkFrequency(c workhome.Check) string {
 	if c.Definition.PollMinutes > 0 {
 		return fmt.Sprintf("Every %d minutes while the host and supervisor run", c.Definition.PollMinutes)
 	}
-	return c.Definition.Schedule + " · " + c.Definition.Timezone
+	return c.Definition.Timing()
 }
 func checkSourceLines(c workhome.Check) []string {
 	lines := []string{c.Definition.SourcePath, "Notify when: " + valueOrNone(c.Definition.AlertWhen), "May " + string(c.Definition.Mode) + "; external actions forbidden unattended"}

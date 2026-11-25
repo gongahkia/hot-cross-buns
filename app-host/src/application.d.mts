@@ -3,7 +3,7 @@ import type { DraftRequest, DraftSnapshot, FrontendFrame, HostSnapshot, Uploaded
 import type { FileRequest, FileView, FileComparison } from "../contracts/fileProtocol"
 import type { FrontendPreferenceValues } from "./preferences.mjs"
 export class Application extends EventEmitter {
-  constructor(options: { binary: string; workspace: string; userData: string; env?: NodeJS.ProcessEnv })
+  constructor(options: { binary: string; workspace: string; userData: string; env?: NodeJS.ProcessEnv; startScheduler?: boolean })
   binary: string; workspace: string; userData: string; stateRoot: string; backendStateRoot: string; env: NodeJS.ProcessEnv; cleanupIssue?: string
   readonly context: string
   sessions: { busy: boolean; pending: boolean; restart(): Promise<void>; settled(): Promise<void>; open(request?: { new?: boolean; conversation_id?: string; view?: string; source?: string }): Promise<void> }

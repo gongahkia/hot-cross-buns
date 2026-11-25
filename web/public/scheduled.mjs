@@ -13,13 +13,17 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
   close.setAttribute('aria-label', 'Close scheduled tasks'); close.setAttribute('popovertarget', root.id); close.setAttribute('popovertargetaction', 'hide'); header.append(title, close);
   const note = element('p', description, 'hint'); note.hidden = !description;
   const error = element('p', undefined, 'issue'); error.setAttribute('role', 'alert'); error.hidden = true;
+  let selected='all';
+  const filters=element('div',undefined,'models-tabs');filters.setAttribute('aria-label','Task type');
+  for(const [value,label] of [['all','All tasks'],['once','One-time'],['recurring','Recurring']])filters.append(button(label,()=>{selected=value;fingerprint='';update(latest);}));
+  let latest={};
   const health = element('p', undefined, 'hint'), list = element('div'), actions = element('div', undefined, 'task-links');
   const refresh = button('Refresh', () => void perform({ action: 'refresh' })); actions.append(refresh);
   const dismiss = () => root.hidePopover();
   if (manage) actions.append(button('Create or manage schedules', async () => { dismiss(); await manage(); }));
   if (goals) actions.append(button('Ongoing responsibilities', async () => { dismiss(); await goals(); }));
   root.append(header);
-  root.append(note, error, health, list, actions);
+  root.append(note, error, health, filters, list, actions);
   let busy = false, fingerprint = '';
   function button(text, action) { const node = element('button', text, 'quiet'); node.type = 'button'; node.addEventListener('click', () => void action()); return node; }
   async function perform(value) {
@@ -30,28 +34,32 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
     finally { busy = false; refresh.disabled = false; }
   }
   function update(value = {}) {
+    latest=value;
+    for(const [index,node] of [...filters.children].entries())node.setAttribute("aria-pressed",String(["all","once","recurring"][index]===selected));
     const next = JSON.stringify(value); if (next === fingerprint) return; fingerprint = next;
     health.textContent = value.issue || (value.running === false ? 'Local scheduler is stopped.' : ''); health.hidden = !health.textContent;
     const expanded = new Set([...list.children].filter(row => row.open).map(row => row.dataset.taskId));
     list.replaceChildren();
-    for (const task of value.entries || []) {
+    for (const task of (value.entries || []).filter(task=>selected==='all'||(task.kind||'recurring')===selected)) {
       const row = element('details', undefined, 'task-item'), head = element('summary'), heading = element('span', undefined, 'task-heading');
       let due = '';
       if (task.next_due && task.enabled) {
         try { due = new Date(task.next_due).toLocaleString(undefined, { timeZone: task.timezone || undefined, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { due = task.next_due; }
       }
-      heading.append(element('span', task.title, 'task-name'), element('span', task.enabled ? (due ? 'Next · ' + due + ' · ' + task.timezone : task.state || 'Scheduled') : 'Paused', 'task-status'));
+      heading.append(element('span', task.title, 'task-name'), element('span', task.enabled ? (due ? (task.late ? 'Overdue · ' : 'Next · ') + due + ' · ' + task.timezone : task.state || 'Scheduled') : 'Paused', 'task-status'));
       row.dataset.taskId = task.id; row.open = expanded.has(task.id);
       const chevron = icon('chevron-right'); chevron.classList.add('disclosure-icon');
       head.append(heading, chevron); row.append(head);
+      row.append(element('p',task.kind==='once'?'One-time task':'Recurring task','hint'));
+      if (task.late)row.append(element('p','Missed while HCB was offline. One catch-up run is due.','hint'));
       if (task.outcome) row.append(element('p', task.outcome, 'hint'));
-      row.append(element('p', task.timing || task.schedule + ' · ' + task.timezone, 'hint'));
+      row.append(element('p', task.timing || 'Recurring task · ' + task.timezone, 'hint'));
       if (task.issue) row.append(element('p', task.issue, 'issue'));
       const controls = element('div', undefined, 'task-links');
-      for (const [label, action] of [['Details', 'inspect'], [task.enabled ? 'Pause' : 'Resume', task.enabled ? 'pause' : 'resume'], ...(task.editable ? [['Edit timing', 'edit']] : [])]) controls.append(button(label, () => perform({ action, id: task.id, digest: task.digest })));
+      for (const [label, action] of [['Details', 'inspect'], ...(!['completed','ended'].includes(task.state)?[[task.enabled ? 'Pause' : 'Resume', task.enabled ? 'pause' : 'resume']]:[]), ...(task.editable ? [['Edit timing', 'edit']] : [])]) controls.append(button(label, () => perform({ action, id: task.id, digest: task.digest })));
       row.append(controls); list.append(row);
     }
-    if (!value.entries?.length) list.append(element('p', 'No scheduled tasks yet. Ask me to remind you or check on something regularly.', 'task-empty hint'));
+    if (!list.children.length) list.append(element('p', selected==='once'?'No one-time tasks yet.':selected==='recurring'?'No recurring tasks yet.':'No scheduled tasks yet. Ask me to remind you or check on something regularly.', 'task-empty hint'));
   }
   root.addEventListener('toggle', event => { if (event.newState === 'open') void perform({ action: 'refresh' }); });
   function open() { root.showPopover(); }

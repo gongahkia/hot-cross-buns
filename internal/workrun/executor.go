@@ -454,7 +454,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		plans = &tools.LocalPlans{Store: goals, GoalID: request.GoalID, AllowGlobal: request.ForegroundApp}
 		surface = append(surface, plans.Tools()...)
 	}
-	surface = append(surface, tools.SuggestChange{Plans: plans, Notes: &knowledgeStore, ExcludedIDs: request.ExcludedKnowledgeIDs, Store: suggestions, GoalID: request.GoalID, WorkID: request.RunID, SourcePath: request.SourcePath})
+	surface = append(surface, tools.SuggestChange{Plans: plans, Notes: &knowledgeStore, ExcludedIDs: request.ExcludedKnowledgeIDs, Store: suggestions, GoalID: request.GoalID, ConversationID: conversation.ID, WorkID: request.RunID, SourcePath: request.SourcePath})
 	for i, tool := range surface {
 		switch tool.Definition().Name {
 		case "read_file", "extract_document", "inspect_table":

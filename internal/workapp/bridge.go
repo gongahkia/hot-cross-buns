@@ -187,6 +187,9 @@ type BridgeCommand struct {
 	NeedsInput  bool   `json:"needs_input"`
 }
 type BridgeCheck struct {
+	Kind        string   `json:"kind"`
+	Timing      string   `json:"timing"`
+	Late        bool     `json:"late"`
 	ID          string   `json:"id"`
 	Digest      string   `json:"digest"`
 	Outcome     string   `json:"outcome"`
@@ -354,7 +357,7 @@ func (m Model) BridgeState() BridgeState {
 	state.GoalBusy = m.bridgeGoalBusy
 	for _, check := range m.checks {
 		digest, _ := check.Definition.PolicyDigest()
-		state.Checks = append(state.Checks, BridgeCheck{ID: check.ID, Digest: digest, GoalID: check.GoalID, Title: singleLine(check.Title), Outcome: check.Outcome, Health: check.HealthLine(), State: check.State, Tone: checkTone(check.State), Source: check.Definition.SourcePath, Connectors: append([]string(nil), check.Definition.ConnectorIDs...), Timezone: check.Definition.Timezone, Schedule: check.Definition.Schedule, NextDue: bridgeCheckTime(check.NextDue), LastSuccess: bridgeCheckTime(check.LastSuccess), NextAction: check.NextAction, Issue: check.Issue, EndsAt: bridgeCheckTime(check.Definition.EndsAt), Enabled: check.Enabled, Editable: check.Definition.GoalWatch || m.config.Controls != nil})
+		state.Checks = append(state.Checks, BridgeCheck{Kind: check.Definition.ScheduleKind(), Timing: check.Definition.Timing(), Late: check.DueNow && check.NextDue.Before(time.Now().Truncate(time.Minute)), ID: check.ID, Digest: digest, GoalID: check.GoalID, Title: singleLine(check.Title), Outcome: check.Outcome, Health: check.HealthLine(), State: check.State, Tone: checkTone(check.State), Source: check.Definition.SourcePath, Connectors: append([]string(nil), check.Definition.ConnectorIDs...), Timezone: check.Definition.Timezone, Schedule: check.Definition.Schedule, NextDue: bridgeCheckTime(check.NextDue), LastSuccess: bridgeCheckTime(check.LastSuccess), NextAction: check.NextAction, Issue: check.Issue, EndsAt: bridgeCheckTime(check.Definition.EndsAt), Enabled: check.Enabled, Editable: check.Definition.GoalWatch || m.config.Controls != nil})
 		if m.conversation != "" && check.Definition.OriginConversationID == m.conversation {
 			state.ChatChecks = append(state.ChatChecks, BridgeChatCheck{ID: check.ID, Title: singleLine(check.Title), State: check.State, Issue: check.Issue, NextAction: check.NextAction, LastSuccess: bridgeCheckTime(check.LastSuccess), NextDue: bridgeCheckTime(check.NextDue), GapFrom: bridgeCheckTime(check.CoverageGap.From), GapTo: bridgeCheckTime(check.CoverageGap.To), Unsuccessful: check.Unsuccessful})
 		}

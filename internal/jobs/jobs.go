@@ -29,6 +29,8 @@ import (
 const Version = 2
 
 type Definition struct {
+	RuntimeScheduledAt   time.Time              `json:"-"`
+	RunAt                time.Time              `json:"run_at,omitzero"`
 	EndsAt               time.Time              `json:"ends_at,omitzero"`
 	OriginConversationID string                 `json:"origin_conversation_id,omitempty"`
 	Limits               agent.Limits           `json:"limits"`
@@ -258,7 +260,7 @@ func (s Store) save(definition Definition) (Definition, error) {
 		definition.Timezone = "Local"
 	}
 	if definition.Missed == "" {
-		definition.Missed = "skip"
+		definition.Missed = "run_once"
 	}
 	if definition.Mode == "" {
 		definition.Mode = action.Draft
@@ -550,7 +552,7 @@ func (s Store) Claim(id string, scheduled time.Time) (Definition, bool, error) {
 		return Definition{}, false, err
 	}
 	scheduled = scheduled.UTC().Truncate(time.Minute)
-	if !definition.Enabled || definition.Expired(time.Now()) || definition.Expired(scheduled) {
+	if !definition.Enabled || definition.Expired(time.Now()) || definition.Expired(scheduled) || !definition.RunAt.IsZero() && !definition.RunAt.Equal(scheduled) {
 		return definition, false, nil
 	}
 	if !definition.LastScheduledAt.IsZero() && !definition.LastScheduledAt.Before(scheduled) {
@@ -701,6 +703,15 @@ func (s Store) History(id string, limit int) ([]Attempt, error) {
 }
 
 func Schedule(definition Definition) (cron.Schedule, error) {
+	if !definition.RunAt.IsZero() {
+		if definition.Schedule != "" || !definition.RunAt.Equal(definition.RunAt.Truncate(time.Minute)) || definition.GoalWatch {
+			return nil, errors.New("one-time tasks need one minute-precision time and no recurring rule")
+		}
+		if _, err := time.LoadLocation(definition.Timezone); err != nil {
+			return nil, err
+		}
+		return oneTimeSchedule{definition.RunAt}, nil
+	}
 	location, err := time.LoadLocation(definition.Timezone)
 	if err != nil {
 		return nil, fmt.Errorf("load job timezone: %w", err)
@@ -711,6 +722,15 @@ func Schedule(definition Definition) (cron.Schedule, error) {
 		return nil, fmt.Errorf("parse five-field job schedule: %w", err)
 	}
 	return locatedSchedule{Schedule: schedule, Location: location}, nil
+}
+
+type oneTimeSchedule struct{ At time.Time }
+
+func (s oneTimeSchedule) Next(after time.Time) time.Time {
+	if after.Before(s.At) {
+		return s.At
+	}
+	return time.Time{}
 }
 
 type locatedSchedule struct {
@@ -731,6 +751,11 @@ func Due(definition Definition, now time.Time) (time.Time, bool, error) {
 		return time.Time{}, false, err
 	}
 	minute := now.Truncate(time.Minute)
+	if !definition.RunAt.IsZero() {
+		at := definition.RunAt
+		ready := !at.After(minute) && (definition.LastScheduledAt.IsZero() || definition.LastScheduledAt.Before(at)) && (definition.Missed == "run_once" || at.Equal(minute))
+		return at, ready, nil
+	}
 	currentDue := schedule.Next(minute.Add(-time.Minute)).Equal(minute)
 	if currentDue && (definition.LastScheduledAt.IsZero() || definition.LastScheduledAt.Before(minute)) {
 		return minute, true, nil
@@ -740,12 +765,34 @@ func Due(definition Definition, now time.Time) (time.Time, bool, error) {
 		if anchor.IsZero() {
 			anchor = definition.CreatedAt
 		}
-		next := schedule.Next(anchor)
-		if !next.After(minute) {
+		next := latestDue(schedule, anchor, minute)
+		if !next.IsZero() && !next.After(minute) {
 			return next, true, nil
 		}
 	}
 	return time.Time{}, false, nil
+}
+
+// Find the last missed slot in logarithmic time, coalescing downtime into one
+// catch-up rather than replaying an old slot on each supervisor tick.
+func latestDue(schedule cron.Schedule, anchor, now time.Time) time.Time {
+	first := schedule.Next(anchor)
+	if first.IsZero() || first.After(now) {
+		return time.Time{}
+	}
+	low, high := anchor.Unix()/60, now.Unix()/60
+	result := first
+	for low <= high {
+		mid := low + (high-low)/2
+		next := schedule.Next(time.Unix(mid*60, 0))
+		if !next.IsZero() && !next.After(now) {
+			result = next
+			low = mid + 1
+		} else {
+			high = mid - 1
+		}
+	}
+	return result
 }
 
 // Expiry prevents new checks and retries. An already executing check may finish.
@@ -895,7 +942,7 @@ func (s Store) ClaimBegin(id string, scheduled time.Time) (Definition, Attempt, 
 		return Definition{}, Attempt{}, false, err
 	}
 	scheduled = scheduled.UTC().Truncate(time.Minute)
-	if !definition.Enabled || definition.Expired(time.Now()) || definition.Expired(scheduled) {
+	if !definition.Enabled || definition.Expired(time.Now()) || definition.Expired(scheduled) || !definition.RunAt.IsZero() && !definition.RunAt.Equal(scheduled) {
 		return definition, Attempt{}, false, nil
 	}
 	if !definition.LastScheduledAt.Before(scheduled) {

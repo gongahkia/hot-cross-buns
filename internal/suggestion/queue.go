@@ -21,6 +21,7 @@ type EvidenceCheck struct {
 }
 
 type Review struct {
+	Timing string `json:"timing,omitempty"`
 	Record
 	Revision           string        `json:"revision"`
 	ReferenceIntegrity EvidenceCheck `json:"reference_integrity"`

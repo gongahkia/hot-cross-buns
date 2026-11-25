@@ -3,7 +3,7 @@ import { icon } from './icons.mjs';
 import { animateSurfaceHeight } from './surface-motion.mjs';
 
 const kinds = { goal: 'Ongoing responsibility', schedule: 'Scheduled task', plan: 'Plan update', note: 'Saved note', skill: 'Skill or routine', conflict: 'Conflict review' };
-const names = { body: 'Proposed content', goal_outcome: 'Intended outcome', goal_steps: 'Steps', goal_source_path: 'Workspace', goal_id: 'Goal', cron: 'Schedule', timezone: 'Time zone', task: 'Scheduled instruction', change_only: 'Notify only on changes', plan_change: 'Plan changes', source_refs: 'Source references', dependencies: 'Source dependencies', routine: 'Routine settings', conflict_sources: 'Conflicting sources', skill_id: 'Skill', description: 'Description', note_id: 'Existing note', expected_note_revision: 'Expected note revision', work_id: 'Originating task' };
+const names = { body: 'Proposed content', goal_outcome: 'Intended outcome', goal_steps: 'Steps', goal_source_path: 'Workspace', goal_id: 'Goal', timing: 'Schedule', timezone: 'Time zone', task: 'Scheduled instruction', change_only: 'Notify only on changes', plan_change: 'Plan changes', source_refs: 'Source references', dependencies: 'Source dependencies', routine: 'Routine settings', conflict_sources: 'Conflicting sources', skill_id: 'Skill', description: 'Description', note_id: 'Existing note', expected_note_revision: 'Expected note revision', ends_at: 'Stops after', source_path: 'Workspace', work_id: 'Originating task' };
 function structured(value) {
   if (Array.isArray(value)) { const list = element('ul'); for (const item of value) { const row = element('li'); row.append(structured(item)); list.append(row); } return list; }
   if (value && typeof value === 'object') {
@@ -47,7 +47,7 @@ export function reviewQueue({ request }) {
         const labels = { no_references: 'No source references supplied', work_unavailable: 'Original task evidence unavailable', verified: 'References matched retained evidence', unverified: 'Some references could not be verified' };
         content.append(element('h3', 'Source checks'), structured({ ...check, status: labels[check.status] || check.status }));
       }
-      content.append(element('p', review.kind === 'conflict' ? 'Accept acknowledges this conflict. It does not correct the sources.' : review.cron ? 'Accept creates this responsibility or schedule and enables its scheduled checks. Inspect the timing and instructions above.' : 'Accept applies this exact proposal to your saved knowledge or plan.', 'hint'));
+      content.append(element('p', review.kind === 'conflict' ? 'Accept acknowledges this conflict. It does not correct the sources.' : (review.cron || review.run_at) ? 'Accept creates this responsibility or schedule and enables its scheduled checks. Inspect the timing and instructions above.' : 'Accept applies this exact proposal to your saved knowledge or plan.', 'hint'));
       if (review.status === 'pending') {
         const controls = element('div', undefined, 'review-actions');
         for (const [label, action] of [['Reject proposal', 'reject'], ['Accept proposal', 'accept']]) controls.append(button(label, () => perform({ action, id: review.id, revision: review.revision })));

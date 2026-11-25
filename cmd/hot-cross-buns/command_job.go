@@ -518,6 +518,7 @@ func executeJobContext(ctx context.Context, definition jobs.Definition, attempt 
 }
 
 func executeJobContextWith(ctx context.Context, definition jobs.Definition, attempt jobs.Attempt, stateDir string, notify bool, execute func(context.Context, jobs.Definition, string, ...string) (jobResult, error)) jobs.Attempt {
+	definition.RuntimeScheduledAt = attempt.ScheduledAt
 	if definition.Expired(time.Now()) {
 		attempt.Status, attempt.Summary, attempt.FinishedAt = "expired", "This check reached its reviewed end date.", time.Now().UTC()
 		return attempt
@@ -706,6 +707,10 @@ func jobWorkRequest(definition jobs.Definition) workrun.Request {
 		request.System += ` You may coordinate the next bounded read/draft step within this reviewed responsibility. Include optional JSON fields continuation (ready, waiting, blocked, or idle), next_step_id (an existing plan step ID), and next_check_at (RFC3339). ready means perform that next step on the next check, not that it is already done; include its ID and a concrete next_step. waiting means revisit at a specified time. blocked means wait for changed evidence or an optional specified check time. idle means this check has no further action until inputs change, not that the owner's goal is completed. Wake times must be between five minutes and seven days ahead, within the watch end date; execution occurs at the first eligible supervisor poll. Do not request repeated checks without a concrete reason, bypass unresolved dependencies, or expand tools/permissions. Verify output before describing it as complete; draft creation is not external delivery.`
 		request.System += ` Current stored plan status and dates supersede earlier conversation summaries. Silence, a missed deadline, and an ended time block never establish completion or progress. Do not repeat an unchanged concern just because another item changed. A removed item is no longer tracked, not necessarily completed. If a dependency is unresolved, explain the blocker rather than recommend starting dependent work. Pending proposals are not accepted facts; avoid proposing the same change again. Ask for a status update only when it serves the reviewed watch objective, not merely because time passed.`
 		request.System += ` Use exact evidence references: a retained evidence ID; source/path:line or source/path:start-end from a file you read; connectorID/gmail_list messageID after reading that message; goal plan step STEP_ID; or goal plan review. Hot Cross Buns checks reference integrity before displaying references in an alert. A reference alone does not prove the claim it accompanies.`
+	}
+	request.System += "\nTask scheduling timezone: " + definition.Timezone + ". Schedule: " + definition.Timing() + ". Use this timezone for the scheduled task’s calendar dates."
+	if !definition.RuntimeScheduledAt.IsZero() {
+		request.System += fmt.Sprintf("\nScheduled for %s. Actual start: %s. Late by %s. This is one catch-up prompt; do not claim it ran or notified the user at the earlier time.", definition.RuntimeScheduledAt.Format(time.RFC3339), time.Now().Format(time.RFC3339), time.Since(definition.RuntimeScheduledAt).Round(time.Second))
 	}
 	request.System += followupObjective(definition)
 	if definition.RefreshSnapshot {
@@ -1121,6 +1126,13 @@ func recordJobInbox(stateDir string, definition jobs.Definition, attempt jobs.At
 	}
 	if attempt.Status != "completed" {
 		summary = "Scheduled Work needs attention: " + attempt.Error
+	}
+	if !attempt.ScheduledAt.IsZero() && attempt.StartedAt.Sub(attempt.ScheduledAt) >= time.Minute {
+		location, _ := time.LoadLocation(definition.Timezone)
+		if location == nil {
+			location = time.Local
+		}
+		summary = fmt.Sprintf("Delayed by %s (scheduled %s). %s", attempt.StartedAt.Sub(attempt.ScheduledAt).Round(time.Minute), attempt.ScheduledAt.In(location).Format("Jan 2 at 3:04 PM"), summary)
 	}
 	entry := inbox.Entry{ID: inbox.JobUpdateID(definition.ID, attempt.ID), Kind: "job", Title: definition.Name, Summary: boundedJobError(summary), JobID: definition.ID, GoalID: definition.GoalID, OriginConversationID: definition.OriginConversationID, AttemptID: attempt.ID, ConversationID: attempt.Conversation, RevisionID: attempt.Revision, Status: attempt.Status, Urgent: attempt.Urgent || attempt.Status != "completed"}
 	if decision := attempt.WatchDecision; decision != nil {

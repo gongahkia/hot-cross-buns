@@ -176,7 +176,7 @@ func (m Model) finishBridgeGoal(value bridgeGoalDone) (tea.Model, tea.Cmd) {
 			review.EnabledChecks++
 		}
 		review.Lines = append(review.Lines, fmt.Sprintf("Check: %s · %s · %s", check.ID, check.Title, check.State), "Next: "+check.NextAction)
-		review.Lines = append(review.Lines, "Timing: "+check.Definition.Schedule+" · "+check.Definition.Timezone)
+		review.Lines = append(review.Lines, "Timing: "+check.Definition.Timing())
 		if !check.NextDue.IsZero() {
 			review.Lines = append(review.Lines, "Next check: "+check.NextDue.Format(time.RFC3339))
 		}

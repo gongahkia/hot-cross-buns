@@ -110,6 +110,8 @@ func ReadChecks(stateDir string, supervisor bool, now time.Time) ([]Check, error
 		}
 		if definition.Expired(now) {
 			check.State, check.NextAction = "ended", "Review a new end date to continue this check"
+		} else if !definition.RunAt.IsZero() && !definition.LastScheduledAt.Before(definition.RunAt) && check.State == "completed" {
+			check.NextAction = "One-time task finished; review its result"
 		} else if !definition.Enabled || !active {
 			check.State, check.NextAction = "paused", "Resume this check when ready"
 			if !active {
@@ -123,6 +125,12 @@ func ReadChecks(stateDir string, supervisor bool, now time.Time) ([]Check, error
 				return nil, scheduleErr
 			}
 			check.NextDue = schedule.Next(now)
+			if !definition.RunAt.IsZero() && !definition.LastScheduledAt.Before(definition.RunAt) {
+				check.NextDue = time.Time{}
+				if check.State == "completed" {
+					check.NextAction = "One-time task finished; review its result"
+				}
+			}
 			// Use the scheduler's missed-run policy rather than hiding an overdue
 			// check behind the next future cron slot. This is observation only;
 			// the supervisor still owns admission, limits and execution.

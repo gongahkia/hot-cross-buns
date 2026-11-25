@@ -27,9 +27,10 @@ import { ReadingStore } from "./reading-state.mjs";
 export class Application extends EventEmitter {
   imported = new Map();
   terminalBusy = false;
-  constructor({ binary, workspace, userData, env = process.env }) {
+  constructor({ binary, workspace, userData, env = process.env, startScheduler = false }) {
     super();
     this.binary = resolve(binary);
+    this.startScheduler = startScheduler;
     this.workspace = resolve(workspace);
     this.userData = resolve(userData);
     this.stateRoot = stateDirectory(env);
@@ -75,6 +76,14 @@ export class Application extends EventEmitter {
 		});
     } catch (error) { this.cleanupIssue = error.message; }
     await this.sessions.open(request);
+    if (this.startScheduler && !this.scheduler) {
+      // The Go supervisor owns its profile lock and claims; an existing login
+      // service wins ownership. Only this child is stopped with this browser host.
+      const child = spawn(this.binary, ['job', 'supervisor'], { cwd: this.workspace, env: { ...this.env, HOT_CROSS_BUNS_STATE_DIR: this.backendStateRoot }, stdio: 'ignore', windowsHide: true });
+      this.scheduler = child;
+      child.on('error', () => {});
+      child.once('close', () => { if(this.scheduler===child)this.scheduler=undefined; });
+    }
     return this.snapshot();
   }
   mutable() {
@@ -220,6 +229,14 @@ export class Application extends EventEmitter {
   async close() {
     if (this.terminalBusy) throw new Error("Finish or cancel the external step before closing Hot Cross Buns.");
     for (const owner of this.sessions.workers) if (!owner.closed && owner.state?.external?.kind === "editor") await owner.completeExternal("The editor was canceled before launch.");
+    if (this.scheduler && this.scheduler.exitCode === null && this.scheduler.signalCode === null) {
+      const child=this.scheduler;
+      await new Promise(resolve=>{
+        const force=setTimeout(()=>child.kill('SIGKILL'),5000);
+        child.once('close',()=>{clearTimeout(force);resolve();});
+        child.kill('SIGTERM');
+      });
+    }
     await this.drafts.flush(); await this.files.flush(); await this.preferences.flush(); await this.reading.flush(); await this.sessions.stop();
   }
 }

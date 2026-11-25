@@ -63,7 +63,7 @@ func permissionControl(ctx context.Context, stateDir, operation string, args []s
 			if err != nil {
 				return workapp.ControlScreen{}, err
 			}
-			lines := []string{"Scheduled task: " + job.Name, "Task: " + job.Objective, "When: " + job.Schedule + " · " + job.Timezone, "Folder: " + root, "Access: read files and list folders only. Foreground/full permissions are separate. No file changes, desktop access or CLI workers are granted.", "Applies only to this task definition until revoked. Changing the task requires a new grant. Pausing blocks access; resuming the unchanged task retains this grant. File contents may enter the selected model and task history."}
+			lines := []string{"Scheduled task: " + job.Name, "Task: " + job.Objective, "When: " + job.Timing(), "Folder: " + root, "Access: read files and list folders only. Foreground/full permissions are separate. No file changes, desktop access or CLI workers are granted.", "Applies only to this task definition until revoked. Changing the task requires a new grant. Pausing blocks access; resuming the unchanged task retains this grant. File contents may enter the selected model and task history."}
 			return workapp.ControlScreen{Panel: uisnapshot.Panel{Kind: "confirmation", Title: "Review scheduled folder reads", Blocks: []uisnapshot.Block{{Lines: lines}}}, Actions: []workapp.ControlAction{{Key: "A", Label: "Allow scheduled reads", Action: "save-scheduled", Args: []string{args[0], root, identity, job.ID, digest}}, {Key: "B", Label: "Cancel", Action: "status"}}}, nil
 		case "save-scheduled":
 			if len(args) != 5 {

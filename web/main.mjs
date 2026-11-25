@@ -16,7 +16,7 @@ const workspace = resolve(env.HOT_CROSS_BUNS_WEB_WORKSPACE || env.HOT_CROSS_BUNS
 const port = Number(env.HOT_CROSS_BUNS_WEB_PORT ?? 4317);
 
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Choose a valid local port.");
-const app = await startWeb({ binary, workspace, userData, env: { ...env, HOT_CROSS_BUNS_UI_FRONTEND: "web" } }, port);
+const app = await startWeb({ binary, workspace, userData, startScheduler: true, env: { ...env, HOT_CROSS_BUNS_UI_FRONTEND: "web" } }, port);
 console.log("Hot Cross Buns · " + app.url);
 let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => {

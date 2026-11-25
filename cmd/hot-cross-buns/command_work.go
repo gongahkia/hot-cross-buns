@@ -67,6 +67,7 @@ type nativeWorkBackend struct {
 }
 
 func (b *nativeWorkBackend) CompleteStream(ctx context.Context, request agent.TurnRequest, delta func(string)) (agent.Turn, error) {
+	request = modelClock(request)
 	if streaming, ok := b.Model.(agent.StreamingModel); ok {
 		return streaming.CompleteStream(ctx, request, delta)
 	}

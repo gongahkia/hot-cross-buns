@@ -30,6 +30,10 @@ const Version = 1
 var skillIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 type Record struct {
+	OriginConversationID string                  `json:"origin_conversation_id,omitempty"`
+	SourcePath           string                  `json:"source_path,omitempty"`
+	RunAt                time.Time               `json:"run_at,omitzero"`
+	EndsAt               time.Time               `json:"ends_at,omitzero"`
 	Dependencies         []knowledge.Dependency  `json:"dependencies,omitempty"`
 	Routine              *knowledge.Routine      `json:"routine,omitempty"`
 	ConflictSources      []reconciliation.Source `json:"conflict_sources,omitempty"`
@@ -289,6 +293,15 @@ func validID(id string) bool {
 }
 
 func validate(record Record) error {
+	if record.Kind != "goal" && record.Kind != "schedule" && (!record.RunAt.IsZero() || !record.EndsAt.IsZero() || record.SourcePath != "") {
+		return errors.New("task timing requires a schedule proposal")
+	}
+	if record.OriginConversationID != "" && (len(record.OriginConversationID) > 96 || strings.ContainsAny(record.OriginConversationID, "/\\\x00\r\n")) {
+		return errors.New("invalid originating conversation")
+	}
+	if record.SourcePath != "" && (!filepath.IsAbs(record.SourcePath) || filepath.Clean(record.SourcePath) != record.SourcePath) {
+		return errors.New("schedule workspace must be an absolute path")
+	}
 	if err := knowledge.ValidateDependencies(record.Dependencies); err != nil {
 		return err
 	}
@@ -352,7 +365,7 @@ func validate(record Record) error {
 				return errors.New("invalid suggested goal step")
 			}
 		}
-		if record.Cron == "" {
+		if record.Cron == "" && record.RunAt.IsZero() {
 			if record.Task != "" || record.Timezone != "" || record.ChangeOnly {
 				return errors.New("goal follow-up task requires a schedule")
 			}
@@ -360,9 +373,8 @@ func validate(record Record) error {
 			if strings.TrimSpace(record.Task) == "" || len(record.Task) > 8192 || !utf8.ValidString(record.Task) || strings.ContainsRune(record.Task, 0) || len(record.Cron) > 256 || len(record.Timezone) > 128 {
 				return errors.New("invalid suggested goal follow-up")
 			}
-			parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-			if _, err := parser.Parse(record.Cron); err != nil {
-				return fmt.Errorf("invalid suggested goal cron: %w", err)
+			if err := validateSuggestionTiming(record); err != nil {
+				return fmt.Errorf("invalid suggested timing: %w", err)
 			}
 			if _, err := time.LoadLocation(record.Timezone); err != nil {
 				return fmt.Errorf("invalid suggested goal timezone: %w", err)
@@ -386,12 +398,11 @@ func validate(record Record) error {
 			return errors.New("plan suggestion needs a goal and typed change")
 		}
 	case "schedule":
-		if !validGoalID(record.GoalID) || strings.TrimSpace(record.Task) == "" || len(record.Task) > 8192 || !utf8.ValidString(record.Task) || strings.ContainsRune(record.Task, 0) || len(record.Cron) > 256 || len(record.Timezone) > 128 || len(record.SourceRefs) != 0 {
+		if record.GoalID != "" && !validGoalID(record.GoalID) || record.GoalID == "" && (record.SourcePath == "" || strings.TrimSpace(record.Title) == "") || strings.TrimSpace(record.Task) == "" || len(record.Task) > 8192 || !utf8.ValidString(record.Task) || strings.ContainsRune(record.Task, 0) || len(record.Cron) > 256 || len(record.Timezone) > 128 || len(record.SourceRefs) != 0 {
 			return errors.New("schedule suggestion needs a goal, bounded task, and cron")
 		}
-		parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		if _, err := parser.Parse(record.Cron); err != nil {
-			return fmt.Errorf("invalid suggested cron: %w", err)
+		if err := validateSuggestionTiming(record); err != nil {
+			return fmt.Errorf("invalid suggested timing: %w", err)
 		}
 		if _, err := time.LoadLocation(record.Timezone); err != nil {
 			return fmt.Errorf("invalid suggested timezone: %w", err)
@@ -435,4 +446,24 @@ func proposalContent(record Record) Record {
 	record.ID, record.Status, record.WorkID, record.ResultID = "", "", "", ""
 	record.CreatedAt, record.ResolvedAt = time.Time{}, time.Time{}
 	return record
+}
+
+func validateSuggestionTiming(record Record) error {
+	if !record.RunAt.IsZero() {
+		if record.Cron != "" || !record.RunAt.Equal(record.RunAt.Truncate(time.Minute)) {
+			return errors.New("one-time tasks require one minute-precision time and no recurring rule")
+		}
+	} else {
+		parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		if _, err := parser.Parse(record.Cron); err != nil {
+			return err
+		}
+	}
+	if !record.EndsAt.IsZero() && !record.RunAt.IsZero() && !record.EndsAt.After(record.RunAt) {
+		return errors.New("end date must follow the scheduled time")
+	}
+	if record.Kind != "goal" && record.Kind != "schedule" {
+		return errors.New("timing belongs to a scheduled task")
+	}
+	return nil
 }

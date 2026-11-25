@@ -172,7 +172,7 @@ type Store struct {
 // Default returns usable settings without requiring a file on disk.
 func Default() Settings {
 	limits := snapshot.DefaultLimits()
-	return Settings{Version: version, Embeddings: EmbeddingSettings{Provider: "ollama"}, Execution: sandbox.DefaultPolicy(), Snapshots: SnapshotSettings{MaxFiles: limits.MaxFiles, MaxTotalBytes: limits.MaxTotal, MaxFileBytes: limits.MaxFileBytes}, Notifications: NotificationSettings{Desktop: true}, JobDefaults: JobDefaults{Timezone: "Local", Missed: "skip"}}
+	return Settings{Version: version, Embeddings: EmbeddingSettings{Provider: "ollama"}, Execution: sandbox.DefaultPolicy(), Snapshots: SnapshotSettings{MaxFiles: limits.MaxFiles, MaxTotalBytes: limits.MaxTotal, MaxFileBytes: limits.MaxFileBytes}, Notifications: NotificationSettings{Desktop: true}, JobDefaults: JobDefaults{Timezone: "Local", Missed: "run_once"}}
 }
 
 // ProviderEndpoint returns a persisted non-secret endpoint override for one

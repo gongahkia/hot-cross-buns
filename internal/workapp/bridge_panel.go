@@ -276,7 +276,7 @@ func (m Model) bridgeSectionPanel() uisnapshot.Panel {
 			if job.Enabled {
 				tone = "success"
 			}
-			panel.Rows = append(panel.Rows, uisnapshot.Row{Label: job.Name, Detail: job.Schedule + " · " + job.Timezone, State: state, Tone: tone})
+			panel.Rows = append(panel.Rows, uisnapshot.Row{Label: job.Name, Detail: job.Timing(), State: state, Tone: tone})
 		}
 		if len(panel.Rows) == 0 {
 			panel.Notice = "No scheduled jobs. Create one with /jobs add."

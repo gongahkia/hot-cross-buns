@@ -133,7 +133,7 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 		if _, err := store.InitializePlan(created.ID, record.GoalOutcome, record.GoalSteps); err != nil {
 			return "", err
 		}
-		if record.Cron != "" {
+		if record.Cron != "" || !record.RunAt.IsZero() {
 			scheduled := record
 			scheduled.Kind, scheduled.GoalID = "schedule", created.ID
 			if _, err := applySuggestion(stateDir, scheduled); err != nil {
@@ -185,16 +185,19 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 		}
 		return fmt.Sprintf("%s@%d", record.GoalID, plan.Revision), nil
 	case "schedule":
-		goals, err := goal.Open(stateDir)
-		if err != nil {
-			return "", err
-		}
-		current, err := goals.Load(record.GoalID)
-		if err != nil {
-			return "", err
-		}
-		if current.Status != goal.Active {
-			return "", errors.New("resume the goal before accepting its schedule")
+		current := goal.Record{Title: record.Title, SourcePath: record.SourcePath}
+		if record.GoalID != "" {
+			goals, err := goal.Open(stateDir)
+			if err != nil {
+				return "", err
+			}
+			current, err = goals.Load(record.GoalID)
+			if err != nil {
+				return "", err
+			}
+			if current.Status != goal.Active {
+				return "", errors.New("resume the goal before accepting its schedule")
+			}
 		}
 		store, err := jobs.Open(stateDir)
 		if err != nil {
@@ -202,14 +205,14 @@ func applySuggestion(stateDir string, record suggestion.Record) (string, error) 
 		}
 		id := "job-" + record.ID
 		if existing, err := store.Load(id); err == nil {
-			if existing.GoalID == current.ID && existing.Schedule == record.Cron && existing.Timezone == record.Timezone && existing.Objective == record.Task && existing.ChangeOnly == record.ChangeOnly && existing.Mode == action.Inspect {
+			if existing.RunAt.Equal(record.RunAt) && existing.EndsAt.Equal(record.EndsAt) && existing.GoalID == current.ID && existing.Schedule == record.Cron && existing.Timezone == record.Timezone && existing.Objective == record.Task && existing.ChangeOnly == record.ChangeOnly && existing.Mode == action.Inspect {
 				return id, nil
 			}
 			return "", errors.New("suggested schedule ID already exists with different settings")
 		} else if !os.IsNotExist(err) {
 			return "", err
 		}
-		definition, err := store.Save(jobs.Definition{ID: id, Name: current.Title, GoalID: current.ID, Enabled: true, Schedule: record.Cron, Timezone: record.Timezone, Missed: "run_once", SourcePath: current.SourcePath, RefreshSnapshot: true, ChangeOnly: record.ChangeOnly, Objective: record.Task, Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 24, CreatedAt: record.CreatedAt})
+		definition, err := store.Save(jobs.Definition{ID: id, Name: current.Title, GoalID: current.ID, OriginConversationID: record.OriginConversationID, Enabled: true, RunAt: record.RunAt, EndsAt: record.EndsAt, Schedule: record.Cron, Timezone: record.Timezone, Missed: "run_once", SourcePath: current.SourcePath, RefreshSnapshot: true, ChangeOnly: record.ChangeOnly, Objective: record.Task, Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 24, CreatedAt: record.CreatedAt})
 		return definition.ID, err
 	default:
 		return "", errors.New("unsupported suggestion kind")
@@ -245,5 +248,9 @@ func inspectSuggestion(stateDir string, record suggestion.Record) (*suggestion.R
 			conflictCheck = "Source check failed: " + err.Error()
 		}
 	}
-	return &suggestion.Review{Record: record, Revision: record.Revision(), CurrentNote: currentNote, ConflictCheck: conflictCheck, ReferenceIntegrity: checkSuggestionEvidence(stateDir, record)}, nil
+	timing := ""
+	if record.Cron != "" || !record.RunAt.IsZero() {
+		timing = (jobs.Definition{Schedule: record.Cron, RunAt: record.RunAt, Timezone: record.Timezone}).Timing()
+	}
+	return &suggestion.Review{Timing: timing, Record: record, Revision: record.Revision(), CurrentNote: currentNote, ConflictCheck: conflictCheck, ReferenceIntegrity: checkSuggestionEvidence(stateDir, record)}, nil
 }
