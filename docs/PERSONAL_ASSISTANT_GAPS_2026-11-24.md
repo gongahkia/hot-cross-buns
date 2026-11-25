@@ -43,6 +43,13 @@ activation gap, not evidence that the corresponding framework is absent.
 
 The register below preserves the original assessment. Subsequent verified changes:
 
+- **Memory implementation follow-up:** Reviewed significance candidates, temporal
+  applicability, bounded recall traces, source-dependent consolidation and memory
+  management controls are implemented. The production live journey passed all
+  ten steps; the stricter focused suite retains one four-step completion failure.
+  See [the guide](MEMORY_SYSTEM.md) and
+  [verification](verification/memory-system-2026-11-25.md) for exact scope and limits.
+
 - **Memory planning follow-up:** The [25 November memory roadmap](MEMORY_ROADMAP_2026-11-25.md)
   identifies remaining significance, temporal, retrieval, consolidation and
   management gaps against current source and primary Anthropic/OpenAI work.

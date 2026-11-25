@@ -1,0 +1,251 @@
+{
+  "date": "2026-11-25",
+  "scope": "Synthetic development acceptance; no held-out or local-model parity claim. No private profile records are included.",
+  "model": "gpt-5-mini",
+  "checks": {
+    "go_tests_and_vet": "passed",
+    "browser_tests": 135,
+    "host_tests": 145,
+    "oauth_build_tests": 1,
+    "race_packages": [
+      "memory",
+      "knowledge",
+      "personalization",
+      "continuity"
+    ]
+  },
+  "focused_initial": {
+    "passed": 10,
+    "total": 12,
+    "trials": [
+      {
+        "name": "passive preference",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "passive location",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "changed preference",
+        "passed": false,
+        "status": "execution_error",
+        "error": "agent stopped after reaching the 4-step limit"
+      },
+      {
+        "name": "forget saved preference",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "third party",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "temporary",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "hypothetical",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "synthetic credential",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "Chinese opt out",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "Spanish opt out",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "learning disabled",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "explicit while disabled",
+        "passed": false,
+        "status": "behavior_mismatch",
+        "error": ""
+      }
+    ]
+  },
+  "focused_final": {
+    "passed": 11,
+    "total": 12,
+    "trials": [
+      {
+        "name": "passive preference",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "passive location",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "changed preference",
+        "passed": false,
+        "status": "execution_error",
+        "error": "agent stopped after reaching the 4-step limit"
+      },
+      {
+        "name": "forget saved preference",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "third party",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "temporary",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "hypothetical",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "synthetic credential",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "Chinese opt out",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "Spanish opt out",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "learning disabled",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      },
+      {
+        "name": "explicit while disabled",
+        "passed": true,
+        "status": "met",
+        "error": ""
+      }
+    ]
+  },
+  "production_journey": {
+    "passed": 10,
+    "total": 10,
+    "steps": [
+      {
+        "name": "capture",
+        "passed": true
+      },
+      {
+        "name": "recall in fresh task",
+        "passed": true
+      },
+      {
+        "name": "correction",
+        "passed": true
+      },
+      {
+        "name": "corrected recall",
+        "passed": true
+      },
+      {
+        "name": "forget",
+        "passed": true
+      },
+      {
+        "name": "withdrawn recall",
+        "passed": true
+      },
+      {
+        "name": "significance proposal",
+        "passed": true
+      },
+      {
+        "name": "catalog review activates exact planned context",
+        "passed": true
+      },
+      {
+        "name": "reviewed consolidation",
+        "passed": true
+      },
+      {
+        "name": "forget invalidates derived summary",
+        "passed": true
+      }
+    ],
+    "reported_usage": {
+      "unknown_requests": 0,
+      "model_requests": 24,
+      "input_tokens": 268891,
+      "output_tokens": 7790,
+      "reported": true,
+      "estimated": false
+    },
+    "quality": {
+      "trials": 8,
+      "useful_captures": 2,
+      "unnecessary_captures": 0,
+      "important_omissions": 0,
+      "correct_applications": 2,
+      "missed_applications": 0,
+      "irrelevant_applications": 0,
+      "forbidden_resurfacing": 0,
+      "capture_precision": 1,
+      "capture_recall": 1,
+      "tokens": 276681,
+      "milliseconds": 101389
+    }
+  },
+  "all_six_development_runs_reported_usage": {
+    "model_requests": 137,
+    "input_tokens": 963457,
+    "output_tokens": 48747
+  },
+  "development_failures": [
+    "An initial journey reached the 65000-token test ceiling.",
+    "A later journey exposed an uppercase category/schema mismatch, subsequently fixed.",
+    "The final focused correction probe still reaches its four-step completion limit."
+  ]
+}

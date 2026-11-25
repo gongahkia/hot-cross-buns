@@ -1,5 +1,11 @@
 # Memory and knowledge roadmap — 25 November 2026
 
+Implementation follow-up: the six selected improvements now have working paths
+and development/live acceptance coverage. See [Memory management](MEMORY_SYSTEM.md)
+and the [verification record](verification/memory-system-2026-11-25.md). The audit
+below preserves the original recommendations; it is not a claim that significance
+quality or every longer-term research gap is solved.
+
 **Recommendation:** measure significance and downstream usefulness before adding
 more automatic storage. HCB has meaningful integrity controls; its larger gap is
 deciding which evidence deserves durable memory, when to retrieve it, and whether
