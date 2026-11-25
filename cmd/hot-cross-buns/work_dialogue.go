@@ -131,6 +131,9 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 		if err := ctx.Err(); err != nil {
 			return workrun.ConversationDecision{}, err
 		}
+		if decision, handled, err := routeIntroduction(ctx, stateDir, request, input); handled || err != nil {
+			return decision, err
+		}
 		if decision, ok := workrun.QuickAcknowledgement(request); ok {
 			return decision, nil
 		}

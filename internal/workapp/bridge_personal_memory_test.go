@@ -1,9 +1,41 @@
 package workapp
 
 import (
+	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/personalization"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestIntroductionAppearsAsAssistantMessageInItsOwnChatAndKeepsApprovalIndexes(t *testing.T) {
+	cfg, _ := dialogueConfig(t)
+	m := New(cfg).ConfigureDialogueHost(DialogueHost{CanStart: true})
+	m.conversation = "work-intro"
+	m.primary = false
+	m.desktop.Introduction = "started"
+	m.desktop.IntroductionChat = &config.IntroductionChat{ConversationID: m.conversation, StartedAt: time.Now(), Greeting: "Hey! What should I call you?", Revision: strings.Repeat("a", 64), Proposal: map[string]string{"profile.name": "Alice"}}
+	m.messages = []message{{role: "Hot Cross Buns", text: "Existing answer"}}
+	state := m.BridgeState()
+	if len(state.Messages) != 2 || state.Messages[0].Text != "Existing answer" || state.Messages[1].Role != "Hot Cross Buns" || !strings.Contains(state.Messages[1].Text, "What should") {
+		t.Fatal("welcome did not enter chat", state.Messages)
+	}
+	if state.Desktop.IntroductionChat != nil {
+		t.Fatal("private intake draft leaked through desktop settings")
+	}
+	if !m.conversationActive() || !m.acknowledgementBlocked() {
+		t.Fatal("first onboarding answer bypasses conversational agent")
+	}
+	recent := m.conversationRecent()
+	if len(recent) != 2 {
+		t.Fatal("agent cannot see its welcome")
+	}
+	m.conversation = "work-other"
+	state = m.BridgeState()
+	if len(state.Messages) != 1 {
+		t.Fatal("welcome leaked into another chat")
+	}
+}
 
 func TestPersonalMemoryBridgeBindsPendingResultAndRequiresManagedHost(t *testing.T) {
 	calls := 0

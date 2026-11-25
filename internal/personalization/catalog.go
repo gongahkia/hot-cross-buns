@@ -49,6 +49,7 @@ type Catalog struct {
 	Warnings      []string       `json:"warnings,omitempty"`
 }
 type CatalogAction struct {
+	ConversationID  string `json:"conversation_id,omitempty"`
 	Timezone        string `json:"timezone,omitempty"`
 	Name            string `json:"name,omitempty"`
 	Style           string `json:"style,omitempty"`

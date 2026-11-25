@@ -443,7 +443,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         return host.sourcePreview({ context, run: body.run, path: body.path });
       case "introduction": {
         host.mutable();
-        if (!['intro_status','intro_save','intro_skip'].includes(body.action) || typeof body.timezone!=='string' || body.timezone.length>128 || ['name','style','personal_context'].some(key=>typeof (body[key]??'')!=='string'||(body[key]||'').length>2000) || body.action==='intro_save'&&(typeof body.revision!=='string'||!/^[a-f0-9]{64}$/.test(body.revision))) throw new RequestError(400,'Review your introduction answers and timezone.');
+        if (!['intro_status','intro_start','intro_save','intro_skip'].includes(body.action) || typeof body.timezone!=='string' || body.timezone.length>128 || ['name','style','personal_context'].some(key=>typeof (body[key]??'')!=='string'||(body[key]||'').length>2000) || body.action==='intro_save'&&(typeof body.revision!=='string'||!/^[a-f0-9]{64}$/.test(body.revision))) throw new RequestError(400,'Review your introduction answers and timezone.');
         const owner=host.backend;
         const result=await owner.personalMemory({request_id:randomUUID(),action:body.action,timezone:body.timezone,name:body.name||'',style:body.style||'',personal_context:body.personal_context||'',revision:body.revision||''});
         requireContext(context);

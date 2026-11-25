@@ -6,14 +6,26 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 type DesktopSettings struct {
-	Introduction   string            `json:"introduction,omitempty"`
-	ReferToChats   *bool             `json:"refer_to_chats,omitempty"`
-	LearnFromChats *bool             `json:"learn_from_chats,omitempty"`
-	Shortcuts      map[string]string `json:"shortcuts,omitempty"`
-	Voice          VoiceSettings     `json:"voice,omitzero"`
+	IntroductionChat *IntroductionChat `json:"introduction_chat,omitempty"`
+	Introduction     string            `json:"introduction,omitempty"`
+	ReferToChats     *bool             `json:"refer_to_chats,omitempty"`
+	LearnFromChats   *bool             `json:"learn_from_chats,omitempty"`
+	Shortcuts        map[string]string `json:"shortcuts,omitempty"`
+	Voice            VoiceSettings     `json:"voice,omitzero"`
+}
+
+// IntroductionChat is a bounded intake, not active memory. Only an explicitly
+// confirmed proposal is promoted to the memory store.
+type IntroductionChat struct {
+	ConversationID string            `json:"conversation_id"`
+	StartedAt      time.Time         `json:"started_at"`
+	Greeting       string            `json:"greeting"`
+	Revision       string            `json:"revision"`
+	Proposal       map[string]string `json:"proposal,omitempty"`
 }
 
 func (d DesktopSettings) RefersToChats() bool { return d.ReferToChats == nil || *d.ReferToChats }
@@ -36,6 +48,9 @@ var DefaultShortcuts = map[string]string{
 	"voice_input": "Ctrl+V", "help": "Ctrl+O", "context_actions": "Ctrl+E",
 	"jump_latest": "Ctrl+L",
 }
+
+var introductionConversationID = regexp.MustCompile(`^work-[A-Za-z0-9_-]{1,90}$`)
+var introductionRevisionID = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 var retiredFunctionShortcut = regexp.MustCompile(`(?i)(^|\+)f([1-9]|1[0-2])$`)
 
@@ -156,8 +171,21 @@ func physicalShortcut(value string) string {
 }
 
 func (d DesktopSettings) Validate() error {
-	if d.Introduction != "" && d.Introduction != "completed" && d.Introduction != "skipped" {
+	if d.Introduction != "" && d.Introduction != "started" && d.Introduction != "completed" && d.Introduction != "skipped" {
 		return errors.New("invalid introduction status")
+	}
+	if d.Introduction == "started" && d.IntroductionChat == nil {
+		return errors.New("introduction conversation is missing")
+	}
+	if intake := d.IntroductionChat; intake != nil {
+		if !introductionConversationID.MatchString(intake.ConversationID) || intake.StartedAt.IsZero() || len(intake.Greeting) > 2048 || len(intake.Greeting) == 0 || !introductionRevisionID.MatchString(intake.Revision) || len(intake.Proposal) > 3 {
+			return errors.New("invalid introduction conversation")
+		}
+		for subject, quote := range intake.Proposal {
+			if (subject != "profile.name" && subject != "preference.tone" && subject != "profile.projects") || strings.TrimSpace(quote) == "" || len(quote) > 2000 {
+				return errors.New("invalid introduction proposal")
+			}
+		}
 	}
 	for action := range d.Shortcuts {
 		if _, exists := DefaultShortcuts[action]; !exists {

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ startScheduler = false, voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
+export async function fixture({ startScheduler = false, introductionReplies = false, voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -32,7 +32,8 @@ export async function fixture({ startScheduler = false, voiceOptions, memories =
     const plan = {outcome:'A parser using the chosen format',steps:[{id:'inspect',text:'Inspect the parser after review'}],sources:[],effects:['read'],...(!routed?.correction ? {questions:[{id:'format',question:'Which format should the parser support?',options:['JSON','YAML']}]} : {})};
     const read = value.tools?.some(item => item.function?.name === "read_file") && prompt.includes("fixture activity") && !value.messages.some(item => item.role === "tool");
     const fileRead = filesystemTask && value.tools?.some(tool => tool.function?.name === "filesystem") && !value.messages.some(item => item.role === "tool");
-    const message = fileRead ? {role:"assistant",tool_calls:[{id:"live-file",type:"function",function:{name:"filesystem",arguments:JSON.stringify({operation:"read",path:join(workspace,"note.md")})}}]} : review ? {
+    const introductionResponse=introductionReplies && system.includes('one-time onboarding conversation') ? routed.message.includes('Alice') ? {kind:'reply',reply:'Nice to meet you, Alice. How would you like me to reply?'} : routed.message.includes('skip') ? {kind:'skip'} : {kind:'propose',answers:{'profile.name':'My name is Alice.','preference.tone':'Casual and concise','profile.projects':'A garden project'}} : undefined;
+    const message = introductionResponse ? {role:"assistant",content:JSON.stringify(introductionResponse)} : fileRead ? {role:"assistant",tool_calls:[{id:"live-file",type:"function",function:{name:"filesystem",arguments:JSON.stringify({operation:"read",path:join(workspace,"note.md")})}}]} : review ? {
       role: "assistant", tool_calls: [{ id: "exact-local-review", type: "function", function: {
         name: "web_access", arguments: JSON.stringify({ action: "request", scope: "sites", origins: [prompt.includes('Use a different site.') ? 'https://corrected.invalid' : "https://example.invalid"], reason: "Review this fixture request." }),
       } }],

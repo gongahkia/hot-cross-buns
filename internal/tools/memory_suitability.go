@@ -1,9 +1,22 @@
 package tools
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 )
+
+// IntroductionQuoteAllowed uses the same whole-message exclusions as chat
+// learning. Other suitability concerns are covered by the exact batch review.
+func IntroductionQuoteAllowed(message, quote string) error {
+	if negativeRemember.MatchString(message) {
+		return errors.New("this message asks not to remember")
+	}
+	if deny, _ := memorySuitability(message, quote); deny != "" {
+		return errors.New(deny)
+	}
+	return nil
+}
 
 // This is deliberately a conservative admission filter, not a semantic truth
 // classifier. Unsupported wording requires review instead of being treated as

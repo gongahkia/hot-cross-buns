@@ -104,6 +104,9 @@ func (m Model) conversationActive() bool {
 	if !m.conversationAvailable() {
 		return false
 	}
+	if intake := m.desktop.IntroductionChat; intake != nil && m.desktop.Introduction == "started" && intake.ConversationID == m.conversation {
+		return true
+	}
 	if m.primary {
 		return true
 	}
@@ -174,6 +177,9 @@ func (m Model) conversationRecent() []workrun.ConversationMessage {
 		message workrun.ConversationMessage
 	}
 	var entries []entry
+	if intake := m.desktop.IntroductionChat; intake != nil && intake.ConversationID == m.conversation {
+		entries = append(entries, entry{intake.StartedAt, workrun.ConversationMessage{Role: "assistant", Text: intake.Greeting}})
+	}
 	for _, message := range m.messages {
 		if (message.role == "You" || message.role == "Hot Cross Buns") && message.text != "" {
 			role := "assistant"
@@ -429,6 +435,9 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 	if value.Conversation != m.conversation || value.TurnID != m.dialogueRouting {
 		return m, nil
 	}
+	if m.desktop.IntroductionChat != nil {
+		m = m.RefreshDesktopPreferences()
+	}
 	if m.dialogueCancel != nil {
 		m.dialogueCancel()
 	}
@@ -616,6 +625,9 @@ func (m Model) FinishDialogueDispatch(result DialogueDispatchResult) (tea.Model,
 // These gates do not authorize anything; they decline the shortcut and leave
 // existing inspection/routing/approval machinery in control.
 func (m Model) acknowledgementBlocked() bool {
+	if intake := m.desktop.IntroductionChat; intake != nil && m.desktop.Introduction == "started" && intake.ConversationID == m.conversation {
+		return true
+	}
 	return m.quitting || m.interaction != nil || len(m.pendingInteractions) > 0 || m.pendingConnection() != "" || m.bridgeExternal != nil || m.sessionRequest != nil || m.planPreparing != "" || m.planRevising != "" || m.receiptBusy || len(m.actionRecoveries) > 0 || m.actionRecoveryIssue != "" || m.actionRecoveryTruncated || len(m.requestRecoveryViews()) > 0 || m.dialogueIssue != ""
 }
 

@@ -8,6 +8,7 @@ import (
 type personalMemoryFinished struct{ Result personalization.CatalogResult }
 
 func (m Model) ApplyPersonalMemory(action personalization.CatalogAction) (tea.Model, tea.Cmd) {
+	action.ConversationID = m.conversation
 	if !m.config.ManagedSessions || !nativeProviderRequestID.MatchString(action.RequestID) {
 		return m, nil
 	}

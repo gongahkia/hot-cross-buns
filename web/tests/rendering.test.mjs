@@ -1010,14 +1010,14 @@ test('review queue shows exact proposal content before accepting and retains an 
 });
 
 
-test('introduction collects optional answers before one save and does not repeat after completion',async()=>{
- const calls=[];let completed=false;
- const view=introduction({request:async action=>{calls.push(action);if(action.action==='intro_save')completed=true;return {status:completed?'completed':'',timezone:'Asia/Singapore',revision:'a'.repeat(64)};}});
- document.body.append(view.element);view.observe('chat-one');await new Promise(resolve=>setTimeout(resolve,0));assert.equal(view.element.hidden,false);assert.equal(calls.length,1);
- view.element.querySelector('[name=name]').value='Alice';view.element.querySelector('[name=style]').value='Casual';view.element.querySelector('[name=personal_context]').value='A garden project';
- view.element.querySelector('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
- const saved=calls.filter(action=>action.action==='intro_save');assert.equal(saved.length,1);assert.equal(saved[0].personal_context,'A garden project');assert.equal(saved[0].timezone,'Asia/Singapore');assert.equal(view.element.hidden,true);
- view.observe('chat-two');await new Promise(resolve=>setTimeout(resolve,0));assert.equal(view.element.hidden,true);assert.equal(calls.filter(action=>action.action==='intro_save').length,1);view.element.remove();
+test('first-load introduction starts a chat once without showing the settings form',async()=>{
+ const calls=[];let started=false;
+ const view=introduction({request:async action=>{calls.push(action);if(action.action==='intro_start')started=true;return {status:started?'started':'',timezone:'Asia/Singapore',revision:'a'.repeat(64)};}});
+ document.body.append(view.element);view.observe('chat-one');await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(view.element.hidden,true);assert.equal(view.element.querySelector('form').hidden,true);assert.deepEqual(calls.map(action=>action.action),['intro_status','intro_start']);assert.ok(calls[0].timezone);
+ view.observe('chat-one');await new Promise(resolve=>setTimeout(resolve,0));assert.equal(calls.length,2);
+ view.observe('chat-two');await new Promise(resolve=>setTimeout(resolve,0));assert.equal(calls.filter(action=>action.action==='intro_start').length,1);assert.equal(view.element.hidden,true);
+ view.open();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(view.element.hidden,false);assert.equal(view.element.querySelector('form').hidden,false);assert.equal(calls.some(action=>action.action==='intro_save'),false);view.element.remove();
 });
 
 test('scheduled tasks distinguish one-time and recurring tasks and never render their cron rule',()=>{

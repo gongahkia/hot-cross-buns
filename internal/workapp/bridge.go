@@ -236,6 +236,7 @@ type BridgeWorkDetails struct {
 
 func (m Model) BridgeState() BridgeState {
 	desktop := m.desktop
+	desktop.IntroductionChat = nil
 	desktop.Shortcuts = m.desktop.ResolvedShortcuts()
 	state := BridgeState{
 		ContextInspectResult:     m.contextInspectResult,
@@ -386,6 +387,9 @@ func (m Model) BridgeState() BridgeState {
 	}
 	for _, item := range m.messages {
 		state.Messages = append(state.Messages, BridgeMessage{RevisionID: item.revisionID, RunID: item.runID, CreatedAt: item.createdAt, ReplyToUpdateID: item.replyToUpdateID, InputIDs: append([]string(nil), item.inputIDs...), Inputs: append([]string(nil), item.inputs...), Activity: item.activity.Clone(), Role: item.role, Text: item.text, Bundle: cloneBundlePointer(item.bundle), Result: item.result})
+	}
+	if intake := m.desktop.IntroductionChat; intake != nil && intake.ConversationID == m.conversation {
+		state.Messages = append(state.Messages, BridgeMessage{Role: "Hot Cross Buns", Text: intake.Greeting, CreatedAt: intake.StartedAt})
 	}
 	for _, item := range m.availableCommandEntries() {
 		state.Commands = append(state.Commands, BridgeCommand{
