@@ -28,6 +28,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/learning"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/personalization"
 	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
 	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
@@ -612,6 +613,11 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		}
 		if event.Kind != agent.EventTextDelta {
 			events = append(events, event)
+		}
+		if event.Kind == agent.EventToolFinished && event.ToolError == "" && event.ToolCall != nil && (strings.HasPrefix(event.ToolCall.Name, "memory_") || event.ToolCall.Name == "knowledge_consolidate") {
+			if _, err := personalization.SyncMarkdown(request.StateDir); err != nil && request.OnEvent != nil {
+				request.OnEvent(agent.Event{Kind: agent.EventHook, At: now(), Text: "Memory Markdown synchronization needs attention: " + err.Error()})
+			}
 		}
 		if request.OnEvent != nil {
 			request.OnEvent(event)

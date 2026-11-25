@@ -24,6 +24,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/learning"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
+	"github.com/gongahkia/hot-cross-buns/internal/personalization"
 	"github.com/gongahkia/hot-cross-buns/internal/retrieval"
 	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
@@ -34,6 +35,9 @@ import (
 
 // configuredWorkService assembles trusted adapters; execution stays in workrun.Service.
 func configuredWorkService(provider, modelName, stateDir string, request *workrun.Request) (workrun.Service, error) {
+	if _, err := personalization.SyncMarkdown(stateDir); err != nil {
+		return workrun.Service{}, fmt.Errorf("review local memory file edits: %w", err)
+	}
 	if request.RequestedAt.IsZero() {
 		request.RequestedAt = time.Now()
 	}

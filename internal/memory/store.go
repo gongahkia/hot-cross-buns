@@ -61,6 +61,8 @@ type Store struct {
 	now  func() time.Time
 }
 
+func (s Store) MarkdownDirectory() string { return filepath.Join(s.root, "categories") }
+
 func Open(stateDir string) (Store, error) {
 	if strings.TrimSpace(stateDir) == "" {
 		return Store{}, errors.New("memory state directory is required")

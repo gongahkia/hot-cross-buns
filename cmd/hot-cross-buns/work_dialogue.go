@@ -13,6 +13,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
 	"github.com/gongahkia/hot-cross-buns/internal/continuity"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
+	"github.com/gongahkia/hot-cross-buns/internal/personalization"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
 	sharedusage "github.com/gongahkia/hot-cross-buns/internal/usage"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
@@ -168,6 +169,9 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 }
 
 func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent.Model, text string, input workapp.ConversationInput) (continuity.Context, error) {
+	if _, err := personalization.SyncMarkdown(stateDir); err != nil {
+		return continuity.Context{}, fmt.Errorf("review local memory file edits: %w", err)
+	}
 	release, err := state.Guard(stateDir, false)
 	if err != nil {
 		return continuity.Context{}, err

@@ -139,3 +139,7 @@ process environment. The journey uses production Work-service preparation,
 provider calls, memory tools, catalog acceptance and consolidation review. The
 focused suite uses a deliberately stricter four-step completion limit. Neither
 suite establishes local-model parity or long-term generalization.
+
+## Local Markdown category files
+
+Memory sections now expose their local Markdown paths. Existing editable memory/note text imports through revision-checked correction APIs before recall; review-controlled records remain read-only in those files. See [the editing and conflict guide](MEMORY_MARKDOWN_FILES.md).

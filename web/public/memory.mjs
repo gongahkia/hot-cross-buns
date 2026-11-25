@@ -8,7 +8,7 @@ const topicDescriptions = {
   'About you': 'Facts you have shared about yourself.',
   'Personal context': 'Decisions and useful context you have chosen to keep.',
   'Saved context': 'Saved notes and reference material. These are separate from personal facts.',
-  'Projects and goals': 'Context scoped to a project or responsibility. Manage it with that goal.',
+  'Projects and goals': 'Your projects and context saved for specific responsibilities. Goal-scoped items stay with their goal.',
   Guidance: 'Learned instructions. Suggestions awaiting review are not active guidance.',
   Suggestions: 'Potentially useful context awaiting your review. Proposals are not active memories.',
   Routines: 'Reusable procedures and their source dependencies. Activation is reviewed separately.',
@@ -91,6 +91,12 @@ export function memoryPane({ request, manage, description = 'Facts and preferenc
     list.replaceChildren();
     const categoryTitle = category === 'Saved context' ? 'Saved notes' : category === 'Projects and goals' ? 'Project context' : category;
     list.append(element('h3', categoryTitle), element('p', topicDescriptions[category], 'hint memory-category-description'));
+    const localFile = catalog.markdown_files?.find(file => file.category === category);
+    if (localFile) {
+      const file = element('details', undefined, 'memory-source');
+      file.append(element('summary', 'Local Markdown file'), element('code', localFile.path), element('p', 'Edit existing memory or note text between its markers. Refresh Memory to import changes. IDs, sources and approval state stay managed by HCB.', 'hint'));
+      list.append(file);
+    }
     if (!catalog.entries.length) list.append(element('p', search.value ? 'No matching items in this section.' : canAdd ? 'Nothing here yet. Use Add memory to save a fact, preference, or personal note.' : 'No saved notes yet. Ask me to save useful reference material from a conversation.', 'memory-empty hint'));
     for (const name of categories) {
       const entries = catalog.entries.filter(topic => topic.category === name);

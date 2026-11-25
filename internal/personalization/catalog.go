@@ -38,14 +38,15 @@ type Topic struct {
 	Editable        bool                   `json:"editable"`
 }
 type Catalog struct {
-	ExcludedIDs []string       `json:"excluded_ids,omitempty"`
-	Categories  map[string]int `json:"categories"`
-	Entries     []Topic        `json:"entries"`
-	Total       int            `json:"total"`
-	Matched     int            `json:"matched"`
-	Page        int            `json:"page"`
-	Pages       int            `json:"pages"`
-	Warnings    []string       `json:"warnings,omitempty"`
+	MarkdownFiles []MarkdownFile `json:"markdown_files,omitempty"`
+	ExcludedIDs   []string       `json:"excluded_ids,omitempty"`
+	Categories    map[string]int `json:"categories"`
+	Entries       []Topic        `json:"entries"`
+	Total         int            `json:"total"`
+	Matched       int            `json:"matched"`
+	Page          int            `json:"page"`
+	Pages         int            `json:"pages"`
+	Warnings      []string       `json:"warnings,omitempty"`
 }
 type CatalogAction struct {
 	Until      string `json:"until,omitempty"`
@@ -67,6 +68,16 @@ type CatalogResult struct {
 
 // ReadCatalog projects owning stores without generating or persisting inferred personal traits.
 func ReadCatalog(stateDir, query, category string, page int) (Catalog, error) {
+	files, syncErr := SyncMarkdown(stateDir)
+	result, err := readCatalog(stateDir, query, category, page, false)
+	result.MarkdownFiles = files
+	if syncErr != nil {
+		result.Warnings = append(result.Warnings, "Markdown memory: "+syncErr.Error())
+	}
+	return result, err
+}
+
+func readCatalog(stateDir, query, category string, page int, all bool) (Catalog, error) {
 	result := Catalog{Entries: []Topic{}, Categories: map[string]int{}}
 	memories, err := memory.Open(stateDir)
 	if err != nil {
@@ -100,6 +111,9 @@ func ReadCatalog(stateDir, query, category string, page int) (Catalog, error) {
 			category = "Preferences"
 		case "note", "decision":
 			category = "Personal context"
+		}
+		if memory.CanonicalSubject(record.Subject) == "profile.projects" || strings.HasPrefix(record.Subject, "project.") {
+			category = "Projects and goals"
 		}
 		title := strings.ReplaceAll(strings.ReplaceAll(record.Subject, ".", " · "), "_", " ")
 		if title == "" {
@@ -260,6 +274,11 @@ func ReadCatalog(stateDir, query, category string, page int) (Catalog, error) {
 		if keep {
 			matched = append(matched, topic)
 		}
+	}
+	if all {
+		result.Entries = append(result.Entries, matched...)
+		result.Total = len(matched)
+		return result, nil
 	}
 	result.Matched = len(matched)
 	result.Pages = max(1, (len(matched)+39)/40)

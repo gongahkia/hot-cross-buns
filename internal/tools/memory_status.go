@@ -13,7 +13,7 @@ import (
 type memoryStatus struct{ PersonalKnowledge }
 
 func (memoryStatus) Definition() agent.ToolDefinition {
-	return agent.ToolDefinition{Name: "memory_status", Description: "Inspect saved-memory freshness and review needs in this goal plus personal scope. Returns bounded metadata without stale fact text. Use it when a remembered fact is unavailable or the user asks what needs confirmation. Review in Memory; this tool cannot confirm, save, restore forgotten facts, or resolve contradictions. Current messages outrank older recall.", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{}}`)}
+	return agent.ToolDefinition{Name: "memory_status", Description: "Inspect saved-memory freshness and review needs in this goal plus personal scope. Also returns the local Markdown category directory for explicitly requested file edits; normal filesystem permission still applies. Returns bounded metadata without stale fact text. Use it when a remembered fact is unavailable or the user asks what needs confirmation. Review in Memory; this tool cannot confirm, save, restore forgotten facts, or resolve contradictions. Current messages outrank older recall.", Parameters: json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{}}`)}
 }
 
 func (t memoryStatus) Execute(ctx context.Context, raw json.RawMessage) (agent.ToolResult, error) {
@@ -60,6 +60,6 @@ func (t memoryStatus) Execute(ctx context.Context, raw json.RawMessage) (agent.T
 		}
 		items = append(items, item{r.ID, r.Subject, r.GoalID, status, reason, r.UpdatedAt, r.LastConfirmedAt, r.ReviewAfter})
 	}
-	content, err := success(map[string]any{"items": items, "truncated": truncated, "warning": warning, "authority": "metadata only; unavailable facts are excluded from recall; use Memory for reviewed corrections"})
+	content, err := success(map[string]any{"items": items, "truncated": truncated, "warning": warning, "markdown_directory": t.Memories.MarkdownDirectory(), "file_editing": "Category Markdown files are local editable views. Read their instructions and request filesystem permission before editing. Edit existing memory/note text between its markers; IDs, scope, approvals, routines and source metadata remain managed by HCB. Refresh Memory or start a new request to import edits.", "authority": "metadata only; unavailable facts are excluded from recall; use Memory for reviewed corrections"})
 	return agent.ToolResult{Content: content}, err
 }
