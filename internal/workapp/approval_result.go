@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
@@ -101,6 +102,13 @@ func approvalMessage(interaction workrun.Interaction) message {
 		result.result.Fields = append(result.result.Fields, uisnapshot.Field{Label: "Folder", Value: review.Folder}, uisnapshot.Field{Label: "Access", Value: review.Access})
 		result.result.Lines = []string{review.Reason, review.FullAccessNotice}
 		result.result.Footer = "Allow once: /approve once · Save folder: /approve always · Full filesystem: /approve full · Deny: /deny"
+	}
+	if review, ok := interaction.Preview.(scheduleaccess.Review); ok && interaction.Kind == "schedule_change" && review.Action != "" {
+		result.result.Title = "Allow schedule change"
+		result.result.Summary = strings.ToUpper(review.Action[:1]) + review.Action[1:] + ": " + review.Title
+		result.result.Preview = nil
+		result.result.Sections = []uisnapshot.ResultSection{{Title: "Scheduled task", Lines: review.Lines}}
+		result.result.Footer = "Allow once applies to this change. Always allow scheduling lets HCB manage saved tasks until revoked in Settings → Permissions. Task execution keeps its separate file, account and action permissions."
 	}
 	return result
 }

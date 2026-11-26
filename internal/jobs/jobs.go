@@ -213,6 +213,30 @@ func (s Store) Save(definition Definition) (Definition, error) {
 	return s.save(definition)
 }
 
+// CreateOnce retains a host-bound identity across repeated delivery of one
+// creation request without reviving an edited or paused existing task.
+func (s Store) CreateOnce(definition Definition) (Definition, error) {
+	unlock, err := s.lockDefinitions()
+	if err != nil {
+		return Definition{}, err
+	}
+	defer unlock()
+	prior, err := s.Load(definition.ID)
+	if err == nil {
+		definition.CreatedAt = prior.CreatedAt
+		expected, _ := definition.PolicyDigest()
+		actual, _ := prior.PolicyDigest()
+		if expected != actual {
+			return Definition{}, errors.New("this schedule creation already exists with different settings; inspect it before editing")
+		}
+		return prior, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return Definition{}, err
+	}
+	return s.save(definition)
+}
+
 // SaveReviewed rejects a concurrent policy edit while preserving scheduler
 // bookkeeping that may have advanced while the user reviewed the agreement.
 func (s Store) SaveReviewed(definition Definition, expected string) (Definition, error) {
@@ -564,6 +588,34 @@ func (s Store) Claim(id string, scheduled time.Time) (Definition, bool, error) {
 }
 
 func (s Store) Remove(id string) error {
+	return s.removeReviewed(id, "")
+}
+
+func (s Store) RemoveReviewed(id, expected string) error {
+	if expected == "" {
+		return errors.New("inspect the exact schedule before canceling it")
+	}
+	return s.removeReviewed(id, expected)
+}
+func (s Store) removeReviewed(id, expected string) error {
+	unlock, err := s.lockDefinitions()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if expected != "" {
+		definition, err := s.Load(id)
+		if err != nil {
+			return err
+		}
+		digest, err := definition.PolicyDigest()
+		if err != nil {
+			return err
+		}
+		if digest != expected {
+			return errors.New("this schedule changed; inspect it again before canceling")
+		}
+	}
 	if _, err := s.Load(id); err != nil {
 		return err
 	}

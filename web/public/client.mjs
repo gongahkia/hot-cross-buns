@@ -27,7 +27,7 @@ import { usageView, usageLimits } from './usage.mjs';
 import { taskDetailView } from './task-details.mjs';
 import { workspaceView } from './workspace.mjs';
 import { streamingResponse } from './streaming.mjs';
-import { filesystemApprovalActions, currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
+import { schedulingApprovalActions, filesystemApprovalActions, currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
 import { icon } from "./icons.mjs";
 import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
 
@@ -761,6 +761,7 @@ function approval(review, context) {
   });
   if (review.canCorrect) actions.append(button('Request correction', () => void execute(() => beginCorrection({ kind: 'action', review: review.id }, context))));
   if(review.permission) actions=filesystemApprovalActions(choose);
+  else if(review.scheduling) actions=schedulingApprovalActions(choose);
   else actions.append(button("Decline", () => choose(false)), button("Approve this action", () => choose(true), "send"));
   openDetail(review.result.title, describeResult({ ...review.result, footer: review.result.footer?.startsWith("/approve ") ? undefined : review.result.footer }), actions);
 }

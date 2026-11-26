@@ -244,6 +244,11 @@ func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 		next, command := m.updateRunDone(value)
 		model := next.(Model)
 		model.refreshBridgeConversations()
+		for _, change := range value.AppChanges {
+			if change.Setting == "schedule" || change.Setting == "followup" {
+				return model, tea.Batch(command, model.refreshChecksCommand(), model.refreshOverviewCommand())
+			}
+		}
 		return model, command
 	case bundleActionDone:
 		return m.updateBundleActionDone(value)

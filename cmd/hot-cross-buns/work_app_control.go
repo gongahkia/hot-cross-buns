@@ -11,6 +11,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
 	"github.com/gongahkia/hot-cross-buns/internal/model"
+	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/workhistory"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
 )
@@ -31,6 +32,8 @@ func (c hotCrossBunsAppController) Inspect(ctx context.Context, query workrun.Ap
 		return nil, err
 	}
 	switch query.Topic {
+	case "schedules":
+		return c.inspectSchedules(query)
 	case "followups":
 		return c.inspectFollowups(query)
 	case "terminal":
@@ -137,8 +140,19 @@ func (c hotCrossBunsAppController) inspectOutputs(id string) (any, error) {
 }
 
 func (c hotCrossBunsAppController) Prepare(ctx context.Context, change workrun.AppChange) (workrun.AppMutation, error) {
+	if change.Setting == "schedule" {
+		return c.prepareSchedule(ctx, change)
+	}
 	if change.Setting == "followup" {
-		return c.prepareFollowup(ctx, change)
+		mutation, err := c.prepareFollowup(ctx, change)
+		if err != nil {
+			return mutation, err
+		}
+		agreement, ok := mutation.Preview.(workrun.AppAgreement)
+		if !ok {
+			return workrun.AppMutation{}, errors.New("follow-up review is unavailable")
+		}
+		return c.withSchedulingPermission(mutation, scheduleaccess.Review{Action: agreement.Action, Title: agreement.Title, Lines: agreement.Lines})
 	}
 	return c.prepareSettings(ctx, change)
 }

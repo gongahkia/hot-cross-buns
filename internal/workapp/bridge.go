@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"os/exec"
 	"strings"
 	"time"
@@ -460,8 +461,9 @@ func (m Model) RespondBridgeApproval(id int, token string, approved bool, choice
 		command = "/approve"
 	}
 	if len(choices) > 0 && choices[0] != "" {
-		if !approved || m.interaction.Kind != "file_access" || !fileaccess.ValidChoice(choices[0]) {
-			m.bridgeNotice = "Invalid filesystem permission choice"
+		valid := m.interaction.Kind == "file_access" && fileaccess.ValidChoice(choices[0]) || m.interaction.Kind == "schedule_change" && scheduleaccess.ValidChoice(choices[0])
+		if !approved || !valid || len(choices) != 1 {
+			m.bridgeNotice = "Invalid permission choice for this review"
 			return m, nil
 		}
 		command += " " + choices[0]

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
 )
@@ -27,6 +29,25 @@ func permissionControl(ctx context.Context, stateDir, operation string, args []s
 		return workapp.ControlScreen{}, err
 	}
 	notice := ""
+	scheduling, err := scheduleaccess.Open(stateDir)
+	if err != nil {
+		return workapp.ControlScreen{}, err
+	}
+	if strings.HasPrefix(operation, "schedule-") {
+		if len(args) != 1 || operation != "schedule-ask" && operation != "schedule-always" {
+			return workapp.ControlScreen{}, errors.New("refresh scheduling permissions before editing")
+		}
+		revision, parseErr := strconv.ParseUint(args[0], 10, 64)
+		if parseErr != nil {
+			return workapp.ControlScreen{}, parseErr
+		}
+		if _, err := scheduling.Set(revision, operation == "schedule-always"); err != nil {
+			return workapp.ControlScreen{}, err
+		}
+		notice = "Scheduling permissions updated. Existing tasks retain their saved schedules and execution permissions."
+		operation = "status"
+		args = nil
+	}
 	if operation != "status" {
 		if len(args) < 1 {
 			return workapp.ControlScreen{}, errors.New("refresh permissions before editing")
@@ -152,6 +173,20 @@ func permissionControl(ctx context.Context, stateDir, operation string, args []s
 		mode = "Full filesystem access enabled"
 	}
 	screen := workapp.ControlScreen{Panel: uisnapshot.Panel{Kind: "permissions", Title: "Permissions", Subtitle: "Manage live filesystem access and other app capabilities.", Notice: notice, Blocks: []uisnapshot.Block{{Title: "Filesystem", Lines: []string{mode, "Allow once lasts for one task and its delegates. Always saves the requested folder access. Full access allows live reads, creation, changes and deletion across accessible paths; OS permissions still apply.", "One-task grants remain on their task reviews; Revoke all also invalidates those grants. Foreground access is separate from read-only grants for exact scheduled task definitions. Scheduled jobs do not inherit full access or ordinary saved folders. Permission changes invalidate active filesystem access; completed changes are not undone."}}}}}
+	schedulePolicy, err := scheduling.Get()
+	if err != nil {
+		return workapp.ControlScreen{}, err
+	}
+	scheduleMode := "Ask before each schedule change"
+	if schedulePolicy.Always {
+		scheduleMode = "Always allow scheduling"
+	}
+	screen.Panel.Blocks = append([]uisnapshot.Block{{Title: "Scheduled tasks", Lines: []string{scheduleMode, "Allow once approves only the exact proposed change. Always allow lets HCB create, edit, pause, resume and cancel saved tasks until revoked. This does not grant file, account, computer or external-action permissions. Returning to Ask affects future management, not tasks already scheduled."}}}, screen.Panel.Blocks...)
+	if schedulePolicy.Always {
+		screen.Actions = append(screen.Actions, workapp.ControlAction{Label: "Ask before schedule changes", Action: "schedule-ask", Args: []string{strconv.FormatUint(schedulePolicy.Revision, 10)}})
+	} else {
+		screen.Actions = append(screen.Actions, workapp.ControlAction{Label: "Always allow scheduling", Action: "schedule-always", Args: []string{strconv.FormatUint(schedulePolicy.Revision, 10)}, Review: true, Description: "Allow HCB to create, edit, pause, resume and cancel scheduled tasks in this local profile without another schedule-management prompt. Revoke this in Permissions at any time. This does not approve external actions or expand a task’s execution permissions."})
+	}
 	screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "N", Label: "Add folder permission", Action: "preview", Args: []string{revision}, Preview: true, Fields: []workapp.ControlField{{Label: "Folder", Kind: "text", Help: "Absolute folder path or ~/path"}, {Label: "Access", Kind: "select", Value: "read", Options: []uisnapshot.Option{{Value: "read", Label: "Read only"}, {Value: "write", Label: "Read, create, update and delete"}}}}})
 	jobStore, err := jobs.Open(stateDir)
 	if err != nil {

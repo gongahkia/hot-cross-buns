@@ -81,3 +81,11 @@ export function filesystemApprovalActions(choose) {
  }
  return root;
 }
+
+export function schedulingApprovalActions(choose) {
+ const root=element('div',undefined,'review-actions');
+ for(const [label,approved,choice] of [['Decline',false],['Allow once',true,'once'],['Always allow scheduling',true,'always']]) {
+  const button=element('button',label);button.type='button';button.addEventListener('click',()=>choose(approved,choice));root.append(button);
+ }
+ return root;
+}

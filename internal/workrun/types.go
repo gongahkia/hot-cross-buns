@@ -22,6 +22,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
+	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/tools"
 	"github.com/gongahkia/hot-cross-buns/internal/workactivity"
@@ -72,35 +73,36 @@ func (p CodePolicy) HasCapability(name string) bool {
 type Request struct {
 	// OriginConversationID is supplied only after the application verifies an
 	// immutable dialogue task origin. Execution ownership remains ConversationID.
-	OriginConversationID string `json:"-"`
-	ConversationContext  string
-	TaskPlan             *TaskPlanReference `json:",omitempty"`
-	reviewedPlan         *worksession.TaskPlan
-	ExternalAgents       []cliagent.Config
-	ReplyToUpdateID      string
-	UpdateContext        string
-	InputIDs             []string
-	ForegroundApp        bool
-	ScheduledJobID       string            `json:"-"`
-	ScheduledJobPolicy   string            `json:"-"`
-	CheckScheduledFiles  func() error      `json:"-"`
-	ApproveFilesystem    fileaccess.Decide `json:"-"`
-	FilesystemProtected  []string
-	files                *fileaccess.Task
-	LearnFromChats       bool
-	MaintainMemory       bool
-	DisableChatHistory   bool
-	ApproveAppChange     func(context.Context, any) (bool, error)
-	OnAppChange          func(AppChange)
-	AfterAppRun          func(AppChange, AppMutation)
-	queueAppChange       func(AppChange, AppMutation)
-	DisabledRoles        []string
-	RoleConfiguration    map[string]orchestrator.RoleConfiguration
-	OnSupervisor         func(*orchestrator.Supervisor)
-	OTLPEndpoint         string
-	Limits               agent.Limits
-	Budget               *agent.Budget
-	WebOrigins           []string
+	OriginConversationID  string `json:"-"`
+	ConversationContext   string
+	TaskPlan              *TaskPlanReference `json:",omitempty"`
+	reviewedPlan          *worksession.TaskPlan
+	ExternalAgents        []cliagent.Config
+	ReplyToUpdateID       string
+	UpdateContext         string
+	InputIDs              []string
+	ForegroundApp         bool
+	ScheduledJobID        string            `json:"-"`
+	ScheduledJobPolicy    string            `json:"-"`
+	CheckScheduledFiles   func() error      `json:"-"`
+	ApproveFilesystem     fileaccess.Decide `json:"-"`
+	FilesystemProtected   []string
+	files                 *fileaccess.Task
+	LearnFromChats        bool
+	MaintainMemory        bool
+	DisableChatHistory    bool
+	ApproveAppChange      func(context.Context, any) (bool, error)
+	ApproveScheduleChange func(context.Context, scheduleaccess.Review) (string, error)
+	OnAppChange           func(AppChange)
+	AfterAppRun           func(AppChange, AppMutation)
+	queueAppChange        func(AppChange, AppMutation)
+	DisabledRoles         []string
+	RoleConfiguration     map[string]orchestrator.RoleConfiguration
+	OnSupervisor          func(*orchestrator.Supervisor)
+	OTLPEndpoint          string
+	Limits                agent.Limits
+	Budget                *agent.Budget
+	WebOrigins            []string
 	// ApproveWebAccess reviews an additional read-only grant for this task.
 	// Only the foreground owner can supply it; it is never retained as a grant.
 	ApproveWebAccess        func(context.Context, WebAccessReview) (bool, error)
