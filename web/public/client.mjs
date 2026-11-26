@@ -16,7 +16,6 @@ import { localBrowser } from './local-browser.mjs';
 import { modelPicker } from './model-picker.mjs';
 import { modelsView } from './models-view.mjs';
 let modelDashboard;
-import { chatMenu } from './chats.mjs';
 import { settingsView } from './views.mjs';
 import { localModelsView } from './local-models.mjs';
 import { eventEndpoint } from './event-hooks.mjs';
@@ -43,7 +42,7 @@ dialog.addEventListener('beforetoggle', event => {
 });
 const storage = "hot-cross-buns.web.v1";
 let snapshot = {}, draft, pending, revision = 0, saveTimer, busy = false, online = false, issue = "";
-let transcriptKey = "", streamingText = "", historyKey = "", panelKey = "", workKey = "", panelMode = false;
+let transcriptKey = "", streamingText = "", panelKey = "", workKey = "", panelMode = false;
 let draftLoad = 0, saveTail = Promise.resolve(), detailGeneration = 0;
 let previewContext;
 const previewCache = new Map();
@@ -88,10 +87,6 @@ const models = modelPicker({select: async (action, state) => {
   await frame({type:'composer',composer:{id:state.composer.id,request_id:crypto.randomUUID(),...action}}, state.context);
 }, local: () => void execute(showLocalModels), providers: () => void execute(showProviderSetup)});
 document.body.append(models.element);
-const chats = chatMenu({ request: body => call({ op: 'chats', ...body }), open: async selection => {
-  await flush(); await call({ op: 'open-chat', ...selection }); showHistory(false);
-}, rename: body => call({ op: 'rename-chat', ...body }) });
-$('chat-menu').append(chats.element);
 $("attach").replaceChildren(icon("plus"));
 $("send").replaceChildren(icon("send"));
 $("model-picker").append(icon("chevron"));
@@ -141,7 +136,6 @@ document.querySelector('#send').before(voice.trigger);
 document.querySelector('.composer-wrap').prepend(voice.bar);
 
 function renderProgress() {
-  chats.updateActivity(snapshot.activity, snapshot.tasks);
   const candidates = (snapshot.tasks || []).filter(task => task.current || task.parent === snapshot.state?.conversation_id);
   const current = candidates.find(task => task.active && task.current) || candidates.find(task => task.active) || candidates.find(task => task.current) || candidates[0];
   progress.update(current, { connected: online });
@@ -450,7 +444,6 @@ $('history').addEventListener('toggle', event => {
   if (event.target !== $('history')) return;
   const open = event.newState === 'open';
   $('history-toggle').setAttribute('aria-expanded', String(open));
-  if (open) void chats.load(snapshot.context);
 });
 async function navigate(route) {
   await flush();
@@ -490,11 +483,8 @@ async function backendRoute(route) { await flush(); showHistory(false); await ca
 for (const node of document.querySelectorAll("[data-route]")) node.addEventListener("click", () => void execute(() => navigate(node.dataset.route)));
 
 function renderHistory(state) {
-  chats.updateCurrent(state.conversation_id, state.primary_conversation_id);
   $('assistant-home').hidden = !!state.primary || !state.conversation_id;
-  const key = JSON.stringify([snapshot.context, state.recentId]);
-  if (key !== historyKey && $('history').matches(':popover-open')) void chats.load(snapshot.context);
-  historyKey = key;
+
 }
 function showDetail(title, ...nodes) {
   const changingView = dialog.open;
@@ -1044,7 +1034,7 @@ events.onmessage = ({ data }) => {
 export function paletteCommands() {
   const commands = [
     { label: "Hot Cross Buns", action: () => void execute(() => navigate("/hot-cross-buns")) },
-    { label: 'History', action: () => showHistory(true) },
+    { label: 'Past work', action: () => document.dispatchEvent(new Event('open-past-work')) },
     { label: 'Find in this chat', action: find.open },
     { label: 'Jump to latest', action: reading.latest },
     { label: 'Task details', action: () => void execute(() => showTaskDetails()) },
@@ -1063,16 +1053,16 @@ export function paletteCommands() {
   return commands;
 }
 
-export async function paletteChats(query) {
+export async function paletteChats(query, after = '') {
   const context = snapshot.context;
-  const page = await call({ op: 'chats', context, query });
-  if (context !== snapshot.context) throw new Error('The conversation changed. Reopen History to refresh.');
+  const page = await call({ op: 'chats', context, query, after });
+  if (context !== snapshot.context) throw new Error('The conversation changed. Reopen Past work to refresh.');
   return {
-    items: page.items.filter(item=>item.id!==snapshot.state?.primary_conversation_id).map(item => ({ label: item.title || 'Retained work', group: 'History', action: () => void execute(async () => {
+    items: page.items.filter(item=>item.id!==snapshot.state?.primary_conversation_id).map(item => ({ label: item.title || 'Retained work', group: 'Past work', action: () => void execute(async () => {
       await flush();
       await call({ op: 'open-chat', context, selection: item.selection });
     }) })),
-    notice: page.incomplete || page.skipped ? 'Some retained chats could not be read. Reopen History to retry.' :
-      page.next || page.items.length > 30 ? 'Showing the first 30 results. Type to search, or open History for more.' : '',
+    next: page.next,
+    notice: page.incomplete || page.skipped ? 'Some past work could not be read. Reopen to retry.' : '',
   };
 }

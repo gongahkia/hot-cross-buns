@@ -22,7 +22,7 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
   empty.setAttribute("role", "status");
   dialog.append(label, input, results, empty, footer);
   document.body.append(dialog);
-  let items = [], selected = 0, returnFocus, pendingAction, mode = "commands", generation = 0;
+  let items = [], selected = 0, returnFocus, pendingAction, mode = "commands", generation = 0, nextPage = '';
 
   function select(index) {
     selected = (index + items.length) % items.length;
@@ -36,26 +36,31 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
   function run(index) {
     const item = items[index];
     if (!item) return;
+    if (item.more) { void render(true); return; }
     pendingAction = item.action;
     dialog.close();
   }
-  async function render() {
+  async function render(append = false) {
+    append = append === true;
+    const prior = append ? items.filter(item => !item.more) : [];
+    const priorSelection = append ? selected : 0;
     const owned = ++generation;
     results.hidden = mode === "find" && !input.value;
     const query = input.value.trim().toLowerCase();
     const terms = query.split(/\s+/);
     const matches = value => terms.every(term => value.toLowerCase().includes(term));
     if (mode === "chats") {
-      items = [];
-      results.replaceChildren();
+      if (!append) { items = []; results.replaceChildren(); nextPage = ''; }
       input.removeAttribute("aria-activedescendant");
-      empty.textContent = "Searching history…";
+      empty.textContent = "Finding past work…";
       empty.hidden = false;
       results.setAttribute("aria-busy", "true");
       try {
-        const page = await chats(input.value.trim());
+        const page = await chats(input.value.trim(), nextPage);
         if (owned !== generation) return;
-        items = page.items.slice(0, 30);
+        items = [...prior, ...page.items];
+        nextPage = page.next || '';
+        if (nextPage) items.push({ label: 'Load more past work', group: 'More', more: true });
         footer.textContent = page.notice || "↑ ↓ to move · Enter to open · Esc to close";
       } catch (error) {
         if (owned !== generation) return;
@@ -69,7 +74,7 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
       footer.textContent = page.notice || "↑ ↓ to move · Enter to open · Esc to close";
     } else items = commands().filter(item => matches(item.label + " " + (item.group || ""))).slice(0, 30);
     results.removeAttribute("aria-busy");
-    empty.textContent = mode === "find" ? "No matches in this chat" : mode === "chats" ? "No matching history" : "No matching commands";
+    empty.textContent = mode === "find" ? "No matches in this chat" : mode === "chats" ? "No matching past work" : "No matching commands";
     results.replaceChildren(...items.map((item, index) => {
       const option = element("button", undefined, "palette-option");
       option.type = "button";
@@ -82,17 +87,17 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
       return option;
     }));
     empty.hidden = !!items.length || mode === "find" && !input.value;
-    select(0);
+    select(Math.min(priorSelection, Math.max(0, items.length - 1)));
   }
   function open(nextMode = "commands") {
     if (pendingAction || document.querySelector('dialog[open]') && !dialog.open) return;
     if (!dialog.open) returnFocus = document.activeElement;
     if (mode === "find" && nextMode !== mode) find.close();
     mode = nextMode;
-    const title = mode === "find" ? "Find in this chat" : mode === "chats" ? "History" : "Commands";
+    const title = mode === "find" ? "Find in this chat" : mode === "chats" ? "Past work" : "Commands";
     dialog.setAttribute("aria-label", title);
     label.textContent = title;
-    input.placeholder = mode === "find" ? "Find in this chat…" : mode === "chats" ? "Search history…" : "Search commands…";
+    input.placeholder = mode === "find" ? "Find in this chat…" : mode === "chats" ? "Search past work…" : "Search commands…";
     footer.textContent = "↑ ↓ to move · Enter to open · Esc to close";
     input.value = "";
     render();
@@ -131,6 +136,7 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
     const nextMode = key === "f" ? "find" : key === "p" ? "chats" : "commands";
     if (dialog.open && mode === nextMode) dialog.close(); else open(nextMode);
   }, { capture: true });
+  document.addEventListener('open-past-work', () => open('chats'));
   if (find) {
     document.addEventListener('open-chat-find', () => open('find'));
     document.addEventListener('chat-find-context-changed', () => {
@@ -138,4 +144,5 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
     });
   }
   document.getElementById("open-palette")?.addEventListener("click", () => open());
+  return { open };
 }

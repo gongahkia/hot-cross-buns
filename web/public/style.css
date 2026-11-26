@@ -42,7 +42,7 @@ button { border: 0; border-radius: .35rem; background: transparent; padding: .3r
 .section-head h2 { margin: 0; font-size: 1rem; font-weight: 650; }
 .history nav { display: grid; margin-block: .55rem; }
 .history nav button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.history-settings { display: flex; flex-wrap: wrap; border-top: 1px solid var(--line); padding-block-start: .5rem; }
+.history-settings { display: flex; flex-wrap: wrap; }
 main { display: flex; flex-direction: column; min-height: calc(100dvh - 3.3rem); }
 .paper { width: min(var(--measure), calc(100% - 2rem)); margin: clamp(2rem, 10vh, 6rem) auto 1.2rem; flex: 1; }
 h1 { margin: 0 0 2.1rem; font-size: clamp(1.65rem, 4vw, 2rem); line-height: 1.2; font-weight: 650; letter-spacing: -.035em; overflow-wrap: anywhere; }

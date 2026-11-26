@@ -17,8 +17,9 @@ response-fork action.
   different task. Existing fresh-state and permission checks still apply.
 - Exact approvals, recovery and detailed task work can open the original task
   context. **Back to HCB** returns to the same home and its draft.
-- History retains older work, including conversations from previous versions.
-  Command/Ctrl-P searches that history. Command/Ctrl-K opens commands;
+- Past work retains older tasks and conversations from previous versions.
+  Command/Ctrl-P opens searchable, paginated results on demand; the wordmark menu
+  contains settings and connections rather than an empty or duplicate history list. Command/Ctrl-K opens commands;
   Command/Ctrl-F searches the current transcript.
 
 ## Context and compatibility

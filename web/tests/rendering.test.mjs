@@ -301,8 +301,8 @@ test("command and chat shortcuts stay scoped, switch modes, and reject stale sea
   assert.equal(document.activeElement, document.getElementById('message'));
   for (const modifier of ['ctrlKey', 'metaKey']) {
     assert.equal(key('p', { [modifier]: true }).defaultPrevented, true); await tick();
-    assert.equal(dialog.getAttribute('aria-label'), 'History');
-    assert.equal(input.placeholder, 'Search history…');
+    assert.equal(dialog.getAttribute('aria-label'), 'Past work');
+    assert.equal(input.placeholder, 'Search past work…');
     assert.match(document.getElementById('command-results').textContent, /Project notes/);
     assert.doesNotMatch(document.getElementById('command-results').textContent, /Models|sunshine/);
     input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
@@ -1110,4 +1110,23 @@ test('task inspection shows retained results and live activity with an explicit 
   assert.deepEqual(opened, []);
   [...view.element.querySelectorAll('button')].find(node => node.textContent === 'Reply in HCB').click();
   assert.deepEqual(replies, ['task-a']); assert.deepEqual(opened, []);
+});
+
+test('past work remains pageable in the palette without a separate history list', async () => {
+  document.body.replaceChildren();
+  const requests = [];
+  const palette = installPalette(() => [], async (query, after) => {
+    requests.push({ query, after });
+    return after ? { items: [{ label: 'An older task', group: 'Past work', action() {} }] } : { items: Array.from({ length: 50 }, (_, i) => ({ label: 'Task ' + i, group: 'Past work', action() {} })), next: 'older-page' };
+  });
+  palette.open('chats'); await new Promise(resolve => setTimeout(resolve, 0));
+  const dialog = document.querySelector('dialog');
+  assert.equal(dialog.getAttribute('aria-label'), 'Past work');
+  assert.equal(document.querySelectorAll('[role=option]').length, 51);
+  [...document.querySelectorAll('button')].find(node => node.textContent.startsWith('Load more past work')).click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(dialog.open, true);
+  assert.equal(document.querySelectorAll('[role=option]').length, 51);
+  assert.match(dialog.textContent, /An older task/);
+  assert.deepEqual(requests, [{ query: '', after: '' }, { query: '', after: 'older-page' }]);
 });
