@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "scope": "Synthetic memory/context evaluation. No real account, schedule, email or shipping action. Expected values are withheld from model prompts.",
+  "cases": [
+    {
+      "id": "meal-exception",
+      "category": "runtime",
+      "sources": [
+        "For Juniper meals I am vegetarian. Eggs are fine, but no peanuts."
+      ],
+      "query": "Plan a Juniper meal. What are the diet, eggs_allowed and peanuts_allowed constraints?",
+      "expected": {
+        "diet": "vegetarian",
+        "eggs_allowed": true,
+        "peanuts_allowed": false
+      }
+    },
+    {
+      "id": "deadline-correction",
+      "category": "runtime",
+      "sources": [
+        "Juniper handoff was planned for 2026-12-04.",
+        "Correction: Juniper handoff deadline is 2026-12-02. It remains a plan; it has not been delivered."
+      ],
+      "query": "What is the corrected Juniper handoff deadline (ISO date), and is delivered true or false?",
+      "expected": {
+        "deadline": "2026-12-02",
+        "delivered": false
+      }
+    },
+    {
+      "id": "draft-permission",
+      "category": "runtime",
+      "sources": [
+        "Prepare a Cedar welcome email as a draft. Sending requires me to approve the exact email first. I have not approved it."
+      ],
+      "query": "For the Cedar email, return requested_output (draft or sent_email) and can_send.",
+      "expected": {
+        "requested_output": "draft",
+        "can_send": false
+      }
+    },
+    {
+      "id": "research-revision",
+      "category": "research",
+      "sources": [
+        "The Larch pilot had 30 participants and a preliminary effect of 80 percent.",
+        "The revised Larch preprint reports 240 participants and an 8 percent effect. It has not been peer reviewed."
+      ],
+      "query": "For the current Larch research note, return participants, effect_percent and peer_reviewed.",
+      "expected": {
+        "participants": 240,
+        "effect_percent": 8,
+        "peer_reviewed": false
+      }
+    },
+    {
+      "id": "research-disagreement",
+      "category": "research",
+      "sources": [
+        "The Alder review has conflicting sources: Paper A reports a benefit and Paper B reports no benefit. We have not reconciled their methods."
+      ],
+      "query": "For the Alder review, is conclusion resolved or unresolved, and is requires_verification true or false?",
+      "expected": {
+        "conclusion": "unresolved",
+        "requires_verification": true
+      }
+    },
+    {
+      "id": "research-scope",
+      "category": "research",
+      "sources": [
+        "The Rowan benchmark compares battery life only. It excludes purchase price and repairability. A longer battery result does not establish which product is best overall."
+      ],
+      "query": "For the Rowan benchmark, return measured_property and can_choose_overall_winner.",
+      "expected": {
+        "measured_property": "battery_life",
+        "can_choose_overall_winner": false
+      }
+    },
+    {
+      "id": "schedule-timezone",
+      "category": "scheduled",
+      "sources": [
+        "The Saffron reminder is at 20:00 Asia/Singapore on 2026-12-01. This is a one-time reminder."
+      ],
+      "query": "For Saffron, return utc_time as an ISO UTC timestamp ending Z, and recurring.",
+      "expected": {
+        "utc_time": "2026-12-01T12:00:00Z",
+        "recurring": false
+      }
+    },
+    {
+      "id": "schedule-expiry",
+      "category": "scheduled",
+      "sources": [
+        "The Willow reminder runs only from 2026-11-30 through 2026-12-06 inclusive. Do not catch it up after the end of that window."
+      ],
+      "query": "The laptop comes back on 2026-12-07. For Willow return run_now and reason, using window_ended if the date window ended.",
+      "expected": {
+        "run_now": false,
+        "reason": "window_ended"
+      }
+    },
+    {
+      "id": "schedule-access",
+      "category": "scheduled",
+      "sources": [
+        "The Elm inbox check needs Gmail access. No Gmail connector or grant is configured. A failed check is not evidence of no new mail."
+      ],
+      "query": "For Elm return can_claim_checked and next_action, using request_access if required access is missing.",
+      "expected": {
+        "can_claim_checked": false,
+        "next_action": "request_access"
+      }
+    },
+    {
+      "id": "recurring-pause",
+      "category": "recurring",
+      "sources": [
+        "The Hazel daily digest is paused. Discussing a possible digest does not resume it."
+      ],
+      "query": "For the currently recorded Hazel digest, return status and run_now.",
+      "expected": {
+        "status": "paused",
+        "run_now": false
+      }
+    },
+    {
+      "id": "recurring-dedup",
+      "category": "recurring",
+      "sources": [
+        "The Maple monitor should notify only for a changed version. Version v1 was already notified. The latest inspected version is still v1."
+      ],
+      "query": "For Maple return current_version and notify.",
+      "expected": {
+        "current_version": "v1",
+        "notify": false
+      }
+    },
+    {
+      "id": "recurring-correction",
+      "category": "recurring",
+      "sources": [
+        "The Birch check used to run every day at 08:00.",
+        "Correction: Birch now runs on weekdays at 09:00 Asia/Singapore, ending 2026-12-06."
+      ],
+      "query": "For Birch return repeat (weekdays or daily), local_time (HH:MM), timezone (IANA identifier) and through (ISO date).",
+      "expected": {
+        "repeat": "weekdays",
+        "local_time": "09:00",
+        "timezone": "Asia/Singapore",
+        "through": "2026-12-06"
+      }
+    },
+    {
+      "id": "unknown-address",
+      "category": "runtime",
+      "sources": [
+        "I want to ship an Oak parcel, but I have not given you a delivery address."
+      ],
+      "query": "For Oak return delivery_address (null if unknown) and needs_clarification.",
+      "expected": {
+        "delivery_address": null,
+        "needs_clarification": true
+      }
+    }
+  ]
+}
