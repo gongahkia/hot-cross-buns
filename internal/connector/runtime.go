@@ -339,10 +339,20 @@ func (r Runtime) ExecutePreparedWithEvidence(ctx context.Context, mode action.Mo
 	if descriptor.Kind == KindGoogle && operation.ID == "batch" {
 		return r.executeGoogleBatch(ctx, descriptor, prepared.googleSteps)
 	}
+	if descriptor.Kind == KindGitHub {
+		if err := r.verifyGitHubHead(ctx, descriptor, prepared); err != nil {
+			return ExecutionEvidence{}, err
+		}
+	}
 	method := serviceActionMethod(descriptor, operation.ID)
 	result, err := r.requestJSONWithPrecondition(ctx, descriptor, operation.ID, method, prepared.target, prepared.requestPayload, prepared.ifMatch, true)
 	if err != nil {
 		return ExecutionEvidence{}, err
+	}
+	if descriptor.Kind == KindGitHub {
+		evidence, err := githubEvidence(operation.ID, result.Data)
+		evidence.ResponseSHA256 = result.Provenance.SHA256
+		return evidence, err
 	}
 	evidence := ExecutionEvidence{ResponseSHA256: result.Provenance.SHA256}
 	if descriptor.Kind == KindGoogle && operation.ID == "gmail_send" {
@@ -500,6 +510,9 @@ func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, opera
 }
 
 func serviceRead(descriptor Descriptor, operation string, input serviceInput) (string, string, []byte, error) {
+	if descriptor.Kind == KindGitHub {
+		return githubRead(descriptor, operation, input)
+	}
 	if descriptor.Kind == KindGoogle && strings.HasPrefix(operation, "calendar_") {
 		return calendarRead(descriptor, operation, input)
 	}
@@ -654,6 +667,9 @@ func serviceRead(descriptor Descriptor, operation string, input serviceInput) (s
 }
 
 func serviceAction(descriptor Descriptor, operation string, payload []byte, correlationID string, gmailAttachments ...gmailAttachment) (string, []byte, error) {
+	if descriptor.Kind == KindGitHub {
+		return githubAction(descriptor, operation, payload)
+	}
 	path := ""
 	switch descriptor.Kind + "/" + operation {
 	case KindSlack + "/post_message":
@@ -730,6 +746,16 @@ func serviceAction(descriptor Descriptor, operation string, payload []byte, corr
 }
 
 func serviceActionMethod(descriptor Descriptor, operation string) string {
+	if descriptor.Kind == KindGitHub {
+		switch operation {
+		case "pull_update":
+			return http.MethodPatch
+		case "pull_merge":
+			return http.MethodPut
+		default:
+			return http.MethodPost
+		}
+	}
 	switch descriptor.Kind + "/" + operation {
 	case KindNotion + "/page_update", KindGoogle + "/calendar_event_update":
 		return http.MethodPatch
@@ -919,7 +945,7 @@ func googlePrecondition(descriptor Descriptor, payload []byte) ([]byte, string, 
 }
 
 func isServiceKind(kind string) bool {
-	return kind == KindSlack || kind == KindGoogle || kind == KindAtlassian || kind == KindNotion
+	return kind == KindGitHub || kind == KindSlack || kind == KindGoogle || kind == KindAtlassian || kind == KindNotion
 }
 
 func (r Runtime) requestJSON(ctx context.Context, descriptor Descriptor, operation, method, endpoint string, body []byte, uncertain bool) (Result, error) {
@@ -937,6 +963,10 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "hot-cross-buns-work/2")
+	if descriptor.Kind == KindGitHub {
+		request.Header.Set("Accept", "application/vnd.github+json")
+		request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	}
 	if len(body) > 0 {
 		request.Header.Set("Content-Type", "application/json")
 	}

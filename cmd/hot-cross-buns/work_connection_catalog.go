@@ -14,6 +14,7 @@ type connectionPreset struct {
 }
 
 var connectionPresets = []connectionPreset{
+	{action: "add-github", kind: connector.KindGitHub, key: "G", name: "GitHub", detail: "Read PRs, diffs, checks and reviews; review each create, comment, edit or merge.", description: "Connect one repository with a fine-grained personal access token. Grant Pull requests read (write for changes), Contents read, and Checks read. Enter the token privately after saving. Code pushes remain a separately authorized CLI workflow.", help: "Repository API URL: https://api.github.com/repos/owner/repo", docs: "https://docs.github.com/en/rest/pulls/pulls"},
 	{action: "add-slack", kind: connector.KindSlack, key: "S", name: "Slack", resource: "https://slack.com/api",
 		detail:      "Find messages, read channel history, and review messages before posting.",
 		description: "Use a Slack app token from your workspace. Message search needs a user token with search:read; history needs the matching channel history scopes. Posting additionally needs chat:write. After saving, enter the token privately and check access.",
