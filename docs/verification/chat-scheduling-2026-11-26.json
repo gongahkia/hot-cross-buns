@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-26",
+  "model": "gpt-5-mini",
+  "scope": "Synthetic isolated local profile through production web gateway and native tools; no personal data or external effects.",
+  "passed": true,
+  "checks": {
+    "go_tests_and_vet": "passed",
+    "browser_tests": 148,
+    "host_tests": 145,
+    "oauth_build_tests": 1,
+    "focused_race_checks": "passed"
+  },
+  "steps": [
+    {
+      "name": "Create with allow once",
+      "approval_count": 1,
+      "artifacts": 0,
+      "state_assertions": "passed"
+    },
+    {
+      "name": "Edit/reschedule with always allow",
+      "approval_count": 1,
+      "artifacts": 0,
+      "state_assertions": "passed"
+    },
+    {
+      "name": "Pause, resume, cancel with saved permission",
+      "approval_count": 0,
+      "artifacts": 0,
+      "state_assertions": "passed"
+    }
+  ],
+  "initial_findings": [
+    "A completed schedule change needed an immediate list refresh to update the icon.",
+    "Generic create-wording imposed an unwanted Markdown artifact contract.",
+    "Long approval details hid permission choices and overflowed paths on mobile."
+  ],
+  "resolution": "Added refresh after schedule changes, semantic routing for scheduling requests, and a bounded details area with persistent action choices. Repeated live lifecycle passed with zero artifacts.",
+  "limits": [
+    "Synthetic development acceptance; no statistical reliability or local-model parity claim.",
+    "The isolated live test did not start its timer or execute a due scheduled prompt; existing scheduler/catch-up tests cover that boundary.",
+    "Scheduling permission does not grant execution tools, accounts or external actions.",
+    "Model-generated confirmation prose can still be verbose; concise human-facing timing is instructed."
+  ]
+}

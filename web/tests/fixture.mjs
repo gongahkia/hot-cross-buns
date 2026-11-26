@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ startScheduler = false, introductionReplies = false, voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
+export async function fixture({ startScheduler = false, introductionReplies = false, schedulingTask = false, introductionStatus = "", voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -32,8 +32,12 @@ export async function fixture({ startScheduler = false, introductionReplies = fa
     const plan = {outcome:'A parser using the chosen format',steps:[{id:'inspect',text:'Inspect the parser after review'}],sources:[],effects:['read'],...(!routed?.correction ? {questions:[{id:'format',question:'Which format should the parser support?',options:['JSON','YAML']}]} : {})};
     const read = value.tools?.some(item => item.function?.name === "read_file") && prompt.includes("fixture activity") && !value.messages.some(item => item.role === "tool");
     const fileRead = filesystemTask && value.tools?.some(tool => tool.function?.name === "filesystem") && !value.messages.some(item => item.role === "tool");
+    const scheduleTool=schedulingTask&&value.tools?.some(item=>item.function?.name==='hot_cross_buns_app_update');
+    const inspectedSchedules=value.messages.some(item=>item.role==='tool'&&item.content.includes('"management_permission"'));
+    const changedSchedule=value.messages.some(item=>item.role==='tool'&&item.content.includes('"setting":"schedule"'));
+    const scheduleMessage=scheduleTool&&!changedSchedule?{role:'assistant',tool_calls:[{id:inspectedSchedules?'create-schedule':'inspect-schedules',type:'function',function:{name:inspectedSchedules?'hot_cross_buns_app_update':'hot_cross_buns_app_inspect',arguments:JSON.stringify(inspectedSchedules?{setting:'schedule',value:{action:'create',title:'Fixture scheduled reminder',prompt:'Remind me to inspect the garden.',run_at:new Date(Math.floor(Date.now()/60000)*60000+3600000).toISOString().replace('.000Z','Z'),timezone:'Asia/Singapore'}}:{topic:'schedules'})}}]}:undefined;
     const introductionResponse=introductionReplies && system.includes('one-time onboarding conversation') ? routed.message.includes('Alice') ? {kind:'reply',reply:'Nice to meet you, Alice. How would you like me to reply?'} : routed.message.includes('skip') ? {kind:'skip'} : {kind:'propose',answers:{'profile.name':'My name is Alice.','preference.tone':'Casual and concise','profile.projects':'A garden project'}} : undefined;
-    const message = introductionResponse ? {role:"assistant",content:JSON.stringify(introductionResponse)} : fileRead ? {role:"assistant",tool_calls:[{id:"live-file",type:"function",function:{name:"filesystem",arguments:JSON.stringify({operation:"read",path:join(workspace,"note.md")})}}]} : review ? {
+    const message = scheduleMessage ? scheduleMessage : introductionResponse ? {role:"assistant",content:JSON.stringify(introductionResponse)} : fileRead ? {role:"assistant",tool_calls:[{id:"live-file",type:"function",function:{name:"filesystem",arguments:JSON.stringify({operation:"read",path:join(workspace,"note.md")})}}]} : review ? {
       role: "assistant", tool_calls: [{ id: "exact-local-review", type: "function", function: {
         name: "web_access", arguments: JSON.stringify({ action: "request", scope: "sites", origins: [prompt.includes('Use a different site.') ? 'https://corrected.invalid' : "https://example.invalid"], reason: "Review this fixture request." }),
       } }],
@@ -43,7 +47,7 @@ export async function fixture({ startScheduler = false, introductionReplies = fa
     } : { role: "assistant", content: proposal ? JSON.stringify(plan) : classification ? '{"mode":"inspect"}' : planTarget ? JSON.stringify({kind:'revise_plan',target:planTarget.id,instruction:routed.message}) : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? conversationalReplies && !routed.message.includes('fixture activity') ? JSON.stringify({kind:'reply',text:'A continuing conversation.'}) : JSON.stringify({kind:planningQuestions ? 'plan' : 'task'}) : "## Fixture answer\n\nThe message reached the running Go backend." };
     if ((blocked && !classification && !review && !decision) || afterTool && value.messages.some(item => item.role === "tool")) await new Promise(resolve => { release = resolve; });
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ choices: [{ message, finish_reason: review || read ? "tool_calls" : "stop" }] }));
+    res.end(JSON.stringify({ choices: [{ message, finish_reason: message.tool_calls?.length ? "tool_calls" : "stop" }] }));
   });
   await new Promise(resolve => provider.listen(0, "127.0.0.1", resolve));
   await mkdir(workspace, { recursive: true });
@@ -52,6 +56,7 @@ export async function fixture({ startScheduler = false, introductionReplies = fa
   await mkdir(join(config, "hot-cross-buns"), { recursive: true });
   await writeFile(join(config, "hot-cross-buns", "config.json"), JSON.stringify({
     version: 4, defaults: { provider: "fixture", model: "fixture" },
+    ...(introductionStatus?{desktop:{introduction:introductionStatus}}:{}),
     custom_providers: [{ id: "fixture", default_model: "fixture", models: ["fixture"], base_url: "http://127.0.0.1:" + provider.address().port + "/chat" }],
   }));
   const binary = process.env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL(
