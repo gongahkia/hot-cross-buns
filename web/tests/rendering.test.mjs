@@ -1081,3 +1081,17 @@ test('event endpoint setup uses an exact review and keeps the signing key out of
  assert.equal(calls.at(-1).review,'exact');assert.equal(pane.element.querySelector('input[type="password"]').value,'a'.repeat(64));
  assert.ok(!pane.element.textContent.includes('a'.repeat(64)));pane.element.remove();
 });
+
+test('specialist models expose a real select and exact Save review while CLI login stays separate',async()=>{
+ const calls=[];
+ const state={provider:'openai',model:'manager',composer:{models:[{provider:'local-fixture',model:'reader',label:'Local reader'}]}};
+ const view=modelsView({state:()=>state,request:async()=>({inventory:{agents:[{name:'source_researcher',kind:'native',inherits:true},{name:'codex',kind:'cli',auth:'Local Codex ChatGPT login'}]}}),assign:async body=>{calls.push(body);return body.action==='specialist_review'?{review:{id:'a'.repeat(48)}}:{confirmed:true}},choose(){},providers(){}});
+ document.body.append(view.element);await view.load();
+ [...view.element.querySelectorAll('[role=tab]')].find(node=>node.textContent==='Specialists').click();
+ const select=view.element.querySelector('select');assert.ok(select);select.value='1';
+ view.element.querySelector('form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls.length,1);assert.equal(calls[0].model,'reader');assert.equal(calls[0].action,'specialist_review');
+ [...view.element.querySelectorAll('button')].find(node=>node.textContent==='Save assignment').click();await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(calls[1].action,'specialist_save');assert.equal(calls[1].reviewId,'a'.repeat(48));
+ [...view.element.querySelectorAll('[role=tab]')].find(node=>node.textContent==='CLI agents').click();assert.equal(view.element.querySelector('select'),null);assert.match(view.element.textContent,/Local Codex ChatGPT login/);view.element.remove();
+});

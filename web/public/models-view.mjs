@@ -3,7 +3,7 @@ import { brandIcon, providerBrand, providerLabel, specialistBrand } from './bran
 import { viewTransition } from './surface-motion.mjs';
 import { localModelsView } from './local-models.mjs';
 
-export function modelsView({ state, request, choose, local, providers, localRequest }) {
+export function modelsView({ state, request, choose, local, providers, localRequest, assign }) {
   const root = element('section', undefined, 'models-dashboard');
   const overview = element('dl', undefined, 'view-facts models-overview');
   const tabs = element('div', undefined, 'models-tabs'); tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','Model categories');
@@ -78,6 +78,15 @@ export function modelsView({ state, request, choose, local, providers, localRequ
     const brand=agent.kind==='cli' ? specialistBrand('cli_'+agent.name) : providerBrand(source.provider);
     summary.append(brandIcon(brand),title,element('span',agent.kind==='cli'?'Local CLI':'Native specialist','hint'));row.append(summary);
     row.append(facts([['Provider',source.provider ? providerLabel(source.provider) : 'CLI default'],['Model',source.model || 'CLI default'],['Authentication',agent.auth],['Continuation',agent.continuation],['Live guidance',agent.steering?'Supported':'Unavailable'],['Structured questions',agent.questions?'Supported':'Unavailable'],['Edits',agent.kind==='cli'?(agent.allow_edits?'Reviewable patches when task scope permits':'Read only'):(agent.name==='code'?'Isolated coding when enabled':'Read only')],['Step limit',agent.max_steps||undefined],['Timeout',agent.timeout_seconds?agent.timeout_seconds+' seconds':undefined]]));
+    if(agent.kind!=='cli' && agent.name!=='code' && assign) {
+      const form=element('form'), label=element('label','Model for this specialist'),select=element('select');select.setAttribute('aria-label','Model for '+agent.name.replaceAll('_',' '));
+      const choices=[{provider:'',model:'',label:'Use orchestrator model'},...(state().composer?.models||[]).filter(model=>!model.unavailable)];
+      for(const [index,model] of choices.entries()){const option=element('option',model.label||model.model);option.value=String(index);option.selected=agent.inherits?index===0:model.provider===agent.provider&&model.model===agent.model;select.append(option)}
+      const stepsLabel=element('label','Step limit'),steps=element('input');steps.type='number';steps.min='1';steps.max='32';steps.value=String(agent.max_steps||8);steps.setAttribute('aria-label','Step limit for '+agent.name.replaceAll('_',' '));
+      const preview=element('div'),submit=element('button','Review assignment');submit.type='submit';label.append(select);stepsLabel.append(steps);form.append(label,stepsLabel,submit,preview);
+      form.addEventListener('submit',async event=>{event.preventDefault();if(busy)return;busy=true;submit.disabled=true;preview.replaceChildren();try{const model=choices[Number(select.value)];const result=await assign({action:'specialist_review',role:agent.name,provider:model.provider,model:model.model,max_steps:Number(steps.value),inherit:Number(select.value)===0});if(!result.review?.id)throw Error('Assignment review is unavailable.');preview.append(element('p',(model.label||model.model)+' · '+steps.value+' steps. Applies to future tasks, including subsequent scheduled runs. Existing permissions and CLI login stay the same.'));const save=button('Save assignment',async()=>{save.disabled=true;try{const saved=await assign({action:'specialist_save',reviewId:result.review.id});if(!saved.confirmed)throw Error('Assignment was not saved.');await load();}catch(error){notice.textContent=error.message;notice.hidden=false;save.disabled=false;}});preview.append(save);}catch(error){notice.textContent=error.message;notice.hidden=false;}finally{busy=false;submit.disabled=false;}});
+      select.addEventListener('change',()=>preview.replaceChildren());steps.addEventListener('input',()=>preview.replaceChildren());row.append(form);
+    }
     return row;
   }
   function render() {

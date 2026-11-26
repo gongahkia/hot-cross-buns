@@ -545,7 +545,7 @@ async function showModels() {
   const view = modelsView({state:()=>snapshot.state || {}, request:()=>call({op:'providers',action:'inventory',context}),
     choose:async model=>{const state=snapshot.state;if(snapshot.context!==context||pending)throw Error('Return to the original chat before selecting a model.');await flush();await frame({type:'composer',composer:{id:state.composer.id,request_id:crypto.randomUUID(),action:'model',provider:model.provider,model:model.model}},context);},
     local:()=>void execute(showLocalModels),providers:(provider,model)=>void execute(()=>showProviderSetup(provider,model)),
-    localRequest:body=>call({op:'local-models',context,...body})});
+    localRequest:body=>call({op:'local-models',context,...body}),assign:body=>call({op:'providers',context,...body})});
   modelDashboard=view;openDetail('Models',view.element);await view.load();
 }
 async function showLocalModels() {

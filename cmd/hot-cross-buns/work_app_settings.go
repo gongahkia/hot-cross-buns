@@ -69,6 +69,8 @@ func (c hotCrossBunsAppController) prepareSettings(ctx context.Context, change w
 			})
 			return embeddings, err
 		}}, nil
+	case "specialist_model":
+		return c.prepareSpecialistModel(change)
 	case "model":
 		var next config.Defaults
 		if err := workrun.DecodeAppArguments(change.Value, &next); err != nil {
@@ -147,5 +149,5 @@ func knownAppModel(settings config.Settings, selected config.Defaults) bool {
 		return slices.Contains(custom.Models, selected.Model)
 	}
 	provider, err := model.ParseProvider(selected.Provider)
-	return err == nil && (slices.Contains(model.CuratedModels(provider), selected.Model) || selected == settings.Defaults)
+	return err == nil && (slices.Contains(model.CuratedModels(provider), selected.Model) || slices.Contains(settings.OrchestratorModels[selected.Provider], selected.Model) || selected == settings.Defaults)
 }

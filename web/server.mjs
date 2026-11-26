@@ -175,7 +175,10 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
     host.mutable();
     const owner = host.backend;
     const action = { action: body.action, request_id: randomUUID() };
-    if (["review", "save"].includes(body.action)) {
+    if (["specialist_review","specialist_save"].includes(body.action)) {
+      if(body.action==="specialist_review"){if(typeof body.role!=="string"||body.role.length>64||typeof body.provider!=="string"||body.provider.length>128||typeof body.model!=="string"||body.model.length>512||!Number.isInteger(body.max_steps)||body.max_steps<1||body.max_steps>32||typeof body.inherit!=="boolean")throw new RequestError(400,"Choose a specialist, model and step limit.");Object.assign(action,{role:body.role,provider:body.provider,model_id:body.model,max_steps:body.max_steps,inherit:body.inherit});}
+      else {if(typeof body.reviewId!=="string"||!/^[a-f0-9]{48}$/.test(body.reviewId))throw new RequestError(400,"Review the exact specialist assignment first.");action.review_id=body.reviewId;}
+    } else if (["review", "save"].includes(body.action)) {
       if (typeof body.provider !== "string" || !/^[a-z0-9-]{1,128}$/.test(body.provider)) throw new RequestError(400, "Choose a provider.");
       action.provider = body.provider;
       if (body.action === "review") {

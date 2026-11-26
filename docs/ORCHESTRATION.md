@@ -138,3 +138,21 @@ active LLM specialist. The runner applies it at the next model boundary if
 the specialist continues. Hosted Code specialists reject live steering.
 See [current bounds](WORK_DEPTH.md), [migration/recovery](WORK_DEPTH_MIGRATIONS.md),
 and [matched evaluation](WORK_EVALUATION.md).
+
+## Specialist model assignments
+
+Models → Specialists now provides a model selector and step limit for each native
+research/review role. Choose a configured cloud/local model or inherit the
+orchestrator, inspect the exact assignment, then save. Reviews are single-use,
+expire after five minutes and reject a concurrent role change. The same capability
+is available conversationally through `specialist_model`; it uses foreground review.
+The Models inspector includes saved provider model IDs as well as curated choices.
+
+Assignments affect subsequent tasks, including subsequent scheduled runs. Active
+runs retain their captured models. They do not grant tools, account access, more
+shared budget or a different CLI login. Code/CLI assignments remain separate:
+local Codex continues to use the configured local CLI and its own login. Existing
+DAG dependencies, retained results, continuation, cancellation and aggregate usage
+limits remain the coordination mechanisms; selecting models does not create a
+second orchestration engine. Model/tool compatibility must still be tested per
+provider, especially for local models.

@@ -11,6 +11,9 @@ import (
 // NativeProviderAction is finite host input. APIKey is save-only transient data,
 // never a display model, request journal, command argument or completion field.
 type NativeProviderAction struct {
+	Role        string               `json:"role,omitempty"`
+	MaxSteps    int                  `json:"max_steps,omitempty"`
+	Inherit     bool                 `json:"inherit,omitempty"`
 	AppOwned    bool                 `json:"app_owned,omitempty"`
 	ModelID     string               `json:"model_id,omitempty"`
 	OperationID string               `json:"operation_id,omitempty"`
@@ -48,6 +51,8 @@ type NativeProviderRow struct {
 	APIVersion  string            `json:"api_version"`
 }
 type NativeProviderReview struct {
+	Role             string            `json:"role,omitempty"`
+	MaxSteps         int               `json:"max_steps,omitempty"`
 	Options          map[string]string `json:"options,omitempty"`
 	ID               string            `json:"id"`
 	Provider         string            `json:"provider"`

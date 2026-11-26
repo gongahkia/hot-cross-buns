@@ -29,6 +29,7 @@ type nativeProviderReview struct {
 	expires    time.Time
 }
 type nativeProviderBackend struct {
+	specialistReview  *nativeSpecialistReview
 	mu                sync.Mutex
 	settings          config.Store
 	stateDir          string
@@ -228,6 +229,9 @@ func (b *nativeProviderBackend) Apply(a modelcatalog.NativeProviderAction) (resu
 	}
 	if strings.HasPrefix(a.Action, "local_") && a.Action != "local_status" {
 		return b.localSelectionAction(a)
+	}
+	if a.Action == "specialist_review" || a.Action == "specialist_save" {
+		return b.specialistAction(a)
 	}
 	if a.Action == "local_status" {
 		return b.localStatus(a)

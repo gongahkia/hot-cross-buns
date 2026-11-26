@@ -60,12 +60,18 @@ func (c hotCrossBunsAppController) Inspect(ctx context.Context, query workrun.Ap
 		choices := []choice{}
 		for _, name := range model.Names() {
 			provider, _ := model.ParseProvider(name)
-			choices = append(choices, choice{name, model.CuratedModels(provider)})
+			names := append([]string{}, model.CuratedModels(provider)...)
+			for _, saved := range settings.OrchestratorModels[name] {
+				if !slices.Contains(names, saved) {
+					names = append(names, saved)
+				}
+			}
+			choices = append(choices, choice{name, names})
 		}
 		for _, custom := range settings.CustomProviders {
 			choices = append(choices, choice{custom.ID, append([]string{}, custom.Models...)})
 		}
-		return map[string]any{"selected": settings.Defaults, "choices": choices, "note": "Curated choices are not proof of authentication. Configure API keys in Settings → Models; new local downloads require the Local model screen."}, nil
+		return map[string]any{"selected": settings.Defaults, "choices": choices, "specialists": settings.WorkRoles, "assignable_specialists": assignableSpecialists, "note": "Curated choices are not proof of authentication. Configure API keys in Settings → Models; new local downloads require the Local model screen."}, nil
 	case "usage", "data", "recovery":
 		screen, err := workControls(c.stateDir)(ctx, query.Topic, "status", nil)
 		return screen.Panel, err
