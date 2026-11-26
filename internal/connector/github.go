@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 )
@@ -30,6 +31,17 @@ func validateGitHubResource(resource *url.URL) error {
 
 func githubOperations() []Operation {
 	ops := serviceOperations([]serviceOperation{
+		{"repo_get", "Read selected repository metadata and permissions.", action.ConnectedRead},
+		{"branches_list", "List repository branches with commit SHAs; follow page cursors.", action.ConnectedRead},
+		{"issues_list", "List repository issues (GitHub also includes PRs); query is open, closed or all. Follow page cursors.", action.ConnectedRead},
+		{"issue_get", "Read an issue and its updated_at before proposing edits.", action.ConnectedRead},
+		{"issue_comments", "Read conversation comments on an issue.", action.ConnectedRead},
+		{"workflow_runs", "List GitHub Actions runs; pending or missing results are not success.", action.ConnectedRead},
+		{"workflow_run_get", "Read one GitHub Actions run by ID.", action.ConnectedRead},
+		{"workflow_jobs", "Read jobs and step conclusions for a workflow run; raw log downloads are not supported.", action.ConnectedRead},
+		{"issue_create", "Create a repository issue after exact approval; payload title and optional body.", action.ConnectedMutate},
+		{"issue_update", "Edit title/body or close/reopen an issue after exact approval; payload number, expected_updated_at and changed fields. A fresh timestamp check detects stale proposals.", action.ConnectedMutate},
+		{"issue_comment", "Comment on an issue after exact approval; payload number and body.", action.Publish},
 		{"pulls_list", "List pull requests in the selected repository. Follow bounded page cursors; one page is not complete coverage.", action.ConnectedRead},
 		{"pull_get", "Read one pull request including head SHA, branches and mergeability.", action.ConnectedRead},
 		{"pull_files", "Read changed files and patches for one PR. Binary or large file patches may be absent; report gaps.", action.ConnectedRead},
@@ -45,24 +57,49 @@ func githubOperations() []Operation {
 	})
 	for i := range ops {
 		if action.RequiresFreshApproval(ops[i].Capability) {
-			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["payload"],"properties":{"payload":{"type":"object","description":"Exact operation fields: number, expected_head_sha; create: head,base,title,body; update: title,body,state; comment: body; review: body,event; merge: merge_method (merge,squash,rebase)."}}}`)
+			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["payload"],"properties":{"payload":{"type":"object","description":"For issue_create: title,body; issue_update: number,expected_updated_at,title,body,state; issue_comment: number,body. PR fields: number, expected_head_sha; create: head,base,title,body; update: title,body,state; comment: body; review: body,event; merge: merge_method (merge,squash,rebase)."}}}`)
 		} else {
-			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"resource_id":{"type":"string","description":"PR number, or exact 40-character commit SHA for commit operations"},"cursor":{"type":"string","description":"Page number (1–100)"},"limit":{"type":"integer","minimum":1,"maximum":100},"query":{"type":"string","enum":["open","closed","all"]}}}`)
+			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{"resource_id":{"type":"string","description":"Issue/PR number, workflow run ID, or exact 40-character commit SHA for commit operations"},"cursor":{"type":"string","description":"Page number (1–100)"},"limit":{"type":"integer","minimum":1,"maximum":100},"query":{"type":"string","enum":["open","closed","all"]}}}`)
 		}
 	}
 	return ops
 }
 func githubNumber(value string) bool {
-	n, err := strconv.Atoi(value)
-	return err == nil && n > 0 && n <= 100000000 && strconv.Itoa(n) == value
+	n, err := strconv.ParseInt(value, 10, 64)
+	return err == nil && n > 0 && strconv.FormatInt(n, 10) == value
 }
 func githubRead(d Descriptor, op string, in serviceInput) (string, string, []byte, error) {
 	base := d.Resource
 	path := ""
 	query := url.Values{}
 	switch op {
-	case "pulls_list":
+	case "repo_get":
+		path = ""
+	case "branches_list":
+		path = "/branches"
+	case "workflow_runs":
+		path = "/actions/runs"
+	case "workflow_run_get", "workflow_jobs":
+		if !githubNumber(in.ResourceID) {
+			return "", "", nil, errors.New("choose a positive workflow run ID")
+		}
+		path = "/actions/runs/" + in.ResourceID
+		if op == "workflow_jobs" {
+			path += "/jobs"
+		}
+	case "issue_get", "issue_comments":
+		if !githubNumber(in.ResourceID) {
+			return "", "", nil, errors.New("choose a positive issue number")
+		}
+		path = "/issues/" + in.ResourceID
+		if op == "issue_comments" {
+			path += "/comments"
+		}
+	case "pulls_list", "issues_list":
 		path = "/pulls"
+		if op == "issues_list" {
+			path = "/issues"
+		}
 		state := in.Query
 		if state == "" {
 			state = "open"
@@ -127,6 +164,9 @@ type githubChange struct {
 }
 
 func githubAction(d Descriptor, op string, raw []byte) (string, []byte, error) {
+	if strings.HasPrefix(op, "issue_") {
+		return githubIssueAction(d, op, raw)
+	}
 	var in githubChange
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return "", nil, err
@@ -209,6 +249,9 @@ func githubAction(d Descriptor, op string, raw []byte) (string, []byte, error) {
 	return d.Resource + path, payload, err
 }
 func (r Runtime) verifyGitHubHead(ctx context.Context, d Descriptor, p PreparedAction) error {
+	if strings.HasPrefix(p.operation.ID, "issue_") {
+		return r.verifyGitHubIssue(ctx, d, p)
+	}
 	var in githubChange
 	if err := json.Unmarshal(p.payload, &in); err != nil {
 		return err
@@ -262,4 +305,96 @@ func githubEvidence(op string, data json.RawMessage) (ExecutionEvidence, error) 
 		evidence.ProviderResourceID = fmt.Sprint(value.ID)
 	}
 	return evidence, nil
+}
+
+type githubIssueChange struct {
+	Number   int     `json:"number,omitempty"`
+	Expected string  `json:"expected_updated_at,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Body     *string `json:"body,omitempty"`
+	State    string  `json:"state,omitempty"`
+}
+
+func githubIssueAction(d Descriptor, op string, raw []byte) (string, []byte, error) {
+	var in githubIssueChange
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&in); err != nil {
+		return "", nil, err
+	}
+	if in.Title != nil && (strings.TrimSpace(*in.Title) == "" || len(*in.Title) > 256) || in.Body != nil && len(*in.Body) > 10000 {
+		return "", nil, errors.New("GitHub title/body exceeds its limits")
+	}
+	body := map[string]any{}
+	path := "/issues"
+	if op != "issue_create" {
+		if !githubNumber(strconv.Itoa(in.Number)) {
+			return "", nil, errors.New("choose a positive issue number")
+		}
+		path += "/" + strconv.Itoa(in.Number)
+	}
+	switch op {
+	case "issue_create":
+		if in.Number != 0 || in.Title == nil || in.Expected != "" || in.State != "" {
+			return "", nil, errors.New("issue creation requires title and optional body only")
+		}
+		body["title"] = *in.Title
+		if in.Body != nil {
+			body["body"] = *in.Body
+		}
+	case "issue_update":
+		if _, err := time.Parse(time.RFC3339Nano, in.Expected); err != nil {
+			return "", nil, errors.New("read and supply expected_updated_at before editing an issue")
+		}
+		if in.Title != nil {
+			body["title"] = *in.Title
+		}
+		if in.Body != nil {
+			body["body"] = *in.Body
+		}
+		if in.State != "" {
+			if in.State != "open" && in.State != "closed" {
+				return "", nil, errors.New("issue state must be open or closed")
+			}
+			body["state"] = in.State
+		}
+		if len(body) == 0 {
+			return "", nil, errors.New("choose issue fields to change")
+		}
+	case "issue_comment":
+		if in.Body == nil || strings.TrimSpace(*in.Body) == "" || in.Title != nil || in.State != "" || in.Expected != "" {
+			return "", nil, errors.New("issue comment requires number and body only")
+		}
+		path += "/comments"
+		body["body"] = *in.Body
+	default:
+		return "", nil, errors.New("unsupported GitHub issue action")
+	}
+	payload, err := json.Marshal(body)
+	return d.Resource + path, payload, err
+}
+func (r Runtime) verifyGitHubIssue(ctx context.Context, d Descriptor, p PreparedAction) error {
+	if p.operation.ID == "issue_create" {
+		return nil
+	}
+	var in githubIssueChange
+	if err := json.Unmarshal(p.payload, &in); err != nil {
+		return err
+	}
+	result, err := r.requestJSON(ctx, d, "issue_get", http.MethodGet, d.Resource+"/issues/"+strconv.Itoa(in.Number), nil, false)
+	if err != nil {
+		return err
+	}
+	var found struct {
+		Updated string          `json:"updated_at"`
+		Pull    json.RawMessage `json:"pull_request"`
+		Number  int             `json:"number"`
+	}
+	if json.Unmarshal(result.Data, &found) != nil || found.Number != in.Number || len(found.Pull) > 0 {
+		return errors.New("target is not the selected GitHub issue; use PR operations for pull requests")
+	}
+	if p.operation.ID == "issue_update" && found.Updated != in.Expected {
+		return errors.New("GitHub issue changed; read it again before proposing edits")
+	}
+	return nil
 }

@@ -339,6 +339,11 @@ func (r Runtime) ExecutePreparedWithEvidence(ctx context.Context, mode action.Mo
 	if descriptor.Kind == KindGoogle && operation.ID == "batch" {
 		return r.executeGoogleBatch(ctx, descriptor, prepared.googleSteps)
 	}
+	if descriptor.Kind == KindGitLab {
+		if err := r.verifyGitLabAction(ctx, descriptor, prepared); err != nil {
+			return ExecutionEvidence{}, err
+		}
+	}
 	if descriptor.Kind == KindGitHub {
 		if err := r.verifyGitHubHead(ctx, descriptor, prepared); err != nil {
 			return ExecutionEvidence{}, err
@@ -348,6 +353,11 @@ func (r Runtime) ExecutePreparedWithEvidence(ctx context.Context, mode action.Mo
 	result, err := r.requestJSONWithPrecondition(ctx, descriptor, operation.ID, method, prepared.target, prepared.requestPayload, prepared.ifMatch, true)
 	if err != nil {
 		return ExecutionEvidence{}, err
+	}
+	if descriptor.Kind == KindGitLab {
+		evidence, err := gitlabEvidence(operation.ID, result.Data)
+		evidence.ResponseSHA256 = result.Provenance.SHA256
+		return evidence, err
 	}
 	if descriptor.Kind == KindGitHub {
 		evidence, err := githubEvidence(operation.ID, result.Data)
@@ -510,6 +520,9 @@ func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, opera
 }
 
 func serviceRead(descriptor Descriptor, operation string, input serviceInput) (string, string, []byte, error) {
+	if descriptor.Kind == KindGitLab {
+		return gitlabRead(descriptor, operation, input)
+	}
 	if descriptor.Kind == KindGitHub {
 		return githubRead(descriptor, operation, input)
 	}
@@ -667,6 +680,9 @@ func serviceRead(descriptor Descriptor, operation string, input serviceInput) (s
 }
 
 func serviceAction(descriptor Descriptor, operation string, payload []byte, correlationID string, gmailAttachments ...gmailAttachment) (string, []byte, error) {
+	if descriptor.Kind == KindGitLab {
+		return gitlabAction(descriptor, operation, payload)
+	}
 	if descriptor.Kind == KindGitHub {
 		return githubAction(descriptor, operation, payload)
 	}
@@ -746,9 +762,17 @@ func serviceAction(descriptor Descriptor, operation string, payload []byte, corr
 }
 
 func serviceActionMethod(descriptor Descriptor, operation string) string {
+	if descriptor.Kind == KindGitLab {
+		switch operation {
+		case "issue_update", "merge_request_update", "merge_request_merge":
+			return http.MethodPut
+		default:
+			return http.MethodPost
+		}
+	}
 	if descriptor.Kind == KindGitHub {
 		switch operation {
-		case "pull_update":
+		case "pull_update", "issue_update":
 			return http.MethodPatch
 		case "pull_merge":
 			return http.MethodPut
@@ -945,7 +969,7 @@ func googlePrecondition(descriptor Descriptor, payload []byte) ([]byte, string, 
 }
 
 func isServiceKind(kind string) bool {
-	return kind == KindGitHub || kind == KindSlack || kind == KindGoogle || kind == KindAtlassian || kind == KindNotion
+	return kind == KindGitLab || kind == KindGitHub || kind == KindSlack || kind == KindGoogle || kind == KindAtlassian || kind == KindNotion
 }
 
 func (r Runtime) requestJSON(ctx context.Context, descriptor Descriptor, operation, method, endpoint string, body []byte, uncertain bool) (Result, error) {

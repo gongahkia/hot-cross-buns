@@ -28,6 +28,7 @@ const (
 	KindAtlassian     = "atlassian"
 	KindNotion        = "notion"
 	KindGitHub        = "github"
+	KindGitLab        = "gitlab"
 	KindRemoteMCP     = "remote_mcp"
 	AuthNone          = "none"
 	AuthBearer        = "bearer"
@@ -120,7 +121,7 @@ func (d Descriptor) Validate() error {
 	if strings.TrimSpace(d.Name) != d.Name || d.Name == "" || len(d.Name) > 128 || strings.ContainsAny(d.Name, "\x00\r\n") {
 		return errors.New("connector display name is invalid")
 	}
-	if d.Kind != KindHTTPJSON && d.Kind != KindHTTPWebhook && d.Kind != KindSlack && d.Kind != KindGoogle && d.Kind != KindAtlassian && d.Kind != KindNotion && d.Kind != KindRemoteMCP && d.Kind != KindGitHub {
+	if d.Kind != KindHTTPJSON && d.Kind != KindHTTPWebhook && d.Kind != KindSlack && d.Kind != KindGoogle && d.Kind != KindAtlassian && d.Kind != KindNotion && d.Kind != KindRemoteMCP && d.Kind != KindGitHub && d.Kind != KindGitLab {
 		return fmt.Errorf("unsupported connector kind %q", d.Kind)
 	}
 	resource, err := url.Parse(d.Resource)
@@ -132,6 +133,11 @@ func (d Descriptor) Validate() error {
 	}
 	if resource.Scheme != "https" && !(resource.Scheme == "http" && isLoopbackHost(resource.Hostname())) {
 		return errors.New("connector resource requires HTTPS except on loopback")
+	}
+	if d.Kind == KindGitLab {
+		if err := validateGitLabResource(resource); err != nil {
+			return err
+		}
 	}
 	if d.Kind == KindGitHub {
 		if err := validateGitHubResource(resource); err != nil {
@@ -226,6 +232,8 @@ func (d Descriptor) Operations() []Operation {
 		}}
 	case KindGitHub:
 		return githubOperations()
+	case KindGitLab:
+		return gitlabOperations()
 	case KindSlack:
 		return serviceOperations([]serviceOperation{
 			{"whoami", "Verify the Slack app identity and granted token.", action.ConnectedRead},
