@@ -587,6 +587,22 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		}
 		return root.ReadRegularFile(relative, limit)
 	}
+	for i, tool := range surface {
+		switch t := tool.(type) {
+		case tools.EditDocumentArtifact:
+			t.ResolveSource = connectedRuntime.ResolveAttachment
+			surface[i] = t
+		case tools.WriteDocumentArtifact:
+			t.ResolveSource = connectedRuntime.ResolveAttachment
+			surface[i] = t
+		case tools.WritePresentationArtifact:
+			t.ResolveSource = connectedRuntime.ResolveAttachment
+			surface[i] = t
+		case tools.WriteWorkbookArtifact:
+			t.ResolveSource = connectedRuntime.ResolveAttachment
+			surface[i] = t
+		}
+	}
 	connectedRuntime.OAuthRefreshPins = request.OAuthRefreshPins
 	connectedRuntime.CredentialPins = request.CredentialPins
 	connectedRuntime.OAuthAccountPins = request.OAuthAccountPins

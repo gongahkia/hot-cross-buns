@@ -9,7 +9,9 @@ cloud continuation product.
 
 | Capability | Local Work v1 behavior | Boundary |
 | --- | --- | --- |
-| DOCX, XLSX, PDF | Semantic writers and deterministic artifact validation | Existing staged-output contract |
+| DOCX | Create documents; exact text replacements in existing documents, headers, footers and notes, including text split across formatting runs | Ambiguous matches fail. Untouched package parts are copied. Tracked changes, field recalculation and native layout fidelity require further support. |
+| PDF | Create PDFs; select/reorder/duplicate, rotate or remove existing pages; add visible text stamps | Stamps are overlays, never secure redaction or semantic text replacement. Verify layout; edits can invalidate signatures. |
+| XLSX | Create or edit an existing workbook with bounded structured operations | Existing staged-output contract |
 | PPTX | Create decks with text, notes, and fade/push/wipe transitions; inspect and apply bounded text/title/body/note/reorder/add/delete edits to source decks | Untouched OOXML parts are copied through. VBA, embedded objects, media, and unsupported animation data are never read, executed, authored, or regenerated. |
 | Public web research | Fetch selected HTTPS sources and discover pages with host-selected TinyFish, Exa, Tavily or Brave search | Queries go to the configured provider; exact selected-origin filtering applies. Snippets are discovery leads, not retained factual evidence. Keys alone grant no site access. See [configuration and boundaries](WEB-SEARCH.md). |
 | Live filesystem | Foreground tasks use `filesystem` with absolute or `~/` paths. Inline permission choices resume the pending tool call; Settings → Permissions manages saved folders and full access. | Task-only or persistent read/CRUD scopes, folder identity checks, current-hash replacement/deletion, protected HCB control records, and delegated worker sandbox roots with revocation monitoring. Direct text tools are bounded; see [live filesystem access](LIVE-FILESYSTEM.md). |
@@ -53,3 +55,10 @@ Hot Cross Buns fails closed if either required operation is unavailable. Desktop
 also requires a cgo-enabled macOS build; the release workflow now builds
 macOS archives natively with cgo so this feature remains available. A custom
 `CGO_ENABLED=0` macOS build fails closed with a specific diagnostic.
+
+Existing document editors accept original selected `input/...` files as well as
+selected source and retained output mounts. Outputs are separate staged copies.
+Use the output Save action (also available conversationally) to review a local
+destination; editing never silently overwrites the selected original. PDF page
+editing uses pdfcpu v0.15.0, pinned to retain the Go 1.25 toolchain. It runs offline
+with its user configuration disabled. No external conversion service is involved.

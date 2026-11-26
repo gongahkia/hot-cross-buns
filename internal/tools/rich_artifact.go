@@ -18,10 +18,11 @@ import (
 )
 
 type WriteDocumentArtifact struct {
-	Root       workspace.Root
-	Source     workspace.Root
-	Contract   artifact.Contract
-	OnRenderer func(artifact.RendererEvidence)
+	Root          workspace.Root
+	Source        workspace.Root
+	Contract      artifact.Contract
+	OnRenderer    func(artifact.RendererEvidence)
+	ResolveSource func(string, int64) ([]byte, error)
 }
 
 func (t WriteDocumentArtifact) Definition() agent.ToolDefinition {
@@ -50,7 +51,7 @@ func (t WriteDocumentArtifact) Execute(_ context.Context, raw json.RawMessage) (
 		if arguments.TemplatePath == "" {
 			contents, preview, err = document.RenderDOCX(arguments.Document)
 		} else {
-			template, readErr := t.Source.ReadRegularFile(filepath.FromSlash(arguments.TemplatePath), 64*1024*1024)
+			template, readErr := readArtifactSource(t.Source, arguments.TemplatePath, t.ResolveSource)
 			if readErr != nil {
 				return agent.ToolResult{}, readErr
 			}
@@ -87,10 +88,11 @@ func (t WriteDocumentArtifact) Execute(_ context.Context, raw json.RawMessage) (
 }
 
 type WriteWorkbookArtifact struct {
-	Root       workspace.Root
-	Source     workspace.Root
-	Contract   artifact.Contract
-	OnRenderer func(artifact.RendererEvidence)
+	Root          workspace.Root
+	Source        workspace.Root
+	Contract      artifact.Contract
+	OnRenderer    func(artifact.RendererEvidence)
+	ResolveSource func(string, int64) ([]byte, error)
 }
 
 // WritePresentationArtifact creates a new semantic deck or conservatively
@@ -98,10 +100,11 @@ type WriteWorkbookArtifact struct {
 // preserve unsupported package parts such as media, animations, embedded
 // objects, and VBA without exposing or executing them.
 type WritePresentationArtifact struct {
-	Root       workspace.Root
-	Source     workspace.Root
-	Contract   artifact.Contract
-	OnRenderer func(artifact.RendererEvidence)
+	Root          workspace.Root
+	Source        workspace.Root
+	Contract      artifact.Contract
+	OnRenderer    func(artifact.RendererEvidence)
+	ResolveSource func(string, int64) ([]byte, error)
 }
 
 func (t WritePresentationArtifact) Definition() agent.ToolDefinition {
@@ -142,7 +145,7 @@ func (t WritePresentationArtifact) Execute(_ context.Context, raw json.RawMessag
 		if arguments.Presentation.Title != "" || len(arguments.Presentation.Slides) != 0 || len(arguments.Edits) == 0 {
 			return agent.ToolResult{}, errors.New("existing presentations require template_path and 1-256 edits, without presentation")
 		}
-		templateBytes, err = t.Source.ReadRegularFile(filepath.FromSlash(arguments.TemplatePath), 64*1024*1024)
+		templateBytes, err = readArtifactSource(t.Source, arguments.TemplatePath, t.ResolveSource)
 		if err != nil {
 			return agent.ToolResult{}, err
 		}
@@ -196,7 +199,7 @@ func (t WriteWorkbookArtifact) Execute(_ context.Context, raw json.RawMessage) (
 	var template io.Reader
 	var templateBytes []byte
 	if arguments.TemplatePath != "" {
-		data, readErr := t.Source.ReadRegularFile(filepath.FromSlash(arguments.TemplatePath), 64*1024*1024)
+		data, readErr := readArtifactSource(t.Source, arguments.TemplatePath, t.ResolveSource)
 		if readErr != nil {
 			return agent.ToolResult{}, readErr
 		}
