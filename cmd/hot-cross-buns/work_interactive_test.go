@@ -60,6 +60,21 @@ func TestInferInteractiveWorkHonorsExplicitInspection(t *testing.T) {
 	}
 }
 
+func TestScheduleManagementUsesSemanticRoutingBeforeGenericCreateHeuristics(t *testing.T) {
+	for _, prompt := range []string{"Create a reminder to water the garden.", "Edit the HCB schedule prompt and cancel the old reminder.", "Create a reminder to write a report tomorrow."} {
+		if !ambiguousInteractivePrompt(prompt, workapp.RunOptions{Mode: "auto"}) {
+			t.Fatalf("schedule management forced a file contract: %s", prompt)
+		}
+	}
+	if ambiguousInteractivePrompt("Create a reminder and export report.md", workapp.RunOptions{Artifacts: []string{"report.md"}}) {
+		t.Fatal("routing ignored an explicitly selected output")
+	}
+	contract, err := interactiveWorkContract(action.Inspect, nil)
+	if err != nil || len(contract.Artifacts) != 0 {
+		t.Fatal("app operation requires an output file", contract, err)
+	}
+}
+
 func TestDesignOutputsReceiveTypedContracts(t *testing.T) {
 	for path, mediaType := range map[string]string{"poster.svg": "image/svg+xml", "prototype.html": "text/html", "deck.pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"} {
 		contract, err := workContract(action.Draft, action.Forbid, artifactFlags{path}, nil)

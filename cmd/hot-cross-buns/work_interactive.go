@@ -1006,7 +1006,7 @@ func resolveInteractiveWork(ctx context.Context, prompt string, options workapp.
 	routeCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	turn, err := backend.Complete(sharedusage.WithCategory(routeCtx, "routing"), agent.TurnRequest{
-		System:   `Classify the user's immediate request for the Hot Cross Buns desktop personal agent. Return one JSON object only: {"mode":"inspect"|"draft","artifact":"optional basename.ext"}. Inspect answers questions, including questions about Hot Cross Buns and its settings. Draft creates a file. Never choose act, a connector, a goal, or a schedule. If uncertain, choose inspect.`,
+		System:   `Classify the user's immediate request for the Hot Cross Buns desktop personal agent. Return one JSON object only: {"mode":"inspect"|"draft","artifact":"optional basename.ext"}. Inspect handles questions and app operations, including creating, listing, editing, pausing, resuming or canceling HCB reminders and scheduled tasks. Creating a reminder or saving a task prompt does not ask for an output file. Text describing what a scheduled task should do is future work, not a request to create that deliverable now. Draft is only for an actual file requested as an output of this immediate turn. Never choose act, a connector, a goal, or a schedule. If uncertain, choose inspect.`,
 		Messages: []agent.Message{{Role: agent.RoleUser, Content: prompt}},
 	})
 	if err != nil || len(turn.ToolCalls) > 0 || len(turn.Text) > 2048 {
@@ -1034,6 +1034,11 @@ func ambiguousInteractivePrompt(prompt string, options workapp.RunOptions) bool 
 		return false
 	}
 	lower := strings.ToLower(strings.TrimSpace(prompt))
+	// App schedules are saved state, while a requested schedule document is a
+	// deliverable. Let semantic routing distinguish these before verb heuristics.
+	if containsAny(lower, "reminder", "remind me", "scheduled task", "recurring task", "one-time task", "schedule ", "hcb schedule", "hot cross buns schedule", "follow-up check") {
+		return true
+	}
 	if codingContinuation(lower, options.PreviousArtifacts) || codingFileRequest(lower) {
 		return false
 	}

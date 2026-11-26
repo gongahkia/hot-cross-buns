@@ -32,6 +32,8 @@ type scheduleChange struct {
 	Missed         *string `json:"missed,omitempty"`
 }
 type scheduleView struct {
+	Provider        string    `json:"provider,omitempty"`
+	Model           string    `json:"model,omitempty"`
 	ID              string    `json:"id"`
 	Digest          string    `json:"expected_digest"`
 	Title           string    `json:"title"`
@@ -56,7 +58,7 @@ func projectSchedule(check workhome.Check, full bool) scheduleView {
 	if truncated {
 		prompt = boundedIntroduction(prompt, 240)
 	}
-	return scheduleView{ID: d.ID, Digest: digest, Title: d.Name, Prompt: prompt, PromptTruncated: truncated, Kind: d.ScheduleKind(), Timing: d.Timing(), Timezone: d.Timezone, State: check.State, Enabled: d.Enabled, NextDue: check.NextDue, Issue: check.Issue, Origin: d.OriginConversationID, Source: d.SourcePath}
+	return scheduleView{Provider: d.Provider, Model: d.Model, ID: d.ID, Digest: digest, Title: d.Name, Prompt: prompt, PromptTruncated: truncated, Kind: d.ScheduleKind(), Timing: d.Timing(), Timezone: d.Timezone, State: check.State, Enabled: d.Enabled, NextDue: check.NextDue, Issue: check.Issue, Origin: d.OriginConversationID, Source: d.SourcePath}
 }
 func (c hotCrossBunsAppController) inspectSchedules(query workrun.AppQuery) (any, error) {
 	if err := c.followupConversation(query.ConversationID); err != nil {
@@ -246,7 +248,12 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 	if err := next.Validate(); err != nil {
 		return workrun.AppMutation{}, err
 	}
-	lines := []string{"When: " + next.Timing(), "Prompt: " + next.Objective, "Workspace: " + next.SourcePath, "Missed runs: " + missedCheckLabel(next.Missed), fmt.Sprintf("Execution: %s; %d work steps. Existing task budgets, accounts and permissions stay in force.", next.Mode, next.MaxSteps)}
+	lines := []string{"When: " + next.Timing(), "Prompt: " + next.Objective, "Workspace: " + next.SourcePath, "Missed runs: " + missedCheckLabel(next.Missed), fmt.Sprintf("Limits: Up to %d work steps per run. Existing task budgets, accounts and permissions stay in force.", next.MaxSteps)}
+	modelLabel := strings.Trim(next.Provider+"/"+next.Model, "/")
+	if modelLabel == "" {
+		modelLabel = "Profile default"
+	}
+	lines = append(lines, "Model: "+modelLabel)
 	if v.Action != "create" {
 		lines = append([]string{"Task: " + next.ID, "Scope: this saved task only. Run history and the original chat are retained."}, lines...)
 	}

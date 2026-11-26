@@ -763,7 +763,10 @@ function approval(review, context) {
   if(review.permission) actions=filesystemApprovalActions(choose);
   else if(review.scheduling) actions=schedulingApprovalActions(choose);
   else actions.append(button("Decline", () => choose(false)), button("Approve this action", () => choose(true), "send"));
-  openDetail(review.result.title, describeResult({ ...review.result, footer: review.result.footer?.startsWith("/approve ") ? undefined : review.result.footer }), actions);
+  if(review.scheduling) {
+    const panel=element('div',undefined,'schedule-approval'),content=element('div',undefined,'schedule-approval-content');
+    content.append(describeResult({...review.result,fields:[]}));panel.append(content,actions);openDetail(review.result.title,panel);
+  } else openDetail(review.result.title, describeResult({ ...review.result, footer: review.result.footer?.startsWith("/approve ") ? undefined : review.result.footer }), actions);
 }
 async function beginCorrection(target, context) {
   if (pending) throw new Error('Resolve the unconfirmed message before opening a correction draft.');

@@ -105,6 +105,7 @@ func approvalMessage(interaction workrun.Interaction) message {
 	}
 	if review, ok := interaction.Preview.(scheduleaccess.Review); ok && interaction.Kind == "schedule_change" && review.Action != "" {
 		result.result.Title = "Allow schedule change"
+		result.result.Fields = []uisnapshot.Field{{Label: "Request", Value: fmt.Sprint(interaction.ID)}}
 		result.result.Summary = strings.ToUpper(review.Action[:1]) + review.Action[1:] + ": " + review.Title
 		result.result.Preview = nil
 		result.result.Sections = []uisnapshot.ResultSection{{Title: "Scheduled task", Lines: review.Lines}}

@@ -732,3 +732,7 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .voice-waveform { display: flex; align-items: center; flex: 1; min-width: 0; height: 2rem; gap: 3px; overflow: hidden; }
 .voice-waveform i { flex: 1; min-width: 2px; height: calc(2px + var(--level, 0) * 26px); border-radius: 1px; background: currentColor; opacity: .65; transition: height 70ms linear; }
 @media (prefers-reduced-motion: reduce) { .voice-waveform i { transition: none; } }
+
+.schedule-approval { display: flex; flex-direction: column; max-height: calc(min(85dvh, 48rem) - 6rem); }
+.schedule-approval-content { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.schedule-approval > .review-actions { flex-shrink: 0; border-top: 1px solid var(--line); padding-top: .65rem; margin-top: .5rem; }
