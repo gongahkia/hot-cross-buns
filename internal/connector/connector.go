@@ -235,10 +235,12 @@ func (d Descriptor) Operations() []Operation {
 	case KindGitLab:
 		return gitlabOperations()
 	case KindSlack:
-		return serviceOperations([]serviceOperation{
+		return slackOperations([]serviceOperation{
 			{"whoami", "Verify the Slack app identity and granted token.", action.ConnectedRead},
 			{"search", "Search Slack messages available to the configured app.", action.ConnectedRead},
-			{"history", "Read one Slack channel's message history.", action.ConnectedRead},
+			{"history", "Read one Slack channel's message history; follow response_metadata.next_cursor.", action.ConnectedRead},
+			{"channels_list", "Discover visible Slack channels and conversations; optional query is comma-separated public_channel, private_channel, im, mpim. Follow response_metadata.next_cursor.", action.ConnectedRead},
+			{"thread_replies", "Read a Slack message thread; resource_id is the channel ID and thread_ts is the parent message timestamp. Follow response_metadata.next_cursor. Token type, channel membership and rate limits constrain access.", action.ConnectedRead},
 			{"post_message", "Prepare a Slack message for exact approval before posting.", action.Publish},
 			{"update_message", "Prepare an update to one Slack message for exact approval.", action.ConnectedMutate},
 		})
@@ -275,13 +277,13 @@ func (d Descriptor) Operations() []Operation {
 			{"confluence_create", "Prepare creation of a Confluence page for exact approval.", action.ConnectedMutate},
 		})
 	case KindNotion:
-		return serviceOperations([]serviceOperation{
-			{"search", "Search pages and databases shared with the Notion integration.", action.ConnectedRead},
+		return append(serviceOperations([]serviceOperation{
+			{"search", "Search pages and data sources shared with the Notion integration; use data_source_query to read entries.", action.ConnectedRead},
 			{"page_get", "Read one Notion page.", action.ConnectedRead},
 			{"block_children", "Read the child blocks of a Notion block.", action.ConnectedRead},
 			{"page_create", "Prepare creation of a Notion page for exact approval.", action.ConnectedMutate},
 			{"page_update", "Prepare an update to a Notion page for exact approval.", action.ConnectedMutate},
-		})
+		}), notionExtraOperations()...)
 	case KindRemoteMCP:
 		var operations []Operation
 		readSchema := json.RawMessage(`{"type":"object","required":["arguments"],"properties":{"arguments":{"type":"object"}},"additionalProperties":false}`)

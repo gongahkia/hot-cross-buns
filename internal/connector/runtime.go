@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -354,6 +355,11 @@ func (r Runtime) ExecutePreparedWithEvidence(ctx context.Context, mode action.Mo
 	if err != nil {
 		return ExecutionEvidence{}, err
 	}
+	if descriptor.Kind == KindNotion && (operation.ID == "block_append" || operation.ID == "block_update") {
+		evidence, err := notionBlockEvidence(operation.ID, prepared.payload, result.Data)
+		evidence.ResponseSHA256 = result.Provenance.SHA256
+		return evidence, err
+	}
 	if descriptor.Kind == KindGitLab {
 		evidence, err := gitlabEvidence(operation.ID, result.Data)
 		evidence.ResponseSHA256 = result.Provenance.SHA256
@@ -479,6 +485,7 @@ func (r Runtime) invokeRemoteMCP(ctx context.Context, descriptor Descriptor, ope
 }
 
 type serviceInput struct {
+	ThreadTS    string          `json:"thread_ts,omitempty"`
 	CalendarID  string          `json:"calendar_id,omitempty"`
 	EventID     string          `json:"event_id,omitempty"`
 	CalendarIDs []string        `json:"calendar_ids,omitempty"`
@@ -499,7 +506,7 @@ func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, opera
 	if err := decoder.Decode(&input); err != nil {
 		return Result{}, fmt.Errorf("decode connector operation input: %w", err)
 	}
-	if input.Limit < 0 || input.Limit > 100 || len(input.Query) > 4096 || len(input.ResourceID) > 2048 || len(input.Cursor) > 2048 || len(input.Payload) > maxHTTPActionBytes || len(input.Fields) > 4096 || len(input.TimeMin) > 64 || len(input.TimeMax) > 64 {
+	if len(input.ThreadTS) > 32 || input.Limit < 0 || input.Limit > 100 || len(input.Query) > 4096 || len(input.ResourceID) > 2048 || len(input.Cursor) > 2048 || len(input.Payload) > maxHTTPActionBytes || len(input.Fields) > 4096 || len(input.TimeMin) > 64 || len(input.TimeMax) > 64 {
 		return Result{}, errors.New("connector operation input exceeds its limits")
 	}
 	if len(input.Payload) > 0 {
@@ -520,6 +527,12 @@ func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, opera
 }
 
 func serviceRead(descriptor Descriptor, operation string, input serviceInput) (string, string, []byte, error) {
+	if descriptor.Kind == KindSlack && (operation == "channels_list" || operation == "thread_replies") {
+		return slackConversationRead(descriptor, operation, input)
+	}
+	if descriptor.Kind == KindNotion && (operation == "block_get" || operation == "database_get" || operation == "data_source_get" || operation == "data_source_query") {
+		return notionExtraRead(descriptor, operation, input)
+	}
 	if descriptor.Kind == KindGitLab {
 		return gitlabRead(descriptor, operation, input)
 	}
@@ -544,6 +557,13 @@ func serviceRead(descriptor Descriptor, operation string, input serviceInput) (s
 		}
 		path = "/search.messages"
 		query.Set("query", input.Query)
+		if input.Cursor != "" {
+			page, err := strconv.Atoi(input.Cursor)
+			if err != nil || page < 1 || page > 100 {
+				return "", "", nil, errors.New("Slack search page must be 1–100")
+			}
+			query.Set("page", strconv.Itoa(page))
+		}
 		if input.Limit > 0 {
 			query.Set("count", fmt.Sprint(input.Limit))
 		}
@@ -680,6 +700,9 @@ func serviceRead(descriptor Descriptor, operation string, input serviceInput) (s
 }
 
 func serviceAction(descriptor Descriptor, operation string, payload []byte, correlationID string, gmailAttachments ...gmailAttachment) (string, []byte, error) {
+	if descriptor.Kind == KindNotion && (operation == "block_append" || operation == "block_update") {
+		return notionBlockAction(descriptor, operation, payload)
+	}
 	if descriptor.Kind == KindGitLab {
 		return gitlabAction(descriptor, operation, payload)
 	}
@@ -781,7 +804,7 @@ func serviceActionMethod(descriptor Descriptor, operation string) string {
 		}
 	}
 	switch descriptor.Kind + "/" + operation {
-	case KindNotion + "/page_update", KindGoogle + "/calendar_event_update":
+	case KindNotion + "/page_update", KindNotion + "/block_append", KindNotion + "/block_update", KindGoogle + "/calendar_event_update":
 		return http.MethodPatch
 	case KindGoogle + "/calendar_event_delete":
 		return http.MethodDelete
