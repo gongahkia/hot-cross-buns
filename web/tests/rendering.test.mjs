@@ -1053,12 +1053,16 @@ test('first-load introduction starts a chat once without showing the settings fo
  view.open();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(view.element.hidden,false);assert.equal(view.element.querySelector('form').hidden,false);assert.equal(calls.some(action=>action.action==='intro_save'),false);view.element.remove();
 });
 
-test('scheduled tasks distinguish one-time and recurring tasks and never render their cron rule',()=>{
+test('scheduled tasks show every task without type filters or manual management links',()=>{
  const pane=scheduledPane({request:async()=>({})});document.body.append(pane.element);
- pane.update({running:false,entries:[{id:'once',kind:'once',title:'A one-time task',timing:'Once tomorrow at 8:00 PM',enabled:true,state:'completed'},{id:'repeat',kind:'recurring',title:'A recurring task',schedule:'0 20 * * *',timing:'At 8:00 PM, every day',enabled:true}]});
+ pane.update({running:false,entries:[{id:'once',kind:'once',title:'A one-time task',timing:'Once tomorrow at 8:00 PM',enabled:true,state:'completed'},{id:'repeat',kind:'recurring',title:'A recurring task',schedule:'0 20 * * *',timing:'At 8:00 PM, every day',enabled:true},{id:'event',kind:'event',title:'An event task',enabled:true}]});
  assert.equal(pane.trigger.hidden,false);assert.equal(pane.trigger.textContent,'');
  assert.doesNotMatch(pane.element.textContent,/0 20 \* \* \*/);assert.match(pane.element.textContent,/Local scheduler is stopped/);
- [...pane.element.querySelectorAll('button')].find(node=>node.textContent==='One-time').click();assert.equal(pane.element.querySelectorAll('.task-item').length,1);assert.match(pane.element.textContent,/A one-time task/);assert.equal([...pane.element.querySelectorAll('button')].some(node=>node.textContent==='Pause'),false);pane.update({entries:[],running:false});assert.equal(pane.trigger.hidden,true);pane.element.remove();
+ assert.equal(pane.element.querySelectorAll('.task-item').length,3);
+ assert.equal(pane.element.querySelector('[aria-label="Task type"]'),null);
+ assert.doesNotMatch(pane.element.textContent,/All tasks|Create or manage schedules|Ongoing responsibilities/);
+ assert.equal(pane.element.querySelector('[data-task-id="once"]').textContent.includes('Pause'),false);
+ pane.update({entries:[],running:false});assert.equal(pane.trigger.hidden,true);pane.element.remove();
 });
 
 

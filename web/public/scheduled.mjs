@@ -2,7 +2,7 @@ import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
-export function scheduledPane({ request, manage, goals, events, description = '' }) {
+export function scheduledPane({ request, events, description = '' }) {
   const root = element('aside', undefined, 'task-inspector scheduled-pane'); root.id = 'scheduled-tasks';
   root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', 'scheduled-title');
   const trigger = element('button', undefined, 'quiet icon-button'); trigger.type = 'button'; trigger.append(icon('clock'));
@@ -13,17 +13,11 @@ export function scheduledPane({ request, manage, goals, events, description = ''
   close.setAttribute('aria-label', 'Close scheduled tasks'); close.setAttribute('popovertarget', root.id); close.setAttribute('popovertargetaction', 'hide'); header.append(title, close);
   const note = element('p', description, 'hint'); note.hidden = !description;
   const error = element('p', undefined, 'issue'); error.setAttribute('role', 'alert'); error.hidden = true;
-  let selected='all';
-  const filters=element('div',undefined,'models-tabs');filters.setAttribute('aria-label','Task type');
-  for(const [value,label] of [['all','All tasks'],['once','One-time'],['recurring','Recurring'],['event','Event-triggered']])filters.append(button(label,()=>{selected=value;fingerprint='';update(latest);}));
-  let latest={};
   const health = element('p', undefined, 'hint'), list = element('div'), actions = element('div', undefined, 'task-links');
   const refresh = button('Refresh', () => void perform({ action: 'refresh' })); actions.append(refresh);
   const dismiss = () => root.hidePopover();
-  if (manage) actions.append(button('Create or manage schedules', async () => { dismiss(); await manage(); }));
-  if (goals) actions.append(button('Ongoing responsibilities', async () => { dismiss(); await goals(); }));
   root.append(header);
-  root.append(note, error, health, filters, list, actions);
+  root.append(note, error, health, list, actions);
   let busy = false, fingerprint = '';
   function button(text, action) { const node = element('button', text, 'quiet'); node.type = 'button'; node.addEventListener('click', () => void action()); return node; }
   async function perform(value) {
@@ -35,13 +29,11 @@ export function scheduledPane({ request, manage, goals, events, description = ''
   }
   function update(value = {}) {
     trigger.hidden=!(value.entries?.length);
-    latest=value;
-    for(const [index,node] of [...filters.children].entries())node.setAttribute("aria-pressed",String(["all","once","recurring","event"][index]===selected));
     const next = JSON.stringify(value); if (next === fingerprint) return; fingerprint = next;
     health.textContent = value.issue || (value.running === false ? 'Local scheduler is stopped.' : ''); health.hidden = !health.textContent;
     const expanded = new Set([...list.children].filter(row => row.open).map(row => row.dataset.taskId));
     list.replaceChildren();
-    for (const task of (value.entries || []).filter(task=>selected==='all'||(task.kind||'recurring')===selected)) {
+    for (const task of value.entries || []) {
       const row = element('details', undefined, 'task-item'), head = element('summary'), heading = element('span', undefined, 'task-heading');
       let due = '';
       if (task.next_due && task.enabled) {
@@ -61,7 +53,7 @@ export function scheduledPane({ request, manage, goals, events, description = ''
       for (const [label, action] of [['Details', 'inspect'], ...(!['completed','ended'].includes(task.state)?[[task.enabled ? 'Pause' : 'Resume', task.enabled ? 'pause' : 'resume']]:[]), ...(task.editable && task.kind !== 'event' ? [['Edit timing', 'edit']] : [])]) controls.append(button(label, () => perform({ action, id: task.id, digest: task.digest })));
       row.append(controls); list.append(row);
     }
-    if (!list.children.length) list.append(element('p', selected==='once'?'No one-time tasks yet.':selected==='recurring'?'No recurring tasks yet.':'No scheduled tasks yet. Ask me to remind you or check on something regularly.', 'task-empty hint'));
+    if (!list.children.length) list.append(element('p', 'No scheduled tasks yet. Ask me to remind you or check on something regularly.', 'task-empty hint'));
   }
   root.addEventListener('toggle', event => { if (event.newState === 'open') void perform({ action: 'refresh' }); });
   function open() { root.showPopover(); }
