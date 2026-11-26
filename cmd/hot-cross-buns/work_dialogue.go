@@ -149,9 +149,14 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 			return workrun.ConversationDecision{}, err
 		}
 		if input.ConversationID != "" {
-			context, err := prepareDialogueContinuity(ctx, stateDir, backend, request.Text, input, workrun.ConversationTokens(agent.ContextFor(backend), workrun.ConversationRequest{Text: request.Text, Tasks: request.Tasks, CanStart: request.CanStart}))
+			summaryInput := input
+			summaryInput.RunOptions.ModelProvider, summaryInput.RunOptions.ModelName = provider, model
+			context, err := prepareDialogueContinuity(ctx, stateDir, backend, request.Text, summaryInput, workrun.ConversationTokens(agent.ContextFor(backend), workrun.ConversationRequest{Text: request.Text, Tasks: request.Tasks, CanStart: request.CanStart}))
 			if err != nil {
 				return workrun.ConversationDecision{}, err
+			}
+			if err := enqueueSummaryMaintenance(ctx, stateDir, summaryInput); err != nil {
+				context.Notices = append(context.Notices, "Archive maintenance was deferred; original history remains available.")
 			}
 			profile := agent.ContextFor(backend)
 			for {

@@ -182,6 +182,7 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 	defer localModels.Close()
 	connections := &connectionControls{stateDir: stateDir}
 	application := workapp.New(workapp.Config{
+		MaintainHistory:          func(ctx context.Context) error { return runSummaryMaintenance(ctx, stateDir) },
 		CaptureConversationInput: captureConversationAdmission,
 		ReviewRequestAccess:      reviewRequestAccess,
 		RouteConversation:        routeInteractiveConversation(stateDir),

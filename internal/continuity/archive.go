@@ -14,10 +14,12 @@ import (
 )
 
 type archiveContext struct {
-	recent, tasks []worksession.ContextTurn
-	summary       string
-	covered       int
-	notices       []string
+	recent, tasks  []worksession.ContextTurn
+	summary        string
+	covered        int
+	notices        []string
+	maintenanceErr error
+	worked         bool
 }
 
 func prepareArchive(ctx context.Context, s worksession.Store, memories memory.Store, model agent.Model, records []memory.Record, rules []memory.WithdrawalRule, o Options) (archiveContext, error) {
@@ -141,60 +143,63 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 		bytes += n
 	}
 	summaryCalls := 2
-	if len(batch) >= 4 || bytes > 32*1024 {
+	if o.maintain && (len(batch) >= 4 || bytes > 32*1024) {
+		summaryCalls--
 		safe, err := screen(ctx, memories, model, o.GoalID, batch)
 		if err != nil {
 			return result, err
 		}
 		text, err := summarize(ctx, model, "", safe)
 		if err != nil {
+			result.maintenanceErr = err
 			result.notices = append(result.notices, "Earlier section summarization is temporarily unavailable; original history remains searchable.")
 		} else {
-			summaryCalls--
-			if past {
-				result.summary = text
-				result.covered = len(batch)
-			} else {
-				n := worksession.HistoryNode{Chat: q.Chat, Level: 0, Text: text, Policy: policy}
-				var parts []string
-				memoryDeps := map[string]bool{}
-				for _, t := range batch {
-					digest := worksession.ContextDigest([]worksession.ContextTurn{t})
-					n.Dependencies = append(n.Dependencies, worksession.HistoryDependency{Kind: "source", Key: t.ID, Digest: digest})
-					parts = append(parts, t.ID, digest)
-					prior, err := s.HistoryMemoryDependencies(ctx, q.Chat, t.ID)
-					if err != nil {
-						return archiveFallback(result, recent.Turns), nil
-					}
-					for _, id := range prior {
-						memoryDeps[id] = true
-					}
-					for _, record := range records {
-						if record.Origin != nil && record.Origin.ConversationID == q.Chat && record.Origin.Quote != "" && strings.Contains(t.User, record.Origin.Quote) {
-							memoryDeps[record.ID] = true
-						}
+			result.worked = true
+			n := worksession.HistoryNode{Chat: q.Chat, Level: 0, Text: text, Policy: policy}
+			var parts []string
+			memoryDeps := map[string]bool{}
+			for _, t := range batch {
+				digest := worksession.ContextDigest([]worksession.ContextTurn{t})
+				n.Dependencies = append(n.Dependencies, worksession.HistoryDependency{Kind: "source", Key: t.ID, Digest: digest})
+				parts = append(parts, t.ID, digest)
+				prior, err := s.HistoryMemoryDependencies(ctx, q.Chat, t.ID)
+				if err != nil {
+					return archiveFallback(result, recent.Turns), nil
+				}
+				for _, id := range prior {
+					memoryDeps[id] = true
+				}
+				for _, record := range records {
+					if record.Origin != nil && record.Origin.ConversationID == q.Chat && record.Origin.Quote != "" && strings.Contains(t.User, record.Origin.Quote) {
+						memoryDeps[record.ID] = true
 					}
 				}
-				memoryIDs := make([]string, 0, len(memoryDeps))
-				for id := range memoryDeps {
-					memoryIDs = append(memoryIDs, id)
+			}
+			memoryIDs := make([]string, 0, len(memoryDeps))
+			for id := range memoryDeps {
+				memoryIDs = append(memoryIDs, id)
+			}
+			sort.Strings(memoryIDs)
+			for _, id := range memoryIDs {
+				digest := versions[id]
+				if digest == "" {
+					digest = "missing"
 				}
-				sort.Strings(memoryIDs)
-				for _, id := range memoryIDs {
-					digest := versions[id]
-					if digest == "" {
-						digest = "missing"
-					}
-					n.Dependencies = append(n.Dependencies, worksession.HistoryDependency{Kind: "memory", Key: id, Digest: digest})
+				n.Dependencies = append(n.Dependencies, worksession.HistoryDependency{Kind: "memory", Key: id, Digest: digest})
+			}
+			n.ID = worksession.HistoryNodeID("section", parts...)
+			if o.validate != nil {
+				if err := o.validate(); err != nil {
+					return result, err
 				}
-				n.ID = worksession.HistoryNodeID("section", parts...)
-				if err := s.SaveHistoryNode(ctx, n); err != nil {
-					result.notices = append(result.notices, "A summary source changed during publication; that section will be prepared again.")
-				}
+			}
+			if err := s.SaveHistoryNode(ctx, n); err != nil {
+				result.maintenanceErr = err
+				result.notices = append(result.notices, "A summary source changed during publication; that section will be prepared again.")
 			}
 		}
 	}
-	if !past {
+	if o.maintain && result.maintenanceErr == nil {
 		for summaryCalls > 0 {
 			nodes, err = s.ReadHistoryNodes(ctx, q)
 			if err != nil {
@@ -215,11 +220,19 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 			text, err := summarize(ctx, model, "", []worksession.ContextTurn{{ID: a.ID, User: a.Text, State: "source_section_summary"}, {ID: b.ID, User: b.Text, State: "source_section_summary"}})
 			summaryCalls--
 			if err != nil {
+				result.maintenanceErr = err
 				result.notices = append(result.notices, "Summary overview maintenance is incomplete; the underlying sections remain available.")
 				break
 			}
+			result.worked = true
 			n := worksession.HistoryNode{Chat: q.Chat, ID: worksession.HistoryNodeID("overview", a.ID, a.Digest, b.ID, b.Digest), Level: a.Level + 1, Text: text, Policy: policy, Dependencies: []worksession.HistoryDependency{{Kind: "node", Key: a.ID, Digest: a.Digest}, {Kind: "node", Key: b.ID, Digest: b.Digest}}}
+			if o.validate != nil {
+				if err := o.validate(); err != nil {
+					return result, err
+				}
+			}
 			if err := s.SaveHistoryNode(ctx, n); err != nil {
+				result.maintenanceErr = err
 				break
 			}
 		}

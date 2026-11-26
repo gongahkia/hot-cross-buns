@@ -27,6 +27,8 @@ const recentTurns = 8
 const maxBatchBytes = 48 * 1024
 
 type Options struct {
+	maintain                           bool
+	validate                           func() error
 	ReservedTokens                     int
 	Embedder                           retrieval.Embedder
 	AdmittedRecent                     []Message
@@ -305,7 +307,7 @@ func summarize(ctx context.Context, model agent.Model, previous string, turns []
 		Previous string                    `json:"previous_summary"`
 		Turns    []worksession.ContextTurn `json:"turns"`
 	}{previous, turns})
-	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	turn, err := model.Complete(ctx, agent.TurnRequest{MaxOutputTokens: min(agent.ContextFor(model).OutputReserve, max(128, agent.ContextFor(model).InputLimit()/8)), System: summaryPrompt, Messages: []agent.Message{{Role: agent.RoleUser, Content: string(data)}}})
 	if err != nil {

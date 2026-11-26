@@ -33,6 +33,9 @@ func (m Model) openModels() (tea.Model, tea.Cmd) {
 
 // Close releases a model operation if the terminal closes while its panel is open.
 func (m Model) Close() {
+	if m.historyCancel != nil {
+		m.historyCancel()
+	}
 	if m.nativeCatalog != nil && m.nativeCatalog.cancel != nil {
 		m.nativeCatalog.cancel()
 	}

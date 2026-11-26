@@ -77,8 +77,8 @@ Task continuations and active tool loops use the same window policy. Compaction
 chooses complete interactions instead of a fixed last-12-message tail. It keeps
 the current task and latest complete interaction, preserves tool-call/result
 pairing, and requests factual summaries in bounded batches. At most eight task
-summary batches are attempted per compaction; ordinary archive maintenance keeps
-its existing two-call limit. Calls also consume the existing aggregate budget.
+summary batches are attempted per compaction; asynchronous archive maintenance uses
+a two-summary-call claim limit outside reply preparation. Calls also consume the existing aggregate budget.
 
 Removed task text is retained in private revision replay archives; it is not
 included in subsequent model requests. Actual knowledge-read dependencies

@@ -110,7 +110,7 @@ export async function fixture({ contextWindow=262144, startScheduler = false, in
     throw error;
   }
   return {
-    get url() {return app.url;}, payloads, seededChats, draftFile,
+    get url() {return app.url;}, payloads, seededChats, draftFile, historyCache: join(env.HOT_CROSS_BUNS_STATE_DIR, 'hot-cross-buns/cache/conversations-v1.sqlite'),
     async restart() { await app.close(); app=await startWeb(appOptions,0,voiceOptions); },
     block() { blocked = true; },
     blockAfterTool() { afterTool = true; },

@@ -31,6 +31,7 @@ func (s Store) HistoryCache(ctx context.Context, fn func(*sql.DB) error) error {
 		`CREATE VIRTUAL TABLE IF NOT EXISTS history_fts USING fts5(id UNINDEXED,text,tokenize='unicode61')`,
 		`CREATE TABLE IF NOT EXISTS history_progress(chat TEXT PRIMARY KEY,oldest INTEGER NOT NULL DEFAULT 0,dialogue_done INTEGER NOT NULL DEFAULT 0,head TEXT NOT NULL DEFAULT '',work_cursor TEXT NOT NULL DEFAULT '',work_done INTEGER NOT NULL DEFAULT 0)`,
 		`CREATE TABLE IF NOT EXISTS history_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS history_maintenance(chat TEXT PRIMARY KEY,key TEXT NOT NULL,payload TEXT NOT NULL,generation INTEGER NOT NULL,attempts INTEGER NOT NULL,next_at INTEGER NOT NULL,lease TEXT NOT NULL,lease_until INTEGER NOT NULL,updated INTEGER NOT NULL,last_error TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS history_nodes(chat TEXT NOT NULL,id TEXT NOT NULL,level INTEGER NOT NULL,first_at INTEGER NOT NULL,last_at INTEGER NOT NULL,text TEXT NOT NULL,digest TEXT NOT NULL,dirty INTEGER NOT NULL DEFAULT 0,policy TEXT NOT NULL,anchor TEXT NOT NULL DEFAULT '',maxseq INTEGER NOT NULL DEFAULT 0,source_updated INTEGER NOT NULL DEFAULT 0,covered INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(chat,id))`,
 		`CREATE TABLE IF NOT EXISTS history_dependencies(chat TEXT NOT NULL,node TEXT NOT NULL,kind TEXT NOT NULL,key TEXT NOT NULL,digest TEXT NOT NULL,PRIMARY KEY(chat,node,kind,key))`,
 		`CREATE INDEX IF NOT EXISTS history_dependency_source ON history_dependencies(chat,kind,key)`,

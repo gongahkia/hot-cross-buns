@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {randomUUID} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
+import {setTimeout as delay} from 'node:timers/promises';
 import {fixture} from './fixture.mjs';
 
 async function events(app){
@@ -17,9 +19,13 @@ test('main chat carries durable summaries and current editable memories through 
   live=await events(app);let state=await live.until(value=>value.state?.primary);
   state=await say(app,live,state.context,'Tell me about our ongoing conversation.');
   let request=routed(app).at(-1),context=JSON.parse(request.continuity_context);
+  assert.equal(context.summarized_turns,0,'first reply should not wait for summary generation');
+  await waitForSummary(app);
+  state=await say(app,live,state.context,'Use the cached background context.');
+  request=routed(app).at(-1);context=JSON.parse(request.continuity_context);
   assert.ok(context.summarized_turns>0&&context.summarized_turns<24);assert.match(context.earlier_conversation_summary,/Fixture answer/);
   assert.ok(context.current_memories.some(memory=>memory.text==='I prefer quiet interfaces.'));
-  assert.equal(request.recent_messages.at(-1).text,"You're welcome.");
+  assert.equal(request.recent_messages.at(-1).text,"A continuing conversation.");
   const summaryCalls=()=>app.payloads.filter(payload=>payload.messages.some(message=>message.role==='system'&&message.content.includes('factual rolling conversation summary'))).length;
   assert.equal(summaryCalls(),1);assert.equal(state.state.running,false);
   const summaryPayload=app.payloads.find(payload=>payload.messages.some(message=>message.role==='system'&&message.content.includes('factual rolling conversation summary')));
@@ -64,3 +70,12 @@ test('main chat can discuss a completed delegated result after its worker has cl
   assert.equal(result.can_guide,false);assert.equal(result.can_stop,false);assert.equal(result.can_correct_action,false);
  }finally{live?.close();await app.close();}
 });
+
+async function waitForSummary(app){
+ const deadline=Date.now()+15000;
+ while(Date.now()<deadline){
+  let db;try{db=new DatabaseSync(app.historyCache,{readOnly:true});if(db.prepare('SELECT count(*) AS count FROM history_nodes WHERE dirty=0').get().count>0)return;}finally{db?.close();}
+  await delay(50);
+ }
+ throw Error('Background summary did not publish');
+}

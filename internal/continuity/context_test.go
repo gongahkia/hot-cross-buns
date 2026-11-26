@@ -93,7 +93,7 @@ func TestSummaryPersistsAcrossRestartExtendsWithoutGapsAndKeepsRecentDetail(t *t
 	root, s, chat := fixture(t, 20)
 	model := &testModel{}
 	options := Options{ConversationID: chat.ID, Main: true, Query: "SAFFRON launch"}
-	first, err := Build(context.Background(), root, model, options)
+	first, err := buildMaintained(context.Background(), root, model, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestSummaryPersistsAcrossRestartExtendsWithoutGapsAndKeepsRecentDetail(t *t
 		t.Fatal(err)
 	}
 	model.requests = nil
-	again, err := Build(context.Background(), root, model, options)
+	again, err := buildMaintained(context.Background(), root, model, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestSummaryPersistsAcrossRestartExtendsWithoutGapsAndKeepsRecentDetail(t *t
 		t.Fatal("restart recomputed unchanged summary")
 	}
 	seed(t, s, chat.ID, 20, 2, "new details")
-	next, err := Build(context.Background(), root, model, options)
+	next, err := buildMaintained(context.Background(), root, model, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestSummaryPersistsAcrossRestartExtendsWithoutGapsAndKeepsRecentDetail(t *t
 		t.Fatal("batching lost unsummarized recent turns", next)
 	}
 	seed(t, s, chat.ID, 22, 2, "more details")
-	next, err = Build(context.Background(), root, model, options)
+	next, err = buildMaintained(context.Background(), root, model, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,14 +148,14 @@ func TestCorrectionsExclusionsAndForgettingRefreshContextWithoutRevivingHistory(
 	}
 	model := &testModel{}
 	o := Options{ConversationID: chat.ID, Query: "reply preference", Main: true}
-	first, err := Build(context.Background(), root, model, o)
+	first, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil || len(first.Memories) != 1 {
 		t.Fatal(first, err)
 	}
 	if _, err := memories.Correct(record.ID, "I prefer detailed replies.", "user"); err != nil {
 		t.Fatal(err)
 	}
-	corrected, err := Build(context.Background(), root, model, o)
+	corrected, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestCorrectionsExclusionsAndForgettingRefreshContextWithoutRevivingHistory(
 		t.Fatal("old saved fact survived correction", corrected.Memories)
 	}
 	o.Excluded = []string{record.ID}
-	excluded, err := Build(context.Background(), root, model, o)
+	excluded, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil || len(excluded.Memories) != 0 {
 		t.Fatal("excluded memory returned", excluded, err)
 	}
@@ -172,7 +172,7 @@ func TestCorrectionsExclusionsAndForgettingRefreshContextWithoutRevivingHistory(
 		t.Fatal(err)
 	}
 	model.block = "SAFFRON"
-	forgotten, err := Build(context.Background(), root, model, o)
+	forgotten, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestSummaryFailuresPreserveHistoryAndRecoverOnNextRequest(t *testing.T) {
 	root, s, chat := fixture(t, 18)
 	model := &testModel{fail: true}
 	o := Options{ConversationID: chat.ID}
-	result, err := Build(context.Background(), root, model, o)
+	result, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil || result.Summary != "" || len(result.Notices) == 0 || len(result.Recent) == 0 {
 		t.Fatal("no truthful fallback", result, err)
 	}
@@ -198,7 +198,7 @@ func TestSummaryFailuresPreserveHistoryAndRecoverOnNextRequest(t *testing.T) {
 		t.Fatal("failed summary published", saved, err)
 	}
 	model.fail = false
-	result, err = Build(context.Background(), root, model, o)
+	result, err = buildMaintained(context.Background(), root, model, o)
 	if err != nil || result.Covered != 10 {
 		t.Fatal("could not recover", result, err)
 	}
@@ -232,12 +232,12 @@ func TestRecallIncludesDialogueHonorsOptOutAndGoalBoundaries(t *testing.T) {
 	}
 	seed(t, s, private.ID, 0, 1, "ceramic kiln secret")
 	o := Options{ConversationID: chat.ID, Query: "ceramic kiln", ReferToChats: true}
-	result, err := Build(context.Background(), root, &testModel{}, o)
+	result, err := buildMaintained(context.Background(), root, &testModel{}, o)
 	if err != nil || len(result.Recalled) != 1 || result.Recalled[0].ConversationID != other.ID {
 		t.Fatal("missing dialogue recall or crossed goal scope", result, err)
 	}
 	o.ReferToChats = false
-	result, err = Build(context.Background(), root, &testModel{}, o)
+	result, err = buildMaintained(context.Background(), root, &testModel{}, o)
 	if err != nil || len(result.Recalled) != 0 {
 		t.Fatal("earlier-chat opt out ignored", result, err)
 	}
@@ -255,7 +255,7 @@ func TestMemoryMutationDuringSummaryRejectsPreparedContext(t *testing.T) {
 			t.Fatal(err)
 		}
 	}}
-	if _, err := Build(context.Background(), root, model, Options{ConversationID: chat.ID}); err == nil {
+	if _, err := buildMaintained(context.Background(), root, model, Options{ConversationID: chat.ID}); err == nil {
 		t.Fatal("returned context prepared before a concurrent forget")
 	}
 }
@@ -286,7 +286,7 @@ func TestCommitmentsAndPendingTasksRefreshFromStoresWithoutClaimingLiveExecution
 	}
 	o := Options{ConversationID: chat.ID, Main: true}
 	model := &testModel{}
-	first, err := Build(context.Background(), root, model, o)
+	first, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,12 +304,12 @@ func TestCommitmentsAndPendingTasksRefreshFromStoresWithoutClaimingLiveExecution
 	if _, err := store.Save(job); err != nil {
 		t.Fatal(err)
 	}
-	next, err := Build(context.Background(), root, model, o)
+	next, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil || len(next.Commitments[0].Steps) != 0 || len(next.Tasks) != 0 || len(next.Schedules) != 0 {
 		t.Fatal("stale unfinished state persisted", next, err)
 	}
 	o.Main = false
-	scoped, err := Build(context.Background(), root, model, o)
+	scoped, err := buildMaintained(context.Background(), root, model, o)
 	if err != nil || len(scoped.Commitments) != 0 {
 		t.Fatal("unscoped side chat received unrelated responsibilities", scoped, err)
 	}
@@ -318,7 +318,7 @@ func TestCommitmentsAndPendingTasksRefreshFromStoresWithoutClaimingLiveExecution
 func TestForkDoesNotInheritFutureSummaryAndHistoricalPreparationCannotRollBackCache(t *testing.T) {
 	root, s, chat := fixture(t, 24)
 	model := &testModel{}
-	if _, err := Build(context.Background(), root, model, Options{ConversationID: chat.ID}); err != nil {
+	if _, err := buildMaintained(context.Background(), root, model, Options{ConversationID: chat.ID}); err != nil {
 		t.Fatal(err)
 	}
 	before, err := s.ReadContinuity(chat.ID)
@@ -334,7 +334,7 @@ func TestForkDoesNotInheritFutureSummaryAndHistoricalPreparationCannotRollBackCa
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := Build(context.Background(), root, model, Options{ConversationID: fork.ID})
+	child, err := buildMaintained(context.Background(), root, model, Options{ConversationID: fork.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestForkDoesNotInheritFutureSummaryAndHistoricalPreparationCannotRollBackCa
 			t.Fatal("fork inherited future context")
 		}
 	}
-	if _, err := Build(context.Background(), root, model, Options{ConversationID: chat.ID, BeforeSequence: selected.Sequence, BeforeTime: selected.CreatedAt}); err != nil {
+	if _, err := buildMaintained(context.Background(), root, model, Options{ConversationID: chat.ID, BeforeSequence: selected.Sequence, BeforeTime: selected.CreatedAt}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := s.ReadContinuity(chat.ID)
@@ -356,7 +356,7 @@ func TestMalformedSummariesCannotReplaceRetainedContext(t *testing.T) {
 	for name, turn := range map[string]agent.Turn{"empty": {}, "oversize": {Text: strings.Repeat("x", 12*1024+1)}, "invalid-utf8": {Text: "\xff"}, "controls": {Text: "bad\x00summary"}, "tool-call": {Text: "claimed result", ToolCalls: []agent.ToolCall{{ID: "invented", Name: "execute"}}}} {
 		t.Run(name, func(t *testing.T) {
 			root, s, chat := fixture(t, 12)
-			result, err := Build(context.Background(), root, &testModel{response: &turn}, Options{ConversationID: chat.ID})
+			result, err := buildMaintained(context.Background(), root, &testModel{response: &turn}, Options{ConversationID: chat.ID})
 			if err != nil || result.Summary != "" || len(result.Notices) == 0 {
 				t.Fatal("invalid summary trusted", result, err)
 			}
@@ -379,18 +379,18 @@ func TestChatSelectionKeepsConditionalPlannedContextScopedEvenWhenPinned(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	unrelated, err := Build(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "Write a poem", Main: true})
+	unrelated, err := buildMaintained(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "Write a poem", Main: true})
 	if err != nil || len(unrelated.Memories) != 0 {
 		t.Fatal(unrelated, err)
 	}
-	relevant, err := Build(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "Help with travel planning", Main: true})
+	relevant, err := buildMaintained(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "Help with travel planning", Main: true})
 	if err != nil || len(relevant.Memories) != 1 || relevant.Memories[0].Context.State != "planned" || len(relevant.RecallTrace) != 1 {
 		t.Fatal(relevant, err)
 	}
 	if _, err := s.CorrectReviewed(r.ID, "I cancelled the visit.", r.Source, r.UpdatedAt.Format(time.RFC3339Nano)); err != nil {
 		t.Fatal(err)
 	}
-	corrected, err := Build(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "travel planning", Main: true})
+	corrected, err := buildMaintained(context.Background(), root, &testModel{}, Options{ConversationID: chat.ID, Query: "travel planning", Main: true})
 	if err != nil || len(corrected.Memories) != 0 {
 		t.Fatal("uncertain applicability entered chat", corrected, err)
 	}
@@ -402,12 +402,12 @@ func TestModelWindowControlsRecentDetailAndPreparedContextSize(t *testing.T) {
 	options := Options{ConversationID: chat.ID, Query: "What did we decide about SAFFRON?", Main: true}
 	probe := &testModel{}
 	large := agent.WithContextPolicy(probe, agent.ContextPolicy{Window: 262144, OutputReserve: 8192})
-	full, err := Build(context.Background(), root, large, options)
+	full, err := buildMaintained(context.Background(), root, large, options)
 	if err != nil || len(probe.requests) > 0 || len(full.Recent) != 64 {
 		t.Fatal("larger window did not retain fitting exact turns", len(full.Recent), len(probe.requests), err)
 	}
 	small := agent.WithContextPolicy(probe, agent.ContextPolicy{Window: 16384, OutputReserve: 2048})
-	bounded, err := Build(context.Background(), root, small, options)
+	bounded, err := buildMaintained(context.Background(), root, small, options)
 	if err != nil || len(bounded.Recent) >= len(full.Recent) || bounded.Covered == 0 {
 		t.Fatal("smaller model did not compact", bounded.Covered, len(bounded.Recent), err)
 	}
@@ -432,4 +432,9 @@ func TestArchiveSummaryAllocationScalesBeyondTheCompatibilityView(t *testing.T) 
 	if len(large) <= 12*1024 || p.Count(large) > 32768 || p.Count(small) > 2048 || len(small) >= len(large) {
 		t.Fatal("archive text ignored model allocation", len(large), len(small))
 	}
+}
+
+func buildMaintained(ctx context.Context, root string, model agent.Model, options Options) (Context, error) {
+	options.maintain = true
+	return Build(ctx, root, model, options)
 }

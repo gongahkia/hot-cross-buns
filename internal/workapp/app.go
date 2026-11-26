@@ -191,6 +191,7 @@ type ModelStatus struct {
 type GoalState struct{ Title, SourcePath, ConversationID string }
 
 type Config struct {
+	MaintainHistory            func(context.Context) error
 	ConfigureHistoryEmbeddings func(provider string, enabled bool) error
 
 	ReviewQueue              func(suggestion.QueueAction) suggestion.QueueResult
@@ -478,6 +479,8 @@ type Model struct {
 	title                     string
 	input                     string
 	promptHistory             []string
+	historyContext            context.Context
+	historyCancel             context.CancelFunc
 	historyIndex              int
 	historyDraft              string
 	composerEditorPath        string
@@ -627,6 +630,7 @@ func New(config Config) Model {
 	model.entries = model.availableCommandEntries()
 	model.statusLine, model.statusLineConfigured = resolveStatusLine(config.StatusLine)
 	model.statusLineEnabled = config.StatusLineEnabled
+	model.historyContext, model.historyCancel = context.WithCancel(context.Background())
 	model.refreshModelStatus()
 	model.refreshTerminalPreferences()
 	model.primarySource = config.CurrentFolder
@@ -697,7 +701,7 @@ func New(config Config) Model {
 // Init loads the initial application projections. The terminal frontend owns rendering.
 func (m Model) Init() tea.Cmd {
 	var history tea.Cmd
-	if m.config.Live && m.config.BridgeMode && m.config.ManagedSessions && m.config.SessionStore != nil {
+	if m.config.Live && m.config.SessionStore != nil && (m.config.BridgeMode && m.config.ManagedSessions || m.config.MaintainHistory != nil) {
 		history = m.historySweepCommand()
 	}
 	if m.config.ReadChecks != nil {

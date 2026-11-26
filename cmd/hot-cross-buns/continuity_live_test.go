@@ -33,8 +33,8 @@ func TestLiveConversationContinuity(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile := agent.ContextFor(model)
-	profile.Window = 8192
-	profile.OutputReserve = 1024
+	profile.Window = 32768
+	profile.OutputReserve = 4096
 	profile.Source = "controlled small-window evaluation"
 	model = agent.WithContextPolicy(model, profile)
 	root := t.TempDir()
@@ -47,7 +47,7 @@ func TestLiveConversationContinuity(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 24; i++ {
-		text := fmt.Sprintf("A passing observation about the weather, number %d.", i)
+		text := fmt.Sprintf("Passing weather observation %d. %s", i, strings.Repeat("This is transient weather, not a preference or task instruction. ", 100))
 		if i == 0 {
 			text = "I am Mira. For our synthetic SaffronHarbor trip, the decision deadline is 2027-02-12. We are comparing options only; no booking has been made or authorized."
 		}
@@ -68,10 +68,14 @@ func TestLiveConversationContinuity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	ctx = sharedusage.WithState(sharedusage.WithCategory(ctx, "retrieval"), root)
-	prepared, err := continuity.Build(ctx, root, model, continuity.Options{ConversationID: chat.ID, Main: true})
+	opts := continuity.Options{ConversationID: chat.ID, Main: true}
+	if _, err := continuity.Maintain(ctx, root, model, opts, nil); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := continuity.Build(ctx, root, model, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

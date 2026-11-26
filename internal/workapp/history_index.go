@@ -14,10 +14,19 @@ func (m Model) historySweepCommand() tea.Cmd {
 		return nil
 	}
 	store := *m.config.SessionStore
+	parent := m.historyContext
+	if parent == nil {
+		parent = context.Background()
+	}
+	maintain := m.config.MaintainHistory
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		ctx, cancel := context.WithTimeout(parent, 4*time.Second)
 		defer cancel()
 		_ = store.SweepHistory(ctx)
+		cancel()
+		if parent.Err() == nil && maintain != nil {
+			_ = maintain(parent)
+		}
 		return historyIndexTick{}
 	}
 }
