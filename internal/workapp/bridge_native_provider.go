@@ -25,7 +25,7 @@ func (m Model) ApplyNativeProvider(a modelcatalog.NativeProviderAction) (tea.Mod
 		return m, nil
 	}
 	switch a.Action {
-	case "runtime_status", "runtime_review_start", "runtime_start", "runtime_review_stop", "runtime_stop", "runtime_review_download", "runtime_download", "runtime_cancel_review", "runtime_cancel_download", "local_review_select", "local_select", "local_reconcile", "local_cancel_review", "local_start", "local_download", "local_status", "status", "inventory", "review", "review_remove", "save", "remove", "cancel":
+	case "specialist_review", "specialist_save", "runtime_status", "runtime_review_start", "runtime_start", "runtime_review_stop", "runtime_stop", "runtime_review_download", "runtime_download", "runtime_cancel_review", "runtime_cancel_download", "local_review_select", "local_select", "local_reconcile", "local_cancel_review", "local_start", "local_download", "local_status", "status", "inventory", "review", "review_remove", "save", "remove", "cancel":
 	default:
 		m.nativeProviderResult = &modelcatalog.NativeProviderResult{RequestID: a.RequestID, Action: a.Action, Error: "Unsupported provider operation."}
 		return m, nil

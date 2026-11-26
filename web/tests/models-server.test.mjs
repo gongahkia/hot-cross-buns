@@ -16,3 +16,18 @@ test('model inventory is a separate read-only operation and preserves the conver
     assert.equal((await fetch(app.url+'/models-view.mjs')).status,200);
   }finally{abort.abort();await app.close()}
 });
+
+test('specialist model assignment traverses the native bridge with an exact single-use review',{timeout:30000},async()=>{
+ const app=await fixture();const abort=new AbortController();
+ try {
+  const response=await fetch(app.url+'/api/events',{signal:abort.signal}),reader=response.body.pipeThrough(new TextDecoderStream()).getReader();let buffer='';
+  while(!buffer.includes('\n\n'))buffer+=(await reader.read()).value;
+  const {context}=JSON.parse(buffer.slice(6,buffer.indexOf('\n\n')));
+  const action=async body=>{const r=await fetch(app.url+'/api/action',{method:'POST',headers:{Origin:app.url,'Content-Type':'application/json'},body:JSON.stringify({op:'providers',context,...body})});return {status:r.status,value:await r.json()}};
+  const review=await action({action:'specialist_review',role:'source_researcher',provider:'fixture',model:'fixture',max_steps:5,inherit:false});assert.equal(review.status,200,JSON.stringify(review.value));assert.equal(review.value.review.role,'source_researcher');
+  const before=await action({action:'inventory'});assert.equal(before.value.inventory.agents.find(a=>a.name==='source_researcher').inherits,true);
+  const saved=await action({action:'specialist_save',reviewId:review.value.review.id});assert.equal(saved.status,200,JSON.stringify(saved.value));assert.equal(saved.value.confirmed,true);
+  const after=await action({action:'inventory'});const role=after.value.inventory.agents.find(a=>a.name==='source_researcher');assert.equal(role.provider,'fixture');assert.equal(role.model,'fixture');assert.equal(role.max_steps,5);assert.equal(role.inherits,false);
+  assert.equal((await action({action:'specialist_save',reviewId:review.value.review.id})).status,409);assert.equal(app.payloads.length,0);
+ }finally{abort.abort();await app.close()}
+});

@@ -468,6 +468,9 @@ func (m Model) followupPanel() uisnapshot.Panel {
 			next = c.NextDue.Local().Format("2 Jan, 15:04")
 		}
 		p.Summary = []uisnapshot.Field{{Label: "Status", Value: c.State, Tone: checkTone(c.State)}, {Label: "Last successful check", Value: last}, {Label: "Next scheduled check", Value: next}}
+		if !c.Definition.StartsAt.IsZero() {
+			p.Summary = append(p.Summary, uisnapshot.Field{Label: "Start date", Value: c.Definition.StartsAt.Local().Format("2 Jan 2006, 15:04 MST (Z07:00)")})
+		}
 		if !c.Definition.EndsAt.IsZero() {
 			p.Summary = append(p.Summary, uisnapshot.Field{Label: "End date", Value: c.Definition.EndsAt.Local().Format("2 Jan 2006, 15:04 MST (Z07:00)")})
 		}
@@ -533,13 +536,22 @@ func checkFrequency(c workhome.Check) string {
 }
 func checkSourceLines(c workhome.Check) []string {
 	lines := []string{c.Definition.SourcePath, "Notify when: " + valueOrNone(c.Definition.AlertWhen), "May " + string(c.Definition.Mode) + "; external actions forbidden unattended"}
+	for _, id := range c.Definition.ConnectorIDs {
+		lines = append(lines, "Account: "+id+" · allowed reads: "+strings.Join(c.Definition.ReadOperations[id], ", "))
+	}
+	if routine := c.Definition.Routine; routine != nil {
+		lines = append(lines, "Routine: "+routine.Name+" · reviewed revision "+routine.Revision)
+	}
+	if trigger := c.Definition.Trigger; trigger != nil {
+		lines = append(lines, "Event types: "+strings.Join(trigger.Types, ", "))
+	}
 	for _, source := range c.Definition.WatchSources {
 		line := source.ConnectorID + " / " + source.Operation
 		if source.Query != "" {
 			line += " · query: " + source.Query
 		}
 		if source.Days > 0 {
-			line += fmt.Sprintf(" · next %d days", source.Days)
+			line += fmt.Sprintf(" · calendar %s · next %d local days", source.CalendarID, source.Days)
 		}
 		lines = append(lines, line)
 	}

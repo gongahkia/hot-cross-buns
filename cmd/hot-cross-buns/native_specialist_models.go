@@ -63,6 +63,7 @@ func (b *nativeProviderBackend) specialistAction(a modelcatalog.NativeProviderAc
 		return fail("Specialist or model settings changed; open a fresh review.")
 	}
 	result.Confirmed = true
+	result.Changed = true
 	result.Inventory, _ = b.modelInventory()
 	return result
 }
