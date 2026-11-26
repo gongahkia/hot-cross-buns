@@ -87,6 +87,9 @@ func captureConversationSetup(input workapp.ConversationInput, allowMissing bool
 	// These settings can change execution authority or processing destination.
 	// Cosmetic preferences/default-model changes do not invalidate captured work.
 	scope := map[string]any{"embeddings": settings.Embeddings, "connectors": selected, "grants": grants, "permissions": settings.ConnectorPermissions, "endpoints": settings.ProviderEndpoints, "provider_options": settings.ProviderOptions, "custom_providers": settings.CustomProviders, "extensions": settings.Extensions, "extension_trusts": settings.ExtensionTrusts, "hooks": settings.HookTrusts, "lsp": settings.LSPTrusts, "mcp": settings.MCPTrusts, "execution": settings.Execution, "roles": settings.WorkRoles, "external_agents": settings.ExternalAgents}
+	if len(settings.ContextWindows) > 0 {
+		scope["context_windows"] = settings.ContextWindows
+	}
 	if len(missing) > 0 {
 		scope["missing_sources"] = missing
 	}
@@ -146,20 +149,32 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 			return workrun.ConversationDecision{}, err
 		}
 		if input.ConversationID != "" {
-			context, err := prepareDialogueContinuity(ctx, stateDir, backend, request.Text, input)
+			context, err := prepareDialogueContinuity(ctx, stateDir, backend, request.Text, input, workrun.ConversationTokens(agent.ContextFor(backend), workrun.ConversationRequest{Text: request.Text, Tasks: request.Tasks, CanStart: request.CanStart}))
 			if err != nil {
 				return workrun.ConversationDecision{}, err
 			}
-			request.Recent = nil
-			for _, message := range context.Recent {
-				request.Recent = append(request.Recent, workrun.ConversationMessage{Role: message.Role, Text: message.Text})
+			profile := agent.ContextFor(backend)
+			for {
+				request.Recent = nil
+				for _, message := range context.Recent {
+					request.Recent = append(request.Recent, workrun.ConversationMessage{Role: message.Role, Text: message.Text})
+				}
+				view := context
+				view.Recent = nil
+				data, err := json.Marshal(view)
+				if err != nil {
+					return workrun.ConversationDecision{}, err
+				}
+				request.Continuity = string(data)
+				excess := workrun.ConversationTokens(profile, request) - profile.InputLimit()
+				if excess <= 0 {
+					break
+				}
+				full, _ := json.Marshal(context)
+				if err := continuity.FitModelContext(&context, profile, profile.Count(string(full))-excess-512); err != nil {
+					return workrun.ConversationDecision{}, err
+				}
 			}
-			context.Recent = nil
-			data, err := json.Marshal(context)
-			if err != nil {
-				return workrun.ConversationDecision{}, err
-			}
-			request.Continuity = string(data)
 			settings, err := loadSettings()
 			if err != nil {
 				return workrun.ConversationDecision{}, err
@@ -171,7 +186,7 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 	}
 }
 
-func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent.Model, text string, input workapp.ConversationInput) (continuity.Context, error) {
+func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent.Model, text string, input workapp.ConversationInput, reserved ...int) (continuity.Context, error) {
 	if _, err := personalization.SyncMarkdown(stateDir); err != nil {
 		return continuity.Context{}, fmt.Errorf("review local memory file edits: %w", err)
 	}
@@ -211,8 +226,12 @@ func prepareDialogueContinuity(ctx context.Context, stateDir string, model agent
 		reports = append(reports, continuity.Report{ID: task.ID, Title: continuity.Clip(task.Title, 256), State: task.State, Summary: continuity.Clip(task.Summary, 1024)})
 	}
 	embedder, _ := configuredHistoryEmbedder(stateDir, settings)
+	overhead := 0
+	if len(reserved) > 0 {
+		overhead = reserved[0]
+	}
 	result, err := continuity.Build(sharedusage.WithState(sharedusage.WithCategory(ctx, "retrieval"), stateDir), stateDir, model, continuity.Options{
-		Embedder: embedder, AdmittedRecent: recent, Reports: reports,
+		ReservedTokens: overhead, Embedder: embedder, AdmittedRecent: recent, Reports: reports,
 		ConversationID: input.ConversationID, GoalID: input.GoalID, Query: text, BeforeSequence: input.BeforeSequence, BeforeTime: input.BeforeTime,
 		Excluded: input.RunOptions.ExcludedKnowledgeIDs, Main: main == input.ConversationID, ReferToChats: settings.Desktop.RefersToChats(), LearnFromChats: settings.Desktop.LearnsFromChats(),
 	})

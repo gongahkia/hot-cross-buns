@@ -38,6 +38,7 @@ type Conversation struct {
 }
 
 type ReplayState struct {
+	ArchivedMessages  []agent.Message `json:"archived_messages,omitempty"`
 	KnowledgeRefs     []string        `json:"knowledge_refs,omitempty"`
 	KnowledgeOverflow bool            `json:"knowledge_overflow,omitempty"`
 	Version           int             `json:"version"`

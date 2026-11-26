@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ startScheduler = false, introductionReplies = false, schedulingTask = false, introductionStatus = "", voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
+export async function fixture({ contextWindow=262144, startScheduler = false, introductionReplies = false, schedulingTask = false, introductionStatus = "", voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -56,6 +56,7 @@ export async function fixture({ startScheduler = false, introductionReplies = fa
   await mkdir(join(config, "hot-cross-buns"), { recursive: true });
   await writeFile(join(config, "hot-cross-buns", "config.json"), JSON.stringify({
     version: 4, defaults: { provider: "fixture", model: "fixture" },
+    context_windows: {"fixture:fixture":contextWindow},
     ...(introductionStatus?{desktop:{introduction:introductionStatus}}:{}),
     custom_providers: [{ id: "fixture", default_model: "fixture", models: ["fixture"], base_url: "http://127.0.0.1:" + provider.address().port + "/chat" }],
   }));

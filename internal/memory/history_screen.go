@@ -132,7 +132,7 @@ func (s Store) ScreenHistory(ctx context.Context, model agent.Model, scope strin
 			if err != nil {
 				return result, err
 			}
-			if len(payload) <= 64*1024 {
+			if len(payload) <= 64*1024 && agent.ContextFor(model).RequestTokens(agent.TurnRequest{System: historyPrivacyPrompt, Messages: []agent.Message{{Role: agent.RoleUser, Content: string(payload)}}}) <= agent.ContextFor(model).InputLimit() {
 				break
 			}
 			n--

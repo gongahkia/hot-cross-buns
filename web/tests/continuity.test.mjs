@@ -12,12 +12,12 @@ function routed(app){return app.payloads.flatMap(payload=>{try{const value=JSON.
 async function say(app,live,context,text){await action(app,{op:'send',context,id:randomUUID(),text,files:[]});return live.until(value=>value.state?.dialogue?.some(turn=>turn.text===text&&turn.state==='answered'));}
 
 test('main chat carries durable summaries and current editable memories through normal replies and cold restart',{timeout:60000},async()=>{
- const app=await fixture({chatCount:1,dialogueCount:24,memories:['I prefer quiet interfaces.'],conversationalReplies:true});let live;
+ const app=await fixture({contextWindow:32768,chatCount:1,dialogueCount:24,memories:['I prefer quiet interfaces.'],conversationalReplies:true});let live;
  try{
   live=await events(app);let state=await live.until(value=>value.state?.primary);
   state=await say(app,live,state.context,'Tell me about our ongoing conversation.');
   let request=routed(app).at(-1),context=JSON.parse(request.continuity_context);
-  assert.ok(context.summarized_turns>=16);assert.match(context.earlier_conversation_summary,/Fixture answer/);
+  assert.ok(context.summarized_turns>0&&context.summarized_turns<24);assert.match(context.earlier_conversation_summary,/Fixture answer/);
   assert.ok(context.current_memories.some(memory=>memory.text==='I prefer quiet interfaces.'));
   assert.equal(request.recent_messages.at(-1).text,"You're welcome.");
   const summaryCalls=()=>app.payloads.filter(payload=>payload.messages.some(message=>message.role==='system'&&message.content.includes('factual rolling conversation summary'))).length;

@@ -87,7 +87,8 @@ sources. The model-facing summary contains no tool or approval authority.
 Canonical user-visible conversation history remains separate and retained.
 
 I/O, per-source excerpt, archive scan and privacy-comparison ceilings remain
-bounded. They protect resource use and complete privacy checks; they are not
+bounded. Each cached archive node and the legacy continuity view retain a 12 KiB
+storage ceiling; the model-facing aggregate of nodes scales with its token budget. They protect resource use and complete privacy checks; they are not
 presented as model context-window sizes. Summaries remain derived, lossy evidence.
 
 ## Verified metadata sources

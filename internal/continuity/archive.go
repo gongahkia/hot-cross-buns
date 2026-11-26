@@ -21,8 +21,9 @@ type archiveContext struct {
 }
 
 func prepareArchive(ctx context.Context, s worksession.Store, memories memory.Store, model agent.Model, records []memory.Record, rules []memory.WithdrawalRule, o Options) (archiveContext, error) {
+	budget := budgetFor(model, o.Query, o.ReservedTokens)
 	var result archiveContext
-	q := worksession.HistoryQuery{Chat: o.ConversationID, Before: o.BeforeSequence, At: o.BeforeTime, Limit: 11}
+	q := worksession.HistoryQuery{Chat: o.ConversationID, Before: o.BeforeSequence, At: o.BeforeTime, Limit: budget.scan}
 	indexCtx, cancelIndex := context.WithTimeout(ctx, 2*time.Second)
 	more, indexErr := s.SyncHistory(indexCtx, o.ConversationID, 128)
 	cancelIndex()
@@ -95,7 +96,20 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 		return archiveFallback(result, recent.Turns), nil
 	}
 	keep := map[string]bool{}
-	for _, t := range recent.Turns[max(0, len(recent.Turns)-recentTurns):] {
+	remaining := budget.recent
+	for i := len(recent.Turns) - 1; i >= 0; i-- {
+		t := recent.Turns[i]
+		if !budget.adaptive {
+			if len(keep) >= recentTurns {
+				break
+			}
+		} else {
+			cost := budget.profile.Count(t.User) + budget.profile.Count(t.Assistant) + 64
+			if cost > remaining && len(keep) > 0 {
+				break
+			}
+			remaining -= cost
+		}
 		keep[t.ID] = true
 	}
 	pendingQuery := q
@@ -112,13 +126,21 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 			continue
 		}
 		n := min(16*1024, len(t.User)+len(t.Assistant))
-		if len(batch) > 0 && bytes+n > maxBatchBytes {
+		if budget.adaptive {
+			data, _ := json.Marshal(t)
+			n = budget.profile.Count(string(data)) + 32
+		}
+		batchLimit := maxBatchBytes
+		if budget.adaptive {
+			batchLimit = max(0, budget.profile.InputLimit()-budget.profile.Count(summaryPrompt)-512)
+		}
+		if bytes+n > batchLimit {
 			break
 		}
 		batch = append(batch, t)
 		bytes += n
 	}
-	budget := 2
+	summaryCalls := 2
 	if len(batch) >= 4 || bytes > 32*1024 {
 		safe, err := screen(ctx, memories, model, o.GoalID, batch)
 		if err != nil {
@@ -128,7 +150,7 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 		if err != nil {
 			result.notices = append(result.notices, "Earlier section summarization is temporarily unavailable; original history remains searchable.")
 		} else {
-			budget--
+			summaryCalls--
 			if past {
 				result.summary = text
 				result.covered = len(batch)
@@ -173,7 +195,7 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 		}
 	}
 	if !past {
-		for budget > 0 {
+		for summaryCalls > 0 {
 			nodes, err = s.ReadHistoryNodes(ctx, q)
 			if err != nil {
 				return archiveFallback(result, recent.Turns), nil
@@ -191,7 +213,7 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 			}
 			a, b := nodes[left], nodes[right]
 			text, err := summarize(ctx, model, "", []worksession.ContextTurn{{ID: a.ID, User: a.Text, State: "source_section_summary"}, {ID: b.ID, User: b.Text, State: "source_section_summary"}})
-			budget--
+			summaryCalls--
 			if err != nil {
 				result.notices = append(result.notices, "Summary overview maintenance is incomplete; the underlying sections remain available.")
 				break
@@ -206,6 +228,7 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 	if err != nil {
 		return archiveFallback(result, recent.Turns), nil
 	}
+	var selected []worksession.HistoryNode
 	for _, n := range nodes {
 		if n.Policy != policy {
 			allowed, err := screen(ctx, memories, model, o.GoalID, []worksession.ContextTurn{{ID: n.ID, User: n.Text, At: time.Unix(0, n.FirstAt)}})
@@ -217,9 +240,9 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 			}
 		}
 		result.covered += n.Covered
-		result.summary += fmt.Sprintf("Section %s:\n%s\n", n.ID, Clip(n.Text, max(256, 10*1024/max(1, len(nodes)))))
+		selected = append(selected, n)
 	}
-	result.summary = Clip(result.summary, 12*1024)
+	result.summary = archiveSummary(selected, budget)
 	// Keep additional unsummarized recent turns until the next section batch.
 	pending, err = s.ReadHistory(ctx, pendingQuery)
 	if err != nil {
@@ -247,7 +270,8 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 	if !past {
 		view, err := s.ReadContinuity(q.Chat)
 		if err == nil && (result.summary != "" || view.Revision > 0) {
-			text := result.summary
+			// the compatibility view is bounded separately from model-facing context.
+			text := Clip(result.summary, 12*1024)
 			if text == "" && result.covered > 0 {
 				text = "Earlier context was withheld by current privacy rules."
 			}
@@ -259,6 +283,21 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 		}
 	}
 	return result, nil
+}
+
+func archiveSummary(nodes []worksession.HistoryNode, budget contextBudget) string {
+	var text string
+	for _, n := range nodes {
+		excerpt := Clip(n.Text, max(256, 10*1024/max(1, len(nodes))))
+		if budget.adaptive {
+			excerpt = budget.profile.Trim(n.Text, max(0, budget.summary/max(1, len(nodes))-64))
+		}
+		text += fmt.Sprintf("Section %s:\n%s\n", n.ID, excerpt)
+	}
+	if budget.adaptive {
+		return budget.profile.Trim(text, budget.summary)
+	}
+	return Clip(text, 12*1024)
 }
 
 func archiveFallback(r archiveContext, recent []worksession.ContextTurn) archiveContext {

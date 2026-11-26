@@ -27,7 +27,7 @@ test('ordinary Work and terminal host need no tmux, Onibi, phone or external cat
   const binary=process.env.HOT_CROSS_BUNS_INDEPENDENCE_BINARY||join(root,'hot-cross-buns-runtime');
   if(!process.env.HOT_CROSS_BUNS_INDEPENDENCE_BINARY)await execute('go',['build','-o',binary,'./cmd/hot-cross-buns'],{cwd:source,timeout:90000});
   await new Promise(r=>provider.listen(0,'127.0.0.1',r));
-  await writeFile(join(config,'hot-cross-buns/config.json'),JSON.stringify({version:4,defaults:{provider:'fixture',model:'fixture'},custom_providers:[{id:'fixture',base_url:`http://127.0.0.1:${provider.address().port}/chat`,models:['fixture'],default_model:'fixture'}]}));
+  await writeFile(join(config,'hot-cross-buns/config.json'),JSON.stringify({version:4,defaults:{provider:'fixture',model:'fixture'},context_windows:{'fixture:fixture':262144},custom_providers:[{id:'fixture',base_url:`http://127.0.0.1:${provider.address().port}/chat`,models:['fixture'],default_model:'fixture'}]}));
   const env={PATH:bin,HOME:process.env.HOME,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',HOT_CROSS_BUNS_CONFIG_DIR:config,HOT_CROSS_BUNS_STATE_DIR:state,HOT_CROSS_BUNS_INTERNAL_COMMANDS:'1',HOT_CROSS_BUNS_UI_SESSION_HOST:'1'};
   await execute(binary,['work','--source',workspace,'--mode','inspect','Independent fixture'],{cwd:workspace,env,timeout:45000});
   assert.ok(requests>0,'real Work must reach the fixture provider');

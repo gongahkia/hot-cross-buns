@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/continuity"
 	sharedusage "github.com/gongahkia/hot-cross-buns/internal/usage"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
@@ -31,6 +32,11 @@ func TestLiveConversationContinuity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	profile := agent.ContextFor(model)
+	profile.Window = 8192
+	profile.OutputReserve = 1024
+	profile.Source = "controlled small-window evaluation"
+	model = agent.WithContextPolicy(model, profile)
 	root := t.TempDir()
 	sessions, err := worksession.Open(root)
 	if err != nil {
@@ -69,7 +75,7 @@ func TestLiveConversationContinuity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prepared.Covered != 16 || prepared.Summary == "" {
+	if prepared.Covered == 0 || prepared.Summary == "" {
 		t.Fatal("older synthetic context was not summarized", prepared.Notices)
 	}
 	request := workrun.ConversationRequest{Text: "For SaffronHarbor, what is the corrected deadline and is a booking confirmed? Include the date as YYYY-MM-DD. Use the provided conversation only.", CanStart: false}
@@ -94,5 +100,5 @@ func TestLiveConversationContinuity(t *testing.T) {
 	if !negative {
 		t.Fatalf("draft/booking distinction was not explicit: %q", decision.Text)
 	}
-	t.Logf("Live continuity passed using %s/%s: a correction and unconfirmed booking survived 16 summarized turns. This is one synthetic case, not longitudinal quality evidence.", provider, name)
+	t.Logf("Live continuity passed using %s/%s: a correction and unconfirmed booking survived bounded model-aware summarization. This is one synthetic case, not longitudinal quality evidence.", provider, name)
 }

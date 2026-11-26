@@ -71,6 +71,12 @@ type ConversationDecision struct {
 
 var ErrConversationDecision = errors.New("the model returned an invalid conversation decision; no task was changed")
 
+// ConversationTokens includes the actual routing system and serialized envelope.
+func ConversationTokens(profile agent.ContextPolicy, request ConversationRequest) int {
+	data, _ := json.Marshal(request)
+	return profile.RequestTokens(agent.TurnRequest{System: conversationRoutingSystem, Messages: []agent.Message{{Role: agent.RoleUser, Content: string(data)}}})
+}
+
 // RouteConversation is independent of an executing Work operation. It can run
 // while a tool/model call or exact approval is waiting, without sharing that
 // operation's event loop, mutable replay, tool inventory or execution lease.
@@ -131,14 +137,14 @@ func conversationIdentity(value string) bool {
 }
 
 func validateConversationRequest(request ConversationRequest) error {
-	if !conversationText(request.Continuity, 80*1024, true) {
+	if !conversationText(request.Continuity, 4*1024*1024, true) {
 		return errors.New("conversation continuity exceeds its bounds")
 	}
-	if !conversationText(request.Text, 128*1024, false) || len(request.Recent) > 24 || len(request.Tasks) > 16 {
+	if !conversationText(request.Text, 128*1024, false) || len(request.Recent) > 256 || len(request.Tasks) > 16 {
 		return errors.New("conversation context exceeds its bounds")
 	}
 	for _, message := range request.Recent {
-		if message.Role != "user" && message.Role != "assistant" || !conversationText(message.Text, 8192, false) {
+		if message.Role != "user" && message.Role != "assistant" || !conversationText(message.Text, 64*1024, false) {
 			return errors.New("invalid recent conversation message")
 		}
 	}

@@ -1,22 +1,24 @@
 # Continuing personal conversation
 
-Main chat uses conversational routing from its first message. Simple replies use
+The conversational home uses conversational routing from its first message. Simple replies use
 current context without starting Work. Requests needing tools or execution still
 enter separately scoped Work. The composer and background-task controls stay the
-same; archive maintenance adds no new chat dashboard.
+same; archive maintenance adds no new history dashboard.
 
 ## Context prepared for each request
 
-- Recent public user/assistant text stays in detail: normally eight turns, plus
-  up to three while waiting for a section batch. The text budget is 48 KiB;
-  individual message excerpts are bounded to 8 KiB with a shortening label.
+- Recent public user/assistant text stays in detail within the selected model
+  input allowance. Its count grows with available tokens; it is no longer fixed
+  to eight turns. Per-source I/O ceilings remain, and shortened excerpts carry a
+  label. See [model-aware budgets](MODEL_CONTEXT_BUDGETS.md) for capacity sources,
+  reservations and conservative estimation limits.
 - Earlier discussion is represented by source-linked section summaries and
   higher-level overviews. These preserve historical decisions, corrections,
   unresolved questions and reported outcomes, rather than becoming a profile or
   an authorization record. Current memory and task records take precedence.
 - Current preferences and query-relevant memories come from the existing editable
   memory store, respecting exclusions, expiry, conflicts and source validity.
-- Up to four original excerpts are recalled from indexed dialogue and public
+- A token-budgeted selection of up to sixteen original excerpts is recalled from indexed dialogue and public
   Work output. Full-text search covers every indexed chat, independently of chat
   recency. When embeddings are available, reciprocal rank fusion combines word
   matches with semantic matches. Scope, branch ancestry, admission time and
@@ -80,10 +82,12 @@ own selected history. An older admitted task cannot replace the newer main-chat
 summary view. `conversations/<id>/continuity.json` is now a bounded derived view;
 SQLite source-linked nodes are the reusable summary cache.
 
-A request makes at most two summary calls, each limited to 48 KiB of source
-excerpt text and a 12 KiB result. Summary text supplied to the conversation is
-also capped at 12 KiB. Calls use the selected chat model and shared usage
-accounting, so a cloud chat model can charge for summarization. Failed or malformed
+A request makes at most two archive summary calls. Source batches, summary
+results and the final serialized context fit the selected model allowance, with
+room reserved for system instructions, the current message and output. Calls use
+the selected model and shared usage accounting, so a cloud model can charge for
+summarization. Unprofiled compatibility callers retain the earlier bounded
+turn/text policy. Failed or malformed
 summaries leave originals and unrelated valid sections available for retry.
 
 ## Semantic recall and permission
@@ -112,8 +116,8 @@ The source text remains in user-visible history until the user deletes it.
 
 ## Practical limits and verification
 
-Recall is selective. It evaluates bounded candidate windows, supplies at most four
-excerpts, and may miss relevant material. Embeddings fill incrementally during
+Recall is selective. It evaluates bounded candidate windows and fits selected
+excerpts into a model-dependent budget; it may miss relevant material. Embeddings fill incrementally during
 requests, so a large legacy archive initially relies more on word matching.
 Vector comparison is linear disk I/O, not an approximate-nearest-neighbor index.
 The existing private SQLite cache ceiling is 512 MiB; reaching it degrades to
@@ -137,3 +141,7 @@ HOT_CROSS_BUNS_LIVE_CONTINUITY=1 go test ./cmd/hot-cross-buns -run '^TestLiveCon
 It uses temporary state and no connected-account actions. It tests a correction
 and an unconfirmed booking across a summary and a subsequent answer; this is one
 semantic case, not months-long personal-agent evidence.
+
+The daily synthetic recall comparison and research review are recorded in
+[Memory evaluation, 2026-11-26](MEMORY_EVALUATION_2026-11-26.md). These complement
+mechanism tests; they do not establish months-long personal-assistant reliability.

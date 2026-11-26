@@ -27,6 +27,7 @@ const recentTurns = 8
 const maxBatchBytes = 48 * 1024
 
 type Options struct {
+	ReservedTokens                     int
 	Embedder                           retrieval.Embedder
 	AdmittedRecent                     []Message
 	Reports                            []Report
@@ -109,6 +110,7 @@ func hash(value any) string {
 // Build refreshes owning stores on every request. Summaries are disposable
 // source-linked sections: changes invalidate the affected section and ancestors.
 func Build(ctx context.Context, stateDir string, model agent.Model, options Options) (Context, error) {
+	budget := budgetFor(model, options.Query, options.ReservedTokens)
 	options.Main = options.Main && options.GoalID == ""
 	result := Context{AsOf: time.Now().UTC()}
 	if err := ctx.Err(); err != nil {
@@ -154,15 +156,24 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	if err != nil {
 		return result, err
 	}
-	remaining := 48 * 1024
+	remaining := budget.recent
 	for i := len(recent) - 1; i >= 0; i-- {
-		pair := []Message{{Role: "user", Text: Clip(recent[i].User, 8*1024)}}
+		user, assistant := Clip(recent[i].User, 8*1024), Clip(recent[i].Assistant, 8*1024)
+		if budget.adaptive {
+			user = budget.profile.Trim(recent[i].User, max(0, budget.recent/3))
+			assistant = budget.profile.Trim(recent[i].Assistant, max(0, budget.recent/3))
+		}
+		pair := []Message{{Role: "user", Text: user}}
 		if recent[i].Assistant != "" {
-			pair = append(pair, Message{Role: "assistant", Text: Clip(recent[i].Assistant, 8*1024)})
+			pair = append(pair, Message{Role: "assistant", Text: assistant})
 		}
 		size := 0
 		for _, m := range pair {
-			size += len(m.Text)
+			if budget.adaptive {
+				size += budget.profile.Count(m.Text) + 32
+			} else {
+				size += len(m.Text)
+			}
 		}
 		if size > remaining {
 			result.Notices = append(result.Notices, "Recent context reached its text budget; earlier details may require history recall.")
@@ -223,13 +234,13 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 		candidates = append(candidates, c)
 		prepared[record.ID] = item
 	}
-	chosen, trace := knowledge.SelectRecall(candidates, 4096)
+	chosen, trace := knowledge.SelectRecall(candidates, budget.memory)
 	result.RecallTrace = trace
 	for _, entry := range chosen {
 		result.Memories = append(result.Memories, prepared[entry.ID])
 	}
 	if len(chosen) < len(candidates) {
-		result.Notices = append(result.Notices, "Personal memory is selectively supplied within a conservative 4096-token ceiling. Omitted context is not evidence that a fact was never stated.")
+		result.Notices = append(result.Notices, "Personal memory is selectively supplied within the prepared context budget. Omitted context is not evidence that a fact was never stated.")
 	}
 	result.Commitments, err = commitments(stateDir, options)
 	if err != nil {
@@ -272,6 +283,9 @@ func Build(ctx context.Context, stateDir string, model agent.Model, options Opti
 	}{latest, latestRules, options.Excluded, options.GoalID, options.ReferToChats, options.LearnFromChats}) != epoch {
 		return Context{}, errors.New("saved memories changed while preparing conversation context; retry against current memories")
 	}
+	if err := fitContext(&result, budget); err != nil {
+		return Context{}, err
+	}
 	return result, nil
 }
 
@@ -293,7 +307,7 @@ func summarize(ctx context.Context, model agent.Model, previous string, turns []
 	}{previous, turns})
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
-	turn, err := model.Complete(ctx, agent.TurnRequest{System: summaryPrompt, Messages: []agent.Message{{Role: agent.RoleUser, Content: string(data)}}})
+	turn, err := model.Complete(ctx, agent.TurnRequest{MaxOutputTokens: min(agent.ContextFor(model).OutputReserve, max(128, agent.ContextFor(model).InputLimit()/8)), System: summaryPrompt, Messages: []agent.Message{{Role: agent.RoleUser, Content: string(data)}}})
 	if err != nil {
 		return "", err
 	}
@@ -313,7 +327,14 @@ func screen(ctx context.Context, store memory.Store, model agent.Model, scope st
 		part := turns[start:min(start+8, len(turns))]
 		var fragments []memory.HistoryFragment
 		for _, t := range part {
-			fragments = append(fragments, memory.HistoryFragment{ID: t.ID, At: t.At, User: Clip(t.User, 8*1024), Assistant: Clip(t.Assistant, 8*1024)})
+			user, assistant := Clip(t.User, 8*1024), Clip(t.Assistant, 8*1024)
+			if _, adaptive := model.(agent.ContextModel); adaptive {
+				p := agent.ContextFor(model)
+				limit := min(16384, p.InputLimit()/8)
+				user = Clip(p.Trim(t.User, limit), 24*1024)
+				assistant = Clip(p.Trim(t.Assistant, limit), 24*1024)
+			}
+			fragments = append(fragments, memory.HistoryFragment{ID: t.ID, At: t.At, User: user, Assistant: assistant})
 		}
 		checked, err := store.ScreenHistory(ctx, model, scope, fragments)
 		if err != nil {

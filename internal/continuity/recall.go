@@ -32,6 +32,8 @@ func terms(query string) []string {
 }
 
 func recall(ctx context.Context, stateDir string, sessions worksession.Store, memories memory.Store, model agent.Model, options Options, notices *[]string) ([]Recall, error) {
+	budget := budgetFor(model, options.Query, options.ReservedTokens)
+	remaining := budget.recall
 	words := terms(options.Query)
 	if len(words) == 0 {
 		return nil, nil
@@ -122,9 +124,18 @@ func recall(ctx context.Context, stateDir string, sessions worksession.Store, me
 			return nil, err
 		}
 		if len(checked) > 0 {
-			result = append(result, Recall{m.Chat, checked[0]})
+			item := Recall{m.Chat, checked[0]}
+			if budget.adaptive {
+				data, _ := json.Marshal(item)
+				cost := budget.profile.Count(string(data))
+				if cost > remaining {
+					continue
+				}
+				remaining -= cost
+			}
+			result = append(result, item)
 		}
-		if len(result) == 4 {
+		if (len(result) == 4 && !budget.adaptive) || len(result) >= 16 {
 			break
 		}
 	}

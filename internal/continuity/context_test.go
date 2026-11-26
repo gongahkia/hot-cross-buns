@@ -395,3 +395,41 @@ func TestChatSelectionKeepsConditionalPlannedContextScopedEvenWhenPinned(t *test
 		t.Fatal("uncertain applicability entered chat", corrected, err)
 	}
 }
+
+func TestModelWindowControlsRecentDetailAndPreparedContextSize(t *testing.T) {
+	root, s, chat := fixture(t, 0)
+	seed(t, s, chat.ID, 0, 32, "SAFFRON launch. "+strings.Repeat("A detailed conversation about daily work and its exact constraints. ", 10))
+	options := Options{ConversationID: chat.ID, Query: "What did we decide about SAFFRON?", Main: true}
+	probe := &testModel{}
+	large := agent.WithContextPolicy(probe, agent.ContextPolicy{Window: 262144, OutputReserve: 8192})
+	full, err := Build(context.Background(), root, large, options)
+	if err != nil || len(probe.requests) > 0 || len(full.Recent) != 64 {
+		t.Fatal("larger window did not retain fitting exact turns", len(full.Recent), len(probe.requests), err)
+	}
+	small := agent.WithContextPolicy(probe, agent.ContextPolicy{Window: 16384, OutputReserve: 2048})
+	bounded, err := Build(context.Background(), root, small, options)
+	if err != nil || len(bounded.Recent) >= len(full.Recent) || bounded.Covered == 0 {
+		t.Fatal("smaller model did not compact", bounded.Covered, len(bounded.Recent), err)
+	}
+	raw, _ := json.Marshal(bounded)
+	if agent.ContextFor(small).Count(string(raw)) > budgetFor(small, options.Query).total {
+		t.Fatal("JSON context exceeds selected model allocation")
+	}
+	original, _, err := s.DialoguePage(chat.ID, 0, 100)
+	if err != nil || len(original) != 32 || !strings.Contains(original[0].Text, "exact constraints") {
+		t.Fatal("compaction modified canonical history", err)
+	}
+}
+
+func TestArchiveSummaryAllocationScalesBeyondTheCompatibilityView(t *testing.T) {
+	var nodes []worksession.HistoryNode
+	for i := 0; i < 8; i++ {
+		nodes = append(nodes, worksession.HistoryNode{ID: fmt.Sprint("section-", i), Text: strings.Repeat("Source-backed historical detail. ", 300)})
+	}
+	p := agent.ContextPolicy{Window: 262144, OutputReserve: 8192}
+	large := archiveSummary(nodes, contextBudget{profile: p, adaptive: true, summary: 32768})
+	small := archiveSummary(nodes, contextBudget{profile: p, adaptive: true, summary: 2048})
+	if len(large) <= 12*1024 || p.Count(large) > 32768 || p.Count(small) > 2048 || len(small) >= len(large) {
+		t.Fatal("archive text ignored model allocation", len(large), len(small))
+	}
+}

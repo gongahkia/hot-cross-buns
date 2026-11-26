@@ -1060,7 +1060,13 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	outcome.Activity = activity.Clone()
 	configuration, _ := json.Marshal(effectiveConfiguration(request))
 	replay := sanitizeComputerReplay(result.Messages, request.DesktopSession != "")
-	retainedRefs, retainedOverflow := retainedKnowledgeReferences(replay, request.ContextRefs, knowledgeRefs)
+	archived := sanitizeComputerReplay(result.ArchivedMessages, request.DesktopSession != "")
+	archivedRefs, archivedOverflow := retainedKnowledgeReferences(archived)
+	retainedRefs, retainedOverflow := retainedKnowledgeReferences(replay, archivedRefs, request.ContextRefs, knowledgeRefs)
+	retainedOverflow = retainedOverflow || archivedOverflow
+	if result.ContextSummary != "" {
+		summary = result.ContextSummary
+	}
 	var inputNames []string
 	for _, image := range request.Images {
 		inputNames = append(inputNames, image.Name)
@@ -1074,7 +1080,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		Activity:     outcome.Activity,
 		AcceptedCode: integration.accepted,
 		Project:      request.Project,
-		Replay:       &worksession.ReplayState{Version: 1, Provider: request.Provider, Messages: replay, KnowledgeRefs: retainedRefs, KnowledgeOverflow: retainedOverflow || refOverflow || priorOverflow, Configuration: configuration, CompactionVersion: 1, Summary: summary},
+		Replay:       &worksession.ReplayState{ArchivedMessages: archived, Version: 1, Provider: request.Provider, Messages: replay, KnowledgeRefs: retainedRefs, KnowledgeOverflow: retainedOverflow || refOverflow || priorOverflow, Configuration: configuration, CompactionVersion: 1, Summary: summary},
 		ID:           request.RunID, ParentRevisionID: request.ParentRevisionID, SnapshotID: sourceSnapshot.ID,
 		Objective: request.Objective, ReplyToUpdateID: request.ReplyToUpdateID, BundlePath: work.Path, Status: string(manifest.Status), FinalText: result.FinalText, CreatedAt: now(),
 	}); err != nil {

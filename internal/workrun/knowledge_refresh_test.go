@@ -200,7 +200,7 @@ func TestAutomaticKnowledgeReferencesSurviveCompactionAndAnotherContinuation(t *
 		turns = append(turns, agent.Turn{ToolCalls: []agent.ToolCall{{ID: fmt.Sprint("read-", i), Name: "knowledge_read", Arguments: json.RawMessage(`{"id":"` + large.ID + `"}`)}}})
 	}
 	turns = append(turns, agent.Turn{Text: "Earlier facts were supplied."})
-	service := Service{Executor: Executor{Model: &scriptedModel{turns: turns}, StateDir: state}}
+	service := Service{Executor: Executor{Model: agent.WithContextPolicy(&scriptedModel{turns: turns}, agent.ContextPolicy{Window: 524288, OutputReserve: 8192}), StateDir: state}}
 	first, err := service.Execute(context.Background(), Request{RunID: "work-refresh-auto", SourcePath: source, Objective: "Inspect.", MemoryContext: fact.Text, ContextRefs: []string{fact.ID}, Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 10})
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestAutomaticKnowledgeReferencesSurviveCompactionAndAnotherContinuation(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if summaries != 1 || runs != 1 {
+	if summaries < 1 || summaries > 8 || runs != 1 {
 		t.Fatal("actual context compaction was not exercised", summaries, runs)
 	}
 	sessions, _ := worksession.Open(state)
@@ -304,5 +304,56 @@ func TestKnowledgeRefreshCannotWidenReviewedPlanEffects(t *testing.T) {
 	latest, _ := sessions.LoadRequests(chat.ID)
 	if latest.Requests[0].Plan.Digest != plan.Digest {
 		t.Fatal("refresh changed the reviewed plan")
+	}
+}
+
+func TestWithinRunCompactionRetainsDependenciesOfEarlierKnowledgeReads(t *testing.T) {
+	state, source := t.TempDir(), t.TempDir()
+	notes, _ := knowledge.Open(state)
+	ids := []string{}
+	for i := 0; i < 4; i++ {
+		note, err := notes.AddNote(fmt.Sprint("Source ", i), strings.Repeat("Detailed source evidence. ", 900), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, note.ID)
+	}
+	calls, compactions := 0, 0
+	model := agent.WithContextPolicy(researchModel(func(r agent.TurnRequest) (agent.Turn, error) {
+		if strings.Contains(r.System, "compact older context") {
+			return agent.Turn{Text: "Earlier knowledge sources were read; do not infer approval."}, nil
+		}
+		if calls < len(ids) {
+			id := ids[calls]
+			calls++
+			return agent.Turn{ToolCalls: []agent.ToolCall{{ID: fmt.Sprint("read-", calls), Name: "knowledge_read", Arguments: json.RawMessage(`{"id":"` + id + `"}`)}}}, nil
+		}
+		return agent.Turn{Text: "All four sources were inspected."}, nil
+	}), agent.ContextPolicy{Window: 131072, OutputReserve: 4096})
+	service := Service{Executor: Executor{Model: model, StateDir: state}}
+	outcome, err := service.Execute(context.Background(), Request{RunID: "work-within-run-summary", SourcePath: source, Objective: "Inspect the saved sources without changing them.", Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 6, OnEvent: func(e agent.Event) {
+		if e.Kind == agent.EventContextCompacted {
+			compactions++
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compactions == 0 {
+		t.Fatal("in-run compaction was not exercised")
+	}
+	sessions, _ := worksession.Open(state)
+	revision, err := sessions.LoadRevision(outcome.ConversationID, outcome.RevisionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(revision.Replay.ArchivedMessages) == 0 || revision.Replay.Summary == "" {
+		t.Fatal("original tool text or compacted summary was not retained")
+	}
+	retained := strings.Join(revision.Replay.KnowledgeRefs, ",")
+	for _, id := range ids {
+		if !strings.Contains(retained, id) {
+			t.Fatal("summary lost original knowledge dependency", id)
+		}
 	}
 }
