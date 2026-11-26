@@ -52,3 +52,8 @@ SHA-256 of checked-in PNGs:
 - `xiaomimimo.png`: `04f78ad5b2ebd628ddaa59261c3696971dc54799c1ae3401454977810ca1f63b`
 - `zai.png`: `e53c9c5bfac0971024d08ab812ec13682f22f12247fcc4f134b6a0f2c988fee7`
 - `githubcopilot.png`: `984fc3fb2708c83fcc870eabfb2a9a4cd4a2a059ac18f78200119dc37f95ce8c`
+
+- GitHub: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png (official logo assets).
+- GitLab: https://about.gitlab.com/images/press/gitlab-logo-500-rgb.png (official press-kit logomark).
+- `github.png`: `6d6ef7bede0416b6ebee2014be5852576dbce89235fe16ea5c44ed01bd522132`
+- `gitlab.png`: `d56b28d4ad3c65fb4e1a2fe79eee4b821f6e9ab3f01963fa5f1b71ec7c5b10cf`

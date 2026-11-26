@@ -15,7 +15,7 @@ func TestConnectionCatalogOffersServicesWithoutAnAdvancedCategory(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"Connect Google": connector.KindGoogle, "Slack": connector.KindSlack, "Notion": connector.KindNotion, "Atlassian": connector.KindAtlassian, "JSON API": connector.KindHTTPJSON, "Personal Google": connector.KindGoogle}
+	want := map[string]string{"GitHub": connector.KindGitHub, "GitLab": connector.KindGitLab, "Connect Google": connector.KindGoogle, "Slack": connector.KindSlack, "Notion": connector.KindNotion, "Atlassian": connector.KindAtlassian, "JSON API": connector.KindHTTPJSON, "Personal Google": connector.KindGoogle}
 	for _, a := range screen.Actions {
 		if strings.Contains(strings.ToLower(a.Label), "advanced") || a.Action == "add-token" {
 			t.Fatal("service discovery still requires a generic advanced flow")
@@ -39,6 +39,8 @@ func TestServiceConnectionSetupPinsTheCorrectAPIWithoutSavingCredentials(t *test
 		action, id, name, kind, resource string
 		args                             []string
 	}{
+		{"add-github", "github", "Repository", connector.KindGitHub, "https://api.github.com/repos/owner/repo", []string{"github", "Repository", "https://api.github.com/repos/owner/repo"}},
+		{"add-gitlab", "gitlab", "Project", connector.KindGitLab, "https://gitlab.com/api/v4/projects/123", []string{"gitlab", "Project", "https://gitlab.com/api/v4/projects/123"}},
 		{"add-slack", "slack", "Team Slack", connector.KindSlack, "https://slack.com/api", []string{"slack", "Team Slack"}},
 		{"add-notion", "notion", "Team Notion", connector.KindNotion, "https://api.notion.com/v1", []string{"notion", "Team Notion"}},
 		{"add-atlassian", "atlassian", "Team Atlassian", connector.KindAtlassian, "https://api.atlassian.com/ex/jira/cloud-id", []string{"atlassian", "Team Atlassian", "https://api.atlassian.com/ex/jira/cloud-id"}},

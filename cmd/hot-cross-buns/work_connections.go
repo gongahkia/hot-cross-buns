@@ -53,7 +53,7 @@ func (c *connectionControls) call(ctx context.Context, operation string, args []
 	}
 	switch operation {
 	case "status", "select":
-	case "add-slack", "add-notion", "add-atlassian", "add-json", "add-github":
+	case "add-slack", "add-notion", "add-atlassian", "add-json", "add-github", "add-gitlab":
 		d, err := serviceConnectionDescriptor(operation, args)
 		if err != nil {
 			return workapp.ControlScreen{}, err
@@ -82,8 +82,8 @@ func (c *connectionControls) call(ctx context.Context, operation string, args []
 			return workapp.ControlScreen{}, errors.New("provide a connection ID, display name, service and resource URL")
 		}
 		d := connector.Descriptor{Version: connector.DescriptorVersion, ID: strings.TrimSpace(args[0]), Name: strings.TrimSpace(args[1]), Kind: strings.TrimSpace(args[2]), Resource: strings.TrimSpace(args[3]), Authentication: connector.AuthBearer}
-		if !slices.Contains([]string{connector.KindHTTPJSON, connector.KindSlack, connector.KindNotion, connector.KindAtlassian, connector.KindGitHub}, d.Kind) {
-			return workapp.ControlScreen{}, errors.New("choose http_json, slack, notion, atlassian or github")
+		if !slices.Contains([]string{connector.KindHTTPJSON, connector.KindSlack, connector.KindNotion, connector.KindAtlassian, connector.KindGitHub, connector.KindGitLab}, d.Kind) {
+			return workapp.ControlScreen{}, errors.New("choose http_json, slack, notion, atlassian, github or gitlab")
 		}
 		if err := addNativeConnection(d); err != nil {
 			return workapp.ControlScreen{}, err
@@ -504,7 +504,7 @@ func connectionReadProbes(d connector.Descriptor, now time.Time) []connectionRea
 }
 
 func connectionServiceLabel(kind string) string {
-	if label := map[string]string{connector.KindGoogle: "Google", connector.KindSlack: "Slack", connector.KindNotion: "Notion", connector.KindAtlassian: "Atlassian", connector.KindHTTPJSON: "JSON API", connector.KindHTTPWebhook: "Webhook", connector.KindRemoteMCP: "MCP service"}[kind]; label != "" {
+	if label := map[string]string{connector.KindGitHub: "GitHub", connector.KindGitLab: "GitLab", connector.KindGoogle: "Google", connector.KindSlack: "Slack", connector.KindNotion: "Notion", connector.KindAtlassian: "Atlassian", connector.KindHTTPJSON: "JSON API", connector.KindHTTPWebhook: "Webhook", connector.KindRemoteMCP: "MCP service"}[kind]; label != "" {
 		return label
 	}
 	return kind

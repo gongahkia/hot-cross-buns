@@ -105,7 +105,7 @@ func addConnector(id string, arguments []string, out io.Writer) error {
 	flags := flag.NewFlagSet("connector add", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	name := flags.String("name", id, "display name")
-	kindName := flags.String("kind", "json", "connector kind: json, webhook, slack, google, atlassian, notion, github, or mcp")
+	kindName := flags.String("kind", "json", "connector kind: json, webhook, slack, google, atlassian, notion, github, gitlab, or mcp")
 	resource := flags.String("url", "", "exact resource URL")
 	authentication := flags.String("auth", "", "authentication: none, bearer, or oauth")
 	searchTool := flags.String("search-tool", "", "remote MCP tool mapped to search")
@@ -122,7 +122,7 @@ func addConnector(id string, arguments []string, out io.Writer) error {
 		return err
 	}
 	if len(flags.Args()) != 0 {
-		return errors.New("usage: hot-cross-buns provider connector add ID --kind json|webhook|slack|google|atlassian|notion|github|mcp [--url URL] [--auth none|bearer|oauth]")
+		return errors.New("usage: hot-cross-buns provider connector add ID --kind json|webhook|slack|google|atlassian|notion|github|gitlab|mcp [--url URL] [--auth none|bearer|oauth]")
 	}
 	kind := ""
 	switch strings.ToLower(strings.TrimSpace(*kindName)) {
@@ -136,7 +136,7 @@ func addConnector(id string, arguments []string, out io.Writer) error {
 		kind = connector.KindGoogle
 	case connector.KindAtlassian, "jira":
 		kind = connector.KindAtlassian
-	case connector.KindNotion, connector.KindGitHub:
+	case connector.KindNotion, connector.KindGitHub, connector.KindGitLab:
 		kind = strings.ToLower(strings.TrimSpace(*kindName))
 	case "mcp", connector.KindRemoteMCP:
 		kind = connector.KindRemoteMCP
@@ -465,6 +465,8 @@ func connectorTestInvocation(descriptor connector.Descriptor) (string, []byte) {
 	switch descriptor.Kind {
 	case connector.KindGitHub:
 		return "repo_get", []byte(`{}`)
+	case connector.KindGitLab:
+		return "project_get", []byte(`{}`)
 	case connector.KindSlack:
 		return "whoami", []byte(`{}`)
 	case connector.KindGoogle:

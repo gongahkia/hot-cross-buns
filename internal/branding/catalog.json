@@ -381,7 +381,9 @@
     "id": "ollama",
     "label": "Ollama",
     "file": "ollama.png",
-    "providers": ["hot-cross-buns-local"],
+    "providers": [
+      "hot-cross-buns-local"
+    ],
     "connectors": [],
     "specialists": [],
     "searches": []
@@ -440,5 +442,27 @@
       "cli_copilot"
     ],
     "searches": []
+  },
+  {
+    "id": "github",
+    "label": "GitHub",
+    "file": "github.png",
+    "providers": [],
+    "connectors": [
+      "github"
+    ],
+    "searches": [],
+    "specialists": []
+  },
+  {
+    "id": "gitlab",
+    "label": "GitLab",
+    "file": "gitlab.png",
+    "providers": [],
+    "connectors": [
+      "gitlab"
+    ],
+    "searches": [],
+    "specialists": []
   }
 ]
