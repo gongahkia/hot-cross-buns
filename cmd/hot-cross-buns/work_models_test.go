@@ -65,6 +65,8 @@ func TestWorkTUIManagesLocalModelsAndUsesSelectionThroughService(t *testing.T) {
 			}
 			installed.Store(true)
 			_, _ = io.WriteString(w, "{\"status\":\"success\"}\n")
+		case "/api/ps":
+			_, _ = io.WriteString(w, `{"models":[{"name":"qwen2.5-coder:0.5b","context_length":262144}]}`)
 		case "/api/delete":
 			if r.Method != http.MethodDelete {
 				t.Error("wrong delete method", r.Method)

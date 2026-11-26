@@ -55,6 +55,7 @@ type Settings struct {
 	CustomProviders []CustomProvider             `json:"custom_providers,omitempty"`
 	// ModelAliases changes only a model's local display label. Its key is the
 	// stable provider:model identity; Hot Cross Buns always sends the real model ID.
+	ContextWindows       map[string]int             `json:"context_windows,omitempty"`
 	ModelAliases         map[string]string          `json:"model_aliases,omitempty"`
 	OrchestratorModels   map[string][]string        `json:"orchestrator_models,omitempty"`
 	ExtensionTrusts      []ExtensionTrust           `json:"extension_trusts,omitempty"`
@@ -408,6 +409,15 @@ func validate(settings Settings) error {
 	}
 	if len(settings.CustomProviders) > 128 {
 		return errors.New("configuration has too many custom providers")
+	}
+	if len(settings.ContextWindows) > 512 {
+		return errors.New("too many model context windows")
+	}
+	for key, limit := range settings.ContextWindows {
+		parts := strings.SplitN(key, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" || len(key) > 640 || strings.ContainsAny(key, "\r\n\x00") || limit < 1024 || limit > 4*1024*1024 {
+			return errors.New("invalid model context window; use provider:model and 1024–4194304 tokens")
+		}
 	}
 	if len(settings.ModelAliases) > 512 {
 		return errors.New("configuration has too many model aliases")

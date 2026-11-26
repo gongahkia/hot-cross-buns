@@ -354,3 +354,10 @@ type completeOnly struct{ model Responses }
 func (m completeOnly) Complete(ctx context.Context, request agent.TurnRequest) (agent.Turn, error) {
 	return m.model.Complete(ctx, request)
 }
+
+func TestRequestPreservesModelOutputReserve(t *testing.T) {
+	body, err := (Responses{Model: "fixture"}).requestBody(agent.TurnRequest{MaxOutputTokens: 512, Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}}})
+	if err != nil || body.MaxOutputTokens != 512 {
+		t.Fatal(body.MaxOutputTokens, err)
+	}
+}

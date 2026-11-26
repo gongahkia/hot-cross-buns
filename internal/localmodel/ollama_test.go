@@ -158,3 +158,23 @@ func TestClientManagesOllamaCatalogAndModelLifecycle(t *testing.T) {
 		t.Fatalf("remove = %q, err = %v", removed, err)
 	}
 }
+
+func TestRunningReportsAllocatedContextWithoutLoadingAModel(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != "GET" || r.URL.Path != "/api/ps" {
+			t.Errorf("unexpected model action: %s %s", r.Method, r.URL.Path)
+		}
+		io.WriteString(w, `{"models":[{"name":"small:latest","digest":"sha256:fixture","context_length":8192}]}`)
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	models, err := client.Running(context.Background())
+	if err != nil || len(models) != 1 || models[0].ContextLength != 8192 || calls != 1 {
+		t.Fatal(models, calls, err)
+	}
+}

@@ -186,6 +186,7 @@ func (r Responses) requestBody(turn agent.TurnRequest) (responseRequest, error) 
 		store = true
 	}
 	return responseRequest{
+		MaxOutputTokens:    turn.MaxOutputTokens,
 		Model:              modelOrDefault(r.Model),
 		Instructions:       turn.System,
 		Input:              input,
@@ -217,6 +218,7 @@ func modelOrDefault(model string) string {
 }
 
 type responseRequest struct {
+	MaxOutputTokens    int            `json:"max_output_tokens,omitempty"`
 	Model              string         `json:"model"`
 	Instructions       string         `json:"instructions,omitempty"`
 	Input              []inputItem    `json:"input"`

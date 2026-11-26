@@ -335,6 +335,8 @@ func newLocalModelServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
+		case "/api/ps":
+			_, _ = io.WriteString(writer, `{"models":[{"name":"qwen2.5-coder:7b","context_length":65536}]}`)
 		case "/api/version":
 			_, _ = io.WriteString(writer, `{"version":"test"}`)
 		case "/api/tags":

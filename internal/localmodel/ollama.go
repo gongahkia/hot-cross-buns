@@ -29,10 +29,11 @@ type Client struct {
 
 // InstalledModel is the bounded inventory returned by an Ollama runtime.
 type InstalledModel struct {
-	Name      string
-	Size      int64
-	SizeKnown bool
-	Digest    string
+	ContextLength int
+	Name          string
+	Size          int64
+	SizeKnown     bool
+	Digest        string
 }
 
 // Progress describes one pull status update. Its content is supplied by the
@@ -380,9 +381,10 @@ func (c Client) Running(ctx context.Context) ([]InstalledModel, error) {
 	}
 	var payload struct {
 		Models []struct {
-			Name   string `json:"name"`
-			Size   *int64 `json:"size"`
-			Digest string `json:"digest"`
+			ContextLength int    `json:"context_length"`
+			Name          string `json:"name"`
+			Size          *int64 `json:"size"`
+			Digest        string `json:"digest"`
 		} `json:"models"`
 	}
 	if err := decodeBounded(response.Body, &payload); err != nil {
@@ -399,7 +401,10 @@ func (c Client) Running(ctx context.Context) ([]InstalledModel, error) {
 		if m.Name == "" || len(m.Name) > 512 || len(m.Digest) > 128 || m.Size != nil && *m.Size < 0 || strings.ContainsAny(m.Name+m.Digest, "\r\n") {
 			return nil, errors.New("invalid loaded model metadata")
 		}
-		entry := InstalledModel{Name: m.Name, Digest: m.Digest}
+		if m.ContextLength < 0 || m.ContextLength > 4*1024*1024 {
+			return nil, errors.New("invalid loaded context length")
+		}
+		entry := InstalledModel{Name: m.Name, Digest: m.Digest, ContextLength: m.ContextLength}
 		if m.Size != nil {
 			entry.Size = *m.Size
 			entry.SizeKnown = true

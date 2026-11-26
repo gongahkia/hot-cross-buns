@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
@@ -107,6 +109,7 @@ func newNativeExecutorConfiguration(providerName, modelName, baseURL string) (na
 	if err != nil {
 		return nativeExecutorConfiguration{}, err
 	}
+	modelName = model.EffectiveModel(provider, modelName)
 	credentials, err := hotCrossBunsCredentials()
 	if err != nil {
 		return nativeExecutorConfiguration{}, err
@@ -219,6 +222,44 @@ func executorConfigurationWithExtensions(backend agent.Model, settings config.Se
 	label := "configured model"
 	if len(labels) > 0 {
 		label = labels[0]
+	}
+	parts := strings.SplitN(label, "/", 2)
+	if len(parts) == 2 {
+		profile := model.ContextPolicy(parts[0], parts[1])
+		if configured := settings.ContextWindows[config.ModelAliasKey(parts[0], parts[1])]; configured > 0 {
+			if profile.Source == "unknown deployment fallback" || profile.Source == "unallocated local runtime fallback" {
+				profile.Window = configured
+			} else {
+				profile.Window = min(profile.Window, configured)
+			}
+			profile.OutputReserve = min(profile.OutputReserve, profile.Window/8)
+			profile.Source = "configured model context window"
+		}
+		if parts[0] == localmodel.ProviderID {
+			if provider, found := configuredCustomProvider(settings, parts[0]); found {
+				client, clientErr := localmodel.NewClientFromChatCompletionsURL(provider.BaseURL)
+				if clientErr != nil {
+					return nativeExecutorConfiguration{}, clientErr
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+				loaded, err := client.Running(ctx)
+				cancel()
+				if err == nil {
+					for _, entry := range loaded {
+						if entry.Name == parts[1] && entry.ContextLength >= 1024 {
+							if settings.ContextWindows[config.ModelAliasKey(parts[0], parts[1])] > 0 {
+								profile.Window = min(profile.Window, entry.ContextLength)
+							} else {
+								profile.Window = entry.ContextLength
+							}
+							profile.OutputReserve = min(8192, profile.Window/8)
+							profile.Source = "Ollama allocated context"
+						}
+					}
+				}
+			}
+		}
+		backend = agent.WithContextPolicy(backend, profile)
 	}
 	backend = sharedusage.Model(backend, stateDir, label)
 	return nativeExecutorConfiguration{

@@ -174,3 +174,10 @@ func TestModelRejectsPDFAttachment(t *testing.T) {
 		t.Fatalf("PDF attachment error = %v", err)
 	}
 }
+
+func TestRequestPreservesModelOutputReserve(t *testing.T) {
+	body, err := requestBody(agent.TurnRequest{MaxOutputTokens: 512, Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}}}, "fixture")
+	if err != nil || body.MaxTokens != 512 {
+		t.Fatal(body.MaxTokens, err)
+	}
+}

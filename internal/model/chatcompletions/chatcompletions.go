@@ -157,9 +157,10 @@ func (m Model) client() *http.Client {
 }
 
 type request struct {
-	Model    string         `json:"model"`
-	Messages []message      `json:"messages"`
-	Tools    []functionTool `json:"tools,omitempty"`
+	MaxTokens int            `json:"max_tokens,omitempty"`
+	Model     string         `json:"model"`
+	Messages  []message      `json:"messages"`
+	Tools     []functionTool `json:"tools,omitempty"`
 }
 
 type message struct {
@@ -205,7 +206,7 @@ func requestBody(turn agent.TurnRequest, model string) (request, error) {
 		tool.Function.Parameters = append(json.RawMessage(nil), definition.Parameters...)
 		tools = append(tools, tool)
 	}
-	return request{Model: model, Messages: messages, Tools: tools}, nil
+	return request{Model: model, Messages: messages, Tools: tools, MaxTokens: turn.MaxOutputTokens}, nil
 }
 
 func encodeMessages(system string, source []agent.Message) ([]message, error) {

@@ -190,3 +190,10 @@ func TestGeminiFailureRetainsReasonRequestIDAndRetryPolicyWithoutRawMessage(t *t
 		t.Fatalf("private response retained: %v", err)
 	}
 }
+
+func TestRequestPreservesModelOutputReserve(t *testing.T) {
+	body, err := requestBody(agent.TurnRequest{MaxOutputTokens: 512, Messages: []agent.Message{{Role: agent.RoleUser, Content: "hello"}}})
+	if err != nil || body.GenerationConfig == nil || body.GenerationConfig.MaxOutputTokens != 512 {
+		t.Fatal(body.GenerationConfig, err)
+	}
+}

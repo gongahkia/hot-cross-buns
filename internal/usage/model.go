@@ -96,3 +96,5 @@ func (m *model) ComputerUse() (agent.ComputerUse, bool) {
 	}
 	return agent.ComputerUse{}, false
 }
+
+func (m *model) ContextPolicy() agent.ContextPolicy { return agent.ContextFor(m.backend) }

@@ -233,3 +233,22 @@ func TestStoreRejectsDuplicateConnectors(t *testing.T) {
 		t.Fatal("duplicate connectors were saved")
 	}
 }
+
+func TestContextWindowsRoundTripAndRejectInvalidDeploymentLimits(t *testing.T) {
+	store, _ := New(t.TempDir())
+	settings := Default()
+	settings.ContextWindows = map[string]int{"custom:small-model": 8192}
+	if err := store.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Load()
+	if err != nil || got.ContextWindows["custom:small-model"] != 8192 {
+		t.Fatal(got.ContextWindows, err)
+	}
+	for _, bad := range []map[string]int{{"missing-model": 8192}, {"custom:small-model": 0}, {"custom:small-model": 4194305}, {"custom:\nprivate": 8192}} {
+		settings.ContextWindows = bad
+		if err := store.Save(settings); err == nil {
+			t.Fatal("accepted invalid context window", bad)
+		}
+	}
+}

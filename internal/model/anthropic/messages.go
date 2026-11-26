@@ -185,7 +185,11 @@ func requestBody(turn agent.TurnRequest, model string) (request, error) {
 		}
 		tools = append(tools, functionTool{Name: definition.Name, Description: definition.Description, InputSchema: append(json.RawMessage(nil), definition.Parameters...)})
 	}
-	return request{Model: model, MaxTokens: defaultMaxToken, System: turn.System, Messages: messages, Tools: tools}, nil
+	limit := turn.MaxOutputTokens
+	if limit <= 0 {
+		limit = defaultMaxToken
+	}
+	return request{Model: model, MaxTokens: limit, System: turn.System, Messages: messages, Tools: tools}, nil
 }
 
 func encodeMessages(source []agent.Message) ([]message, error) {

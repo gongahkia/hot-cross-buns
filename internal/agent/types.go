@@ -20,13 +20,14 @@ const (
 // Message is the normalized conversation history passed to a model adapter.
 // Tool messages carry a call ID so adapters can preserve provider correlation.
 type Message struct {
-	Role        Role         `json:"role"`
-	Content     string       `json:"content"`
-	Images      []Image      `json:"images,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"`
-	ToolCalls   []ToolCall   `json:"tool_calls,omitempty"`
-	ToolCallID  string       `json:"tool_call_id,omitempty"`
-	ToolName    string       `json:"tool_name,omitempty"`
+	IsObservation bool         `json:"observation,omitempty"`
+	Role          Role         `json:"role"`
+	Content       string       `json:"content"`
+	Images        []Image      `json:"images,omitempty"`
+	Attachments   []Attachment `json:"attachments,omitempty"`
+	ToolCalls     []ToolCall   `json:"tool_calls,omitempty"`
+	ToolCallID    string       `json:"tool_call_id,omitempty"`
+	ToolName      string       `json:"tool_name,omitempty"`
 	// ProviderData contains opaque provider state needed for a valid replay.
 	ProviderData json.RawMessage `json:"provider_data,omitempty"`
 }
@@ -92,10 +93,12 @@ type ComputerUseModel interface{ ComputerUse() (ComputerUse, bool) }
 
 // TurnRequest is one model turn. Implementations must not mutate Messages.
 type TurnRequest struct {
-	System   string           `json:"system"`
-	Messages []Message        `json:"messages"`
-	Tools    []ToolDefinition `json:"tools"`
-	Computer *ComputerUse     `json:"computer,omitempty"`
+	ArchivedMessages []Message        `json:"-"`
+	MaxOutputTokens  int              `json:"max_output_tokens,omitempty"`
+	System           string           `json:"system"`
+	Messages         []Message        `json:"messages"`
+	Tools            []ToolDefinition `json:"tools"`
+	Computer         *ComputerUse     `json:"computer,omitempty"`
 }
 
 // Turn is a completed model response. Text may accompany tool calls; the loop
@@ -233,7 +236,9 @@ type RunOptions struct {
 
 // Result is the terminal state of a completed agent loop.
 type Result struct {
-	FinalText string
-	Messages  []Message
-	Steps     int
+	ArchivedMessages []Message `json:"-"`
+	ContextSummary   string    `json:"-"`
+	FinalText        string
+	Messages         []Message
+	Steps            int
 }

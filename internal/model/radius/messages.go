@@ -152,7 +152,11 @@ func (m Messages) payload(turn agent.TurnRequest) (request, error) {
 		}
 		tools = append(tools, tool{Name: definition.Name, Description: definition.Description, Parameters: parameters})
 	}
-	return request{Model: m.Model, Context: contextPayload{SystemPrompt: turn.System, Messages: messages, Tools: tools}, Options: requestOptions{MaxTokens: defaultMaxToken}}, nil
+	limit := turn.MaxOutputTokens
+	if limit <= 0 {
+		limit = defaultMaxToken
+	}
+	return request{Model: m.Model, Context: contextPayload{SystemPrompt: turn.System, Messages: messages, Tools: tools}, Options: requestOptions{MaxTokens: limit}}, nil
 }
 
 type request struct {

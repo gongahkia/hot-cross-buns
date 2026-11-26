@@ -121,10 +121,15 @@ func (g GenerateContent) client() *http.Client {
 }
 
 type request struct {
-	SystemInstruction *content    `json:"systemInstruction,omitempty"`
-	Contents          []content   `json:"contents"`
-	Tools             []tool      `json:"tools,omitempty"`
-	ToolConfig        *toolConfig `json:"toolConfig,omitempty"`
+	GenerationConfig  *generationConfig `json:"generationConfig,omitempty"`
+	SystemInstruction *content          `json:"systemInstruction,omitempty"`
+	Contents          []content         `json:"contents"`
+	Tools             []tool            `json:"tools,omitempty"`
+	ToolConfig        *toolConfig       `json:"toolConfig,omitempty"`
+}
+
+type generationConfig struct {
+	MaxOutputTokens int `json:"maxOutputTokens"`
 }
 
 type toolConfig struct {
@@ -169,6 +174,9 @@ func requestBody(turn agent.TurnRequest) (request, error) {
 		tools = append(tools, tool{FunctionDeclarations: declarations})
 	}
 	body := request{Contents: contents, Tools: tools}
+	if turn.MaxOutputTokens > 0 {
+		body.GenerationConfig = &generationConfig{MaxOutputTokens: turn.MaxOutputTokens}
+	}
 	if len(tools) > 0 {
 		body.ToolConfig = &toolConfig{}
 		body.ToolConfig.FunctionCallingConfig.Mode = "VALIDATED"

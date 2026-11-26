@@ -66,6 +66,8 @@ type nativeWorkBackend struct {
 	computer *agent.ComputerUse
 }
 
+func (b *nativeWorkBackend) ContextPolicy() agent.ContextPolicy { return agent.ContextFor(b.Model) }
+
 func (b *nativeWorkBackend) CompleteStream(ctx context.Context, request agent.TurnRequest, delta func(string)) (agent.Turn, error) {
 	request = modelClock(request)
 	if streaming, ok := b.Model.(agent.StreamingModel); ok {

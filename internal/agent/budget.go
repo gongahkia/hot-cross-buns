@@ -149,3 +149,5 @@ func (m *budgetModel) ComputerUse() (ComputerUse, bool) {
 	}
 	return ComputerUse{}, false
 }
+
+func (m *budgetModel) ContextPolicy() ContextPolicy { return ContextFor(m.model) }
