@@ -57,6 +57,7 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
     const page = await fetch(app.url);
     const html = await page.text();
     assert.match(html, /Hot Cross Buns/);
+    for (const file of ["task-identity.mjs", "task-handoff.mjs"]) { const response = await fetch(app.url + "/" + file); assert.equal(response.status, 200, file); assert.match(response.headers.get("content-type"), /text\/javascript/); }
     assert.doesNotMatch(html, /data-route="\/scheduled"/);
     for (const file of new Set(brands.map(brand => brand.file))) {
       const response = await fetch(app.url + '/brands/' + file);

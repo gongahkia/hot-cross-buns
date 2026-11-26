@@ -34,6 +34,8 @@ const assets = new Map([
   ["/style.css", ["style.css", "text/css; charset=utf-8"]],
   ["/client.mjs", ["client.mjs", "text/javascript; charset=utf-8"]],
   ["/chats.mjs", ["chats.mjs", "text/javascript; charset=utf-8"]],
+ ["/task-identity.mjs", ["task-identity.mjs", "text/javascript; charset=utf-8"]],
+ ["/task-handoff.mjs", ["task-handoff.mjs", "text/javascript; charset=utf-8"]],
   ["/find.mjs", ["find.mjs", "text/javascript; charset=utf-8"]],
   ["/usage.mjs", ["usage.mjs", "text/javascript; charset=utf-8"]],
   ["/reading.mjs", ["reading.mjs", "text/javascript; charset=utf-8"]],
@@ -119,7 +121,7 @@ function projection(host, corrections) {
     responses: responseReferences(state),
     state: state && {
       conversation_id: state.conversation_id, title: state.title, recent: state.recent_conversations,
-      primary: state.primary, primary_conversation_id: state.primary_conversation_id,
+      primary: state.primary, primary_conversation_id: state.primary_conversation_id, task_thread: !!state.dialogue_task?.parent_id,
       source: state.source,
       recentId: state.recent_id, recentIssue: state.recent_issue, provider: state.provider, model: state.model,
       messages: state.messages, dialogue: state.dialogue, peers: state.dialogue_peers,

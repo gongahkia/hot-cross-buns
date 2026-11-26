@@ -430,7 +430,7 @@ func TestRelatedFollowupReusesTaskAndKeepsEarlierResults(t *testing.T) {
 	if retry != nil || len(child.requests.Requests) != 2 {
 		t.Fatal("continuation replayed")
 	}
-	if got := m.dialogueMessages(); len(got) != 2 || got[0].TaskResult == "" || got[1].TaskResult == "" {
+	if got := m.dialogueMessages(); len(got) != 2 || got[0].TaskResult == "" || got[1].TaskResult == "" || got[0].TaskContinued || !got[1].TaskContinued || got[0].TaskTitle == "" || got[0].TaskTitle != got[1].TaskTitle {
 		t.Fatalf("per-turn results lost: %+v", got)
 	}
 	page, err := store.PageConversations(worksession.ConversationQuery{TaskParent: parent.ID, Text: "US intervention", Content: true})

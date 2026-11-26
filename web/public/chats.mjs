@@ -1,4 +1,5 @@
 import { element } from './text.mjs';
+import { taskBread } from './task-identity.mjs';
 import { icon } from './icons.mjs';
 
 export function chatMenu({ request, open, rename, tasksOnly = false }) {
@@ -64,6 +65,7 @@ export function chatMenu({ request, open, rename, tasksOnly = false }) {
       const wrapper = element('div', undefined, 'chat-item');
       wrapper.dataset.chat = item.id;
       const row = element('button', undefined, 'quiet chat-row'); row.type = 'button';
+      if (tasksOnly) { const bread = element('span', taskBread(item.id), 'task-bread'); bread.setAttribute('aria-hidden', 'true'); row.append(bread); }
       if (item.pinned) row.append(icon('bookmark'));
       const text = element('span'); text.append(element('span', item.title || 'Retained work', 'chat-title'));
       if (query && item.snippet) text.append(element('small', item.snippet, 'chat-snippet hint'));

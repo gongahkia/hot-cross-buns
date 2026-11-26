@@ -31,6 +31,8 @@ type DialogueMessage struct {
 	Response        string            `json:"response,omitempty"`
 	State           string            `json:"state"`
 	Issue           string            `json:"issue,omitempty"`
+	TaskTitle       string            `json:"task_title,omitempty"`
+	TaskContinued   bool              `json:"task_continued,omitempty"`
 	TaskResult      string            `json:"task_result,omitempty"`
 	TaskChat        string            `json:"task_chat,omitempty"`
 	InputIDs        []string          `json:"input_ids,omitempty"`
@@ -50,13 +52,18 @@ func (m Model) dialogueMessages() []DialogueMessage {
 		if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 {
 			continue
 		}
-		taskResult := ""
+		taskResult, taskTitle := "", ""
+		var decision workrun.ConversationDecision
+		_ = json.Unmarshal(turn.Decision, &decision)
 		if turn.TaskChat != "" {
+			if child, err := m.config.SessionStore.Load(turn.TaskChat); err == nil {
+				taskTitle = boundedConversation(child.Title, 180)
+			}
 			if peer := m.retainedDialoguePeer(turn); peer != nil && peer.State == "completed" {
 				taskResult = peer.Summary
 			}
 		}
-		messages = append(messages, DialogueMessage{TaskResult: taskResult, Revision: turn.Revision, Reaction: retainedReaction(turn, input), ID: turn.ID, Sequence: turn.Sequence, Text: turn.Text, Response: turn.Response, State: turn.State, Issue: turn.Issue, TaskChat: turn.TaskChat, InputIDs: append([]string(nil), input.RunOptions.Uploads...), ReplyToUpdateID: input.RunOptions.ReplyToUpdateID, CreatedAt: turn.CreatedAt, UpdatedAt: turn.UpdatedAt})
+		messages = append(messages, DialogueMessage{TaskTitle: taskTitle, TaskContinued: decision.Kind == "continue", TaskResult: taskResult, Revision: turn.Revision, Reaction: retainedReaction(turn, input), ID: turn.ID, Sequence: turn.Sequence, Text: turn.Text, Response: turn.Response, State: turn.State, Issue: turn.Issue, TaskChat: turn.TaskChat, InputIDs: append([]string(nil), input.RunOptions.Uploads...), ReplyToUpdateID: input.RunOptions.ReplyToUpdateID, CreatedAt: turn.CreatedAt, UpdatedAt: turn.UpdatedAt})
 	}
 	return messages
 }

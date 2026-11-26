@@ -1,3 +1,4 @@
+import { taskBread } from './task-identity.mjs';
 import { brandIcon } from './brands.mjs';
 import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
@@ -97,6 +98,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
         row = { node, name, status, time, body, key: '' }; rows.set(task.id, row); list.append(node);
       }
       row.name.textContent = task.engine ? task.engine + ' · ' + task.title : task.title;
+      if (task.parent && !task.engine) { const bread = element('span', taskBread(task.id), 'task-bread'); bread.setAttribute('aria-hidden', 'true'); row.name.prepend(bread, document.createTextNode(' ')); }
       if (task.brand) row.name.prepend(brandIcon(task.brand, 'workflow'));
       row.status.textContent = (!connected ? 'Updates paused' : labels[task.state] || 'Waiting') + (task.current ? ' · This task' : ' · In the background');
       row.node.dataset.state = !connected ? 'disconnected' : task.state;

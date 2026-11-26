@@ -1,3 +1,5 @@
+import { taskBread } from './task-identity.mjs';
+import { taskHandoff } from './task-handoff.mjs';
 import { chatMenu } from './chats.mjs';
 import { voiceInput } from './voice.mjs';
 import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs";
@@ -883,11 +885,10 @@ function renderTranscript(state) {
       if (value.issue) nodes.push(element("p", value.issue, "hint"));
       if (value.task_chat) {
         const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat && item.turn_id === value.id);
-        const status=({running:'Working on it',queued:'Queued',review:'Needs you',completed:'Done',failed:'Needs attention',interrupted:'Interrupted'}[peer?.state || (value.task_result ? 'completed' : '')]||'Task details');
         const card=element('article',undefined,'turn assistant-task');card.setAttribute('aria-label','Task update');
-        const details = button(status, () => void execute(async () => { await flush(); await showTaskDetails(value.task_chat); }));
-        details.append(icon('chevron-right')); details.setAttribute('aria-label', status + ' · Task details');
-        card.append(details);
+        const title = value.task_title || (snapshot.tasks || []).find(task => task.id === value.task_chat)?.title || value.text;
+        card.append(taskHandoff({ id: value.task_chat, title, state: peer?.state || (value.task_result ? 'completed' : ''), continuing: !!value.task_continued,
+          open: () => void execute(async () => { await flush(); await showTaskDetails(value.task_chat); }) }));
         if (value.task_result || peer?.summary) { const result = element('div', undefined, 'response-content'); result.append(prose(value.task_result || peer.summary)); filePreviews.decorate(result, peer?.run_id); card.append(result); }
         nodes.push(card);
       }
@@ -1023,6 +1024,7 @@ events.onmessage = ({ data }) => {
     else { pending = undefined; remember(":pending", null); issue = receipt.error; }
   }
   $("title").textContent = state.primary ? "Hot Cross Buns" : state.title && !["Hot Cross Buns","New chat"].includes(state.title) ? state.title : "Task details";
+  if (!state.primary && state.task_thread && state.conversation_id) { const bread = element('span', taskBread(state.conversation_id), 'task-bread'); bread.setAttribute('aria-hidden', 'true'); $('title').prepend(bread, document.createTextNode(' ')); }
   input.placeholder = state.primary ? "Message Hot Cross Buns…" : "Reply about this task…";
   $('title').classList.toggle('sr-only',!!state.primary);
   document.title = !state.primary && state.conversation_id ? $("title").textContent + " · Hot Cross Buns" : "Hot Cross Buns";
