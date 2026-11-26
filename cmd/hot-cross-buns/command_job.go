@@ -838,7 +838,7 @@ func runJobProcessWith(ctx context.Context, definition jobs.Definition, stateDir
 			references := newWatchReferenceSet(outcome.Manifest, definition.RuntimeWatchItems, plan, outcome.Work)
 			references.addOutputReferences("previous", outcome.ParentArtifacts, outcome.ParentOutput)
 			changedArtifacts, currentMessages := currentWatchEffects(outcome)
-			decision := evaluateGoalWatchResult(outcome.Result.FinalText, currentMessages, changedArtifacts, references, definition.RuntimeWatchChanges)
+			decision := evaluateGoalWatchResult(outcome.Result.FinalText, currentMessages, changedArtifacts, references, definition.RuntimeWatchChanges, outcome.Manifest.Actions...)
 			if unresolvedScheduledReadFailure(outcome.Events) {
 				decision = jobs.WatchDecision{Status: "review", Summary: "A scheduled source could not be read; the check needs attention.", NextStep: "Inspect the task details and repair the affected connection before relying on this result.", Rationale: "A failed account read is not evidence that nothing changed."}
 			}

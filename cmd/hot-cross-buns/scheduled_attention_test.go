@@ -59,3 +59,16 @@ func TestScheduledNotificationConditionsCannotHideFailedAccountReads(t *testing.
 		})
 	}
 }
+
+func TestScheduledConnectedProposalCannotBeHiddenAsQuiet(t *testing.T) {
+	quiet := `{"attention":false,"urgent":false,"summary":"Nothing new","next_step":"","rationale":"Quiet","evidence":[],"change_ids":[]}`
+	if decision := evaluateGoalWatchResult(quiet, nil, nil, watchReferenceSet{}, nil); decision.Status != "quiet" {
+		t.Fatal("no-effect check lost useful silence")
+	}
+	for _, status := range []action.Status{action.Pending, action.Unknown, action.Failed} {
+		decision := evaluateGoalWatchResult(quiet, nil, nil, watchReferenceSet{}, nil, action.Record{Status: status})
+		if decision.Status != "review" {
+			t.Fatalf("%s request hidden as quiet: %#v", status, decision)
+		}
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
@@ -83,8 +84,8 @@ func classifyGoalWatchResult(finalText string, messages []agent.Message, artifac
 	return decision.Status != "quiet", decision.Summary
 }
 
-func evaluateGoalWatchResult(finalText string, messages []agent.Message, artifacts []artifact.File, references watchReferenceSet, changes []jobs.WatchChange) jobs.WatchDecision {
-	forcedAttention := len(artifacts) > 0
+func evaluateGoalWatchResult(finalText string, messages []agent.Message, artifacts []artifact.File, references watchReferenceSet, changes []jobs.WatchChange, connectedActions ...action.Record) jobs.WatchDecision {
+	forcedAttention := len(artifacts) > 0 || len(connectedActions) > 0
 	failedSuggestion := false
 	for _, message := range messages {
 		if message.Role != agent.RoleTool || message.ToolName != "suggest_change" {
@@ -148,7 +149,7 @@ func evaluateGoalWatchResult(finalText string, messages []agent.Message, artifac
 		}
 		if forcedAttention && !*decision.Attention {
 			result.Status = "review"
-			result.Rationale = "The Work run created an artifact or suggested a change despite a quiet model decision."
+			result.Rationale = "The Work run created an artifact, connected request or proposed change despite a quiet model decision."
 		}
 		if !attention && len(decision.Evidence) > 0 {
 			_, unverified := boundedWatchEvidence(decision.Evidence, references)
