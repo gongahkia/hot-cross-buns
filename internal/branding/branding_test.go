@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gongahkia/hot-cross-buns/internal/branding"
+	"github.com/gongahkia/hot-cross-buns/internal/localmodel"
 	"github.com/gongahkia/hot-cross-buns/internal/model"
 	"github.com/gongahkia/hot-cross-buns/internal/websearch"
 )
@@ -27,7 +28,7 @@ func TestCatalogMatchesImplementedAdapters(t *testing.T) {
 		}
 		identities[brand.ID] = true
 		for _, provider := range brand.Providers {
-			if !model.SupportsDirect(model.Provider(provider)) || providers[provider] {
+			if (!model.SupportsDirect(model.Provider(provider)) && provider != localmodel.ProviderID) || providers[provider] {
 				t.Fatalf("unimplemented/duplicate provider %q", provider)
 			}
 			providers[provider] = true

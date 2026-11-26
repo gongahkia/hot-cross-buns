@@ -147,7 +147,19 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
     await act({ op: "frame", context: ready.context, frame: { type: "composer", composer: {
       id: ready.state.composer.id, request_id: randomUUID(), action: "model", provider: "fixture", model: "fixture",
     } } });
-    await live.until(s => s.state?.provider === "fixture", "composer model selection");
+    const switched = await live.until(s => s.state?.provider === "fixture", "composer model selection");
+    assert.ok(switched.state.composer.models.some(model => model.provider === 'openai' && model.model === 'gpt-4.1'));
+    const catalog = await act({op:'providers',context:ready.context,action:'inventory'});
+    assert.ok(catalog.inventory.providers.some(row=>row.id==='gemini'));
+    assert.ok(catalog.inventory.providers.find(row=>row.id==='openai').models.includes('gpt-4.1'));
+    await act({op:'frame',context:ready.context,frame:{type:'composer',composer:{
+      id:switched.state.composer.id,request_id:randomUUID(),action:'model',provider:'openai',model:'gpt-4.1',
+    }}});
+    const restored = await live.until(s=>s.state?.provider==='openai'&&s.state?.model==='gpt-4.1','saved cloud model selection');
+    await act({op:'frame',context:ready.context,frame:{type:'composer',composer:{
+      id:restored.state.composer.id,request_id:randomUUID(),action:'model',provider:'fixture',model:'fixture',
+    }}});
+    await live.until(s=>s.state?.provider==='fixture','restore fixture model');
     assert.equal((await act({ op: "draft", context: ready.context })).text, "Keep this draft while changing models.");
     await act({op:'navigate',context:ready.context,route:'/search'});
     const search = await live.until(s => s.state?.panel?.kind === 'search', 'web search management');

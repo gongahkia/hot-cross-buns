@@ -86,6 +86,38 @@ test('the detailed Models view separates orchestrator choices from native and CL
   assert.equal(view.element.querySelector('script'),null);view.element.remove();
 });
 
+test('orchestrator catalog opens exact cloud setup and local management without making implicit requests', async () => {
+  const state = {provider:'openai',model:'manager',composer:{models:[
+    {provider:'openai',model:'manager'}, {provider:'openai',model:'saved-alternative'},
+    {provider:'hot-cross-buns-local',model:'qwen3:4b',processing:'local'},
+  ]}};
+  let setup, localRequests = 0;
+  const view = modelsView({state:()=>state, request:async()=>({inventory:{agents:[],providers:[
+    {id:'openai',ready:true,models:['manager','saved-alternative']},
+    {id:'gemini',ready:false,models:['gemini-fixture']}, {id:'azure-openai',ready:false,models:[]},
+  ]}}), choose:async model=>{state.provider=model.provider;state.model=model.model}, providers:(...args)=>{setup=args},
+    localRequest:async()=>{localRequests++;return {local:{catalog:[{id:'qwen3-4b',name:'Qwen3 4B',tag:'qwen3:4b',eligible:true,downloaded:false}],issue:'Start the runtime to inspect models.'}}}, local(){}});
+  document.body.append(view.element); await view.load();
+  assert.equal(localRequests,0);
+  assert.equal(view.element.querySelector('[data-provider="gemini"] img').getAttribute('src'),'/brands/gemini-color.png');
+  assert.ok(!view.element.querySelector('[aria-label="Use qwen3:4b · Ollama"]'));
+  const search=view.element.querySelector('input[type="search"]'); search.value='gemini';search.dispatchEvent(new window.Event('input'));
+  assert.equal(view.element.querySelector('[data-provider="openai"]'),null);
+  view.element.querySelector('[aria-label="Set up gemini-fixture · Google Gemini"]').click();assert.deepEqual(setup,['gemini','gemini-fixture']);
+  search.value='azure';search.dispatchEvent(new window.Event('input'));
+  [...view.element.querySelectorAll('button')].find(node=>node.textContent==='Add a model').click();assert.deepEqual(setup,['azure-openai']);
+  search.value='saved-alternative';search.dispatchEvent(new window.Event('input'));
+  view.element.querySelector('[aria-label="Use saved-alternative · OpenAI"]').click(); await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(state.model,'saved-alternative'); assert.ok(view.element.querySelector('[aria-label="Selected saved-alternative · OpenAI"]').disabled);
+  [...view.element.querySelectorAll('button')].find(node=>node.textContent==='On this computer').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(localRequests,1); assert.match(view.element.textContent,/Qwen3 4B/);
+  assert.equal(view.element.querySelector('.local-model-row img').getAttribute('src'),'/brands/ollama.png');
+  assert.equal(view.element.querySelector('[aria-label="Use qwen3:4b · Ollama"] img'),null);
+  assert.ok([...view.element.querySelectorAll('.local-model-row button')].find(node=>node.textContent==='Review selection').disabled);
+  await view.load(); assert.equal(localRequests,2);
+  view.element.remove();
+});
+
 test('local app links open on click in bounded split tabs and cannot embed the host or remote sites', () => {
   document.body.replaceChildren();
   for (const value of ['https://example.com','http://127.0.0.1:4317/','http://localhost:4317/','http://[::1]:3000/','http://localhost.evil.test:3000','http://user:password@localhost:3000','javascript:alert(1)','file:///tmp/app.html']) assert.equal(localAppURL(value),null);
@@ -834,6 +866,7 @@ test('local runtime activity blocks stop and download while source changes stay 
 test('local PNG branding resolves catalog identities and fails back to Lucide without losing accessible text', () => {
   assert.equal(providerBrand('azure-openai-responses'), 'azure');
   assert.equal(providerBrand('opencode-go'), 'opencode');
+  assert.equal(providerBrand('hot-cross-buns-local'), 'ollama');
   for (const id of ['fixture', 'openai-compatible', '__proto__', 'https://example.com']) assert.equal(providerBrand(id), '');
   const node = brandIcon('slack', 'link'), image = node.querySelector('img');
   assert.equal(image.getAttribute('src'), '/brands/slack.png');

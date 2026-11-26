@@ -381,7 +381,7 @@
     "id": "ollama",
     "label": "Ollama",
     "file": "ollama.png",
-    "providers": [],
+    "providers": ["hot-cross-buns-local"],
     "connectors": [],
     "specialists": [],
     "searches": []

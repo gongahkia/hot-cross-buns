@@ -139,7 +139,8 @@ export function localModelsView({ request }) {
     if (status.catalog?.length) body.append(element('h3', 'Local model catalog'));
     for (const model of status.catalog || []) {
       const row = element('section', undefined, 'view-section local-model-row');
-      row.append(element('strong', model.name), element('p', model.tag + (model.package_size ? ' · ' + model.package_size : ''), 'hint'));
+      const title = element('strong', model.name); title.prepend(brandIcon('ollama'));
+      row.append(title, element('p', model.tag + (model.package_size ? ' · ' + model.package_size : ''), 'hint'));
       row.append(element('p', model.downloaded === true ? 'Downloaded' : model.downloaded === false ? 'Not downloaded' : 'Download status unknown', 'hint'));
       if (model.reason) row.append(element('p', model.reason, 'hint'));
       const choose = button('Review selection', () => perform(localAction({ action: 'local_review_select', model_id: model.id })));

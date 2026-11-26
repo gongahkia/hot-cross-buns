@@ -285,6 +285,24 @@ Local model management and provider setup remain available through their existin
 review flows. The native `inventory` read projects only public assignment fields;
 it does not launch a model, expose credentials/CLI paths or cancel provider reviews.
 
+The Orchestrator tab separates **Cloud models** and **On this computer**. Search
+the built-in provider catalog, then use **Set up** for a suggested model or
+**Add a model** for an explicit model/deployment ID. Both open the existing
+reviewed API-key and endpoint form for that exact provider. Saved API model IDs
+are retained in the non-secret `orchestrator_models` configuration, so switching
+providers does not remove them from the composer. Configured choices use the
+same stale-state and active-work checks as the quick picker. Configuration
+readiness does not establish account entitlement or endpoint availability.
+
+**On this computer** embeds the existing Ollama management interface: inspect
+the app-owned or configured runtime, review downloads and select a verified
+installed catalog model. The known catalog remains visible when the runtime is
+stopped; installed/loaded state stays unknown until observed. Opening the cloud
+catalog never contacts a model provider or starts a local runtime. PNG marks
+come from the finite bundled branding catalog, including Ollama for the managed
+local provider. These choices change the main orchestrator; CLI-agent logins
+and specialist overrides remain independent.
+
 Jump to latest uses a smooth scroll, with immediate movement when reduced motion
 is requested. Reading-position restoration does not interrupt that animation.
 Each observed composer step has its own disclosure for recorded tool, provider,

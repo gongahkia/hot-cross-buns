@@ -465,6 +465,7 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 #detail-body .budget-fields label { margin: 0; font-size: .75rem; }
 .local-model-row { padding-top: .7rem; border-top: 1px solid var(--line); }
 .local-model-row strong { font-size: .88rem; font-weight: 500; }
+.local-model-row strong .brand-mark { margin-inline-end: .5rem; }
 .local-model-row p { margin: .25rem 0; }
 .local-selection-review { border: 1px solid var(--line); border-radius: .4rem; padding: .7rem; }
 .mapping-row { border-bottom: 1px solid var(--line); padding-bottom: .6rem; }
@@ -648,6 +649,12 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .orchestrator-model-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding: .8rem 0; border-bottom: 1px solid var(--line); }
 .orchestrator-model-row > div { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .orchestrator-model-row strong { font-size: .9rem; font-weight: 500; overflow-wrap: anywhere; }
+.models-sources { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.models-sources [aria-pressed="true"] { color: var(--accent); background: var(--wash); }
+.models-dashboard input[type="search"] { width: 100%; margin-bottom: 1rem; }
+.models-dashboard h4 { margin: 1.25rem 0 .5rem; font-size: .9rem; font-weight: 600; }
+.models-dashboard .model-detail-row .orchestrator-model-row { margin-inline: .5rem; }
+.orchestrator-model-row > p { flex-basis: 100%; margin: 0; }
 .model-detail-row { padding: .75rem 0; border-bottom: 1px solid var(--line); }
 .model-detail-row > summary { display: flex; align-items: center; gap: .65rem; }
 .model-detail-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }

@@ -1,0 +1,43 @@
+{
+  "date": "2026-11-26",
+  "scope": "Cloud and local orchestrator selection in the Models dashboard",
+  "checks": {
+    "make_check": "passed with canonical macOS TMPDIR",
+    "go_tests_and_vet": "passed",
+    "browser_tests": { "passed": 149, "failed": 0 },
+    "app_host_tests": { "passed": 145, "failed": 0 },
+    "oauth_build_tests": { "passed": 1, "failed": 0 },
+    "rendering_tests_after_final_assertion": { "passed": 63, "failed": 0 },
+    "design_detector": "no findings",
+    "git_diff_check": "passed"
+  },
+  "acceptance": {
+    "cloud_model_ids_survive_provider_switches": true,
+    "browser_switches_back_to_reviewed_explicit_cloud_model": true,
+    "composer_draft_preserved": true,
+    "unconfigured_providers_visible": true,
+    "exact_provider_and_model_prefilled_in_setup": true,
+    "local_runtime_start_stop_and_catalog_selection_protocol": "fixture integration passed",
+    "offline_owned_catalog_visible_without_contacting_configured_runtime": true,
+    "installed_and_loaded_state_stays_unknown_when_offline": true,
+    "local_selection_disabled_without_verified_runtime": true,
+    "new_live_cloud_provider_inference": "not run; provider selection/setup used disposable fixtures",
+    "live_local_weight_inference": "not run; runtime lifecycle used the existing fixture"
+  },
+  "browser": {
+    "desktop": "1280x720",
+    "mobile": "390x844; document and dialog have no horizontal overflow",
+    "gemini_png_loaded_and_setup_prefilled": true,
+    "offline_local_catalog_rows": 13,
+    "offline_local_missing_logos": 0,
+    "console": "existing favicon.ico 404 only"
+  },
+  "running_app": {
+    "connection_after_restart": "connected",
+    "built_in_cloud_providers": 38,
+    "selected_orchestrator_changed_by_verification": false
+  },
+  "environment": {
+    "initial_server_test_attempt": "failed a canonical macOS temporary-path assertion; reran using canonical TMPDIR and passed"
+  }
+}
