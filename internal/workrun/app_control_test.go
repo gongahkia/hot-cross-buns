@@ -112,3 +112,14 @@ func TestAppToolsRejectUnknownAndTrailingArguments(t *testing.T) {
 		t.Fatal("invalid request changed the app")
 	}
 }
+
+func TestAppInspectionSuppliesScopedUpdateReference(t *testing.T) {
+	tool := applicationTools(&appControllerFixture{}, Request{ForegroundApp: true})[0]
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"topic":"schedules"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.Content, "starts_at") || !strings.Contains(result.Content, "expected_digest") || !strings.Contains(result.Content, "inclusive") || strings.Contains(result.Content, "daily_requests") {
+		t.Fatalf("missing or unrelated update help: %s", result.Content)
+	}
+}
