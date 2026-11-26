@@ -85,29 +85,31 @@ func (b *nativeProviderBackend) localStatus(a modelcatalog.NativeProviderAction)
 		override, err = b.ownedLocalEndpoint()
 		if err != nil {
 			status.Issue = "Start the app-owned runtime to inspect its models."
-			return r
 		}
 	}
-	client, err := localClient(override, settings)
-	if err != nil {
-		status.Issue = "Configured local endpoint is invalid. No request was made."
-	} else {
-		status.Endpoint = safe(client.BaseURL())
-		version, e := client.Version(ctx)
-		if e != nil {
-			status.Issue = "Runtime reachability unknown: the local version request failed. No runtime was started."
+	// a stopped owned runtime must not fall through to the configured runtime.
+	if !a.AppOwned || err == nil {
+		client, err := localClient(override, settings)
+		if err != nil {
+			status.Issue = "Configured local endpoint is invalid. No request was made."
 		} else {
-			status.Reachable = true
-			status.Version = safe(version)
-			installed, e = client.Models(ctx)
-			status.InstalledKnown = e == nil
+			status.Endpoint = safe(client.BaseURL())
+			version, e := client.Version(ctx)
 			if e != nil {
-				status.Issue = "Installed inventory unavailable; downloaded state is unknown."
-			}
-			running, e = client.Running(ctx)
-			status.LoadedKnown = e == nil
-			if e != nil {
-				status.Issue += " Loaded inventory unavailable; loaded state is unknown."
+				status.Issue = "Runtime reachability unknown: the local version request failed. No runtime was started."
+			} else {
+				status.Reachable = true
+				status.Version = safe(version)
+				installed, e = client.Models(ctx)
+				status.InstalledKnown = e == nil
+				if e != nil {
+					status.Issue = "Installed inventory unavailable; downloaded state is unknown."
+				}
+				running, e = client.Running(ctx)
+				status.LoadedKnown = e == nil
+				if e != nil {
+					status.Issue += " Loaded inventory unavailable; loaded state is unknown."
+				}
 			}
 		}
 	}

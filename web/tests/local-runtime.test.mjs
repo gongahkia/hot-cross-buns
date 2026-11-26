@@ -36,6 +36,8 @@ test('browser lifecycle reaches the private Go owner without model work or an ex
     abort.abort();
     const status = await action({ action: 'local_status', app_owned: true });
     assert.equal(status.code, 200); assert.equal(status.runtime.state, 'stopped');
+    assert.ok(status.local.catalog.length > 0);
+    assert.equal(status.local.installed_known, false);
     assert.equal((await action({ action: 'runtime_start' })).code, 400);
     assert.equal((await action({ action: 'runtime_status', app_owned: true })).code, 400);
     const reviewed = await action({ action: 'runtime_review_start' });

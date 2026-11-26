@@ -106,6 +106,34 @@ func TestNativeLocalStatusRejectsSettingsChangedDuringInspection(t *testing.T) {
 		t.Fatal("stale observation published")
 	}
 }
+
+func TestStoppedOwnedRuntimeStillShowsCatalogWithoutContactingConfiguredRuntime(t *testing.T) {
+	b := nativeProviderFixture(t)
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		fmt.Fprint(w, `{"models":[]}`)
+	}))
+	defer server.Close()
+	if err := b.settings.Update(func(s *config.Settings) error {
+		s.CustomProviders = []config.CustomProvider{{ID: "hot-cross-buns-local", BaseURL: server.URL + "/v1/chat/completions", Models: []string{"qwen3:4b"}, DefaultModel: "qwen3:4b"}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r := b.Apply(modelcatalog.NativeProviderAction{RequestID: "offline", Action: "local_status", AppOwned: true})
+	if r.Error != "" || r.Local == nil || len(r.Local.Catalog) == 0 || requests.Load() != 0 {
+		t.Fatal("offline catalog unavailable or inspected another runtime", r.Error)
+	}
+	if r.Local.Reachable || r.Local.InstalledKnown || r.Local.LoadedKnown {
+		t.Fatal("offline runtime was reported as verified")
+	}
+	for _, row := range r.Local.Catalog {
+		if row.Downloaded != nil || row.Loaded != nil || row.Digest != "" {
+			t.Fatal("invented installation state without an observation")
+		}
+	}
+}
 func TestNativeLocalBridgeCompletionIdentityAndNoOwnerMutation(t *testing.T) {
 	var out bytes.Buffer
 	result := modelcatalog.NativeProviderResult{RequestID: "read-status", Action: "local_status", Local: &modelcatalog.NativeLocalStatus{ResultID: "result"}}
