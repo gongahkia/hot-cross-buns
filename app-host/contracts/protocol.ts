@@ -248,7 +248,7 @@ export type Frame = {
   memory?: ChatMemoryAction;
   receipt?: {conversation_id: string; run_id: string; action_id: string; correlation_id: string; manifest_sha256: string; action: "inspect" | "check_sent"; request_id: string};
   update?: { conversation_id: string; id: string; action: "delivered" | "read" | "resolve" | "reopen" | "older" | "newer" | "rate"; version: number; rating?: "useful" | "noise" | "wrong" | "clear"; rating_version?: number; request_id?: string };
-  upload?: { queue_only?:boolean; plan_first?:boolean; request_id: string; context: string; text: string; files: string[]; reply_to_update_id?: string };
+  upload?: { queue_only?:boolean; plan_first?:boolean; request_id: string; context: string; text: string; files: string[]; reply_to_task_id?: string; reply_to_update_id?: string };
   text?: string; key?: string; error?: string; width?: number; height?: number;
   task_plan?:TaskPlanAction;
   request_recovery?:RequestRecoveryAction;
