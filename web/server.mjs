@@ -298,13 +298,13 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         const owner = host.backend;
         if (typeof (body.after ?? '') !== 'string' || (body.after || '').length > 1024 || typeof (body.query ?? '') !== 'string' || Buffer.byteLength(body.query || '') > 512) throw new RequestError(400, 'Check the chat search.');
         const query = body.query || '';
-        const result = await owner.catalog({ request_id: randomUUID(), action: 'query', scope: 'all', text: query, after: body.after || '' });
+        const result = await owner.catalog({ request_id: randomUUID(), action: 'query', scope: 'all', tasks_only: body.tasksOnly === true, text: query, after: body.after || '' });
         requireContext(context);
         if (owner !== host.backend) throw new RequestError(409, 'The chat changed. Reopen the list.');
         if (result.error) throw new RequestError(409, result.error);
         const items = (result.page?.items || []).map(item => {
           const selection = randomUUID();
-          chatSelections.set(selection, { owner, context, id: item.id, version: item.version, query, after: body.after || '' });
+          chatSelections.set(selection, { owner, context, id: item.id, version: item.version, query, tasksOnly: body.tasksOnly === true, after: body.after || '' });
           return { id: item.id, title: item.title, snippet: item.snippet, match: item.match, pinned: item.pinned, archived: item.archived, updated_at: item.updated_at, selection };
         });
         while (chatSelections.size > 10000) chatSelections.delete(chatSelections.keys().next().value);
@@ -316,7 +316,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         const chosen = chatSelections.get(body.selection);
         if (!chosen || chosen.owner !== host.backend || chosen.context !== context) throw new RequestError(409, 'Refresh the chat list and choose this chat again.');
         if (op === 'rename-chat' && (typeof body.title !== 'string' || !body.title.trim() || Buffer.byteLength(body.title) > 256)) throw new RequestError(400, 'Enter a chat title of up to 256 bytes.');
-        const result = await chosen.owner.catalog({ request_id: randomUUID(), action: 'query', scope: 'all', text: chosen.query, after: chosen.after });
+        const result = await chosen.owner.catalog({ request_id: randomUUID(), action: 'query', scope: 'all', tasks_only: chosen.tasksOnly, text: chosen.query, after: chosen.after });
         requireContext(context);
         if (result.error) throw new RequestError(409, result.error);
         if (!result.page?.items.some(item => item.id === chosen.id && item.version === chosen.version)) throw new RequestError(409, 'This chat changed. Refresh the list.');

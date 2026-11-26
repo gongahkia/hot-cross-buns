@@ -145,6 +145,11 @@ func (s Store) BindDialogueTask(conversation, id, expectedSource string, expecte
 	if err != nil {
 		return turn, Conversation{}, false, err
 	}
+	if expectedSource != "" && parent.SourcePath == expectedSource {
+		if target, ok := dialogueContinuation(turn.Decision); ok {
+			return s.bindDialogueContinuation(parent, turn, target, expected, now)
+		}
+	}
 	if expectedSource == "" || parent.SourcePath != expectedSource || !dialogueTaskDecision(turn.Decision) {
 		return turn, Conversation{}, false, errors.New("the task's original source or routing decision changed")
 	}
@@ -234,4 +239,70 @@ func (s Store) DialogueTask(childID string) (*DialogueTaskOrigin, error) {
 		return nil, errors.New("task origin does not match its original message and inputs")
 	}
 	return &origin, nil
+}
+
+// DialogueTaskTurn validates a continuation without changing the original task origin.
+func (s Store) DialogueTaskTurn(child, parent, turnID string) bool {
+	origin, err := s.DialogueTask(child)
+	if err != nil || origin == nil || origin.ParentConversationID != parent {
+		return false
+	}
+	if origin.TurnID == turnID {
+		return true
+	}
+	turn, err := s.ReadDialogue(parent, turnID)
+	if err != nil || turn.TaskChat != child {
+		return false
+	}
+	target, ok := dialogueContinuation(turn.Decision)
+	return ok && target == child
+}
+func dialogueContinuation(raw json.RawMessage) (string, bool) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || len(fields) != 2 {
+		return "", false
+	}
+	var kind, target string
+	returnTarget := json.Unmarshal(fields["kind"], &kind) == nil && json.Unmarshal(fields["target"], &target) == nil && kind == "continue" && validID(target) == nil
+	return target, returnTarget
+}
+func (s Store) bindDialogueContinuation(parent Conversation, turn DialogueTurn, target string, expected uint64, now time.Time) (DialogueTurn, Conversation, bool, error) {
+	child, err := s.Load(target)
+	if err != nil {
+		return turn, child, false, err
+	}
+	origin, err := s.DialogueTask(target)
+	if err != nil || origin == nil || origin.ParentConversationID != parent.ID || child.SourcePath != parent.SourcePath {
+		return turn, child, false, errors.New("continuation must target this assistant's original task and workspace")
+	}
+	if turn.TaskChat == target && (turn.State == "dispatching" || turn.State == "delegated") {
+		return turn, child, false, nil
+	}
+	if turn.State != "ready" || turn.Revision != expected || expected == 0 {
+		return turn, child, false, ErrDialogueChanged
+	}
+	journal, err := s.LoadRequests(target)
+	if err != nil {
+		return turn, child, false, err
+	}
+	if len(journal.Requests) == 0 {
+		return turn, child, false, errors.New("inspect the original task before continuing")
+	}
+	for _, r := range journal.Requests {
+		if r.Pending() {
+			return turn, child, false, errors.New("the selected task still has pending work or review")
+		}
+	}
+	if journal.Requests[len(journal.Requests)-1].State != "completed" {
+		return turn, child, false, errors.New("inspect the selected task's incomplete outcome before continuing")
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if now.Before(turn.UpdatedAt) {
+		now = turn.UpdatedAt
+	}
+	turn.TaskChat, turn.State, turn.UpdatedAt = target, "dispatching", now.UTC()
+	bound, err := s.UpdateDialogue(turn, expected)
+	return bound, child, err == nil, err
 }

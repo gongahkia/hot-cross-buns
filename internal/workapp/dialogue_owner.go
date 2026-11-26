@@ -31,6 +31,7 @@ type DialogueMessage struct {
 	Response        string            `json:"response,omitempty"`
 	State           string            `json:"state"`
 	Issue           string            `json:"issue,omitempty"`
+	TaskResult      string            `json:"task_result,omitempty"`
 	TaskChat        string            `json:"task_chat,omitempty"`
 	InputIDs        []string          `json:"input_ids,omitempty"`
 	ReplyToUpdateID string            `json:"reply_to_update_id,omitempty"`
@@ -49,7 +50,13 @@ func (m Model) dialogueMessages() []DialogueMessage {
 		if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 {
 			continue
 		}
-		messages = append(messages, DialogueMessage{Revision: turn.Revision, Reaction: retainedReaction(turn, input), ID: turn.ID, Sequence: turn.Sequence, Text: turn.Text, Response: turn.Response, State: turn.State, Issue: turn.Issue, TaskChat: turn.TaskChat, InputIDs: append([]string(nil), input.RunOptions.Uploads...), ReplyToUpdateID: input.RunOptions.ReplyToUpdateID, CreatedAt: turn.CreatedAt, UpdatedAt: turn.UpdatedAt})
+		taskResult := ""
+		if turn.TaskChat != "" {
+			if peer := m.retainedDialoguePeer(turn); peer != nil && peer.State == "completed" {
+				taskResult = peer.Summary
+			}
+		}
+		messages = append(messages, DialogueMessage{TaskResult: taskResult, Revision: turn.Revision, Reaction: retainedReaction(turn, input), ID: turn.ID, Sequence: turn.Sequence, Text: turn.Text, Response: turn.Response, State: turn.State, Issue: turn.Issue, TaskChat: turn.TaskChat, InputIDs: append([]string(nil), input.RunOptions.Uploads...), ReplyToUpdateID: input.RunOptions.ReplyToUpdateID, CreatedAt: turn.CreatedAt, UpdatedAt: turn.UpdatedAt})
 	}
 	return messages
 }
@@ -63,13 +70,25 @@ func (m Model) dialogueTaskState() *DialogueTaskState {
 		return nil
 	}
 	result := &DialogueTaskState{ParentID: origin.ParentConversationID, DialoguePeer: DialoguePeer{ConversationID: m.conversation, TurnID: origin.TurnID, State: "unconfirmed", NeedsInspection: m.acknowledgementBlocked()}}
-	for _, r := range m.requests.Requests {
-		if r.ClientID != origin.TurnID {
+	for i := len(m.requests.Requests) - 1; i >= 0; i-- {
+		r := m.requests.Requests[i]
+		if !m.config.SessionStore.DialogueTaskTurn(m.conversation, origin.ParentConversationID, r.ClientID) {
 			continue
 		}
 		var options RunOptions
-		if json.Unmarshal(r.Options, &options) != nil || options.DialogueParent != origin.ParentConversationID || options.DialogueTurn != origin.TurnID {
+		if json.Unmarshal(r.Options, &options) != nil || options.DialogueParent != origin.ParentConversationID || options.DialogueTurn != r.ClientID {
 			return result
+		}
+		result.TurnID = r.ClientID
+		// A direct reply belongs to this owner but does not give its parent a control receipt.
+		for _, pending := range m.requests.Requests {
+			if pending.Pending() && pending.ClientID != r.ClientID && !m.config.SessionStore.DialogueTaskTurn(m.conversation, origin.ParentConversationID, pending.ClientID) {
+				result.State, result.NeedsInspection = "queued", true
+				if m.running {
+					result.State = "running"
+				}
+				return result
+			}
 		}
 		result.State = r.State
 		if r.Plan != nil && r.Pending() {
@@ -124,7 +143,7 @@ func (m Model) dialogueTaskState() *DialogueTaskState {
 
 func (m Model) retainedDialoguePeer(turn worksession.DialogueTurn) *DialoguePeer {
 	origin, err := m.config.SessionStore.DialogueTask(turn.TaskChat)
-	if err != nil || origin == nil || origin.ParentConversationID != m.conversation || origin.TurnID != turn.ID {
+	if err != nil || origin == nil || origin.ParentConversationID != m.conversation || !m.config.SessionStore.DialogueTaskTurn(turn.TaskChat, m.conversation, turn.ID) {
 		return nil
 	}
 	peer := &DialoguePeer{ConversationID: turn.TaskChat, TurnID: turn.ID, State: "unconfirmed", NeedsInspection: true}
@@ -179,7 +198,7 @@ func (m Model) BootstrapDialogue(parent, turnID string) (tea.Model, tea.Cmd) {
 	if err != nil {
 		return fail(err)
 	}
-	if origin == nil || origin.ParentConversationID != parent || origin.TurnID != turnID {
+	if origin == nil || origin.ParentConversationID != parent || !m.config.SessionStore.DialogueTaskTurn(m.conversation, parent, turnID) {
 		return fail(errors.New("this chat is not the retained task owner"))
 	}
 	turn, err := m.config.SessionStore.ReadDialogue(parent, turnID)
@@ -199,7 +218,32 @@ func (m Model) BootstrapDialogue(parent, turnID string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	if turn.State != "dispatching" || m.running || len(m.requests.Requests) != 0 || m.revision != "" || m.requestsIssue != "" {
+	var route workrun.ConversationDecision
+	if json.Unmarshal(turn.Decision, &route) != nil {
+		return fail(errors.New("invalid task decision"))
+	}
+	continuation := route.Kind == "continue" && route.Target == m.conversation
+	if continuation {
+		if len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.PlanFirst {
+			return fail(errors.New("new files or plans require a separately reviewed scope"))
+		}
+		original, err := m.config.SessionStore.ReadDialogue(parent, origin.TurnID)
+		if err != nil {
+			return fail(err)
+		}
+		var originalInput ConversationInput
+		if json.Unmarshal(original.Options, &originalInput) != nil || originalInput.Version != 1 || originalInput.Source != m.source {
+			return fail(errors.New("original task scope is unavailable"))
+		}
+		input = originalInput
+		input.RunOptions.PlanFirst = false
+		for _, r := range m.requests.Requests {
+			if r.Pending() {
+				return fail(errors.New("the task has pending work or a review; inspect it first"))
+			}
+		}
+	}
+	if turn.State != "dispatching" || m.running || !continuation && (len(m.requests.Requests) != 0 || m.revision != "") || m.requestsIssue != "" {
 		return fail(errors.New("this task cannot be launched again; inspect its retained state"))
 	}
 	if err := m.validateDialogueInputs(input); err != nil {

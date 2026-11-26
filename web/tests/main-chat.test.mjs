@@ -90,3 +90,11 @@ test('returning to main leaves a side task running under its original owner',{ti
     assert.equal(done.context,main.context);
   } finally {app.release();live?.close();await app.close();}
 });
+
+test('task-only menu hides ordinary retained chats while past-work search preserves them',{timeout:45000},async()=>{
+ const app=await fixture({chatCount:2});let live;
+ try{live=await events(app);const main=await live.until(value=>value.state?.primary);
+  const tasks=await action(app,{op:'chats',context:main.context,tasksOnly:true});assert.deepEqual(tasks.items,[]);
+  const history=await action(app,{op:'chats',context:main.context});assert.equal(history.items.length,2);
+ }finally{live?.close();await app.close();}
+});

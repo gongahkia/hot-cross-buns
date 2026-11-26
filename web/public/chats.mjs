@@ -1,13 +1,13 @@
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
-export function chatMenu({ request, open, rename }) {
+export function chatMenu({ request, open, rename, tasksOnly = false }) {
   const container = element('div', undefined, 'chat-menu');
-  const search = element('input'); search.type = 'search'; search.placeholder = 'Search history…'; search.maxLength = 512; search.setAttribute('aria-label', 'Search retained work');
+  const search = element('input'); search.type = 'search'; search.placeholder = tasksOnly ? 'Search tasks…' : 'Search history…'; search.maxLength = 512; search.setAttribute('aria-label', tasksOnly ? 'Search task conversations' : 'Search retained work');
   const searchHelp = element('p', 'Titles, folders, and indexed work messages. Other dialogue is not indexed.', 'hint chat-search-help'); searchHelp.hidden = true;
   const activitySummary = element('p', '', 'hint chat-activity-summary'); activitySummary.hidden = true; activitySummary.setAttribute('role', 'status');
   const root = element('div', undefined, 'chat-scroll');
-  const list = element('nav'); list.id = 'chat-list'; list.setAttribute('aria-label', 'Work history');
+  const list = element('nav'); list.id = 'chat-list'; list.setAttribute('aria-label', tasksOnly ? 'Task conversations' : 'Work history');
   const issue = element('p', undefined, 'hint chat-list-issue'); issue.setAttribute('role', 'status'); issue.hidden = true;
   const editor = element('form', undefined, 'chat-rename'); editor.hidden = true;
   root.append(list); container.append(search, searchHelp, activitySummary, root, issue, editor);
@@ -31,7 +31,7 @@ export function chatMenu({ request, open, rename }) {
       row.setAttribute('aria-label', (items.get(wrapper.dataset.chat)?.title || 'Retained work') + ' · ' + value);
     }
   }
-  const more = element('button', 'Load more history', 'quiet'); more.type = 'button';
+  const more = element('button', tasksOnly ? 'Load more tasks' : 'Load more history', 'quiet'); more.type = 'button';
   more.addEventListener('click', () => void load(context, false));
   function edges() {
     root.dataset.top = String(list.scrollTop > 2);
@@ -84,7 +84,7 @@ export function chatMenu({ request, open, rename }) {
       }
       return wrapper;
     }));
-    if (!visible.length) list.append(element('p', query ? 'No matching history.' : 'No earlier work yet.', 'hint'));
+    if (!visible.length) list.append(element('p', query ? (tasksOnly ? 'No matching tasks.' : 'No matching history.') : (tasksOnly ? 'Tasks I work on for you will appear here.' : 'No earlier work yet.'), 'hint'));
     if (next) list.append(more);
     list.scrollTop = position; edges(); activityState();
   }
@@ -95,7 +95,7 @@ export function chatMenu({ request, open, rename }) {
     const owned = ++generation, text = query;
     busy = true; list.setAttribute('aria-busy', 'true'); more.disabled = true; issue.hidden = true;
     try {
-      const page = await request({ context: value, after: next, query: text });
+      const page = await request({ context: value, after: next, query: text, ...(tasksOnly ? { tasksOnly: true } : {}) });
       if (owned !== generation) return;
       for (const item of page.items) items.set(item.id, item);
       next = page.next || ''; render();

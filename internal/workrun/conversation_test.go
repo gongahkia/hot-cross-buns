@@ -219,3 +219,30 @@ func TestConversationReplyTargetCannotControlAnotherTask(t *testing.T) {
 		t.Fatal("missing target was silently substituted")
 	}
 }
+
+func TestConversationContinuationHasAnExactCompletedTarget(t *testing.T) {
+	request := ConversationRequest{Text: "What about US intervention?", CanStart: true, Tasks: []ConversationTask{{ID: "research-2025", Title: "2025 Iran war", State: "completed", CanContinue: true}}}
+	decision := ConversationDecision{Kind: "continue", Target: "research-2025"}
+	if err := decision.Validate(request); err != nil {
+		t.Fatal(err)
+	}
+	for _, variant := range []string{"files", "plan", "capacity", "not-completed", "unknown"} {
+		copy := request
+		copy.Tasks = append([]ConversationTask(nil), request.Tasks...)
+		switch variant {
+		case "files":
+			copy.HasFiles = true
+		case "plan":
+			copy.PlanFirst = true
+		case "capacity":
+			copy.CanStart = false
+		case "not-completed":
+			copy.Tasks[0].CanContinue = false
+		case "unknown":
+			copy.Tasks[0].ID = "other"
+		}
+		if err := decision.Validate(copy); err == nil {
+			t.Fatal("unsafe continuation", variant)
+		}
+	}
+}

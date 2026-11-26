@@ -104,6 +104,18 @@ func (m Model) conversationActive() bool {
 	if !m.conversationAvailable() {
 		return false
 	}
+	if m.primaryID != "" && m.conversation != m.primaryID && !m.running && m.planPreparing == "" && m.planRevising == "" {
+		pendingPlan := false
+		for _, request := range m.requests.Requests {
+			if request.Plan != nil && request.Pending() {
+				pendingPlan = true
+				break
+			}
+		}
+		if !pendingPlan {
+			return false
+		}
+	}
 	if intake := m.desktop.IntroductionChat; intake != nil && m.desktop.Introduction == "started" && intake.ConversationID == m.conversation {
 		return true
 	}
@@ -271,7 +283,7 @@ func (m Model) conversationTasks() []workrun.ConversationTask {
 		if err != nil || current.TaskChat != peer.ConversationID {
 			continue
 		}
-		tasks = append(tasks, workrun.ConversationTask{NeedsInspection: peer.NeedsInspection, ID: peer.ConversationID, Title: boundedConversation(current.Text, 256), State: peer.State, Summary: boundedConversation(peer.Summary, 2048)})
+		tasks = append(tasks, workrun.ConversationTask{NeedsInspection: peer.NeedsInspection, ID: peer.ConversationID, Title: boundedConversation(current.Text, 256), State: peer.State, Summary: boundedConversation(peer.Summary, 2048), CanContinue: peer.State == "completed"})
 		seen[peer.ConversationID] = true
 	}
 	return tasks
@@ -294,7 +306,7 @@ func (m Model) ConfigureDialogueHost(host DialogueHost) Model {
 			continue
 		}
 		origin, err := m.config.SessionStore.DialogueTask(peer.ConversationID)
-		if err != nil || origin == nil || origin.ParentConversationID != m.conversation || origin.TurnID != peer.TurnID {
+		if err != nil || origin == nil || origin.ParentConversationID != m.conversation || !m.config.SessionStore.DialogueTaskTurn(peer.ConversationID, m.conversation, peer.TurnID) {
 			continue
 		}
 		seen[peer.ConversationID] = true
@@ -302,11 +314,13 @@ func (m Model) ConfigureDialogueHost(host DialogueHost) Model {
 	}
 	// On restart, project only confirmed durable results. Stored running/queued
 	// states without a live owner remain unconfirmed and are never relaunched.
-	for _, turn := range m.dialogueTurns {
+	for index := len(m.dialogueTurns) - 1; index >= 0; index-- {
+		turn := m.dialogueTurns[index]
 		if turn.TaskChat != "" && !seen[turn.TaskChat] {
 			peer := m.retainedDialoguePeer(turn)
 			if peer != nil {
 				m.dialoguePeers = append(m.dialoguePeers, *peer)
+				seen[turn.TaskChat] = true
 			}
 		}
 	}
@@ -520,7 +534,7 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 		m.dialogueIssue = err.Error()
 		return m.startConversationRoute()
 	}
-	if value.Decision.Kind == "task" || value.Decision.Kind == "plan" {
+	if value.Decision.Kind == "task" || value.Decision.Kind == "plan" || value.Decision.Kind == "continue" {
 		bind := m.config.BindConversationTask
 		if bind == nil {
 			return m.failConversation(turn, "Independent task creation is unavailable. Your original message and files are retained.")
@@ -620,6 +634,9 @@ func (m Model) FinishDialogueDispatch(result DialogueDispatchResult) (tea.Model,
 		turn.State, turn.Response = "delegated", "I've started that as independent work. You can keep talking here."
 		var decision workrun.ConversationDecision
 		var input ConversationInput
+		if json.Unmarshal(turn.Decision, &decision) == nil && decision.Kind == "continue" {
+			turn.Response = "I’m following up in that task."
+		}
 		if json.Unmarshal(turn.Decision, &decision) == nil && json.Unmarshal(turn.Options, &input) == nil && (decision.Kind == "plan" || input.RunOptions.PlanFirst) {
 			turn.Response = "I'm preparing a plan for your review. I'll ask any necessary questions before implementation."
 		}

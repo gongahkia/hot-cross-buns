@@ -188,3 +188,25 @@ func TestDialogueTaskRejectsForgedOriginAndNeverDelegatesReplies(t *testing.T) {
 		t.Fatal("unrouted greeting became executable work")
 	}
 }
+
+func TestTaskCatalogExcludesOrdinaryChatsAndOtherParents(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	parent, _ := s.CreateChat(t.TempDir(), time.Now())
+	other, _ := s.CreateChat(parent.SourcePath, time.Now())
+	first := readyTask(t, s, parent.ID)
+	_, child, _, err := s.BindDialogueTask(parent.ID, first.ID, parent.SourcePath, first.Revision, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelated := readyTask(t, s, other.ID)
+	if _, _, _, err := s.BindDialogueTask(other.ID, unrelated.ID, other.SourcePath, unrelated.Revision, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.PageConversations(ConversationQuery{TaskParent: parent.ID, Scope: "all"})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != child.ID {
+		t.Fatalf("task catalog: %+v %v", page, err)
+	}
+	if _, err := s.PageConversations(ConversationQuery{TaskParent: "../other"}); err == nil {
+		t.Fatal("invalid task parent accepted")
+	}
+}

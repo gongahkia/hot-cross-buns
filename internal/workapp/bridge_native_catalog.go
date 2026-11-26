@@ -13,6 +13,7 @@ import (
 
 // Native catalog operations never enter the launcher, change an owner, or admit work.
 type NativeCatalogAction struct {
+	TasksOnly bool   `json:"tasks_only,omitempty"`
 	RequestID string `json:"request_id"`
 	Action    string `json:"action"`
 	Text      string `json:"text,omitempty"`
@@ -124,6 +125,20 @@ func (m Model) ApplyNativeCatalog(a NativeCatalogAction) (tea.Model, tea.Cmd) {
 		m.nativeCatalog.page = worksession.ConversationPage{}
 		m.nativeCatalogQueryResult = nil
 		query := worksession.ConversationQuery{Text: a.Text, Scope: a.Scope, After: a.After, Content: true, Limit: 50}
+		if a.TasksOnly {
+			parent := m.primaryID
+			if parent == "" && m.config.PrimaryConversation != nil {
+				var err error
+				parent, err = m.config.PrimaryConversation()
+				if err != nil {
+					return fail("The assistant conversation is unavailable.")
+				}
+			}
+			if parent == "" {
+				return fail("The assistant conversation is unavailable.")
+			}
+			query.TaskParent = parent
+		}
 		load := m.config.QueryConversations
 		return m, func() tea.Msg { page, err := load(ctx, query); return nativeCatalogLoaded{a, page, err} }
 	case "verify":

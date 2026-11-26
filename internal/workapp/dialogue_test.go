@@ -329,3 +329,125 @@ func TestDialogueRouteCancellationDoesNotCancelWork(t *testing.T) {
 		t.Fatal("failed response took ownership of Work")
 	}
 }
+
+func TestRelatedFollowupReusesTaskAndKeepsEarlierResults(t *testing.T) {
+	config, store := dialogueConfig(t)
+	sequence := 0
+	config.Run = func(_ string, chat, text string, _ RunOptions) RunResult {
+		sequence++
+		c, err := store.Load(chat)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rev := fmt.Sprintf("rev-followup-%d", sequence)
+		answer := fmt.Sprintf("Retained answer %d", sequence)
+		_, err = store.AddRevision(chat, worksession.Revision{ID: rev, ParentRevisionID: c.HeadRevision, SnapshotID: "snap-test", Objective: text, BundlePath: "/fixture/bundle", Status: "completed", FinalText: answer})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return RunResult{FinalText: answer, RevisionID: rev}
+	}
+	parent, err := store.CreateChat(config.CurrentFolder, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.StartConversationID = parent.ID
+	config.PrimaryConversation = func() (string, error) { return parent.ID, nil }
+	config.RouteConversation = func(_ context.Context, r workrun.ConversationRequest, _ ConversationInput) (workrun.ConversationDecision, error) {
+		return workrun.ConversationDecision{Kind: "task"}, nil
+	}
+	m := New(config).ConfigureDialogueHost(DialogueHost{CanStart: true})
+	m.options.MaxSteps = 12
+	m.options.ConnectorIDs = []string{"original-account"}
+	m, cmd := dialogueSubmit(t, m, "research-original-0001", "Research the 2025 Iran war")
+	m = routeDialogue(t, m, cmd)
+	if m.dialogueDispatch == nil {
+		t.Fatalf("missing dispatch: %+v issue=%s", m.dialogueTurns, m.dialogueIssue)
+	}
+	dispatch := *m.dialogueDispatch
+	childConfig := config
+	childConfig.StartConversationID = dispatch.ChildID
+	child := New(childConfig)
+	child.background = true
+	next, work := child.BootstrapDialogue(parent.ID, dispatch.TurnID)
+	child = next.(Model)
+	if work == nil {
+		t.Fatal("original task did not start")
+	}
+	next, _ = child.Update(work())
+	child = next.(Model)
+	// The fixture runner completes through its ordinary work outcome command.
+	for child.running {
+		t.Fatal("fixture outcome did not finish")
+	}
+	next, _ = m.FinishDialogueDispatch(*child.dialogueBootstrapResult)
+	m = next.(Model)
+	peer := child.dialogueTaskState()
+	if peer == nil || peer.State != "completed" {
+		t.Fatalf("original state: %+v", peer)
+	}
+	m = m.ConfigureDialogueHost(DialogueHost{CanStart: true, Peers: []DialoguePeer{peer.DialoguePeer}})
+	config.RouteConversation = func(_ context.Context, r workrun.ConversationRequest, _ ConversationInput) (workrun.ConversationDecision, error) {
+		if len(r.Tasks) != 1 || !r.Tasks[0].CanContinue {
+			t.Fatalf("no continuation capability: %+v", r.Tasks)
+		}
+		return workrun.ConversationDecision{Kind: "continue", Target: dispatch.ChildID}, nil
+	}
+	m.config.RouteConversation = config.RouteConversation
+	m.options.MaxSteps = 48
+	m.options.ConnectorIDs = []string{"broader-account"}
+	m, cmd = dialogueSubmit(t, m, "research-followup-0002", "What about US intervention?")
+	m = routeDialogue(t, m, cmd)
+	follow := *m.dialogueDispatch
+	if follow.ChildID != dispatch.ChildID || follow.TurnID == dispatch.TurnID {
+		t.Fatal("followup did not reuse owner")
+	}
+	next, work = child.BootstrapDialogue(parent.ID, follow.TurnID)
+	child = next.(Model)
+	if work == nil {
+		t.Fatalf("continuation not admitted: %+v", child.dialogueBootstrapResult)
+	}
+	if len(child.requests.Requests) != 2 || child.requests.Requests[1].Text != "What about US intervention?" {
+		t.Fatal("followup text missing from task journal")
+	}
+	var frozen RunOptions
+	if json.Unmarshal(child.requests.Requests[1].Options, &frozen) != nil || frozen.MaxSteps != 12 || len(frozen.ConnectorIDs) != 1 || frozen.ConnectorIDs[0] != "original-account" {
+		t.Fatalf("continuation broadened its original scope: %+v", frozen)
+	}
+	next, _ = child.Update(work())
+	child = next.(Model)
+	if child.running {
+		t.Fatal("followup did not complete")
+	}
+	if !store.DialogueTaskTurn(child.conversation, parent.ID, follow.TurnID) {
+		t.Fatal("continuation provenance missing")
+	}
+	if state := child.dialogueTaskState(); state == nil || state.TurnID != follow.TurnID || state.State != "completed" {
+		t.Fatalf("latest result not projected: %+v", state)
+	}
+	next, retry := child.BootstrapDialogue(parent.ID, follow.TurnID)
+	child = next.(Model)
+	if retry != nil || len(child.requests.Requests) != 2 {
+		t.Fatal("continuation replayed")
+	}
+	if got := m.dialogueMessages(); len(got) != 2 || got[0].TaskResult == "" || got[1].TaskResult == "" {
+		t.Fatalf("per-turn results lost: %+v", got)
+	}
+	page, err := store.PageConversations(worksession.ConversationQuery{TaskParent: parent.ID, Text: "US intervention", Content: true})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != child.conversation {
+		t.Fatalf("task search missing: %+v %v", page, err)
+	}
+	other, _ := store.CreateChat(config.CurrentFolder, time.Now())
+	// Opening this secondary conversation and replying uses its existing owner.
+	child.primaryID = parent.ID
+	child, direct := dialogueSubmit(t, child, "direct-task-reply-0003", "Explain the ceasefire talks")
+	if direct == nil || len(child.requests.Requests) != 3 || len(child.dialogueTurns) != 0 {
+		t.Fatal("direct task reply created another conversation")
+	}
+	if state := child.dialogueTaskState(); state == nil || state.State != "running" || state.CanGuide || state.CanStop {
+		t.Fatalf("direct reply projected a stale completed task or parent control: %+v", state)
+	}
+	if store.DialogueTaskTurn(child.conversation, other.ID, follow.TurnID) {
+		t.Fatal("unrelated parent accepted")
+	}
+}

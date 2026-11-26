@@ -49,6 +49,10 @@ func (s Store) PageConversationsContext(parent context.Context, query Conversati
 	defer release()
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
+	// Task provenance is canonical JSON, not cached authority. Filter before pagination.
+	if q.TaskParent != "" {
+		return s.pageConversationFiles(q)
+	}
 	page, err := s.pageConversationIndex(ctx, q)
 	if err == nil {
 		return page, nil

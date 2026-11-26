@@ -1130,3 +1130,14 @@ test('past work remains pageable in the palette without a separate history list'
   assert.match(dialog.textContent, /An older task/);
   assert.deepEqual(requests, [{ query: '', after: '' }, { query: '', after: 'older-page' }]);
 });
+
+test('the wordmark task list requests only agent-created conversations and keeps search', async () => {
+  const calls=[];
+  const menu=chatMenu({tasksOnly:true,request:async request=>{calls.push(request);return {items:[{id:'research',title:'2025 Iran war',selection:'research-choice'}]};},open(){}});
+  document.body.replaceChildren(menu.element);await menu.load('main-context');
+  assert.equal(calls[0].tasksOnly,true);
+  assert.equal(menu.element.querySelector('input').placeholder,'Search tasks…');
+  assert.equal(menu.element.querySelector('nav').getAttribute('aria-label'),'Task conversations');
+  const search=menu.element.querySelector('input');search.value='Iran';search.dispatchEvent(new window.Event('input'));
+  await new Promise(resolve=>setTimeout(resolve,200));assert.equal(calls.at(-1).query,'Iran');assert.equal(calls.at(-1).tasksOnly,true);
+});

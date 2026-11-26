@@ -29,11 +29,12 @@ const catalogSearchBytes = 32 * 1024 * 1024
 var catalogIdentity = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$`)
 
 type ConversationQuery struct {
-	Text    string
-	Scope   string // active (default), archived, or all
-	Content bool   // Include retained user/assistant text, never private replay/options.
-	After   string
-	Limit   int
+	TaskParent string // only validated tasks created by this assistant conversation
+	Text       string
+	Scope      string // active (default), archived, or all
+	Content    bool   // Include retained user/assistant text, never private replay/options.
+	After      string
+	Limit      int
 }
 type ConversationPage struct {
 	Items         []ConversationItem `json:"items"`
@@ -70,6 +71,9 @@ func ConversationDisplayVersion(c Conversation) string {
 	return hex.EncodeToString(sum[:])
 }
 func normalizeConversationQuery(q ConversationQuery) (ConversationQuery, error) {
+	if q.TaskParent != "" && !catalogIdentity.MatchString(q.TaskParent) {
+		return q, errors.New("invalid task parent")
+	}
 	q.Text = strings.TrimSpace(q.Text)
 	if len(q.Text) > 512 || !utf8.ValidString(q.Text) || strings.IndexFunc(q.Text, unicode.IsControl) >= 0 || len(q.After) > 1024 {
 		return q, errors.New("invalid conversation search")
@@ -109,9 +113,9 @@ func (s Store) pageConversationFiles(query ConversationQuery) (ConversationPage,
 		return ConversationPage{}, err
 	}
 	identity, _ := json.Marshal(struct {
-		Text, Scope string
-		Content     bool
-	}{q.Text, q.Scope, q.Content})
+		Text, Scope, TaskParent string
+		Content                 bool
+	}{q.Text, q.Scope, q.TaskParent, q.Content})
 	sum := sha256.Sum256(identity)
 	key := hex.EncodeToString(sum[:])
 	var after catalogCursor
@@ -165,6 +169,16 @@ func (s Store) pageConversationFiles(query ConversationQuery) (ConversationPage,
 		if displayErr != nil {
 			result.Skipped++
 			continue
+		}
+		if q.TaskParent != "" {
+			origin, err := s.DialogueTask(c.ID)
+			if err != nil {
+				result.Skipped++
+				continue
+			}
+			if origin == nil || origin.ParentConversationID != q.TaskParent {
+				continue
+			}
 		}
 		if q.Scope == "active" && c.Archived || q.Scope == "archived" && !c.Archived {
 			continue

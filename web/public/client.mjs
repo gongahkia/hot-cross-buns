@@ -1,3 +1,4 @@
+import { chatMenu } from './chats.mjs';
 import { voiceInput } from './voice.mjs';
 import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs";
 import { brandIcon, setBrandIcon, providerBrand, providerLabel } from './brands.mjs';
@@ -438,6 +439,8 @@ async function openAttachment(file, context, page = 1) {
 }
 $("model-picker").addEventListener("click", () => models.open($('model-picker')));
 
+const taskChats = chatMenu({ tasksOnly: true, request: body => call({ op: 'chats', ...body }), open: async body => { await flush(); await call({ op: 'open-chat', ...body }); showHistory(false); } });
+$('task-conversations').append(taskChats.element);
 function showHistory(open) {
   const history = $('history');
   if (open === history.matches(':popover-open')) return;
@@ -447,6 +450,7 @@ $('history').addEventListener('toggle', event => {
   if (event.target !== $('history')) return;
   const open = event.newState === 'open';
   $('history-toggle').setAttribute('aria-expanded', String(open));
+  if (open) void taskChats.load(snapshot.context);
 });
 async function navigate(route) {
   await flush();
@@ -486,6 +490,8 @@ async function backendRoute(route) { await flush(); showHistory(false); await ca
 for (const node of document.querySelectorAll("[data-route]")) node.addEventListener("click", () => void execute(() => navigate(node.dataset.route)));
 
 function renderHistory(state) {
+ taskChats.updateCurrent(state.conversation_id, state.primary_conversation_id);
+ taskChats.updateActivity(snapshot.activity || [], snapshot.tasks || []);
   $('assistant-home').hidden = !!state.primary || !state.conversation_id;
 
 }
@@ -873,16 +879,16 @@ function renderTranscript(state) {
         request.append(files);
       }
       nodes.push(request);
-      if (value.response && !reaction && !(value.task_chat && value.response.startsWith("I’ve started that as independent work")) && !(value.task_chat && value.response.startsWith("I've started that as independent work"))) { const answer = turn(value.response, false, "Hot Cross Buns"); answer.dataset.messageId = 'dialogue:' + value.id + ':response'; decorate(answer); nodes.push(answer); }
+      if (value.response && !reaction && !(value.task_chat && value.response === "I’m following up in that task.") && !(value.task_chat && value.response.startsWith("I’ve started that as independent work")) && !(value.task_chat && value.response.startsWith("I've started that as independent work"))) { const answer = turn(value.response, false, "Hot Cross Buns"); answer.dataset.messageId = 'dialogue:' + value.id + ':response'; decorate(answer); nodes.push(answer); }
       if (value.issue) nodes.push(element("p", value.issue, "hint"));
       if (value.task_chat) {
-        const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat);
-        const status=({running:'Working on it',queued:'Queued',review:'Needs you',completed:'Done',failed:'Needs attention',interrupted:'Interrupted'}[peer?.state]||'Task details');
+        const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat && item.turn_id === value.id);
+        const status=({running:'Working on it',queued:'Queued',review:'Needs you',completed:'Done',failed:'Needs attention',interrupted:'Interrupted'}[peer?.state || (value.task_result ? 'completed' : '')]||'Task details');
         const card=element('article',undefined,'turn assistant-task');card.setAttribute('aria-label','Task update');
         const details = button(status, () => void execute(async () => { await flush(); await showTaskDetails(value.task_chat); }));
         details.append(icon('chevron-right')); details.setAttribute('aria-label', status + ' · Task details');
         card.append(details);
-        if (peer?.summary) { const result = element('div', undefined, 'response-content'); result.append(prose(peer.summary)); filePreviews.decorate(result, peer.run_id); card.append(result); }
+        if (value.task_result || peer?.summary) { const result = element('div', undefined, 'response-content'); result.append(prose(value.task_result || peer.summary)); filePreviews.decorate(result, peer?.run_id); card.append(result); }
         nodes.push(card);
       }
       continue;

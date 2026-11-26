@@ -220,7 +220,7 @@ func (s Store) planEditMessage(id string, r Request, ref PlanEditReference) (Dia
 		}
 	} else {
 		origin, err := s.DialogueTask(id)
-		if err != nil || origin == nil || origin.ParentConversationID != ref.ParentID || origin.TurnID != r.ClientID || decision.Target != id {
+		if err != nil || origin == nil || origin.ParentConversationID != ref.ParentID || !s.DialogueTaskTurn(id, ref.ParentID, r.ClientID) || decision.Target != id {
 			return turn, ErrPlanChanged
 		}
 	}
