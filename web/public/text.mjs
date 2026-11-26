@@ -14,7 +14,15 @@ let diagramId = 0;
 function diagramRenderer() {
   mermaid ??= import("/vendor/mermaid-entry.mjs").then(({ default: renderer }) => {
     renderer.initialize({
-      startOnLoad: false, securityLevel: "strict", theme: "neutral",
+      startOnLoad: false, securityLevel: "strict", theme: "base", htmlLabels: false,
+      themeVariables: {
+        darkMode: false, background: "#ffffff", primaryColor: "#f3f3ef", secondaryColor: "#edf2e8", tertiaryColor: "#f6f2e8",
+        textColor: "#292720", primaryTextColor: "#292720", secondaryTextColor: "#292720", tertiaryTextColor: "#292720",
+        lineColor: "#64665c", primaryBorderColor: "#c9cbc2", actorBkg: "#f3f3ef", actorTextColor: "#292720",
+        labelBoxBkgColor: "#f3f3ef", labelTextColor: "#292720", signalTextColor: "#292720",
+        ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`cScale${i}`, ["#f3f3ef", "#edf2e8", "#f6f2e8"][i % 3]])),
+        ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`cScaleLabel${i}`, "#292720"])),
+      },
       fontFamily: "system-ui, sans-serif", suppressErrorRendering: true,
       flowchart: { htmlLabels: false },
     });
