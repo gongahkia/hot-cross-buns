@@ -157,9 +157,11 @@ prevents duplicate processing across hosts, expires after two minutes on a crash
 and retains newer requests when an older claim finishes. Host shutdown cancels
 inference.
 
-Each claim has a 90-second deadline and a four-request/200,000-token aggregate
+Each claim has a 90-second deadline and a eight-request/200,000-token aggregate
 budget. Summary calls have up to 60 seconds independently of reply preparation.
-Failed claims retry after one minute, then two, four and so on up to one hour.
+Privacy-screened source batches are limited to four turns to leave capacity for
+summarization. Exhausting a bounded claim continues later; provider failures
+retry after one minute, then two, four and so on up to one hour.
 New messages in the same scope update the pending snapshot without resetting
 backoff. A changed scope requires fresh admission; outdated requests are
 discarded before transmission. Successful work continues in bounded batches.

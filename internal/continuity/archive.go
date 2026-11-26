@@ -124,6 +124,9 @@ func prepareArchive(ctx context.Context, s worksession.Store, memories memory.St
 	var batch []worksession.ContextTurn
 	bytes := 0
 	for _, t := range pending.Turns {
+		if o.maintain && len(rules) > 0 && len(batch) >= 4 {
+			break
+		}
 		if keep[t.ID] || t.State == "unconfirmed_at_admission" {
 			continue
 		}

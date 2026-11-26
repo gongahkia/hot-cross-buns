@@ -93,9 +93,13 @@ func runSummaryMaintenance(ctx context.Context, stateDir string) error {
 		model, err := nativeWorkModel(request.Input.RunOptions.ModelProvider, request.Input.RunOptions.ModelName, "")
 		failure = err
 		if err == nil {
-			model = agent.WithBudget(model, &agent.Budget{Limits: agent.Limits{ModelRequests: 4, Tokens: 200000}})
+			model = agent.WithBudget(model, &agent.Budget{Limits: agent.Limits{ModelRequests: 8, Tokens: 200000}})
 			more, failure = continuity.Maintain(sharedusage.WithState(sharedusage.WithCategory(bounded, "summary_maintenance"), stateDir), stateDir, model, continuity.Options{ConversationID: job.Chat, GoalID: request.Input.GoalID, BeforeSequence: request.Before, BeforeTime: request.At, Excluded: request.Input.RunOptions.ExcludedKnowledgeIDs}, check)
 		}
+	}
+	if errors.Is(failure, agent.ErrBudget) {
+		failure = nil
+		more = true
 	}
 	if errors.Is(failure, errSummaryScope) {
 		failure = nil

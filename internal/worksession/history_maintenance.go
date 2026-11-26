@@ -48,7 +48,7 @@ func (s Store) ClaimHistoryMaintenance(ctx context.Context, now time.Time) (Hist
 	found := false
 	err := s.HistoryCache(ctx, func(db *sql.DB) error {
 		var payload string
-		err := db.QueryRowContext(ctx, `SELECT chat,key,payload,generation,attempts FROM history_maintenance WHERE next_at<=? AND lease_until<=? ORDER BY next_at,updated LIMIT 1`, now.UnixNano(), now.UnixNano()).Scan(&job.Chat, &job.Key, &payload, &job.Generation, &job.Attempts)
+		err := db.QueryRowContext(ctx, `SELECT chat,key,payload,generation,attempts FROM history_maintenance WHERE next_at<=? AND lease_until<=? AND NOT EXISTS(SELECT 1 FROM history_maintenance WHERE lease_until>?) ORDER BY next_at,updated LIMIT 1`, now.UnixNano(), now.UnixNano(), now.UnixNano()).Scan(&job.Chat, &job.Key, &payload, &job.Generation, &job.Attempts)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}

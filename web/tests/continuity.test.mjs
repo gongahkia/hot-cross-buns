@@ -74,7 +74,7 @@ test('main chat can discuss a completed delegated result after its worker has cl
 async function waitForSummary(app){
  const deadline=Date.now()+15000;
  while(Date.now()<deadline){
-  let db;try{db=new DatabaseSync(app.historyCache,{readOnly:true});if(db.prepare('SELECT count(*) AS count FROM history_nodes WHERE dirty=0').get().count>0)return;}finally{db?.close();}
+  let db;try{db=new DatabaseSync(app.historyCache,{readOnly:true});if(db.prepare('SELECT count(*) AS count FROM history_nodes WHERE dirty=0').get().count>0)return;}catch(error){if(![5,6].includes(error.errcode))throw error;}finally{db?.close();}
   await delay(50);
  }
  throw Error('Background summary did not publish');

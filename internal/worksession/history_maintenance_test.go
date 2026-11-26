@@ -88,3 +88,30 @@ func TestSummaryQueueCrashLeaseAndConcurrentRefresh(t *testing.T) {
 		t.Fatal(fresh, ok, err)
 	}
 }
+
+func TestSummaryClaimsSerializeDifferentConversationsInOneProfile(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	a, _ := s.CreateChat(t.TempDir(), time.Now())
+	b, _ := s.CreateChat(t.TempDir(), time.Now())
+	now := time.Now()
+	ctx := context.Background()
+	for _, chat := range []string{a.ID, b.ID} {
+		if err := s.QueueHistoryMaintenance(ctx, chat, strings.Repeat("a", 64), json.RawMessage(`{}`), now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, ok, err := s.ClaimHistoryMaintenance(ctx, now)
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	if _, ok, err = s.ClaimHistoryMaintenance(ctx, now); err != nil || ok {
+		t.Fatal("profile started concurrent summary inference", ok, err)
+	}
+	if err := s.FinishHistoryMaintenance(ctx, first, now, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	second, ok, err := s.ClaimHistoryMaintenance(ctx, now)
+	if err != nil || !ok || second.Chat == first.Chat {
+		t.Fatal("next conversation did not progress", second, ok, err)
+	}
+}
