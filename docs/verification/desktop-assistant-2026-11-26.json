@@ -1,0 +1,88 @@
+{
+  "scope": "Disposable-profile desktop assistant verification; no real emails or PR mutations",
+  "full_check": {
+    "command": "TMPDIR=<canonical macOS temp path> fnm exec --using 26.7.0 make check",
+    "passed": true,
+    "web_tests": 154,
+    "host_tests": 145,
+    "oauth_build_tests": 1,
+    "go_tests": "all packages passed",
+    "go_vet": "passed"
+  },
+  "live_codex_handoff": {
+    "codex_completed": true,
+    "codex_delegated": true,
+    "inline_permission_once": true,
+    "live_marker_returned": true,
+    "manager_did_not_read_file": true,
+    "manager_succeeded": true
+  },
+  "live_schedule_window": {
+    "all_occurrences_at_local_20": true,
+    "date_window_saved": true,
+    "exactly_seven_occurrences": true,
+    "manager_completed": true,
+    "one_review": true,
+    "one_schedule": true
+  },
+  "live_memory": {
+    "model": "gpt-5-mini",
+    "before": {
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 23,
+        "input_tokens": 288778,
+        "output_tokens": 6858,
+        "reported": true,
+        "estimated": false
+      },
+      "quality": {
+        "trials": 8,
+        "useful_captures": 2,
+        "unnecessary_captures": 0,
+        "important_omissions": 0,
+        "correct_applications": 2,
+        "missed_applications": 0,
+        "irrelevant_applications": 0,
+        "forbidden_resurfacing": 0,
+        "capture_precision": 1,
+        "capture_recall": 1,
+        "tokens": 295636,
+        "milliseconds": 100772
+      }
+    },
+    "after": {
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 19,
+        "input_tokens": 214582,
+        "output_tokens": 6456,
+        "reported": true,
+        "estimated": false
+      },
+      "quality": {
+        "trials": 8,
+        "useful_captures": 2,
+        "unnecessary_captures": 0,
+        "important_omissions": 0,
+        "correct_applications": 2,
+        "missed_applications": 0,
+        "irrelevant_applications": 0,
+        "forbidden_resurfacing": 0,
+        "capture_precision": 1,
+        "capture_recall": 1,
+        "tokens": 221038,
+        "milliseconds": 88593
+      }
+    },
+    "caveat": "One sequential pair, not a controlled statistical benchmark. Model turn choices and provider timing vary."
+  },
+  "browser": "Real Chromium fixture: Models > Specialists > model selection > exact review > Save; persisted assignment confirmed. Additional full gateway test covers native IPC, stale review and preservation of existing defaults.",
+  "not_run": [
+    "Real connected-account Gmail send",
+    "Real GitHub PR mutation",
+    "Physical microphone and native macOS app control",
+    "Local chat-model install or quality benchmark",
+    "Native Word/PowerPoint layout fidelity"
+  ]
+}
