@@ -16,7 +16,8 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
 )
 
-// currentWorkModelStatus resolves only display-safe readiness metadata. It
+// currentWorkModelStatus resolves display-safe readiness and capacity metadata.
+// Managed local capacity uses a bounded read of its loopback runtime. It
 // never returns credential values or reads credential stores owned by another
 // application.
 func currentWorkModelStatus(settingsStore config.Store, stateDir string) (workapp.ModelStatus, error) {
@@ -27,8 +28,14 @@ func currentWorkModelStatus(settingsStore config.Store, stateDir string) (workap
 	return workModelStatusForSettings(settings, stateDir)
 }
 
-func workModelStatusForSettings(settings config.Settings, stateDir string) (workapp.ModelStatus, error) {
-	status := workapp.ModelStatus{
+func workModelStatusForSettings(settings config.Settings, stateDir string) (status workapp.ModelStatus, finalErr error) {
+	defer func() {
+		if status.Provider != "" && status.Model != "" {
+			status.Context, _ = configuredModelContext(settings, status.Provider, status.Model)
+			status.ContextObservedAt = time.Now()
+		}
+	}()
+	status = workapp.ModelStatus{
 		Provider: strings.TrimSpace(settings.Defaults.Provider),
 		Model:    strings.TrimSpace(settings.Defaults.Model),
 	}

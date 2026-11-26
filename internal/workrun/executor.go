@@ -940,6 +940,15 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	}
 	readOnlyAttempt := true
 	result, runErr := runner.Run(ctx, agent.RunOptions{
+		OnContext: func(value agent.ContextUsage) {
+			var view struct {
+				Summary string `json:"earlier_conversation_summary"`
+			}
+			if json.Unmarshal([]byte(request.ConversationContext), &view) == nil {
+				value.Summarized = value.Summarized || view.Summary != ""
+			}
+			_ = sessions.SaveContextUsage(conversation.ID, value)
+		},
 		BeforeTool: beforeTool,
 		AfterTool: func(_ context.Context, call agent.ToolCall, _ agent.ToolResult, toolErr error) error {
 			if accessibilityDesktop && toolErr == nil {

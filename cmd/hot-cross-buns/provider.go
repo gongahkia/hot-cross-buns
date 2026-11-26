@@ -225,39 +225,9 @@ func executorConfigurationWithExtensions(backend agent.Model, settings config.Se
 	}
 	parts := strings.SplitN(label, "/", 2)
 	if len(parts) == 2 {
-		profile := model.ContextPolicy(parts[0], parts[1])
-		if configured := settings.ContextWindows[config.ModelAliasKey(parts[0], parts[1])]; configured > 0 {
-			if profile.Source == "unknown deployment fallback" || profile.Source == "unallocated local runtime fallback" {
-				profile.Window = configured
-			} else {
-				profile.Window = min(profile.Window, configured)
-			}
-			profile.OutputReserve = min(profile.OutputReserve, profile.Window/8)
-			profile.Source = "configured model context window"
-		}
-		if parts[0] == localmodel.ProviderID {
-			if provider, found := configuredCustomProvider(settings, parts[0]); found {
-				client, clientErr := localmodel.NewClientFromChatCompletionsURL(provider.BaseURL)
-				if clientErr != nil {
-					return nativeExecutorConfiguration{}, clientErr
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-				loaded, err := client.Running(ctx)
-				cancel()
-				if err == nil {
-					for _, entry := range loaded {
-						if entry.Name == parts[1] && entry.ContextLength >= 1024 {
-							if settings.ContextWindows[config.ModelAliasKey(parts[0], parts[1])] > 0 {
-								profile.Window = min(profile.Window, entry.ContextLength)
-							} else {
-								profile.Window = entry.ContextLength
-							}
-							profile.OutputReserve = min(8192, profile.Window/8)
-							profile.Source = "Ollama allocated context"
-						}
-					}
-				}
-			}
+		profile, err := configuredModelContext(settings, parts[0], parts[1])
+		if err != nil {
+			return nativeExecutorConfiguration{}, err
 		}
 		backend = agent.WithContextPolicy(backend, profile)
 	}
@@ -357,4 +327,42 @@ func displayModel(value string) string {
 		return "provider default"
 	}
 	return value
+}
+
+func configuredModelContext(settings config.Settings, providerID, name string) (agent.ContextPolicy, error) {
+	profile := model.ContextPolicy(providerID, name)
+	if configured := settings.ContextWindows[config.ModelAliasKey(providerID, name)]; configured > 0 {
+		if profile.Source == "unknown deployment fallback" || profile.Source == "unallocated local runtime fallback" {
+			profile.Window = configured
+		} else {
+			profile.Window = min(profile.Window, configured)
+		}
+		profile.OutputReserve = min(profile.OutputReserve, profile.Window/8)
+		profile.Source = "configured model context window"
+	}
+	if providerID == localmodel.ProviderID {
+		if provider, found := configuredCustomProvider(settings, providerID); found {
+			client, clientErr := localmodel.NewClientFromChatCompletionsURL(provider.BaseURL)
+			if clientErr != nil {
+				return profile, clientErr
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			loaded, err := client.Running(ctx)
+			cancel()
+			if err == nil {
+				for _, entry := range loaded {
+					if entry.Name == name && entry.ContextLength >= 1024 {
+						if settings.ContextWindows[config.ModelAliasKey(providerID, name)] > 0 {
+							profile.Window = min(profile.Window, entry.ContextLength)
+						} else {
+							profile.Window = entry.ContextLength
+						}
+						profile.OutputReserve = min(8192, profile.Window/8)
+						profile.Source = "Ollama allocated context"
+					}
+				}
+			}
+		}
+	}
+	return profile, nil
 }

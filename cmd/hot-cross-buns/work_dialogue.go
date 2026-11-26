@@ -187,6 +187,19 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 			request.LearnFromChats = settings.Desktop.LearnsFromChats()
 			request.ReferToChats = settings.Desktop.RefersToChats()
 		}
+		if sessions, err := worksession.Open(stateDir); err == nil && input.ConversationID != "" {
+			summarized := false
+			var continuityView struct {
+				Summary string `json:"earlier_conversation_summary"`
+			}
+			if json.Unmarshal([]byte(request.Continuity), &continuityView) == nil {
+				summarized = continuityView.Summary != ""
+			}
+			ctx = agent.WithContextReporter(ctx, func(value agent.ContextUsage) {
+				value.Summarized = value.Summarized || summarized
+				_ = sessions.SaveContextUsage(input.ConversationID, value)
+			})
+		}
 		return workrun.RouteConversation(sharedusage.WithState(sharedusage.WithCategory(ctx, "routing"), stateDir), backend, request)
 	}
 }

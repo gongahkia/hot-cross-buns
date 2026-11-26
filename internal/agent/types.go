@@ -211,6 +211,7 @@ type EventSink func(Event)
 
 // RunOptions defines one bounded autonomous run.
 type RunOptions struct {
+	OnContext       func(ContextUsage) `json:"-"`
 	Task            string
 	Images          []Image
 	Attachments     []Attachment

@@ -92,7 +92,7 @@ turnLoop:
 			r.emit(options.OnEvent, Event{Kind: EventModelAttemptStarted, At: now(), Step: step, Attempt: attempt})
 			streamedText = false
 			if model, ok := r.Model.(StreamingModel); ok {
-				turn, err = model.CompleteStream(ctx, request, func(delta string) {
+				turn, err = model.CompleteStream(WithContextReporter(ctx, options.OnContext), request, func(delta string) {
 					if delta == "" {
 						return
 					}
@@ -100,7 +100,7 @@ turnLoop:
 					r.emit(options.OnEvent, Event{Kind: EventTextDelta, At: now(), Step: step, Text: delta})
 				})
 			} else {
-				turn, err = r.Model.Complete(ctx, request)
+				turn, err = r.Model.Complete(WithContextReporter(ctx, options.OnContext), request)
 			}
 			usage := turn.Usage
 			r.emit(options.OnEvent, Event{Kind: EventModelAttemptFinished, At: now(), Step: step, Attempt: attempt, Usage: &usage, ProviderDiagnostic: ProviderDiagnosticFrom(err)})

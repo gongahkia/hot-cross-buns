@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/worksession"
 )
 
@@ -19,7 +20,13 @@ type ComposerModel struct {
 	Unavailable string `json:"unavailable,omitempty"`
 }
 
+type ContextMeter struct {
+	Policy agent.ContextPolicy `json:"policy"`
+	Last   *agent.ContextUsage `json:"last,omitempty"`
+}
+
 type ComposerSettings struct {
+	Context    *ContextMeter   `json:"context,omitempty"`
 	ID         string          `json:"id"`
 	Effort     string          `json:"effort"`
 	Models     []ComposerModel `json:"models"`
@@ -65,6 +72,15 @@ type ComposerResult struct {
 
 func (m Model) composerSettings() ComposerSettings {
 	state := ComposerSettings{Effort: effortName(m.options.MaxSteps), Models: append([]ComposerModel{}, m.composerModels...), ModelIssue: m.composerModelIssue(), Issue: m.composerModelsIssue}
+	if m.modelStatus.Context.Window > 0 {
+		state.Context = &ContextMeter{Policy: m.modelStatus.Context}
+		if m.config.SessionStore != nil && m.conversation != "" {
+			if last, err := m.config.SessionStore.ReadContextUsage(m.conversation); err == nil && last != nil && last.Policy.Provider == m.modelStatus.Provider && last.Policy.Model == m.modelStatus.Model && (last.Policy == m.modelStatus.Context || last.At.After(m.modelStatus.ContextObservedAt)) {
+				state.Context.Last = last
+				state.Context.Policy = last.Policy
+			}
+		}
+	}
 	state.Readiness = ModelReadiness{State: "configured", Processing: m.modelStatus.Processing, Issue: state.ModelIssue}
 	if state.Readiness.Processing.Kind == "" {
 		state.Readiness.Processing = ModelProcessing{Kind: "unknown", Description: "Choose a model to inspect where its requests are processed."}
@@ -87,7 +103,7 @@ func (m Model) composerSettings() ComposerSettings {
 	} else if m.models != nil || m.launcher || m.section != "" || m.bridgeExternal != nil || m.pendingBundleAction != nil || m.controlBusy || m.recallBusy {
 		state.Disabled = "Return to the conversation to change these settings."
 	}
-	data, _ := json.Marshal([]any{m.source, m.conversation, m.modelStatus.Provider, m.modelStatus.Model, state.Effort, state.Models, state.ModelIssue, state.Issue, state.Disabled, state.Readiness, state.Budget})
+	data, _ := json.Marshal([]any{m.source, m.conversation, m.modelStatus.Provider, m.modelStatus.Model, state.Effort, state.Models, state.ModelIssue, state.Issue, state.Disabled, state.Readiness, state.Budget, m.modelStatus.Context})
 	state.ID = fmt.Sprintf("%x", sha256.Sum256(data))
 	return state
 }

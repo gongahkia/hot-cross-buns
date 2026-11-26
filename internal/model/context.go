@@ -8,7 +8,7 @@ import (
 // Published limits are exact model identities, never inferred from a family
 // prefix or an Azure deployment name. See docs/MODEL_CONTEXT_BUDGETS.md.
 func ContextPolicy(provider, name string) agent.ContextPolicy {
-	p := agent.ContextPolicy{Window: 32768, OutputReserve: 4096, Source: "unknown deployment fallback"}
+	p := agent.ContextPolicy{Provider: provider, Model: name, Window: 32768, OutputReserve: 4096, Source: "unknown deployment fallback"}
 	if provider == "openai" {
 		switch name {
 		case "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna":

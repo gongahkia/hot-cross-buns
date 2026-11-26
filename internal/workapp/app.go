@@ -181,11 +181,13 @@ type CodeOptions struct {
 // currently selected model. Access must describe only the credential source,
 // never credential material.
 type ModelStatus struct {
-	Provider   string
-	Model      string
-	Access     string
-	Issue      string
-	Processing ModelProcessing
+	Context           agent.ContextPolicy
+	ContextObservedAt time.Time
+	Provider          string
+	Model             string
+	Access            string
+	Issue             string
+	Processing        ModelProcessing
 }
 
 type GoalState struct{ Title, SourcePath, ConversationID string }

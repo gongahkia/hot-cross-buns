@@ -14,6 +14,8 @@ import (
 // ContextPolicy describes the selected deployment, not its aggregate usage budget.
 // Counts include an allowance for provider framing; media remain estimates.
 type ContextPolicy struct {
+	Provider      string `json:"provider,omitempty"`
+	Model         string `json:"model,omitempty"`
 	Window        int    `json:"window"`
 	MaxInput      int    `json:"max_input,omitempty"`
 	OutputReserve int    `json:"output_reserve"`
@@ -171,6 +173,7 @@ func (m *contextModel) Complete(ctx context.Context, r TurnRequest) (Turn, error
 	if err != nil {
 		return Turn{}, err
 	}
+	reportContext(ctx, m.policy, r)
 	return m.Model.Complete(ctx, r)
 }
 func (m *contextModel) CompleteStream(ctx context.Context, r TurnRequest, delta func(string)) (Turn, error) {
@@ -178,6 +181,7 @@ func (m *contextModel) CompleteStream(ctx context.Context, r TurnRequest, delta 
 	if err != nil {
 		return Turn{}, err
 	}
+	reportContext(ctx, m.policy, r)
 	if stream, ok := m.Model.(StreamingModel); ok {
 		return stream.CompleteStream(ctx, r, delta)
 	}
