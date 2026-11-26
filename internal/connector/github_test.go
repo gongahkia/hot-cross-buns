@@ -186,3 +186,34 @@ func TestGitHubIssuesAndWorkflowRuntime(t *testing.T) {
 		t.Fatal("unbound edit")
 	}
 }
+
+func TestRepositoryContentPathsStayAtReviewedCommit(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	for _, kind := range []string{KindGitHub, KindGitLab} {
+		d := Descriptor{Kind: kind, Resource: "https://example.test/project"}
+		op := "contents_get"
+		if kind == KindGitLab {
+			op = "file_get"
+		}
+		read := func(in serviceInput) (string, error) {
+			if kind == KindGitHub {
+				u, _, _, e := githubRead(d, op, in)
+				return u, e
+			}
+			u, _, _, e := gitlabRead(d, op, in)
+			return u, e
+		}
+		target, err := read(serviceInput{ResourceID: "src/a file.go", Query: sha})
+		if err != nil || !strings.Contains(target, "ref="+sha) || !strings.Contains(target, "a%20file.go") {
+			t.Fatalf("%s: %s %v", kind, target, err)
+		}
+		for _, path := range []string{"../secret", "src/../secret", "/absolute", "src//main.go", "file\nname"} {
+			if _, err := read(serviceInput{ResourceID: path, Query: sha}); err == nil {
+				t.Errorf("%s accepted %q", kind, path)
+			}
+		}
+		if _, err := read(serviceInput{ResourceID: "file", Query: "main"}); err == nil {
+			t.Error("mutable ref accepted", kind)
+		}
+	}
+}

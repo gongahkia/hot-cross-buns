@@ -25,6 +25,8 @@ func validateGitLabResource(u *url.URL) error {
 func gitlabOperations() []Operation {
 	ops := serviceOperations([]serviceOperation{
 		{"project_get", "Read the selected GitLab project and access metadata.", action.ConnectedRead},
+		{"file_get", "Read one file as base64 JSON at an exact commit. resource_id is its relative file path; query is the 40-character commit SHA. Large files may exceed response limits.", action.ConnectedRead},
+		{"repository_tree", "List a directory at an exact commit. resource_id is an optional relative directory path; query is the 40-character commit SHA. Follow page cursors.", action.ConnectedRead},
 		{"branches_list", "List project branches and exact commit IDs; follow page cursors.", action.ConnectedRead},
 		{"commit_get", "Read an exact commit SHA before preparing a draft merge request.", action.ConnectedRead},
 		{"issues_list", "List project issues; query is opened, closed or all. Follow page cursors.", action.ConnectedRead},
@@ -49,6 +51,10 @@ func gitlabOperations() []Operation {
 		{"merge_request_merge", "Merge after explicit approval; number, expected_head_sha and squash (boolean) required. GitLab's SHA guard rejects a changed head. Read diffs, pipeline jobs and approvals first.", action.ConnectedMutate},
 	})
 	for i := range ops {
+		if ops[i].ID == "file_get" || ops[i].ID == "repository_tree" {
+			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["query"],"properties":{"resource_id":{"type":"string","description":"Relative repository path, required for file_get"},"query":{"type":"string","description":"Exact 40-character commit SHA"},"cursor":{"type":"string","description":"Page 1–100 for repository_tree"},"limit":{"type":"integer","minimum":1,"maximum":100}}}`)
+			continue
+		}
 		if action.RequiresFreshApproval(ops[i].Capability) {
 			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["payload"],"properties":{"payload":{"type":"object","description":"Exact operation fields only. Existing issue/MR: number. Issue update: expected_updated_at. All MR actions: expected_head_sha. Create/update: title,description; create MR: source_branch,target_branch; update: state_event close or reopen; comment: body; merge: squash boolean."}}}`)
 		} else {
@@ -62,6 +68,25 @@ func gitlabRead(d Descriptor, op string, in serviceInput) (string, string, []byt
 	path := ""
 	q := url.Values{}
 	switch op {
+	case "file_get", "repository_tree":
+		if !githubSHA.MatchString(in.Query) {
+			return "", "", nil, errors.New("choose an exact repository commit SHA")
+		}
+		if _, err := repositoryPath(in.ResourceID); err != nil {
+			return "", "", nil, err
+		}
+		q.Set("ref", in.Query)
+		if op == "file_get" {
+			if in.ResourceID == "" {
+				return "", "", nil, errors.New("choose a relative file path")
+			}
+			path = "/repository/files/" + url.PathEscape(in.ResourceID)
+		} else {
+			path = "/repository/tree"
+			if in.ResourceID != "" {
+				q.Set("path", in.ResourceID)
+			}
+		}
 	case "project_get":
 	case "branches_list":
 		path = "/repository/branches"

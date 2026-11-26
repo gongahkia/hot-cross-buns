@@ -32,6 +32,7 @@ func validateGitHubResource(resource *url.URL) error {
 func githubOperations() []Operation {
 	ops := serviceOperations([]serviceOperation{
 		{"repo_get", "Read selected repository metadata and permissions.", action.ConnectedRead},
+		{"contents_get", "Read a file or directory at an exact commit SHA. resource_id is its relative path (empty for root); query is the 40-character commit SHA. Files are base64 JSON, subject to size limits; directory lists are capped by GitHub. Do not follow returned download URLs with this credential.", action.ConnectedRead},
 		{"branches_list", "List repository branches with commit SHAs; follow page cursors.", action.ConnectedRead},
 		{"issues_list", "List repository issues (GitHub also includes PRs); query is open, closed or all. Follow page cursors.", action.ConnectedRead},
 		{"issue_get", "Read an issue and its updated_at before proposing edits.", action.ConnectedRead},
@@ -56,6 +57,10 @@ func githubOperations() []Operation {
 		{"pull_merge", "Merge one PR after explicit approval. Requires expected_head_sha and merge_method; GitHub's sha guard rejects a changed head. Read all checks, statuses and reviews first; never infer a missing/pending check passed.", action.ConnectedMutate},
 	})
 	for i := range ops {
+		if ops[i].ID == "contents_get" {
+			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["query"],"properties":{"resource_id":{"type":"string","description":"Relative file/directory path, empty for root"},"query":{"type":"string","description":"Exact 40-character commit SHA"}}}`)
+			continue
+		}
 		if action.RequiresFreshApproval(ops[i].Capability) {
 			ops[i].InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["payload"],"properties":{"payload":{"type":"object","description":"For issue_create: title,body; issue_update: number,expected_updated_at,title,body,state; issue_comment: number,body. PR fields: number, expected_head_sha; create: head,base,title,body; update: title,body,state; comment: body; review: body,event; merge: merge_method (merge,squash,rebase)."}}}`)
 		} else {
@@ -73,6 +78,19 @@ func githubRead(d Descriptor, op string, in serviceInput) (string, string, []byt
 	path := ""
 	query := url.Values{}
 	switch op {
+	case "contents_get":
+		if !githubSHA.MatchString(in.Query) {
+			return "", "", nil, errors.New("choose an exact commit SHA for repository content")
+		}
+		escaped, err := repositoryPath(in.ResourceID)
+		if err != nil {
+			return "", "", nil, err
+		}
+		path = "/contents"
+		if escaped != "" {
+			path += "/" + escaped
+		}
+		query.Set("ref", in.Query)
 	case "repo_get":
 		path = ""
 	case "branches_list":
@@ -397,4 +415,21 @@ func (r Runtime) verifyGitHubIssue(ctx context.Context, d Descriptor, p Prepared
 		return errors.New("GitHub issue changed; read it again before proposing edits")
 	}
 	return nil
+}
+
+func repositoryPath(path string) (string, error) {
+	if len(path) > 2048 || strings.ContainsAny(path, "\x00\r\n\\") {
+		return "", errors.New("invalid repository path")
+	}
+	if path == "" {
+		return "", nil
+	}
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", errors.New("use a relative repository path without traversal")
+		}
+		parts[i] = url.PathEscape(part)
+	}
+	return strings.Join(parts, "/"), nil
 }

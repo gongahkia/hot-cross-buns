@@ -75,6 +75,9 @@ func TestGitLabRuntimeReadsAndReviewedActions(t *testing.T) {
 			continue
 		}
 		input := `{"resource_id":"4","cursor":"2","limit":5}`
+		if op.ID == "file_get" || op.ID == "repository_tree" {
+			input = `{"resource_id":"src/main.go","query":"` + sha + `"}`
+		}
 		if op.ID == "commit_get" {
 			input = `{"resource_id":"` + sha + `"}`
 		}
