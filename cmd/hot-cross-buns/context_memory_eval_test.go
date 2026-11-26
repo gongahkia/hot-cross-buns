@@ -111,21 +111,38 @@ func seedDailyDialogue(t *testing.T, store worksession.Store, id string, corpus 
 }
 
 type dailyMemoryTrial struct {
-	ID           string         `json:"id"`
-	Category     string         `json:"category"`
-	Arm          string         `json:"arm"`
-	Window       int            `json:"window"`
-	Passed       bool           `json:"passed"`
-	Correct      int            `json:"correct_fields"`
-	Fields       int            `json:"fields"`
-	Millis       int64          `json:"milliseconds"`
-	InputTokens  int            `json:"estimated_input_tokens"`
-	SummaryTurns int            `json:"summary_turns"`
-	Recall       int            `json:"recalled_excerpts"`
-	Answer       map[string]any `json:"facts,omitempty"`
-	Output       string         `json:"output,omitempty"`
-	Error        string         `json:"error,omitempty"`
-	Usage        agent.Usage    `json:"usage"`
+	ID                string         `json:"id"`
+	Category          string         `json:"category"`
+	Arm               string         `json:"arm"`
+	Window            int            `json:"window"`
+	Passed            bool           `json:"passed"`
+	Correct           int            `json:"correct_fields"`
+	Fields            int            `json:"fields"`
+	Millis            int64          `json:"milliseconds"`
+	InputTokens       int            `json:"estimated_input_tokens"`
+	SummaryTurns      int            `json:"summary_turns"`
+	Recall            int            `json:"recalled_excerpts"`
+	Notices           []string       `json:"preparation_notices,omitempty"`
+	PreparationErrors []string       `json:"preparation_errors,omitempty"`
+	Answer            map[string]any `json:"facts,omitempty"`
+	Output            string         `json:"output,omitempty"`
+	Error             string         `json:"error,omitempty"`
+	Usage             agent.Usage    `json:"usage"`
+}
+
+type dailyObservedModel struct {
+	agent.Model
+	policy agent.ContextPolicy
+	errors *[]string
+}
+
+func (m dailyObservedModel) ContextPolicy() agent.ContextPolicy { return m.policy }
+func (m dailyObservedModel) Complete(ctx context.Context, r agent.TurnRequest) (agent.Turn, error) {
+	turn, err := m.Model.Complete(ctx, r)
+	if err != nil {
+		*m.errors = append(*m.errors, err.Error())
+	}
+	return turn, err
 }
 
 func neighborEvidence(ctx context.Context, store worksession.Store, prepared continuity.Context) []worksession.ContextTurn {
@@ -199,7 +216,28 @@ func TestLiveDailyMemoryEvaluation(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	for _, window := range []int{16384, 65536} {
+	windows := []int{16384, 65536}
+	if selected := os.Getenv("HOT_CROSS_BUNS_LIVE_DAILY_WINDOW"); selected != "" {
+		switch selected {
+		case "16384":
+			windows = []int{16384}
+		case "65536":
+			windows = []int{65536}
+		default:
+			t.Fatal("evaluation window must be 16384 or 65536")
+		}
+	}
+	selectedCase := os.Getenv("HOT_CROSS_BUNS_LIVE_DAILY_CASE")
+	if selectedCase != "" {
+		found := false
+		for _, c := range corpus.Cases {
+			found = found || c.ID == selectedCase
+		}
+		if !found {
+			t.Fatal("unknown daily memory case")
+		}
+	}
+	for _, window := range windows {
 		stateRoot := filepath.Join(root, fmt.Sprint("window-", window))
 		sessions, err := worksession.Open(stateRoot)
 		if err != nil {
@@ -221,11 +259,15 @@ func TestLiveDailyMemoryEvaluation(t *testing.T) {
 		profile.Source = "controlled evaluation window"
 		model := agent.WithContextPolicy(base, profile)
 		for _, c := range corpus.Cases {
+			if selectedCase != "" && c.ID != selectedCase {
+				continue
+			}
+			var preparationErrors []string
 			ctx, cancel := context.WithTimeout(sharedusage.WithState(context.Background(), stateRoot), 90*time.Second)
-			prepared, buildErr := continuity.Build(ctx, stateRoot, model, continuity.Options{ConversationID: chat.ID, Query: c.Query, Main: true, ReferToChats: true})
+			prepared, buildErr := continuity.Build(ctx, stateRoot, dailyObservedModel{Model: model, policy: profile, errors: &preparationErrors}, continuity.Options{ConversationID: chat.ID, Query: c.Query, Main: true, ReferToChats: true})
 			cancel()
 			for _, arm := range []string{"recent_only", "hcb_hybrid", "hybrid_neighbors"} {
-				trial := dailyMemoryTrial{ID: c.ID, Category: c.Category, Arm: arm, Window: window, Fields: len(c.Expected), SummaryTurns: prepared.Covered, Recall: len(prepared.Recalled)}
+				trial := dailyMemoryTrial{ID: c.ID, Category: c.Category, Arm: arm, Window: window, Fields: len(c.Expected), SummaryTurns: prepared.Covered, Recall: len(prepared.Recalled), Notices: prepared.Notices, PreparationErrors: preparationErrors}
 				if buildErr != nil {
 					trial.Error = buildErr.Error()
 					report.Trials = append(report.Trials, trial)
@@ -283,6 +325,9 @@ func TestLiveDailyMemoryEvaluation(t *testing.T) {
 				t.Logf("daily %d %s %s: %d/%d fields; %s", window, c.Category, arm, trial.Correct, trial.Fields, trial.Error)
 			}
 		}
+	}
+	if selectedCase != "" {
+		return
 	}
 	// Use the production Work and job adapters, not a direct-completion surrogate.
 	if err = os.WriteFile(filepath.Join(source, "brief.md"), []byte("Synthetic Cedar brief: version v1, four reviewed samples, deadline 2026-12-02. This is a draft; nothing has been sent. The Maple v1 notification was already delivered; no version changed."), 0600); err != nil {

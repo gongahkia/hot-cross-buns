@@ -1,0 +1,136 @@
+{
+  "model": "gpt-5-mini",
+  "scope": "Synthetic production Work-service journey; no browser hardware, personal data, connected accounts or local-model parity claim.",
+  "steps": [
+    {
+      "name": "capture",
+      "passed": true,
+      "output": "Done — I saved your preference for concise answers.",
+      "saved": 1
+    },
+    {
+      "name": "recall in fresh task",
+      "passed": true,
+      "output": "concise",
+      "saved": 1,
+      "trace": [
+        {
+          "id": "mem-51279348f21f5ee159ad7a48",
+          "kind": "memory",
+          "revision": "f5a3594391ed96bef4420be8217b5a9a4b50d2c162ccd8d572815ad2530ac2df",
+          "selected": true,
+          "reason": "task relevance shortlist",
+          "token_upper_bound": 199
+        }
+      ]
+    },
+    {
+      "name": "correction",
+      "passed": true,
+      "output": "Done — I've saved your preference for detailed answers as a personal setting (preference.response_length) and replaced the earlier \"concise\" preference. Memory id: mem-51279348f21f5ee159ad7a48.\n\nIf you want to change or remove this later, tell me and I'll update or forget it.",
+      "saved": 1,
+      "trace": [
+        {
+          "id": "mem-51279348f21f5ee159ad7a48",
+          "kind": "memory",
+          "revision": "f5a3594391ed96bef4420be8217b5a9a4b50d2c162ccd8d572815ad2530ac2df",
+          "selected": true,
+          "reason": "task relevance shortlist",
+          "token_upper_bound": 199
+        }
+      ]
+    },
+    {
+      "name": "corrected recall",
+      "passed": true,
+      "output": "detailed",
+      "saved": 1,
+      "trace": [
+        {
+          "id": "mem-51279348f21f5ee159ad7a48",
+          "kind": "memory",
+          "revision": "651d228b0c6ad14e6acb0aa83f0914b32636dfb39c6cde0bf2a6b0952ae72fb5",
+          "selected": true,
+          "reason": "task relevance shortlist",
+          "token_upper_bound": 183
+        }
+      ]
+    },
+    {
+      "name": "forget",
+      "passed": true,
+      "output": "Done — I forgot that preference about response length. If you'd like a new preference saved (short, concise, or detailed), tell me the exact wording to remember.",
+      "saved": 0,
+      "trace": [
+        {
+          "id": "mem-51279348f21f5ee159ad7a48",
+          "kind": "memory",
+          "revision": "651d228b0c6ad14e6acb0aa83f0914b32636dfb39c6cde0bf2a6b0952ae72fb5",
+          "selected": true,
+          "reason": "task relevance shortlist",
+          "token_upper_bound": 183
+        }
+      ]
+    },
+    {
+      "name": "withdrawn recall",
+      "passed": true,
+      "output": "unknown",
+      "saved": 0
+    },
+    {
+      "name": "significance proposal",
+      "passed": true,
+      "output": "I've proposed the memory candidate for review. It’s saved as a pending suggestion (candidate-587eea2377e03ba52705d31b) and not stored as an active memory. Would you like me to: \n- save it as an active memory now, \n- edit the candidate (add dates, trip length, or other notes), or \n- leave it pending for later?",
+      "saved": 0
+    },
+    {
+      "name": "catalog review activates exact planned context",
+      "passed": true,
+      "saved": 1
+    },
+    {
+      "name": "reviewed consolidation",
+      "passed": true,
+      "output": "I've proposed and saved a compact note:\n\n- Title: Planned trip — Singapore\n- Summary: The user plans to visit Singapore. State explicitly set to planned (not occurred).\n- Purpose: Quick reference for future travel suggestions (visa reminders, packing, flights/hotels, local tips).\n- Source: mem-b1617051fbb6d4676ee3cab1 (saved from Chat work-20261126T065410-eb4e1e622d8aef23, updated 2026-11-26).\n- Note ID: note-2e1cb8df9df7f5bdae33924c\n- Revision: b40ec1b544671a0d2960ce92ba5502e4ca2e272475870150814673370d5bd8c1\n\nI preserved that the visit is planned and did not claim it occurred. Would you like me to add tentative dates, duration, or any packing preferences to the note?",
+      "saved": 1,
+      "trace": [
+        {
+          "id": "mem-b1617051fbb6d4676ee3cab1",
+          "kind": "memory",
+          "revision": "a8e07d9b9332e5993906985690fc1eae8061b9dfbe1e7750d58db631993982f2",
+          "selected": true,
+          "reason": "task relevance shortlist",
+          "token_upper_bound": 385
+        }
+      ]
+    },
+    {
+      "name": "forget invalidates derived summary",
+      "passed": true,
+      "saved": 0
+    }
+  ],
+  "usage": {
+    "unknown_requests": 0,
+    "model_requests": 22,
+    "input_tokens": 260250,
+    "output_tokens": 7277,
+    "reported": true,
+    "estimated": false
+  },
+  "quality": {
+    "trials": 8,
+    "useful_captures": 2,
+    "unnecessary_captures": 0,
+    "important_omissions": 0,
+    "correct_applications": 2,
+    "missed_applications": 0,
+    "irrelevant_applications": 0,
+    "forbidden_resurfacing": 0,
+    "capture_precision": 1,
+    "capture_recall": 1,
+    "tokens": 267527,
+    "milliseconds": 101560
+  }
+}

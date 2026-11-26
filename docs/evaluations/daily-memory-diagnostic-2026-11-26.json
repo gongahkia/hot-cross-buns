@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "model": "gpt-5-mini",
+  "scope": "Synthetic source-backed recall ablations at controlled 16K/64K windows, plus real foreground/one-time/recurring Work execution. No personal state or external actions; no local-model, public-leaderboard or longitudinal-quality claim.",
+  "trials": [
+    {
+      "id": "meal-exception",
+      "category": "runtime",
+      "arm": "recent_only",
+      "window": 16384,
+      "passed": false,
+      "correct_fields": 0,
+      "fields": 3,
+      "milliseconds": 3383,
+      "estimated_input_tokens": 1933,
+      "summary_turns": 0,
+      "recalled_excerpts": 3,
+      "preparation_notices": [
+        "Earlier section summarization is temporarily unavailable; original history remains searchable.",
+        "Some indexed older turns are not summarized yet. Relevant original excerpts can still be retrieved."
+      ],
+      "preparation_errors": [
+        "request OpenAI response: Post \"https://api.openai.com/v1/responses\": context deadline exceeded"
+      ],
+      "facts": {
+        "diet": null,
+        "eggs_allowed": null,
+        "peanuts_allowed": null
+      },
+      "output": "{\"facts\":{\"diet\":null,\"eggs_allowed\":null,\"peanuts_allowed\":null}}",
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 0,
+        "input_tokens": 1950,
+        "output_tokens": 204,
+        "reported": true,
+        "estimated": false
+      }
+    },
+    {
+      "id": "meal-exception",
+      "category": "runtime",
+      "arm": "hcb_hybrid",
+      "window": 16384,
+      "passed": true,
+      "correct_fields": 3,
+      "fields": 3,
+      "milliseconds": 3562,
+      "estimated_input_tokens": 2548,
+      "summary_turns": 0,
+      "recalled_excerpts": 3,
+      "preparation_notices": [
+        "Earlier section summarization is temporarily unavailable; original history remains searchable.",
+        "Some indexed older turns are not summarized yet. Relevant original excerpts can still be retrieved."
+      ],
+      "preparation_errors": [
+        "request OpenAI response: Post \"https://api.openai.com/v1/responses\": context deadline exceeded"
+      ],
+      "facts": {
+        "diet": "vegetarian",
+        "eggs_allowed": true,
+        "peanuts_allowed": false
+      },
+      "output": "{\"facts\":{\"diet\":\"vegetarian\",\"eggs_allowed\":true,\"peanuts_allowed\":false}}",
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 0,
+        "input_tokens": 2565,
+        "output_tokens": 254,
+        "reported": true,
+        "estimated": false
+      }
+    },
+    {
+      "id": "meal-exception",
+      "category": "runtime",
+      "arm": "hybrid_neighbors",
+      "window": 16384,
+      "passed": true,
+      "correct_fields": 3,
+      "fields": 3,
+      "milliseconds": 3451,
+      "estimated_input_tokens": 3084,
+      "summary_turns": 0,
+      "recalled_excerpts": 3,
+      "preparation_notices": [
+        "Earlier section summarization is temporarily unavailable; original history remains searchable.",
+        "Some indexed older turns are not summarized yet. Relevant original excerpts can still be retrieved."
+      ],
+      "preparation_errors": [
+        "request OpenAI response: Post \"https://api.openai.com/v1/responses\": context deadline exceeded"
+      ],
+      "facts": {
+        "diet": "vegetarian",
+        "eggs_allowed": true,
+        "peanuts_allowed": false
+      },
+      "output": "{\"facts\":{\"diet\":\"vegetarian\",\"eggs_allowed\":true,\"peanuts_allowed\":false}}",
+      "usage": {
+        "unknown_requests": 0,
+        "model_requests": 0,
+        "input_tokens": 3101,
+        "output_tokens": 209,
+        "reported": true,
+        "estimated": false
+      }
+    }
+  ],
+  "runtime": null,
+  "usage": {
+    "unknown_requests": 1,
+    "model_requests": 4,
+    "input_tokens": 7616,
+    "output_tokens": 667,
+    "reported": true,
+    "estimated": false
+  }
+}
