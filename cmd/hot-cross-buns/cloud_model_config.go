@@ -95,6 +95,8 @@ func saveTUICloudModelConfiguration(settingsStore cloudSettingsUpdater, stateDir
 				}
 			}
 
+			settings.RememberOrchestratorModel(settings.Defaults.Provider, settings.Defaults.Model)
+			settings.RememberOrchestratorModel(string(provider), setup.Model)
 			settings.Defaults.Provider = string(provider)
 			settings.Defaults.Model = strings.TrimSpace(setup.Model)
 			if settings.ProviderEndpoints == nil {

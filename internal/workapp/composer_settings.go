@@ -15,6 +15,7 @@ type ComposerModel struct {
 	Provider    string `json:"provider"`
 	Model       string `json:"model"`
 	Label       string `json:"label"`
+	Processing  string `json:"processing,omitempty"`
 	Unavailable string `json:"unavailable,omitempty"`
 }
 

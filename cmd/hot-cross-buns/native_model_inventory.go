@@ -19,6 +19,10 @@ func (b *nativeProviderBackend) modelInventory() (*modelcatalog.NativeModelInven
 		return nil, err
 	}
 	result := &modelcatalog.NativeModelInventory{Agents: []modelcatalog.NativeAgentModel{}}
+	result.Providers, err = b.rows()
+	if err != nil {
+		return nil, err
+	}
 	for _, name := range []string{"source_researcher", "artifact_reviewer", "connected_researcher", "spreadsheet_analyst", "claim_verifier", "goal_reviewer", "code"} {
 		row := modelcatalog.NativeAgentModel{Name: name, Kind: "native", Inherits: true, Continuation: "Retained result", Steering: name != "code"}
 		for _, role := range settings.WorkRoles {

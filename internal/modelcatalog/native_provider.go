@@ -31,6 +31,7 @@ type NativeProviderInput struct {
 	Options      map[string]string `json:"options,omitempty"`
 }
 type NativeProviderRow struct {
+	Models      []string          `json:"models,omitempty"`
 	IsDefault   bool              `json:"is_default"`
 	ID          string            `json:"id"`
 	Model       string            `json:"model"`
@@ -80,7 +81,8 @@ type NativeProviderResult struct {
 // NativeModelInventory contains configuration metadata, never executable paths,
 // credential values, native login files or private provider options.
 type NativeModelInventory struct {
-	Agents []NativeAgentModel `json:"agents"`
+	Agents    []NativeAgentModel  `json:"agents"`
+	Providers []NativeProviderRow `json:"providers"`
 }
 type NativeAgentModel struct {
 	Name           string `json:"name"`

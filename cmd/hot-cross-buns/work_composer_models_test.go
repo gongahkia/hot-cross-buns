@@ -86,3 +86,35 @@ func TestComposerModelsOmitUnconfiguredSavedSelection(t *testing.T) {
 	}
 	t.Fatal("configured selection did not become available after setup")
 }
+
+func TestSavedCloudModelsRemainSelectableAfterSwitchingProviders(t *testing.T) {
+	b := nativeProviderFixture(t)
+	t.Setenv("OPENAI_API_KEY", "saved-model-fixture")
+	settings, _ := b.settings.Load()
+	settings.Defaults = config.Defaults{Provider: "openai", Model: "custom-first"}
+	if err := b.settings.Save(settings); err != nil {
+		t.Fatal(err)
+	}
+	defaults := workModelDefaults{settings: b.settings}
+	for _, choice := range [][2]string{{"openai", "custom-second"}, {"anthropic", "claude-sonnet-5"}} {
+		if err := defaults.SetDefaults(choice[0], choice[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	choices, err := workComposerModels(b.settings, b.stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, wanted := range []string{"custom-first", "custom-second"} {
+		found := false
+		for _, choice := range choices {
+			found = found || choice.Provider == "openai" && choice.Model == wanted && choice.Unavailable == ""
+		}
+		if !found {
+			t.Fatalf("lost saved model %q after switching providers", wanted)
+		}
+	}
+	if err := defaults.SetDefaults("openai", "custom-first"); err != nil {
+		t.Fatal(err)
+	}
+}

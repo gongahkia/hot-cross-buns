@@ -56,6 +56,7 @@ type Settings struct {
 	// ModelAliases changes only a model's local display label. Its key is the
 	// stable provider:model identity; Hot Cross Buns always sends the real model ID.
 	ModelAliases         map[string]string          `json:"model_aliases,omitempty"`
+	OrchestratorModels   map[string][]string        `json:"orchestrator_models,omitempty"`
 	ExtensionTrusts      []ExtensionTrust           `json:"extension_trusts,omitempty"`
 	HookTrusts           []hooks.Trust              `json:"hook_trusts,omitempty"`
 	LSPTrusts            []lsp.Trust                `json:"lsp_trusts,omitempty"`
@@ -410,6 +411,9 @@ func validate(settings Settings) error {
 	}
 	if len(settings.ModelAliases) > 512 {
 		return errors.New("configuration has too many model aliases")
+	}
+	if err := validateOrchestratorModels(settings.OrchestratorModels); err != nil {
+		return err
 	}
 	if len(settings.ProviderEndpoints) > 128 {
 		return errors.New("configuration has too many provider endpoint overrides")

@@ -53,6 +53,9 @@ func workComposerModels(store config.Store, stateDir string) ([]workapp.Composer
 		for _, name := range model.CuratedModels(provider) {
 			add(id, name)
 		}
+		for _, name := range settings.OrchestratorModels[id] {
+			add(id, name)
+		}
 		if id == settings.Defaults.Provider {
 			add(id, model.EffectiveModel(provider, settings.Defaults.Model))
 		}
@@ -63,6 +66,15 @@ func workComposerModels(store config.Store, stateDir string) ([]workapp.Composer
 		}
 		for _, name := range provider.Models {
 			add(provider.ID, name)
+		}
+	}
+	for i := range choices {
+		selected := settings
+		selected.Defaults = config.Defaults{Provider: choices[i].Provider, Model: choices[i].Model}
+		status, err := workModelStatusForSettings(selected, stateDir)
+		choices[i].Processing = status.Processing.Kind
+		if err != nil || status.Issue != "" {
+			choices[i].Unavailable = "Complete this provider's model, credentials and endpoint setup before using it."
 		}
 	}
 	return choices, nil

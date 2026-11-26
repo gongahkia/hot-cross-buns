@@ -151,6 +151,9 @@ func (b *nativeProviderBackend) rows() ([]modelcatalog.NativeProviderRow, error)
 		selected := settings
 		selected.Defaults.Provider = id
 		selected.Defaults.Model = model.DefaultModel(p)
+		if saved := settings.OrchestratorModels[id]; len(saved) > 0 {
+			selected.Defaults.Model = saved[len(saved)-1]
+		}
 		if settings.Defaults.Provider == id {
 			selected.Defaults.Model = settings.Defaults.Model
 		}
@@ -164,6 +167,28 @@ func (b *nativeProviderBackend) rows() ([]modelcatalog.NativeProviderRow, error)
 			row.Expired = credential.Expired(time.Now())
 		}
 		row.IsDefault = settings.Defaults.Provider == id
+		for _, name := range append(model.CuratedModels(p), settings.OrchestratorModels[id]...) {
+			name = redact(name)
+			if name == "[redacted]" || name == "[unavailable]" {
+				continue
+			}
+			found := false
+			for _, existing := range row.Models {
+				found = found || existing == name
+			}
+			if !found {
+				row.Models = append(row.Models, name)
+			}
+		}
+		if row.Model != "" && row.Model != "[redacted]" && row.Model != "[unavailable]" {
+			found := false
+			for _, name := range row.Models {
+				found = found || name == row.Model
+			}
+			if !found {
+				row.Models = append(row.Models, row.Model)
+			}
+		}
 		row.Configured = found || row.Ambient || settings.Defaults.Provider == id || settings.ProviderEndpoint(id) != "" || len(settings.OptionsForProvider(id)) > 0
 		row.Ready = status.Issue == "" && status.Provider != "" && row.Configured
 		if status.Issue != "" {

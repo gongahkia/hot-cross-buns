@@ -62,6 +62,8 @@ func (defaults workModelDefaults) SetDefaults(provider, modelName string) error 
 			provider = string(parsed)
 			modelName = model.EffectiveModel(parsed, modelName)
 		}
+		settings.RememberOrchestratorModel(settings.Defaults.Provider, settings.Defaults.Model)
+		settings.RememberOrchestratorModel(provider, modelName)
 		settings.Defaults.Provider = provider
 		settings.Defaults.Model = modelName
 		return nil

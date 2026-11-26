@@ -35,6 +35,15 @@ func TestModelInventoryIsReadOnlyAndProjectsOnlyPublicAssignments(t *testing.T) 
 	if row.Inherits || row.Model != "[redacted]" || row.MaxSteps != 6 {
 		t.Fatal("role assignment was not safely projected", row)
 	}
+	seen := false
+	for _, provider := range r.Inventory.Providers {
+		if provider.ID == "gemini" {
+			seen = len(provider.Models) > 0
+		}
+	}
+	if !seen {
+		t.Fatal("inventory hid the unconfigured Gemini provider")
+	}
 	cli := r.Inventory.Agents[7]
 	if cli.Auth != "Local Codex ChatGPT login" || cli.Continuation != "Native session" || !cli.Steering || !cli.Questions {
 		t.Fatal("CLI capabilities lost", cli)
