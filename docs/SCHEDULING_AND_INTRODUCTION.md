@@ -20,6 +20,13 @@ Task-management wording such as “create a reminder” is semantically classifi
 
 ## Returning after downtime
 
+Recurring schedules support a deterministic inclusive `starts_at` and exclusive
+`ends_at` window. Chat and the timing editor show these boundaries in words and
+preview upcoming eligible runs. An inclusive final calendar day is represented
+by the following midnight in that task's timezone. Bounds are enforced by due
+selection, catch-up, occurrence previews and slot claiming; they are not merely
+instructions in a model prompt. Editing a boundary invalidates stale reviews.
+
 The normal `web/main.mjs` entry point starts the Go job supervisor while the server is open. A separately installed, already-running supervisor keeps ownership; the browser does not terminate that external service. The browser stops only a supervisor process it started. Closing a browser tab alone does not close the server.
 
 The supervisor checks due work on startup and every 15 seconds. It also retains availability gaps, scheduled times, immutable attempt records and notification delivery state. New in-app tasks use `run_once` catch-up. Existing tasks retain their reviewed missed-run policy; the timing editor can change that policy explicitly.

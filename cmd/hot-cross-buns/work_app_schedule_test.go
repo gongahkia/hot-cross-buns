@@ -21,6 +21,26 @@ func scheduleToolChange(c hotCrossBunsAppController, value map[string]any) workr
 func createScheduleValue() map[string]any {
 	return map[string]any{"action": "create", "title": "Garden reminder", "prompt": "Remind me to check the garden.", "run_at": time.Now().Add(time.Hour).UTC().Truncate(time.Minute).Format(time.RFC3339), "timezone": "Asia/Singapore"}
 }
+
+func TestChatScheduleWindowIsReviewedAndSavedAsTiming(t *testing.T) {
+	c := followupControllerForTest(t)
+	v := map[string]any{"action": "create", "title": "Bounded reminder", "prompt": "Remind me to check.", "cron": "0 20 * * *", "timezone": "Asia/Singapore", "starts_at": "2030-11-30T00:00:00+08:00", "ends_at": "2030-12-07T00:00:00+08:00"}
+	m, err := c.Prepare(context.Background(), scheduleToolChange(c, v))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(m.ScheduleReview.Lines, " "), "Upcoming 1:") {
+		t.Fatal("actual upcoming times missing from exact review")
+	}
+	d := requireSchedule(t, c, v, "once")
+	if d.StartsAt.IsZero() || d.EndsAt.IsZero() {
+		t.Fatal("date window remained only in prose")
+	}
+	upcoming, _ := d.Upcoming(time.Now(), 10)
+	if len(upcoming) != 7 {
+		t.Fatal("window does not contain exactly the requested seven runs", upcoming)
+	}
+}
 func requireSchedule(t *testing.T, c hotCrossBunsAppController, value map[string]any, choice string) jobs.Definition {
 	t.Helper()
 	m, err := c.Prepare(context.Background(), scheduleToolChange(c, value))

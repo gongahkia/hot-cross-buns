@@ -10,6 +10,21 @@ import (
 )
 
 func (d Definition) Timing() string {
+	text := d.timingRule()
+	location, err := time.LoadLocation(d.Timezone)
+	if err != nil {
+		return text
+	}
+	if !d.StartsAt.IsZero() {
+		text += " · starting " + d.StartsAt.In(location).Format("Jan 2, 2006 at 3:04 PM")
+	}
+	if !d.EndsAt.IsZero() {
+		text += " · until " + d.EndsAt.In(location).Format("Jan 2, 2006 at 3:04 PM") + " (exclusive)"
+	}
+	return text
+}
+
+func (d Definition) timingRule() string {
 	zone := d.Timezone
 	if zone == "Local" {
 		zone = "device time"
@@ -71,6 +86,27 @@ func (d Definition) Timing() string {
 		day += " in " + strings.Join(names, ", ")
 	}
 	return clock + ", " + day + " · " + zone
+}
+
+// Upcoming returns actual eligible occurrences, using the same bounds as Due.
+func (d Definition) Upcoming(after time.Time, count int) ([]time.Time, error) {
+	if count < 1 || count > 10 {
+		return nil, fmt.Errorf("preview 1–10 upcoming executions")
+	}
+	s, err := Schedule(d)
+	if err != nil {
+		return nil, err
+	}
+	result := []time.Time{}
+	for range count {
+		next := s.Next(after)
+		if next.IsZero() {
+			break
+		}
+		result = append(result, next)
+		after = next
+	}
+	return result, nil
 }
 
 func maskValues(mask uint64, low, high int) []int {

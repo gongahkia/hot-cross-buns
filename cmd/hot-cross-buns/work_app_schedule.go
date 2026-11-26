@@ -28,26 +28,28 @@ type scheduleChange struct {
 	Cron           *string `json:"cron,omitempty"`
 	RunAt          *string `json:"run_at,omitempty"`
 	Timezone       *string `json:"timezone,omitempty"`
+	StartsAt       *string `json:"starts_at,omitempty"`
 	EndsAt         *string `json:"ends_at,omitempty"`
 	Missed         *string `json:"missed,omitempty"`
 }
 type scheduleView struct {
-	Provider        string    `json:"provider,omitempty"`
-	Model           string    `json:"model,omitempty"`
-	ID              string    `json:"id"`
-	Digest          string    `json:"expected_digest"`
-	Title           string    `json:"title"`
-	Prompt          string    `json:"prompt"`
-	PromptTruncated bool      `json:"prompt_truncated,omitempty"`
-	Kind            string    `json:"kind"`
-	Timing          string    `json:"timing"`
-	Timezone        string    `json:"timezone"`
-	State           string    `json:"state"`
-	Enabled         bool      `json:"enabled"`
-	NextDue         time.Time `json:"next_due,omitzero"`
-	Issue           string    `json:"issue,omitempty"`
-	Origin          string    `json:"origin_conversation_id,omitempty"`
-	Source          string    `json:"source"`
+	Provider        string      `json:"provider,omitempty"`
+	Model           string      `json:"model,omitempty"`
+	ID              string      `json:"id"`
+	Digest          string      `json:"expected_digest"`
+	Title           string      `json:"title"`
+	Prompt          string      `json:"prompt"`
+	PromptTruncated bool        `json:"prompt_truncated,omitempty"`
+	Kind            string      `json:"kind"`
+	Timing          string      `json:"timing"`
+	Timezone        string      `json:"timezone"`
+	State           string      `json:"state"`
+	Enabled         bool        `json:"enabled"`
+	NextDue         time.Time   `json:"next_due,omitzero"`
+	Upcoming        []time.Time `json:"upcoming"`
+	Issue           string      `json:"issue,omitempty"`
+	Origin          string      `json:"origin_conversation_id,omitempty"`
+	Source          string      `json:"source"`
 }
 
 func projectSchedule(check workhome.Check, full bool) scheduleView {
@@ -58,7 +60,8 @@ func projectSchedule(check workhome.Check, full bool) scheduleView {
 	if truncated {
 		prompt = boundedIntroduction(prompt, 240)
 	}
-	return scheduleView{Provider: d.Provider, Model: d.Model, ID: d.ID, Digest: digest, Title: d.Name, Prompt: prompt, PromptTruncated: truncated, Kind: d.ScheduleKind(), Timing: d.Timing(), Timezone: d.Timezone, State: check.State, Enabled: d.Enabled, NextDue: check.NextDue, Issue: check.Issue, Origin: d.OriginConversationID, Source: d.SourcePath}
+	upcoming, _ := d.Upcoming(time.Now(), 3)
+	return scheduleView{Upcoming: upcoming, Provider: d.Provider, Model: d.Model, ID: d.ID, Digest: digest, Title: d.Name, Prompt: prompt, PromptTruncated: truncated, Kind: d.ScheduleKind(), Timing: d.Timing(), Timezone: d.Timezone, State: check.State, Enabled: d.Enabled, NextDue: check.NextDue, Issue: check.Issue, Origin: d.OriginConversationID, Source: d.SourcePath}
 }
 func (c hotCrossBunsAppController) inspectSchedules(query workrun.AppQuery) (any, error) {
 	if err := c.followupConversation(query.ConversationID); err != nil {
@@ -185,7 +188,7 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 			return workrun.AppMutation{}, errors.New("this schedule changed; inspect its current agreement")
 		}
 	}
-	changes := v.Title != nil || v.Prompt != nil || v.Cron != nil || v.RunAt != nil || v.Timezone != nil || v.EndsAt != nil || v.Missed != nil
+	changes := v.Title != nil || v.Prompt != nil || v.Cron != nil || v.RunAt != nil || v.Timezone != nil || v.StartsAt != nil || v.EndsAt != nil || v.Missed != nil
 	if v.Action == "edit" && !changes {
 		return workrun.AppMutation{}, errors.New("specify the fields to edit")
 	}
@@ -221,6 +224,15 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 	if v.Missed != nil {
 		next.Missed = *v.Missed
 	}
+	if v.StartsAt != nil {
+		next.StartsAt = time.Time{}
+		if *v.StartsAt != "" {
+			next.StartsAt, err = time.Parse(time.RFC3339, *v.StartsAt)
+			if err != nil {
+				return workrun.AppMutation{}, errors.New("starts_at must include an explicit timezone offset")
+			}
+		}
+	}
 	if v.EndsAt != nil {
 		next.EndsAt = time.Time{}
 		if *v.EndsAt != "" {
@@ -249,6 +261,11 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 		return workrun.AppMutation{}, err
 	}
 	lines := []string{"When: " + next.Timing(), "Prompt: " + next.Objective, "Workspace: " + next.SourcePath, "Missed runs: " + missedCheckLabel(next.Missed), fmt.Sprintf("Limits: Up to %d work steps per run. Existing task budgets, accounts and permissions stay in force.", next.MaxSteps)}
+	upcoming, _ := next.Upcoming(now, 3)
+	for i, at := range upcoming {
+		location, _ := time.LoadLocation(next.Timezone)
+		lines = append(lines, fmt.Sprintf("Upcoming %d: %s", i+1, at.In(location).Format("Mon Jan 2, 2006 at 3:04 PM MST")))
+	}
 	modelLabel := strings.Trim(next.Provider+"/"+next.Model, "/")
 	if modelLabel == "" {
 		modelLabel = "Profile default"

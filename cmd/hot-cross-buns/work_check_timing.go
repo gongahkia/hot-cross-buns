@@ -185,6 +185,18 @@ func changedCheckTiming(prior jobs.Definition, values []string, now time.Time) (
 			return next, errors.New("choose skip or one catch-up check")
 		}
 		next.Missed = values[1]
+	case "start":
+		if len(values) != 2 {
+			return next, errors.New("provide a start time, or leave it blank")
+		}
+		next.StartsAt = time.Time{}
+		if values[1] != "" {
+			at, err := time.Parse(time.RFC3339, values[1])
+			if err != nil {
+				return next, errors.New("choose a start date with a time and timezone")
+			}
+			next.StartsAt = at
+		}
 	case "end":
 		if len(values) != 2 {
 			return next, errors.New("provide an end time, or leave it blank")
@@ -234,6 +246,10 @@ func checkTimingScreen(definition jobs.Definition) workapp.ControlScreen {
 		return workapp.ControlAction{Label: label, Action: "preview-timing", Args: append(append([]string(nil), args...), kind), Fields: fields, Preview: true,
 			Description: "Review the computed schedule before saving. Accounts, source selection, model, budgets and permissions are retained."}
 	}
+	start := ""
+	if !definition.StartsAt.IsZero() {
+		start = definition.StartsAt.Format(time.RFC3339)
+	}
 	end := ""
 	if !definition.EndsAt.IsZero() {
 		end = definition.EndsAt.Format(time.RFC3339)
@@ -250,6 +266,7 @@ func checkTimingScreen(definition jobs.Definition) workapp.ControlScreen {
 			action("Every month", "monthly", workapp.ControlField{Label: "Day of month", Kind: "number", Value: "1", Help: "Days absent from a month are skipped."}, timeField, zoneField),
 			action("Edit task prompt", "prompt", workapp.ControlField{Label: "Task name", Value: definition.Name}, workapp.ControlField{Label: "What should HCB do?", Value: definition.Objective, Help: "This prompt runs through HCB with this task's existing read/draft permissions."}),
 			action("Missed-check behavior", "missed", workapp.ControlField{Label: "When this computer returns", Value: definition.Missed, Kind: "select", Options: []uisnapshot.Option{{Value: "skip", Label: "Skip work missed while offline"}, {Value: "run_once", Label: "Run one catch-up check after returning"}}}),
+			action("Change or remove start date", "start", workapp.ControlField{Label: "Start date and time (blank for no start)", Value: start, Kind: "datetime", Help: "The first eligible run is at or after this time."}),
 			action("Change or remove end date", "end", workapp.ControlField{Label: "End date and time (blank for no end)", Value: end, Kind: "datetime", Help: "Include a timezone, for example 2030-11-12T18:00:00+08:00. An existing check may finish."}),
 			{Label: "All scheduled tasks", Command: "/followup"},
 		}}

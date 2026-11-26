@@ -31,6 +31,7 @@ const Version = 2
 type Definition struct {
 	RuntimeScheduledAt   time.Time              `json:"-"`
 	RunAt                time.Time              `json:"run_at,omitzero"`
+	StartsAt             time.Time              `json:"starts_at,omitzero"`
 	EndsAt               time.Time              `json:"ends_at,omitzero"`
 	OriginConversationID string                 `json:"origin_conversation_id,omitempty"`
 	Limits               agent.Limits           `json:"limits"`
@@ -318,6 +319,12 @@ func (s Store) save(definition Definition) (Definition, error) {
 }
 
 func (d Definition) Validate() error {
+	if !d.EndsAt.IsZero() && !d.StartsAt.IsZero() && !d.EndsAt.After(d.StartsAt) {
+		return errors.New("schedule end must follow its start; end boundaries are exclusive")
+	}
+	if !d.RunAt.IsZero() && (d.BeforeStart(d.RunAt) || d.Expired(d.RunAt)) {
+		return errors.New("one-time execution must fall within its start/end window")
+	}
 	if d.OriginConversationID != "" && (len(d.OriginConversationID) > 96 || invalidID(d.OriginConversationID)) {
 		return errors.New("invalid job originating conversation")
 	}
@@ -576,7 +583,7 @@ func (s Store) Claim(id string, scheduled time.Time) (Definition, bool, error) {
 		return Definition{}, false, err
 	}
 	scheduled = scheduled.UTC().Truncate(time.Minute)
-	if !definition.Enabled || definition.Expired(time.Now()) || definition.Expired(scheduled) || !definition.RunAt.IsZero() && !definition.RunAt.Equal(scheduled) {
+	if !definition.Enabled || definition.BeforeStart(time.Now()) || definition.BeforeStart(scheduled) || definition.Expired(time.Now()) || definition.Expired(scheduled) || !definition.RunAt.IsZero() && !definition.RunAt.Equal(scheduled) {
 		return definition, false, nil
 	}
 	if !definition.LastScheduledAt.IsZero() && !definition.LastScheduledAt.Before(scheduled) {
@@ -762,7 +769,7 @@ func Schedule(definition Definition) (cron.Schedule, error) {
 		if _, err := time.LoadLocation(definition.Timezone); err != nil {
 			return nil, err
 		}
-		return oneTimeSchedule{definition.RunAt}, nil
+		return boundedSchedule{Schedule: oneTimeSchedule{definition.RunAt}, Start: definition.StartsAt, End: definition.EndsAt}, nil
 	}
 	location, err := time.LoadLocation(definition.Timezone)
 	if err != nil {
@@ -773,7 +780,23 @@ func Schedule(definition Definition) (cron.Schedule, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse five-field job schedule: %w", err)
 	}
-	return locatedSchedule{Schedule: schedule, Location: location}, nil
+	return boundedSchedule{Schedule: locatedSchedule{Schedule: schedule, Location: location}, Start: definition.StartsAt, End: definition.EndsAt}, nil
+}
+
+type boundedSchedule struct {
+	cron.Schedule
+	Start, End time.Time
+}
+
+func (s boundedSchedule) Next(after time.Time) time.Time {
+	if !s.Start.IsZero() && after.Before(s.Start) {
+		after = s.Start.Add(-time.Nanosecond)
+	}
+	next := s.Schedule.Next(after)
+	if !s.End.IsZero() && !next.IsZero() && !next.Before(s.End) {
+		return time.Time{}
+	}
+	return next
 }
 
 type oneTimeSchedule struct{ At time.Time }
@@ -795,7 +818,7 @@ func (s locatedSchedule) Next(after time.Time) time.Time {
 }
 
 func Due(definition Definition, now time.Time) (time.Time, bool, error) {
-	if !definition.Enabled || definition.Expired(now) {
+	if !definition.Enabled || definition.BeforeStart(now) || definition.Expired(now) {
 		return time.Time{}, false, nil
 	}
 	schedule, err := Schedule(definition)
@@ -850,6 +873,10 @@ func latestDue(schedule cron.Schedule, anchor, now time.Time) time.Time {
 // Expiry prevents new checks and retries. An already executing check may finish.
 func (d Definition) Expired(now time.Time) bool {
 	return !d.EndsAt.IsZero() && !now.Before(d.EndsAt)
+}
+
+func (d Definition) BeforeStart(now time.Time) bool {
+	return !d.StartsAt.IsZero() && now.Before(d.StartsAt)
 }
 
 func newID(prefix string) string {
@@ -994,7 +1021,7 @@ func (s Store) ClaimBegin(id string, scheduled time.Time) (Definition, Attempt, 
 		return Definition{}, Attempt{}, false, err
 	}
 	scheduled = scheduled.UTC().Truncate(time.Minute)
-	if !definition.Enabled || definition.Expired(time.Now()) || definition.Expired(scheduled) || !definition.RunAt.IsZero() && !definition.RunAt.Equal(scheduled) {
+	if !definition.Enabled || definition.BeforeStart(time.Now()) || definition.BeforeStart(scheduled) || definition.Expired(time.Now()) || definition.Expired(scheduled) || !definition.RunAt.IsZero() && !definition.RunAt.Equal(scheduled) {
 		return definition, Attempt{}, false, nil
 	}
 	if !definition.LastScheduledAt.Before(scheduled) {
