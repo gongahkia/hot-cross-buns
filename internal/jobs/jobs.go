@@ -467,6 +467,12 @@ func (d Definition) Validate() error {
 			return errors.New("job connector identity is invalid")
 		}
 	}
+	for connectorID, pin := range d.CredentialPins {
+		decoded, err := hex.DecodeString(pin)
+		if !seenConnector[connectorID] || err != nil || len(decoded) != sha256.Size || hex.EncodeToString(decoded) != pin {
+			return errors.New("job credential pin is invalid")
+		}
+	}
 	for connectorID, pin := range d.OAuthRefreshPins {
 		if !seenConnector[connectorID] || len(pin) != sha256.Size*2 {
 			return errors.New("job OAuth credential pin is invalid")

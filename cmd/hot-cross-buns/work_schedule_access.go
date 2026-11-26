@@ -83,7 +83,9 @@ func (c hotCrossBunsAppController) prepareScheduledAccess(ctx context.Context, n
 			if err != nil || d.Authentication != connector.AuthNone && !found {
 				return nil, "", fmt.Errorf("sign in to %s before scheduling access", id)
 			}
-			next.CredentialPins[id] = connector.CredentialPin(d, credential)
+			if d.Kind != connector.KindGoogle || d.Authentication != connector.AuthOAuth {
+				next.CredentialPins[id] = connector.CredentialPin(d, credential)
+			}
 		}
 		pins, err := captureGoalOAuthAccountPins(ctx, next.ConnectorIDs, registry, credentials)
 		if err != nil {

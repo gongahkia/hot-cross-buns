@@ -370,3 +370,21 @@ func boundedWatchEvidence(references []string, allowed watchReferenceSet) (strin
 	}
 	return strings.Join(selected, "; "), unverified
 }
+
+// Only trusted runtime error events participate; source content cannot declare
+// its own successful read or erase an earlier failed account request.
+func unresolvedScheduledReadFailure(events []agent.Event) bool {
+	failed := map[string]bool{}
+	for _, event := range events {
+		if event.Kind != agent.EventToolFinished || event.ToolCall == nil || !strings.HasPrefix(event.ToolCall.Name, "connector_") {
+			continue
+		}
+		key := event.ToolCall.Name + "\x00" + string(event.ToolCall.Arguments)
+		if event.ToolError != "" {
+			failed[key] = true
+		} else {
+			delete(failed, key)
+		}
+	}
+	return len(failed) > 0
+}
