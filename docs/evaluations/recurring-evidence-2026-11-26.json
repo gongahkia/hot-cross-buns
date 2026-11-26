@@ -1,0 +1,91 @@
+{
+  "Model": "gpt-5-mini",
+  "Scope": "Three isolated production job-adapter checks: unchanged, repeated unchanged, then changed local source. No real scheduler or external account/action.",
+  "Checks": [
+    {
+      "expected": "quiet",
+      "iteration": 1,
+      "milliseconds": 14184,
+      "passed": true,
+      "result": {
+        "conversation_id": "work-20261126T082144-c4d51e654620a8c0",
+        "revision_id": "work-20261126T082144-414c0a5643ca",
+        "manifest_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/TestLiveRecurringEvidence363669079/001/hot-cross-buns/workspaces/5112fceacd8a8065806ee0989ba55654/work-20261126T082144-414c0a5643ca/manifest.json",
+        "status": "completed",
+        "summary": "source/brief.md shows version v1 and deadline 2026-12-02. No version change from v1, so per your notification rule no alert is needed.",
+        "result_sha256": "29613a9c46bed03291a7c20b953b27b2c56ff40258c944419cfe3ad96de55fed",
+        "watch_decision": {
+          "next_check_at": "0001-01-01T00:00:00Z",
+          "status": "quiet",
+          "summary": "source/brief.md shows version v1 and deadline 2026-12-02. No version change from v1, so per your notification rule no alert is needed.",
+          "rationale": "I read source/brief.md which contains: \"Synthetic Cedar brief: version v1, four reviewed samples, deadline 2026-12-02. This is a draft; nothing has been sent. The Maple v1 notification was already delivered.\" The scheduled check was due at 2026-11-26T14:21:44+08:00 but actually started at 2026-11-26T16:21:44+08:00 (late by 2h0m0s). Because the brief remains ",
+          "evidence": [
+            "local-4c8b2c3f510fe431-0"
+          ]
+        },
+        "error": ""
+      },
+      "version": "v1"
+    },
+    {
+      "expected": "quiet",
+      "iteration": 2,
+      "milliseconds": 11538,
+      "passed": true,
+      "result": {
+        "conversation_id": "work-20261126T082158-5a023aecd7b4c111",
+        "revision_id": "work-20261126T082158-53e92c7c402f",
+        "manifest_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/TestLiveRecurringEvidence363669079/001/hot-cross-buns/workspaces/5112fceacd8a8065806ee0989ba55654/work-20261126T082158-53e92c7c402f/manifest.json",
+        "status": "completed",
+        "summary": "brief.md is version v1 with deadline 2026-12-02. No version change detected (v1 notification already delivered).",
+        "result_sha256": "f36341e587b838ed7073c346038ddd989a668e0176e05618e06635d09118d1f8",
+        "watch_decision": {
+          "next_check_at": "0001-01-01T00:00:00Z",
+          "status": "quiet",
+          "summary": "brief.md is version v1 with deadline 2026-12-02. No version change detected (v1 notification already delivered).",
+          "rationale": "Inspected source/brief.md which states: “version v1” and “deadline 2026-12-02.” Per the notification rule (notify only if version changed from v1; v1 notification already delivered), this unchanged v1 does not require notification. This scheduled check started late: scheduled for 2026-11-26T14:21:58+08:00, actual start 2026-11-26T16:21:58+08:00 — late by 2h0",
+          "evidence": [
+            "local-4c8b2c3f510fe431-0"
+          ]
+        },
+        "error": ""
+      },
+      "version": "v1"
+    },
+    {
+      "expected": "attention",
+      "iteration": 3,
+      "milliseconds": 16305,
+      "passed": true,
+      "result": {
+        "conversation_id": "work-20261126T082209-0966e14b12adf12c",
+        "revision_id": "work-20261126T082209-58359beed1c7",
+        "manifest_path": "/private/var/folders/55/fw1sdntj20v8650vsmkn7s8c0000gn/T/TestLiveRecurringEvidence363669079/001/hot-cross-buns/workspaces/5048df87433da76a4ec61012f8d31678/work-20261126T082209-58359beed1c7/manifest.json",
+        "status": "completed",
+        "summary": "brief.md reports version v2 with deadline 2026-12-02. The scheduled check started late by 2h0m0s. [evidence: local-b320792baf60edc5-0]",
+        "result_sha256": "3ef7cf9e005a86ed81ccb2f5d4164fbe8ab45d486962430a6c7091ac3c118460",
+        "watch_attention": true,
+        "watch_decision": {
+          "next_check_at": "0001-01-01T00:00:00Z",
+          "status": "attention",
+          "summary": "brief.md reports version v2 with deadline 2026-12-02. The scheduled check started late by 2h0m0s. [evidence: local-b320792baf60edc5-0]",
+          "next_step": "Decide whether to notify recipients about the new v2 brief or leave the draft unchanged.",
+          "rationale": "Source (brief.md) states: \"Synthetic Cedar brief: version v2, four reviewed samples, deadline 2026-12-02. This is a draft; nothing has been sent. The Maple v1 notification was already delivered.\" Because the file now shows v2 (a change from v1) and the notification agreement says to notify only if the version changed from v1, this run should draw attention. ",
+          "evidence": [
+            "local-b320792baf60edc5-0"
+          ]
+        },
+        "error": ""
+      },
+      "version": "v2"
+    }
+  ],
+  "Usage": {
+    "unknown_requests": 0,
+    "model_requests": 10,
+    "input_tokens": 87768,
+    "output_tokens": 3093,
+    "reported": true,
+    "estimated": false
+  }
+}

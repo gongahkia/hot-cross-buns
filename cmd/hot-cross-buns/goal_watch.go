@@ -152,7 +152,10 @@ func evaluateGoalWatchResult(finalText string, messages []agent.Message, artifac
 			result.Rationale = "The Work run created an artifact, connected request or proposed change despite a quiet model decision."
 		}
 		if !attention && len(decision.Evidence) > 0 {
-			_, unverified := boundedWatchEvidence(decision.Evidence, references)
+			evidence, unverified := boundedWatchEvidence(decision.Evidence, references)
+			if evidence != "" {
+				result.Evidence = strings.Split(evidence, "; ")
+			}
 			if unverified {
 				result.Status = "review"
 				result.Summary += " [quiet rationale references unverified; review Work run]"
@@ -180,13 +183,14 @@ func boundedWatchText(value string, limit int) string {
 // watchReferenceSet checks reference integrity against material retained by
 // this run. It cannot establish whether a referenced source supports a claim.
 type watchReferenceSet struct {
-	evidence  map[string]artifact.Evidence
-	connected map[string]bool
-	items     map[string]bool
-	plan      map[string]bool
-	source    workspace.Root
-	files     map[string]artifact.File
-	roots     map[string]workspace.Root
+	evidence     map[string]artifact.Evidence
+	connected    map[string]bool
+	items        map[string]bool
+	plan         map[string]bool
+	source       workspace.Root
+	evidenceRoot workspace.Root
+	files        map[string]artifact.File
+	roots        map[string]workspace.Root
 }
 
 func newWatchReferenceSet(manifest artifact.Manifest, items []jobs.WatchItem, plan goal.Plan, work workspace.Work) watchReferenceSet {
@@ -195,19 +199,13 @@ func newWatchReferenceSet(manifest artifact.Manifest, items []jobs.WatchItem, pl
 		items: map[string]bool{}, plan: map[string]bool{}, source: work.Source,
 		files: map[string]artifact.File{}, roots: map[string]workspace.Root{},
 	}
+	refs.evidenceRoot, _ = workspace.Open(work.Path)
 	refs.addOutputReferences("output", manifest.Artifacts, work.Output)
 	for _, entry := range manifest.Evidence {
-		refs.evidence[entry.ID] = entry
-		if strings.HasPrefix(entry.Locator, "source/") {
-			data, err := work.Source.ReadRegularFile(strings.TrimPrefix(entry.Locator, "source/"), 512*1024)
-			if err != nil || entry.SnapshotPath == "" {
-				continue
-			}
-			digest := sha256.Sum256(data)
-			if entry.SHA256 != hex.EncodeToString(digest[:]) {
-				continue
-			}
+		if !refs.validEvidence(entry) {
+			continue
 		}
+		refs.evidence[entry.ID] = entry
 		refs.evidence[entry.Locator] = entry
 	}
 	workRoot, rootErr := workspace.Open(work.Path)
@@ -285,13 +283,38 @@ func (refs *watchReferenceSet) addOutputReferences(prefix string, files []artifa
 	}
 }
 
+func (refs watchReferenceSet) validEvidence(entry artifact.Evidence) bool {
+	if entry.ID == "" || entry.Locator == "" || entry.SHA256 == "" || entry.SnapshotPath == "" || refs.evidenceRoot.Path() == "" {
+		return false
+	}
+	data, err := refs.evidenceRoot.ReadRegularFile(entry.SnapshotPath, 512*1024)
+	if err != nil {
+		return false
+	}
+	digest := sha256.Sum256(data)
+	if hex.EncodeToString(digest[:]) != entry.SHA256 {
+		return false
+	}
+	if strings.HasPrefix(entry.Locator, "source/") {
+		current, err := refs.source.ReadRegularFile(strings.TrimPrefix(entry.Locator, "source/"), 512*1024)
+		if err != nil {
+			return false
+		}
+		actual := sha256.Sum256(current)
+		if hex.EncodeToString(actual[:]) != entry.SHA256 {
+			return false
+		}
+	}
+	return true
+}
+
 func (refs watchReferenceSet) allows(reference string) bool {
 	if refs.items[reference] || refs.connected[reference] || refs.plan[reference] {
 		return true
 	}
 	entry, found := refs.evidence[reference]
 	if found {
-		return entry.Locator != "" && entry.SHA256 != ""
+		return refs.validEvidence(entry)
 	}
 	colon := strings.LastIndexByte(reference, ':')
 	if colon < 0 {
@@ -303,7 +326,7 @@ func (refs watchReferenceSet) allows(reference string) bool {
 		return false
 	}
 	entry, found = refs.evidence[path]
-	if !output && (!found || entry.Locator != path || entry.SnapshotPath == "") {
+	if !output && (!found || entry.Locator != path || !refs.validEvidence(entry)) {
 		return false
 	}
 	first, last, ranged := strings.Cut(lineText, "-")

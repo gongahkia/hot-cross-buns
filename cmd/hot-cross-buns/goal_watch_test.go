@@ -183,7 +183,14 @@ func TestGoalWatchAlertShowsBoundedEvidenceOrReviewWarning(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(contents)
-	references := newWatchReferenceSet(artifact.Manifest{Evidence: []artifact.Evidence{{ID: "local-venue", Locator: "source/venue.md", SHA256: hex.EncodeToString(digest[:]), SnapshotPath: "evidence/retained.txt"}}}, nil, goal.Plan{Steps: []goal.Step{{ID: "2"}}}, workspace.Work{Source: root})
+	workPath := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workPath, "evidence"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workPath, "evidence/retained.txt"), contents, 0600); err != nil {
+		t.Fatal(err)
+	}
+	references := newWatchReferenceSet(artifact.Manifest{Evidence: []artifact.Evidence{{ID: "local-venue", Locator: "source/venue.md", SHA256: hex.EncodeToString(digest[:]), SnapshotPath: "evidence/retained.txt"}}}, nil, goal.Plan{Steps: []goal.Step{{ID: "2"}}}, workspace.Work{Path: workPath, Source: root})
 	withEvidence := `{"attention":true,"summary":"Venue changed.","evidence":["source/venue.md:3","source/venue.md:3","goal plan step 2"]}`
 	attention, summary := classifyGoalWatchResult(withEvidence, nil, nil, references)
 	if !attention || !strings.Contains(summary, "[evidence: goal plan step 2]") || !strings.Contains(summary, "other references unverified") {
@@ -207,7 +214,7 @@ func TestGoalWatchAlertShowsBoundedEvidenceOrReviewWarning(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(source, "venue.md"), []byte("Changed after the run.\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if references.allows("source/venue.md:1") || references.allows("source/venue.md:1-2") {
+	if references.allows("source/venue.md:1") || references.allows("source/venue.md:1-2") || references.allows("local-venue") {
 		t.Fatal("changed source line was accepted as retained evidence")
 	}
 	fabricated := `{"attention":true,"summary":"Venue changed.","evidence":["source/missing.md:1"]}`

@@ -272,3 +272,10 @@ conservative byte-based estimator, media counting is approximate, and unknown
 deployments require declared capacity when the fallback differs from their
 actual limits. Native CLI agents retain their own context management. These
 limits are explicit; a passing fixture run is not model-quality parity.
+
+## Follow-up implementation
+
+The recommended asynchronous summary maintenance and recurring reference work
+is implemented and verified in the [follow-up report](verification/assistant-maintenance-2026-11-26.md).
+The original measurements above remain unchanged; the new focused live checks
+provide evidence for those two changes rather than replacing the original run.

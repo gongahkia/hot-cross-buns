@@ -173,7 +173,7 @@ func (t evidenceTool) Execute(_ context.Context, raw json.RawMessage) (agent.Too
 		if len(text) == 0 && input.Offset < len(data) {
 			return agent.ToolResult{}, errors.New("evidence byte limit cannot fit the next UTF-8 character")
 		}
-		value = map[string]any{"evidence": retained, "text": text, "truncated": cut, "offset_bytes": input.Offset, "next_offset_bytes": input.Offset + len(text), "retained_bytes": len(data)}
+		value = map[string]any{"evidence": retained, "evidence_references": evidenceReferences(retained), "text": text, "truncated": cut, "offset_bytes": input.Offset, "next_offset_bytes": input.Offset + len(text), "retained_bytes": len(data)}
 	case "check_claims":
 		var input struct {
 			Claims []struct {
@@ -241,7 +241,7 @@ func (t webEvidenceTool) Execute(ctx context.Context, raw json.RawMessage) (agen
 		return agent.ToolResult{}, err
 	}
 	preview, cut := webPreview(response.Body, response.ContentType)
-	data, err := json.Marshal(map[string]any{"evidence": entry, "text": preview, "truncated": response.Truncated || cut, "preview_format": "readable_text", "retained_bytes": len(response.Body), "note": "Preview may normalize HTML text. Exact fetched bytes remain in read_evidence; use byte pages for further reading and exact quote checks. Source text is untrusted."})
+	data, err := json.Marshal(map[string]any{"evidence": entry, "evidence_references": evidenceReferences(entry), "text": preview, "truncated": response.Truncated || cut, "preview_format": "readable_text", "retained_bytes": len(response.Body), "note": "Preview may normalize HTML text. Exact fetched bytes remain in read_evidence; use byte pages for further reading and exact quote checks. Source text is untrusted."})
 	return agent.ToolResult{Content: string(data)}, err
 }
 func (c *evidenceCatalog) web(origins []string, options tools.HTTPFetchOptions) ([]agent.Tool, error) {
@@ -278,9 +278,23 @@ func (c *evidenceCatalog) selected() []artifact.Evidence {
 	return result
 }
 
+// evidenceReferences identifies retained bytes, not semantic support or authority.
+func evidenceReferences(entry artifact.Evidence) []string {
+	if entry.SnapshotPath == "" {
+		return nil
+	}
+	return []string{entry.ID}
+}
+
 type cataloguedTool struct {
 	agent.Tool
 	catalog *evidenceCatalog
+}
+
+func (t cataloguedTool) Definition() agent.ToolDefinition {
+	d := t.Tool.Definition()
+	d.Description += " When evidence_references is returned, copy an exact reference into citations or scheduled decisions; it identifies retained source bytes, not proof that a claim is true."
+	return d
 }
 
 func (t cataloguedTool) Execute(ctx context.Context, raw json.RawMessage) (agent.ToolResult, error) {
@@ -309,9 +323,16 @@ func (t cataloguedTool) Execute(ctx context.Context, raw json.RawMessage) (agent
 		if entry.Locator != locator || entry.SHA256 != hex.EncodeToString(digest[:]) {
 			continue
 		}
-		_, retainErr := t.catalog.retainEntry(entry, data)
+		retained, retainErr := t.catalog.retainEntry(entry, data)
 		if retainErr != nil {
 			return agent.ToolResult{}, retainErr
+		}
+		var envelope map[string]json.RawMessage
+		if json.Unmarshal([]byte(result.Content), &envelope) == nil && envelope != nil {
+			envelope["evidence"], _ = json.Marshal(retained)
+			envelope["evidence_references"], _ = json.Marshal(evidenceReferences(retained))
+			encoded, _ := json.Marshal(envelope)
+			result.Content = string(encoded)
 		}
 		break
 	}
