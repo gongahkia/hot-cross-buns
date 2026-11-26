@@ -27,6 +27,7 @@ type Draft struct {
 	ConnectorIDs                             []string
 	GmailQuery                               string
 	CalendarDays                             int
+	CalendarID                               string
 	IntervalMinutes                          int
 	Mode                                     action.Mode
 	MaxRequests, MaxSeconds, MaxChecksPerDay int
@@ -45,8 +46,11 @@ func New(source, goalID string) (Draft, error) {
 }
 
 func (d Draft) Validate() error {
-	if d.CalendarDays != 0 {
-		return errors.New("Calendar change-only watches are unavailable; clear the old window. Calendar tools can be enabled separately in Connections")
+	if d.CalendarDays != 0 && d.CalendarID == "" {
+		return errors.New("Calendar change-only watches are unavailable; choose and review an explicit calendar first")
+	}
+	if len(d.CalendarID) > 1024 || strings.ContainsAny(d.CalendarID, "\x00\r\n /\\?#") {
+		return errors.New("choose an exact calendar ID")
 	}
 	if _, err := d.EndTime(); err != nil {
 		return err
@@ -138,7 +142,7 @@ func (d Draft) ReviewLines() []string {
 		lines = append(lines, "Updates return to the conversation where you requested this check.")
 	}
 	if d.CalendarDays > 0 {
-		lines = append(lines, fmt.Sprintf("Retired Calendar selection: %d days (remove before saving)", d.CalendarDays))
+		lines = append(lines, fmt.Sprintf("Calendar: %s · next %d local days", d.CalendarID, d.CalendarDays))
 	}
 	if !d.Enabled {
 		lines = append(lines, "This check remains paused after saving. Resume it explicitly when ready.")
@@ -187,6 +191,7 @@ func FromDefinition(definition jobs.Definition) (Draft, error) {
 		}
 		if source.Operation == "calendar_events" {
 			draft.CalendarDays = source.Days
+			draft.CalendarID = source.CalendarID
 		}
 	}
 	return draft, nil

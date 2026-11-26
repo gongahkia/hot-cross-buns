@@ -37,7 +37,7 @@ func connectedGoalWatchSnapshot(ctx context.Context, definition jobs.Definition,
 func connectedGoalWatchSnapshotWithPrevious(ctx context.Context, definition jobs.Definition, stateDir string, now time.Time, previous *jobs.Attempt) (string, []jobs.WatchItem, []jobs.WatchCursor, error) {
 	// Diagnose retired sources before credential refresh or any network access.
 	for _, source := range definition.WatchSources {
-		if source.Operation == "calendar_events" {
+		if source.Operation == "calendar_events" && source.CalendarID == "" {
 			return "", nil, nil, errors.New("Calendar change-only watches are unavailable; remove the legacy source and use Calendar tools in a regular selected-account task")
 		}
 	}
@@ -96,6 +96,15 @@ func connectedGoalWatchSnapshotWithPrevious(ctx context.Context, definition jobs
 				return "", nil, nil, err
 			}
 			items = append(items, jobs.WatchItem{Source: key, ID: "resource", SHA256: fingerprint})
+		case "calendar_events":
+			found, err := hashCalendarWatch(ctx, runtime, source, now, definition.Timezone)
+			if err != nil {
+				return "", nil, nil, err
+			}
+			if err := writeWatchHash(digest, found); err != nil {
+				return "", nil, nil, err
+			}
+			items = append(items, found...)
 		case "gmail_list":
 			cursorAllowed := descriptor.Authentication == connector.AuthNone || definition.OAuthAccountPins[source.ConnectorID] != "" || definition.OAuthRefreshPins[source.ConnectorID] != ""
 			found, cursor, err := hashGmailWatch(ctx, runtime, registry, permissions, source, now, previous, cursorAllowed)

@@ -166,6 +166,11 @@ func (m *Model) setBridgeField(index int, value string) {
 			d.GmailQuery = value
 		case 5:
 			d.CalendarDays, _ = strconv.Atoi(value)
+			if d.CalendarDays > 0 {
+				d.CalendarID = "primary"
+			} else {
+				d.CalendarID = ""
+			}
 		case 6:
 			d.IntervalMinutes, _ = strconv.Atoi(value)
 		case 7:

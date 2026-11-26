@@ -295,7 +295,22 @@ func (m Model) updateFollowupForm(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if f.Field == 5 {
 		if key.String() == "left" || key.String() == "right" || key.String() == " " {
-			f.Draft.CalendarDays = 0
+			values := []int{0, 7, 14, 30}
+			index := 0
+			for i, value := range values {
+				if value == f.Draft.CalendarDays {
+					index = i
+				}
+			}
+			step := 1
+			if key.String() == "left" {
+				step = -1
+			}
+			f.Draft.CalendarDays = values[(index+step+len(values))%len(values)]
+			f.Draft.CalendarID = ""
+			if f.Draft.CalendarDays > 0 {
+				f.Draft.CalendarID = "primary"
+			}
 		}
 		return m, nil
 	}
@@ -412,11 +427,9 @@ func (m Model) followupPanel() uisnapshot.Panel {
 				p.Rows[3].Input.Options = append(p.Rows[3].Input.Options, uisnapshot.Option{Value: id, Label: id + " (unavailable)"})
 			}
 		}
-		if d.CalendarDays != 0 {
-			p.Rows[5].Label = "Retired Calendar source"
-			p.Rows[5].Detail = "Remove this old selection before saving; use local plan dates."
-			p.Rows[5].Input = bridgeSelect(strconv.Itoa(d.CalendarDays), uisnapshot.Option{Value: strconv.Itoa(d.CalendarDays), Label: "Old Calendar window (unavailable)"}, uisnapshot.Option{Value: "0", Label: "Remove retired Calendar source"})
-		}
+		p.Rows[5].Label = "Calendar · primary calendar"
+		p.Rows[5].Detail = fmt.Sprintf("Next %d local days · requires reviewed Calendar read access", d.CalendarDays)
+		p.Rows[5].Input = bridgeSelect(strconv.Itoa(d.CalendarDays), uisnapshot.Option{Value: "0", Label: "Not included"}, uisnapshot.Option{Value: "7", Label: "Next 7 days"}, uisnapshot.Option{Value: "14", Label: "Next 14 days"}, uisnapshot.Option{Value: "30", Label: "Next 30 days"})
 		p.Rows[6].Label, p.Rows[6].Input = "Check frequency", bridgeSelect(strconv.Itoa(d.IntervalMinutes),
 			uisnapshot.Option{Value: "5", Label: "Every 5 minutes"}, uisnapshot.Option{Value: "15", Label: "Every 15 minutes"},
 			uisnapshot.Option{Value: "30", Label: "Every 30 minutes"}, uisnapshot.Option{Value: "60", Label: "Every hour"})

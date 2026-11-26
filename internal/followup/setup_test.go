@@ -66,6 +66,11 @@ func TestCalendarWindowIsRetiredButLocalFollowupWorks(t *testing.T) {
 	if err := draft.Validate(); err == nil || !strings.Contains(err.Error(), "change-only watches are unavailable") {
 		t.Fatalf("calendar draft = %v", err)
 	}
+	draft.CalendarID = "primary"
+	draft.ConnectorIDs = []string{"google"}
+	if err := draft.Validate(); err != nil {
+		t.Fatalf("explicit Calendar rejected: %v", err)
+	}
 	draft.CalendarDays = 0
 	if err := draft.Validate(); err != nil {
 		t.Fatalf("local-only draft = %v", err)

@@ -84,6 +84,7 @@ type WatchSource struct {
 	Operation   string `json:"operation"`
 	Query       string `json:"query,omitempty"`
 	Days        int    `json:"days,omitempty"`
+	CalendarID  string `json:"calendar_id,omitempty"`
 }
 
 // WatchItem retains a content fingerprint and bounded source identifier, not
@@ -433,11 +434,11 @@ func (d Definition) Validate() error {
 		seenWatch[key] = true
 		switch source.Operation {
 		case "fetch":
-			if source.Query != "" || source.Days != 0 {
+			if source.Query != "" || source.Days != 0 || source.CalendarID != "" {
 				return errors.New("JSON watch accepts no query or calendar window")
 			}
 		case "gmail_list":
-			if strings.TrimSpace(source.Query) == "" || len(source.Query) > 4096 || !utf8.ValidString(source.Query) || strings.ContainsRune(source.Query, 0) || source.Days != 0 {
+			if strings.TrimSpace(source.Query) == "" || len(source.Query) > 4096 || !utf8.ValidString(source.Query) || strings.ContainsRune(source.Query, 0) || source.Days != 0 || source.CalendarID != "" {
 				return errors.New("Gmail watch requires a bounded search query")
 			}
 		case "calendar_events":

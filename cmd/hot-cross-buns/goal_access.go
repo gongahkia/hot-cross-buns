@@ -58,7 +58,7 @@ func probeGoalAccess(ctx context.Context, stateDir, goalID string, out io.Writer
 		}
 		var pinErr error
 		for _, source := range definition.WatchSources {
-			if source.Operation != "calendar_events" {
+			if source.Operation != "calendar_events" || source.CalendarID != "" {
 				pinErr = verifyGoalOAuthPins(ctx, definition, registry, credentials)
 				break
 			}
@@ -71,7 +71,7 @@ func probeGoalAccess(ctx context.Context, stateDir, goalID string, out io.Writer
 			if count > 8 {
 				continue
 			}
-			if pinErr != nil && source.Operation != "calendar_events" {
+			if pinErr != nil && (source.Operation != "calendar_events" || source.CalendarID != "") || source.CalendarID != "" {
 				if _, err := fmt.Fprintf(out, "  %s %s/%s: %s\n", definition.ID, source.ConnectorID, source.Operation, activityLine(pinErr.Error(), 160)); err != nil {
 					return err
 				}
@@ -95,8 +95,8 @@ func probeGoalAccess(ctx context.Context, stateDir, goalID string, out io.Writer
 	return err
 }
 
-func probeGoalWatchSource(ctx context.Context, runtime connector.Runtime, registry connector.Registry, permissions connector.PermissionSet, credentials auth.Store, source jobs.WatchSource, _ time.Time) string {
-	if source.Operation == "calendar_events" {
+func probeGoalWatchSource(ctx context.Context, runtime connector.Runtime, registry connector.Registry, permissions connector.PermissionSet, credentials auth.Store, source jobs.WatchSource, now time.Time) string {
+	if source.Operation == "calendar_events" && source.CalendarID == "" {
 		return "Calendar change-only watches are unavailable; remove the legacy source and use Calendar tools in a regular selected-account task"
 	}
 	descriptor, found := registry.Get(source.ConnectorID)
@@ -117,6 +117,13 @@ func probeGoalWatchSource(ctx context.Context, runtime connector.Runtime, regist
 		if err := checkWatchRead(registry, permissions, source.ConnectorID, "gmail_get"); err != nil {
 			return "Gmail detail read permission is missing; inspect hot-cross-buns provider connector status " + source.ConnectorID
 		}
+	}
+	if source.Operation == "calendar_events" {
+		_, err := hashCalendarWatch(ctx, runtime, source, now, "UTC")
+		if err != nil {
+			return goalAccessFailure(err, source.ConnectorID)
+		}
+		return "Calendar window reachable; event coverage complete"
 	}
 	var input []byte
 	switch source.Operation {

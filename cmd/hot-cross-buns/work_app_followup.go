@@ -28,6 +28,7 @@ type followupChange struct {
 	IntervalMinutes *int         `json:"interval_minutes,omitempty"`
 	ConnectorIDs    *[]string    `json:"connector_ids,omitempty"`
 	GmailQuery      *string      `json:"gmail_query,omitempty"`
+	CalendarID      *string      `json:"calendar_id,omitempty"`
 	CalendarDays    *int         `json:"calendar_days,omitempty"`
 	Mode            *action.Mode `json:"mode,omitempty"`
 	MaxChecksPerDay *int         `json:"max_checks_per_day,omitempty"`
@@ -149,7 +150,7 @@ func (c hotCrossBunsAppController) prepareFollowup(ctx context.Context, change w
 		return workrun.AppMutation{}, err
 	}
 	if v.Action == "pause" || v.Action == "resume" {
-		if v.Title != nil || v.Outcome != nil || v.AlertWhen != nil || v.EndsAt != nil || v.IntervalMinutes != nil || v.ConnectorIDs != nil || v.GmailQuery != nil || v.CalendarDays != nil || v.Mode != nil || v.MaxChecksPerDay != nil || v.StartLocal && v.Action == "pause" {
+		if v.Title != nil || v.Outcome != nil || v.AlertWhen != nil || v.EndsAt != nil || v.IntervalMinutes != nil || v.ConnectorIDs != nil || v.GmailQuery != nil || v.CalendarDays != nil || v.CalendarID != nil || v.Mode != nil || v.MaxChecksPerDay != nil || v.StartLocal && v.Action == "pause" {
 			return workrun.AppMutation{}, errors.New("pause/resume only changes whether this check is enabled; use edit for agreement changes")
 		}
 		draft.Enabled = v.Action == "resume"
@@ -174,6 +175,9 @@ func (c hotCrossBunsAppController) prepareFollowup(ctx context.Context, change w
 	}
 	if v.GmailQuery != nil {
 		draft.GmailQuery = *v.GmailQuery
+	}
+	if v.CalendarID != nil {
+		draft.CalendarID = *v.CalendarID
 	}
 	if v.CalendarDays != nil {
 		draft.CalendarDays = *v.CalendarDays

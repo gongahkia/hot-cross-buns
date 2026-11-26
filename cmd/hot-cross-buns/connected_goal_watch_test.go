@@ -407,3 +407,53 @@ func TestConnectedGoogleWatchHashesMessageContent(t *testing.T) {
 		t.Fatalf("revoked Gmail read permission did not stop watch: %v", err)
 	}
 }
+
+func TestCalendarWatchStableWithinLocalDayAndDetectsChangedEvents(t *testing.T) {
+	changed, overflow := false, false
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Query().Get("timeMin") != "2030-05-16T00:00:00+08:00" || r.URL.Query().Get("singleEvents") != "true" {
+			t.Errorf("range: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if overflow {
+			fmt.Fprint(w, `{"items":[],"nextPageToken":"same"}`)
+			return
+		}
+		summary := "Meeting"
+		if changed {
+			summary = "Meeting moved"
+		}
+		if r.URL.Query().Get("pageToken") == "next" {
+			fmt.Fprint(w, `{"items":[{"id":"second","summary":"Other"}]}`)
+			return
+		}
+		fmt.Fprintf(w, `{"items":[{"id":"first","summary":%q}],"nextPageToken":"next"}`, summary)
+	}))
+	defer server.Close()
+	registry, _ := connector.NewRegistry([]connector.Descriptor{{Version: connector.DescriptorVersion, ID: "google", Name: "Google", Kind: connector.KindGoogle, Resource: server.URL, Authentication: connector.AuthNone}})
+	runtime := connector.Runtime{Registry: registry, HTTPClient: server.Client()}
+	source := jobs.WatchSource{ConnectorID: "google", Operation: "calendar_events", CalendarID: "primary", Days: 7}
+	now := time.Date(2030, 5, 16, 1, 0, 0, 0, time.UTC)
+	first, err := hashCalendarWatch(context.Background(), runtime, source, now, "Asia/Singapore")
+	if err != nil || len(first) != 2 {
+		t.Fatalf("first: %v %v", first, err)
+	}
+	later, err := hashCalendarWatch(context.Background(), runtime, source, now.Add(time.Hour), "Asia/Singapore")
+	if err != nil || fmt.Sprint(first) != fmt.Sprint(later) {
+		t.Fatalf("unchanged poll: %v %v", later, err)
+	}
+	changed = true
+	later, err = hashCalendarWatch(context.Background(), runtime, source, now, "Asia/Singapore")
+	if err != nil || first[0].SHA256 == later[0].SHA256 {
+		t.Fatalf("changed event hidden: %v", err)
+	}
+	overflow = true
+	if _, err = hashCalendarWatch(context.Background(), runtime, source, now, "Asia/Singapore"); err == nil {
+		t.Fatal("partial Calendar coverage accepted")
+	}
+	if calls > 8 {
+		t.Fatalf("unbounded polling: %d", calls)
+	}
+}

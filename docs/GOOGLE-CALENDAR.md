@@ -34,8 +34,17 @@ The existing action broker, task scopes, credential pins, durable journal and co
 
 Calendar sharing/ACL administration, calendar creation/deletion, recurring-series creation and Google Tasks are not added. An exact instance event ID can be used to change one occurrence; deleting a series event ID affects that series and must be reviewed accordingly.
 
-Older Calendar-specific change-only watches remain unsupported and are not silently reactivated. Calendar tools are available to appropriately selected ordinary tasks, but this change does not establish a complete recurring Calendar-monitoring workflow.
+Older Calendar watches without an explicit calendar ID are not silently reactivated. Select and review the calendar before enabling change detection.
 
 Live Google consent and event changes were not verified against a real account. Controlled HTTP/OAuth tests cover requests, scope publication, failed consent, exact write approval, stale revisions and receipts. See [verification](verification/local-browser-calendar-2026-11-24.md).
 
 The implementation follows Google's [scope guide](https://developers.google.com/workspace/calendar/api/auth), [event listing](https://developers.google.com/workspace/calendar/api/v3/reference/events/list), [free/busy query](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query), [event creation](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert), [patch semantics](https://developers.google.com/workspace/calendar/api/v3/reference/events/patch), [deletion](https://developers.google.com/workspace/calendar/api/v3/reference/events/delete), and [conditional modification](https://developers.google.com/workspace/calendar/api/guides/version-resources) documentation.
+
+## Change detection
+
+Follow-through can watch an explicitly reviewed calendar for the next 1–30 local
+days. The bounded reader expands recurring instances and follows at most five
+pages (500 events); incomplete coverage produces an error, never a quiet result.
+The window stays fixed within a local day. Event fingerprints participate in
+the existing change and notification gates. Old watches without a calendar ID
+remain inactive until the user selects and reviews a calendar.
