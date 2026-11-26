@@ -13,6 +13,7 @@ import { introduction } from './introduction.mjs';
 import { canvasWorkspace } from './canvas.mjs';
 import { fileReferences } from './file-references.mjs';
 import { localBrowser } from './local-browser.mjs';
+import {contextMeter} from './context-meter.mjs';
 import { modelPicker } from './model-picker.mjs';
 import { modelsView } from './models-view.mjs';
 let modelDashboard;
@@ -81,6 +82,7 @@ document.addEventListener('open-local-app', event => browser.open(event.detail.u
 document.addEventListener('local-app-preview-open', () => { filePreviews.close(); canvas.close(); });
 document.addEventListener('local-file-preview-open', () => browser.close());
 document.addEventListener('open-canvas', () => browser.close());
+const contextUsage = contextMeter($("context-meter"));
 const models = modelPicker({select: async (action, state) => {
   if (pending || snapshot.context !== state.context) throw new Error('Resolve the current message before changing models or effort.');
   await flush();
@@ -163,6 +165,7 @@ function button(label, action, className = "quiet") {
   return node;
 }
 function controls() {
+ contextUsage.update(snapshot);
   const state = snapshot.state;
   const enabled = online && snapshot.connection === "connected" && !snapshot.switching && !busy;
   const writing = enabled && draft?.context === snapshot.context && !state?.panel && !state?.external;

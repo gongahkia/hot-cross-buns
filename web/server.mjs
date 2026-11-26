@@ -20,6 +20,7 @@ import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+["/context-meter.mjs",["context-meter.mjs","text/javascript; charset=utf-8"]],
   ["/event-hooks.mjs", ["event-hooks.mjs", "text/javascript; charset=utf-8"]],
   ["/answer-context.mjs", ["answer-context.mjs", "text/javascript; charset=utf-8"]],
   ["/voice.mjs", ["voice.mjs", "text/javascript; charset=utf-8"]],

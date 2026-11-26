@@ -23,7 +23,7 @@ test('main chat carries durable summaries and current editable memories through 
   await waitForSummary(app);
   state=await say(app,live,state.context,'Use the cached background context.');
   request=routed(app).at(-1);context=JSON.parse(request.continuity_context);
-  assert.ok(context.summarized_turns>0&&context.summarized_turns<24);assert.match(context.earlier_conversation_summary,/Fixture answer/);
+  assert.ok(context.summarized_turns>0&&context.summarized_turns<24);assert.equal(state.state.composer.context.last.summarized,true);assert.match(context.earlier_conversation_summary,/Fixture answer/);
   assert.ok(context.current_memories.some(memory=>memory.text==='I prefer quiet interfaces.'));
   assert.equal(request.recent_messages.at(-1).text,"A continuing conversation.");
   const summaryCalls=()=>app.payloads.filter(payload=>payload.messages.some(message=>message.role==='system'&&message.content.includes('factual rolling conversation summary'))).length;
@@ -74,7 +74,7 @@ test('main chat can discuss a completed delegated result after its worker has cl
 async function waitForSummary(app){
  const deadline=Date.now()+15000;
  while(Date.now()<deadline){
-  let db;try{db=new DatabaseSync(app.historyCache,{readOnly:true});if(db.prepare('SELECT count(*) AS count FROM history_nodes WHERE dirty=0').get().count>0)return;}catch(error){if(![5,6].includes(error.errcode))throw error;}finally{db?.close();}
+  let db;try{db=new DatabaseSync(app.historyCache,{readOnly:true});if(db.prepare('SELECT count(*) AS count FROM history_nodes WHERE dirty=0').get().count>0)return;}catch(error){if(![5,6].includes(error.errcode & 255))throw error;}finally{db?.close();}
   await delay(50);
  }
  throw Error('Background summary did not publish');

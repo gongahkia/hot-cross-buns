@@ -112,3 +112,41 @@ mutation, in-run archive/dependency retention, and canonical browser continuity.
 Live recall quality is evaluated separately with the synthetic daily-memory
 corpus. Passing boundary tests establishes mechanisms, not long-term recall
 quality or local-model parity.
+
+## Composer context indicator
+
+A small ring beside the selected model appears during active work or when the
+last prepared input uses at least 75% of its input allowance. Hover, focus or
+click opens model capacity, reserved output and estimated prepared input. The
+ring measures input allowance, with the full model window shown separately.
+
+Native admission publishes numeric metadata after its full-request guard, for
+tool-free conversation and each orchestrator tool turn. It excludes background
+summary/privacy calls and specialist-owned contexts. The existing session
+projection carries updates; the UI makes no inference request to measure usage.
+A private `context-meter.json` stores numbers, model identity and whether prior
+context was summarized; no prompts, tool contents or credentials are retained.
+
+Model capacity shares the inference resolver, including explicit deployment
+limits and read-only allocated Ollama context. Changing models clears the old
+percentage until a request for the new model has been prepared. Changed capacity
+also invalidates older incompatible measurements. Unknown deployments label
+their conservative fallback.
+
+During delegated work, the ring can show the latest active task whose model
+matches the selected orchestrator. It labels that scope and does not add the
+windows of multiple agents. The estimate describes the last prepared request;
+unsent draft text is counted when sent. It is separate from saved memory size
+and provider billing usage.
+
+Regression checks cover complete-input accounting, rejected-request exclusion,
+private-file safety, model/capacity changes, persistence across reopening, and
+hover/click/keyboard interaction. Real-browser verification exercised model
+selection and task telemetry at desktop and 390-pixel widths.
+
+The first full indicator check exposed an extended SQLite BUSY code in an
+existing asynchronous-summary test poll. Its retry now matches SQLite's primary
+BUSY/LOCKED codes, including extended variants; other database errors still fail
+the test. The final full check passed after that correction. UI verification also
+covered native Escape/Tab focus behavior and truncation of long model labels
+while retaining a single composer control row on narrow screens.

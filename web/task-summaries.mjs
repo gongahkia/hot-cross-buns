@@ -22,6 +22,7 @@ export function taskSummaries(host) {
     const status = owner.closed ? 'disconnected' : state.cancelling ? 'stopping' : waiting ? 'waiting' : active ? 'running' : state.queued ? 'queued' : trace?.state || 'idle';
     tasks.push({
       id: state.conversation_id, title: String(state.title || 'Your request').slice(0, 180),
+      context: state.composer?.context,
       current: owner === host.backend, state: status, active: !owner.closed && (active || waiting),
       canOpen: owner === host.backend || host.sessions.canOpen(state.conversation_id),
       parent: state.dialogue_task?.parent_id && (state.dialogue_task.parent_id === host.backend?.state?.conversation_id || host.sessions.canOpen(state.dialogue_task.parent_id)) ? state.dialogue_task.parent_id : undefined,
