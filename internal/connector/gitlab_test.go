@@ -169,3 +169,12 @@ func TestGitLabRejectsBroaderTargetsAndQuickActions(t *testing.T) {
 		}
 	}
 }
+
+func TestGitLabApprovalReceiptDoesNotRequireAllReviewersToHaveApproved(t *testing.T) {
+	if _, err := gitlabEvidence("merge_request_approve", json.RawMessage(`{"id":12,"approved":false,"approved_by":[{"user":{"id":5}}]}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitlabEvidence("merge_request_approve", json.RawMessage(`{"approved":true}`)); err == nil {
+		t.Fatal("approval without a resource identity accepted")
+	}
+}

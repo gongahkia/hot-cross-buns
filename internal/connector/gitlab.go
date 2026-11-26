@@ -336,11 +336,12 @@ func (r Runtime) verifyGitLabAction(ctx context.Context, d Descriptor, p Prepare
 }
 func gitlabEvidence(op string, data json.RawMessage) (ExecutionEvidence, error) {
 	var receipt struct {
-		ID       int64  `json:"id"`
-		State    string `json:"state"`
-		Approved bool   `json:"approved"`
+		ID         int64             `json:"id"`
+		State      string            `json:"state"`
+		Approved   bool              `json:"approved"`
+		ApprovedBy []json.RawMessage `json:"approved_by"`
 	}
-	if json.Unmarshal(data, &receipt) != nil || receipt.ID <= 0 && op != "merge_request_approve" || op == "merge_request_merge" && receipt.State != "merged" || op == "merge_request_approve" && !receipt.Approved {
+	if json.Unmarshal(data, &receipt) != nil || receipt.ID <= 0 || op == "merge_request_merge" && receipt.State != "merged" || op == "merge_request_approve" && !receipt.Approved && len(receipt.ApprovedBy) == 0 {
 		return ExecutionEvidence{}, action.MarkUncertain(errors.New("GitLab did not confirm the action; inspect the target before retrying"))
 	}
 	evidence := ExecutionEvidence{}
