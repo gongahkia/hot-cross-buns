@@ -74,6 +74,12 @@ func TestSummaryQueueCrashLeaseAndConcurrentRefresh(t *testing.T) {
 	if err != nil || !ok || next.Lease == old.Lease {
 		t.Fatal(ok, err)
 	}
+	if err := s.VerifyHistoryMaintenanceClaim(ctx, old, now.Add(121*time.Second)); err == nil {
+		t.Fatal("stale claim remained valid before inference/publication")
+	}
+	if err := s.VerifyHistoryMaintenanceClaim(ctx, next, now.Add(121*time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.FinishHistoryMaintenance(ctx, old, now, false, nil); err == nil {
 		t.Fatal("stale worker completed reclaimed request")
 	}

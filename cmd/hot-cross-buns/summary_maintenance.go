@@ -68,6 +68,9 @@ func runSummaryMaintenance(ctx context.Context, stateDir string) error {
 	defer cancel()
 	var request summaryMaintenanceRequest
 	check := func() error {
+		if err := store.VerifyHistoryMaintenanceClaim(bounded, job, time.Now()); err != nil {
+			return err
+		}
 		if len(job.Payload) > 64*1024 || json.Unmarshal(job.Payload, &request) != nil || request.Input.ConversationID != job.Chat || request.Input.Version != 1 || request.Input.RunOptions.ModelProvider == "" || request.Input.RunOptions.ModelName == "" {
 			return errSummaryScope
 		}

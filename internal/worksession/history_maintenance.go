@@ -107,3 +107,16 @@ func (s Store) FinishHistoryMaintenance(ctx context.Context, job HistoryMaintena
 		return err
 	})
 }
+
+func (s Store) VerifyHistoryMaintenanceClaim(ctx context.Context, job HistoryMaintenance, now time.Time) error {
+	return s.HistoryCache(ctx, func(db *sql.DB) error {
+		var valid int
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM history_maintenance WHERE chat=? AND lease=? AND lease_until>?`, job.Chat, job.Lease, now.UnixNano()).Scan(&valid); err != nil {
+			return err
+		}
+		if valid != 1 {
+			return errors.New("summary maintenance claim expired or changed")
+		}
+		return nil
+	})
+}
