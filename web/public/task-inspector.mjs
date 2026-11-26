@@ -98,7 +98,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
       }
       row.name.textContent = task.engine ? task.engine + ' · ' + task.title : task.title;
       if (task.brand) row.name.prepend(brandIcon(task.brand, 'workflow'));
-      row.status.textContent = (!connected ? 'Updates paused' : labels[task.state] || 'Waiting') + (task.current ? ' · This chat' : ' · In the background');
+      row.status.textContent = (!connected ? 'Updates paused' : labels[task.state] || 'Waiting') + (task.current ? ' · This task' : ' · In the background');
       row.node.dataset.state = !connected ? 'disconnected' : task.state;
       const key = JSON.stringify([task, connected]);
       if (row.key !== key) {
@@ -133,9 +133,9 @@ export function taskInspector({ openChat, description = '', title: headingText =
           const summary = element('details', undefined, 'task-result'); summary.append(element('summary', 'Summary'), element('p', task.summary)); nodes.push(summary);
         }
         const links = element('div', undefined, 'task-links');
-        if (task.canOpen && !task.current) links.append(link('Open chat', task.conversation || task.id));
-        if (task.current && task.state === 'waiting') links.append(link('Return to chat', task.id));
-        if (task.parent) links.append(link('Back to your request', task.parent));
+        if (task.canOpen && !task.current) links.append(link('Task details', task.conversation || task.id));
+        if (task.current && task.state === 'waiting') links.append(link('Review task', task.id));
+        if (task.parent) links.append(link('Your request', task.parent));
         if (links.childNodes.length) nodes.push(links);
         row.body.replaceChildren(...nodes);
       }

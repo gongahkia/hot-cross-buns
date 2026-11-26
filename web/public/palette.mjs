@@ -49,7 +49,7 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
       items = [];
       results.replaceChildren();
       input.removeAttribute("aria-activedescendant");
-      empty.textContent = "Loading chats…";
+      empty.textContent = "Searching history…";
       empty.hidden = false;
       results.setAttribute("aria-busy", "true");
       try {
@@ -69,7 +69,7 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
       footer.textContent = page.notice || "↑ ↓ to move · Enter to open · Esc to close";
     } else items = commands().filter(item => matches(item.label + " " + (item.group || ""))).slice(0, 30);
     results.removeAttribute("aria-busy");
-    empty.textContent = mode === "find" ? "No matches in this chat" : mode === "chats" ? "No matching chats" : "No matching commands";
+    empty.textContent = mode === "find" ? "No matches in this chat" : mode === "chats" ? "No matching history" : "No matching commands";
     results.replaceChildren(...items.map((item, index) => {
       const option = element("button", undefined, "palette-option");
       option.type = "button";
@@ -89,10 +89,10 @@ export function installPalette(commands, chats = async () => ({ items: [] }), fi
     if (!dialog.open) returnFocus = document.activeElement;
     if (mode === "find" && nextMode !== mode) find.close();
     mode = nextMode;
-    const title = mode === "find" ? "Find in this chat" : mode === "chats" ? "Chats" : "Commands";
+    const title = mode === "find" ? "Find in this chat" : mode === "chats" ? "History" : "Commands";
     dialog.setAttribute("aria-label", title);
     label.textContent = title;
-    input.placeholder = mode === "find" ? "Find in this chat…" : mode === "chats" ? "Search chats…" : "Search commands…";
+    input.placeholder = mode === "find" ? "Find in this chat…" : mode === "chats" ? "Search history…" : "Search commands…";
     footer.textContent = "↑ ↓ to move · Enter to open · Esc to close";
     input.value = "";
     render();

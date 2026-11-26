@@ -3,11 +3,11 @@ import { icon } from './icons.mjs';
 
 export function chatMenu({ request, open, rename }) {
   const container = element('div', undefined, 'chat-menu');
-  const search = element('input'); search.type = 'search'; search.placeholder = 'Search chats…'; search.maxLength = 512; search.setAttribute('aria-label', 'Search retained chats');
+  const search = element('input'); search.type = 'search'; search.placeholder = 'Search history…'; search.maxLength = 512; search.setAttribute('aria-label', 'Search retained work');
   const searchHelp = element('p', 'Titles, folders, and indexed work messages. Other dialogue is not indexed.', 'hint chat-search-help'); searchHelp.hidden = true;
   const activitySummary = element('p', '', 'hint chat-activity-summary'); activitySummary.hidden = true; activitySummary.setAttribute('role', 'status');
   const root = element('div', undefined, 'chat-scroll');
-  const list = element('nav'); list.id = 'chat-list'; list.setAttribute('aria-label', 'All chats');
+  const list = element('nav'); list.id = 'chat-list'; list.setAttribute('aria-label', 'Work history');
   const issue = element('p', undefined, 'hint chat-list-issue'); issue.setAttribute('role', 'status'); issue.hidden = true;
   const editor = element('form', undefined, 'chat-rename'); editor.hidden = true;
   root.append(list); container.append(search, searchHelp, activitySummary, root, issue, editor);
@@ -28,10 +28,10 @@ export function chatMenu({ request, open, rename }) {
       const working = ['Working', 'In progress', 'Stopping'].includes(value);
       badge.replaceChildren(icon(working ? 'loader-circle' : ['Needs review', 'Needs attention', 'Needs you', 'Disconnected'].includes(value) ? 'circle-alert' : 'check'));
       badge.dataset.active = String(working); badge.title = value; badge.setAttribute('aria-hidden', 'true');
-      row.setAttribute('aria-label', (items.get(wrapper.dataset.chat)?.title || 'New chat') + ' · ' + value);
+      row.setAttribute('aria-label', (items.get(wrapper.dataset.chat)?.title || 'Retained work') + ' · ' + value);
     }
   }
-  const more = element('button', 'Load more chats', 'quiet'); more.type = 'button';
+  const more = element('button', 'Load more history', 'quiet'); more.type = 'button';
   more.addEventListener('click', () => void load(context, false));
   function edges() {
     root.dataset.top = String(list.scrollTop > 2);
@@ -40,12 +40,12 @@ export function chatMenu({ request, open, rename }) {
     container.dataset.top = root.dataset.top; container.dataset.bottom = root.dataset.bottom;
   }
   function edit(item, ownerContext) {
-    const title = element('input'); title.value = item.title || ''; title.maxLength = 256; title.required = true; title.setAttribute('aria-label', 'Chat title');
+    const title = element('input'); title.value = item.title || ''; title.maxLength = 256; title.required = true; title.setAttribute('aria-label', 'Title');
     const save = element('button', 'Save', 'quiet'); save.type = 'submit';
     const cancel = element('button', 'Cancel', 'quiet'); cancel.type = 'button';
     const close = () => { editor.hidden = true; editor.replaceChildren(); };
     cancel.addEventListener('click', close);
-    editor.replaceChildren(element('label', 'Rename chat'), title, save, cancel); editor.hidden = false; title.focus(); title.select();
+    editor.replaceChildren(element('label', 'Rename record'), title, save, cancel); editor.hidden = false; title.focus(); title.select();
     editor.onsubmit = async event => {
       event.preventDefault(); if (!title.reportValidity()) return;
       save.disabled = true; cancel.disabled = true; issue.hidden = true;
@@ -59,13 +59,13 @@ export function chatMenu({ request, open, rename }) {
   }
   function render() {
     const position = list.scrollTop, ownerContext = context;
-    const visible=[...items.values()].filter(item=>query || item.id!==primary);
+    const visible=[...items.values()].filter(item=>item.id!==primary);
     list.replaceChildren(...visible.map(item => {
       const wrapper = element('div', undefined, 'chat-item');
       wrapper.dataset.chat = item.id;
       const row = element('button', undefined, 'quiet chat-row'); row.type = 'button';
       if (item.pinned) row.append(icon('bookmark'));
-      const text = element('span'); text.append(element('span', item.title || 'New chat', 'chat-title'));
+      const text = element('span'); text.append(element('span', item.title || 'Retained work', 'chat-title'));
       if (query && item.snippet) text.append(element('small', item.snippet, 'chat-snippet hint'));
       row.append(text);
       if (item.archived) row.append(element('small', 'Archived', 'hint'));
@@ -79,12 +79,12 @@ export function chatMenu({ request, open, rename }) {
       wrapper.append(row);
       if (rename) {
         const change = element('button', undefined, 'quiet icon-button rename-chat'); change.type = 'button'; change.append(icon('pencil'));
-        change.setAttribute('aria-label', 'Rename ' + (item.title || 'New chat')); change.title = 'Rename chat';
+        change.setAttribute('aria-label', 'Rename ' + (item.title || 'Retained work')); change.title = 'Rename record';
         change.addEventListener('click', () => edit(item, ownerContext)); wrapper.append(change);
       }
       return wrapper;
     }));
-    if (!visible.length) list.append(element('p', query ? 'No matching chats.' : 'No other chats yet.', 'hint'));
+    if (!visible.length) list.append(element('p', query ? 'No matching history.' : 'No earlier work yet.', 'hint'));
     if (next) list.append(more);
     list.scrollTop = position; edges(); activityState();
   }
@@ -99,7 +99,7 @@ export function chatMenu({ request, open, rename }) {
       if (owned !== generation) return;
       for (const item of page.items) items.set(item.id, item);
       next = page.next || ''; render();
-      if (page.incomplete || page.skipped) { issue.textContent = 'Some retained chats could not be read. Refresh to retry.'; issue.hidden = false; }
+      if (page.incomplete || page.skipped) { issue.textContent = 'Some history could not be read. Refresh to retry.'; issue.hidden = false; }
     } catch (error) {
       if (owned === generation) { issue.textContent = error.message; issue.hidden = false; }
     } finally {

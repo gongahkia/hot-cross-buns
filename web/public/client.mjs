@@ -50,11 +50,11 @@ const previewCache = new Map();
 const correctionBar = element('div', undefined, 'correction-context'); correctionBar.hidden = true;
 document.querySelector('#composer').prepend(correctionBar);
 const draftTextKey = value => ':text:' + value?.context + (value?.correction ? ':correction:' + value.correction.id : '');
+const taskReplyBar=element('div',undefined,'composer-quote');taskReplyBar.hidden=true;document.querySelector('#composer').prepend(taskReplyBar);
 const quoteCard=element('div',undefined,'composer-quote');quoteCard.hidden=true;document.querySelector('#composer').prepend(quoteCard);
 const interaction= responseInteractions({transcript:$('transcript'),
  reply:ref=>respondTo(ref,'reply'), quote:(ref,text)=>respondTo(ref,'quote',text),
  react:async(ref,emoji)=>{if(pending)throw new Error('Resolve the pending message before reacting.');await flush();await call({op:'reaction',context:ref.context,id:ref.id,digest:ref.digest,emoji,requestId:crypto.randomUUID()});},
- fork:ref=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before forking.');await flush();await call({op:'response',action:'fork',context:ref.context,id:ref.id,digest:ref.digest,requestId:ref.requestId ||= crypto.randomUUID()});}),
 });
 async function respondTo(ref,action,text){
   let focusContext;
@@ -99,13 +99,13 @@ const progress = composerProgress();
 document.querySelector('.composer-wrap').prepend(progress.element);
 const inspector = taskInspector({ iconName: 'helpers', visibleWhen: tasks=>tasks.some(task=>task.active), openChat: async id => {
   await flush();
-  if (id !== snapshot.state?.conversation_id) await call({ op: 'open-work', id });
+  await showTaskDetails(id);
 } });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
 const agents = taskInspector({ id: 'agent-inspector', title: 'Agents', iconName: 'bot',
   visibleWhen: tasks => tasks.filter(task=>task.active).length >= 2,
-  openChat: async id => { await flush(); if (id !== snapshot.state?.conversation_id) await call({ op: 'open-work', id }); },
+  openChat: async id => { await flush(); await showTaskDetails(id); },
 });
 document.querySelector('.top-actions').append(agents.trigger);
 document.body.append(agents.element);
@@ -199,7 +199,6 @@ function controls() {
   if (modelDashboard?.element.isConnected) modelDashboard.update();
   for (const node of document.querySelectorAll(".attachment-remove")) node.disabled = !writing || waiting;
   for (const node of document.querySelectorAll(".attachment-open")) node.disabled = !enabled;
-  $("new-chat").disabled = !enabled;
   for (const node of document.querySelectorAll("[data-route], #chat-list button")) node.disabled = !enabled;
   renderCorrection(correction);
 }
@@ -249,6 +248,8 @@ async function call(data, binary = false) {
 
 function showDraft(value) {
   draft = value;
+  taskReplyBar.replaceChildren();taskReplyBar.hidden=!value?.reply_to_task_id;
+  if(value?.reply_to_task_id){const close=button('',()=>void execute(async()=>{if(pending)throw Error('Wait for this message to be confirmed.');await flush();const next=await call({op:'clear-task-reply',context:value.context});if(next.context===snapshot.context)showDraft(next)}),'quiet icon-button');close.append(icon('x'));close.setAttribute('aria-label','Clear task reply');taskReplyBar.append(icon('reply'),button('Replying about this task',()=>void execute(()=>showTaskDetails(value.reply_to_task_id))),close)}
   quoteCard.replaceChildren();quoteCard.hidden=!value?.response_quote;
   if(value?.response_quote){
     const text=element('div');
@@ -327,7 +328,7 @@ function acceptMessage(id) {
   remember(":pending", null);
   remember(draftTextKey({ context, ...(correction ? { correction: { id: correction } } : {}) }), null);
   if (correction) { remember(':correction:' + context, null); void loadDraft(); }
-  else if (draft?.context === context) showDraft({ ...draft, text: "", uploads: [], response_quote: undefined });
+  else if (draft?.context === context) showDraft({ ...draft, text: "", uploads: [], response_quote: undefined, reply_to_task_id: undefined });
 }
 pending = restore(":pending");
 
@@ -343,7 +344,7 @@ async function submitMessage() {
       throw new Error("A message in another conversation is unconfirmed. Return there to review it.");
     }
     if (!pending && draft.response_quote) await call({op:'response',action:'validate',context:draft.context});
-    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(draft.correction ? { correction: draft.correction.id } : {}), ...(draft.response_quote ? {response_quote:draft.response_quote} : {}) };
+    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(draft.correction ? { correction: draft.correction.id } : {}), ...(draft.reply_to_task_id?{reply_to_task_id:draft.reply_to_task_id}:{}), ...(draft.response_quote ? {response_quote:draft.response_quote} : {}) };
     if (!next.text.trim() && !next.files.length) return;
     pending = next;
     remember(":pending", pending);
@@ -486,14 +487,11 @@ async function navigate(route) {
   await call({ op: "navigate", route });
 }
 async function backendRoute(route) { await flush(); showHistory(false); await call({ op: 'navigate', route }); }
-$("new-chat").addEventListener("click", () => void execute(() => navigate("/new")));
 for (const node of document.querySelectorAll("[data-route]")) node.addEventListener("click", () => void execute(() => navigate(node.dataset.route)));
 
 function renderHistory(state) {
   chats.updateCurrent(state.conversation_id, state.primary_conversation_id);
-  $('main-chat').classList.toggle('picked', !!state.primary);
-  if (state.primary) $('main-chat').setAttribute('aria-current', 'page');
-  else $('main-chat').removeAttribute('aria-current');
+  $('assistant-home').hidden = !!state.primary || !state.conversation_id;
   const key = JSON.stringify([snapshot.context, state.recentId]);
   if (key !== historyKey && $('history').matches(':popover-open')) void chats.load(snapshot.context);
   historyKey = key;
@@ -515,19 +513,33 @@ function openDetail(title, ...nodes) {
   panelMode = false;
   showDetail(title, ...nodes);
 }
+async function replyToTask(id, context) {
+  let focusContext;
+  await execute(async () => {
+    if (pending) throw Error('Wait for this message to be confirmed.');
+    await flush();
+    const next = await call({ op: 'task-reply', context, id });
+    dialog.close();
+    if (next.context === snapshot.context) showDraft(next); else await loadDraft();
+    focusContext = next.context;
+  });
+  if (focusContext === snapshot.context && !input.disabled) input.focus();
+}
 async function showTaskDetails(id = snapshot.state?.conversation_id) {
   const context = snapshot.context;
   if (snapshot.state?.panel) await call({ op: 'navigate', context, route: '/chat' });
   const view = taskDetailView({ id, request: body => call({ context, ...body }),
     openChat: owner => void execute(async () => { await flush(); await call({ op: 'open-work', context, id: owner }); dialog.close(); }),
-    reviewPlans: () => { dialog.close(); $('active-work').scrollIntoView({ block: 'center' }); },
+    decorateFiles:(node,run)=>filePreviews.decorate(node,run),
+    reply: owner => void replyToTask(owner, context),
+    reviewPlans: () => void execute(async()=>{if(id!==snapshot.state?.conversation_id)await call({op:'open-work',context,id});dialog.close();$('active-work').scrollIntoView({block:'center'});}),
     profileRecovery: () => void execute(() => backendRoute('/recovery')),
   });
-  openDetail('Task recovery', view.element); await view.load();
+  openDetail('Task details', view.element); await view.load();
 }
 dialog.addEventListener("cancel", event => { event.preventDefault(); $("close-detail").click(); });
 $("close-detail").addEventListener("click", () => {
-  if (panelMode) void execute(() => navigate("/chat"));
+  if (panelMode) void execute(() => navigate("/hot-cross-buns"));
   else dialog.close();
 });
 function frame(value, context = snapshot.context) { return call({ op: "frame", frame: value, context }); }
@@ -868,14 +880,17 @@ function renderTranscript(state) {
         request.append(files);
       }
       nodes.push(request);
-      if (value.response && !reaction) { const answer = turn(value.response, false, "Hot Cross Buns"); answer.dataset.messageId = 'dialogue:' + value.id + ':response'; decorate(answer); nodes.push(answer); }
+      if (value.response && !reaction && !(value.task_chat && value.response.startsWith("I’ve started that as independent work")) && !(value.task_chat && value.response.startsWith("I've started that as independent work"))) { const answer = turn(value.response, false, "Hot Cross Buns"); answer.dataset.messageId = 'dialogue:' + value.id + ':response'; decorate(answer); nodes.push(answer); }
       if (value.issue) nodes.push(element("p", value.issue, "hint"));
       if (value.task_chat) {
         const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat);
-        if (peer?.summary) { const result = turn(peer.summary, false, "Task result"); result.dataset.fileRun = peer.run_id || ""; nodes.push(result); }
-        nodes.push(button("Open task", () => void execute(async () => {
-          await flush(); await call({ op: "open-work", context, id: value.task_chat });
-        })));
+        const status=({running:'Working on it',queued:'Queued',review:'Needs you',completed:'Done',failed:'Needs attention',interrupted:'Interrupted'}[peer?.state]||'Task details');
+        const card=element('article',undefined,'turn assistant-task');card.setAttribute('aria-label','Task update');
+        const details = button(status, () => void execute(async () => { await flush(); await showTaskDetails(value.task_chat); }));
+        details.append(icon('chevron-right')); details.setAttribute('aria-label', status + ' · Task details');
+        card.append(details);
+        if (peer?.summary) { const result = element('div', undefined, 'response-content'); result.append(prose(peer.summary)); filePreviews.decorate(result, peer.run_id); card.append(result); }
+        nodes.push(card);
       }
       continue;
     }
@@ -1008,8 +1023,10 @@ events.onmessage = ({ data }) => {
     if (!receipt.error) acceptMessage(receipt.request_id);
     else { pending = undefined; remember(":pending", null); issue = receipt.error; }
   }
-  $("title").textContent = state.title && state.title !== "Hot Cross Buns" ? state.title : "New chat";
-  document.title = state.conversation_id ? $("title").textContent + " · Hot Cross Buns" : "Hot Cross Buns";
+  $("title").textContent = state.primary ? "Hot Cross Buns" : state.title && !["Hot Cross Buns","New chat"].includes(state.title) ? state.title : "Task details";
+  input.placeholder = state.primary ? "Message Hot Cross Buns…" : "Reply about this task…";
+  $('title').classList.toggle('sr-only',!!state.primary);
+  document.title = !state.primary && state.conversation_id ? $("title").textContent + " · Hot Cross Buns" : "Hot Cross Buns";
   reviews.observe(JSON.stringify([snapshot.context, snapshot.connection, state.running, state.working, state.dialogue?.length, state.messages?.length, (snapshot.tasks || []).map(task => [task.id, task.state])]));
   renderHistory(state);
   renderProgress();
@@ -1026,11 +1043,11 @@ events.onmessage = ({ data }) => {
 
 export function paletteCommands() {
   const commands = [
-    { label: "New chat", action: () => $("new-chat").click() },
-    { label: 'All chats', action: () => showHistory(true) },
+    { label: "Hot Cross Buns", action: () => void execute(() => navigate("/hot-cross-buns")) },
+    { label: 'History', action: () => showHistory(true) },
     { label: 'Find in this chat', action: find.open },
     { label: 'Jump to latest', action: reading.latest },
-    { label: 'Task recovery', action: () => void execute(() => showTaskDetails()) },
+    { label: 'Task details', action: () => void execute(() => showTaskDetails()) },
     { label: 'Delegated work', action: inspector.open },
     { label: 'Agents', action: agents.open },
     { label: 'Review queue', action: reviews.open },
@@ -1049,13 +1066,13 @@ export function paletteCommands() {
 export async function paletteChats(query) {
   const context = snapshot.context;
   const page = await call({ op: 'chats', context, query });
-  if (context !== snapshot.context) throw new Error('The conversation changed. Reopen Chats to refresh.');
+  if (context !== snapshot.context) throw new Error('The conversation changed. Reopen History to refresh.');
   return {
-    items: page.items.map(item => ({ label: item.title || 'New chat', group: 'Chat', action: () => void execute(async () => {
+    items: page.items.filter(item=>item.id!==snapshot.state?.primary_conversation_id).map(item => ({ label: item.title || 'Retained work', group: 'History', action: () => void execute(async () => {
       await flush();
       await call({ op: 'open-chat', context, selection: item.selection });
     }) })),
-    notice: page.incomplete || page.skipped ? 'Some retained chats could not be read. Reopen Chats to retry.' :
-      page.next || page.items.length > 30 ? 'Showing the first 30 chats. Type to search, or use All chats for more.' : '',
+    notice: page.incomplete || page.skipped ? 'Some retained chats could not be read. Reopen History to retry.' :
+      page.next || page.items.length > 30 ? 'Showing the first 30 results. Type to search, or open History for more.' : '',
   };
 }

@@ -1,4 +1,5 @@
-import { element } from './text.mjs';
+import { activityView } from './activity.mjs';
+import { element, prose } from './text.mjs';
 import { icon } from './icons.mjs';
 
 function disclosure(title, values) {
@@ -10,13 +11,13 @@ function disclosure(title, values) {
 function button(label, glyph, run) {
   const node = element('button', undefined, 'quiet'); node.type = 'button'; node.append(icon(glyph), element('span', label)); node.addEventListener('click', run); return node;
 }
-export function taskDetailView({ request, id, openChat, reviewPlans, profileRecovery }) {
+export function taskDetailView({ request, id, openChat, reply, decorateFiles, reviewPlans, profileRecovery }) {
   const root = element('section', undefined, 'task-detail-view');
   const body = element('div'), tools = element('div', undefined, 'view-tools');
   const issue = element('p', '', 'hint'); issue.hidden = true; issue.setAttribute('role', 'status');
   let pending = false, generation = 0;
   const refresh = button('Refresh', 'refresh-cw', () => void load()); tools.append(refresh);
-  root.append(element('p', 'What happened, what is still uncertain, and what needs your attention. Inspecting does not run or retry work.', 'hint'), tools, issue, body);
+  root.append(tools, issue, body);
   if (profileRecovery) {
     const more = element('details', undefined, 'task-evidence');
     more.append(element('summary', 'More recovery options'), button('Setup & data recovery', 'settings', profileRecovery)); root.append(more);
@@ -76,8 +77,16 @@ export function taskDetailView({ request, id, openChat, reviewPlans, profileReco
   function render(value) {
     const nodes = [element('h3', value.title), element('p', value.state, 'hint')];
     if (!value.connected) nodes.push(element('p', 'The owner is disconnected. This retained snapshot may be out of date.', 'hint'));
-    if (!value.current) nodes.push(element('p', 'Work stays in its original chat. Open that chat and refresh these details before choosing controls.', 'hint'), button('Open owning chat', 'chevron-right', () => openChat(value.id)));
+    if (!value.current) nodes.push(button('Open task', 'chevron-right', () => openChat(value.id)));
     if (value.summary) { const summary = element('details'); summary.append(element('summary', 'Summary'), element('p', value.summary)); nodes.push(summary); }
+    if(value.canReply && reply)nodes.push(button('Reply in HCB','reply',()=>reply(value.id)));
+    if(value.history?.length){const history=element('details',undefined,'task-history');history.append(element('summary','Work history'));for(const message of value.history){const row=element('section');row.append(element('h3',message.role==='You'?'Your request':'Hot Cross Buns'),prose(message.text));decorateFiles?.(row,message.run);history.append(row)}nodes.push(history)}
+    if(value.artifacts?.length){const files=element('section');files.append(element('h3','Files'));for(const file of value.artifacts){const row=element('p',file.name);decorateFiles?.(row,file.run);files.append(row)}nodes.push(files)}
+    if (value.activity?.entries?.length) {
+      const view = activityView('task-inspection:' + value.id, { remember: false, autoExpand: false });
+      view.update({ ...value.activity, entries: value.activity.entries.map(step => ({ ...step, kind: step.tool ? 'tool' : 'status' })) }, { active: value.activity.active, waiting: value.activity.state === 'waiting', disconnected: !value.connected });
+      nodes.push(view.element);
+    }
     nodes.push(disclosure('Task identity & ownership', value.identity));
     for (const notice of value.notices || []) nodes.push(element('p', notice, 'hint'));
     for (const record of value.records || []) {
@@ -97,10 +106,10 @@ export function taskDetailView({ request, id, openChat, reviewPlans, profileReco
       } else row.append(element('p', 'This evidence has no eligible exact identity for an external check.', 'hint'));
       nodes.push(row);
     }
-    if (value.plans?.length) nodes.push(button('Review task plans in chat', 'list-checks', reviewPlans));
+    if (value.plans?.length) nodes.push(button('Review task plan', 'list-checks', reviewPlans));
     const capabilities = Object.entries(value.controls || {}).filter(([, allowed]) => allowed).map(([name]) => name);
-    if (capabilities.length) nodes.push(element('p', 'Available in the owning chat: ' + capabilities.join(', ') + '.', 'hint'));
-    if (!value.records?.length && !value.receipts?.length) nodes.push(element('p', 'No interrupted work or uncertain external actions are reported for this chat.', 'hint'));
+    if (capabilities.length) nodes.push(element('p', 'Available in this task: ' + capabilities.join(', ') + '.', 'hint'));
+    if (!value.history?.length && !value.activity?.entries?.length && !value.records?.length && !value.receipts?.length) nodes.push(element('p', 'No interrupted work or uncertain external actions are reported for this task.', 'hint'));
     body.replaceChildren(...nodes);
   }
   async function load() {

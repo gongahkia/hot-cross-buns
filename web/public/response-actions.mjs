@@ -17,7 +17,7 @@ function actionButton(label, name, action) {
   const button = element('button',undefined,'quiet icon-button');button.type='button';button.title=label;button.setAttribute('aria-label',label);button.append(icon(name));
   button.addEventListener('click',()=>void action());return button;
 }
-export function responseInteractions({transcript, reply, quote, fork, react = async () => {}, storage}) {
+export function responseInteractions({transcript, reply, quote, react = async () => {}, storage}) {
   let selected, target, focusReturn, records=[], menuOpen=false;
   try { storage??=window.localStorage; const saved=JSON.parse(storage.getItem(storageKey));if(Array.isArray(saved))records=saved.filter(item=>typeof item.key==='string'&&item.key.length<=1024&&emojis.some(([emoji])=>emoji===item.emoji)).slice(-256); }catch{}
   const reactionKey=ref=>ref.conversation+':'+ref.id+':'+ref.digest;
@@ -66,7 +66,6 @@ export function responseInteractions({transcript, reply, quote, fork, react = as
     decorate(article,ref){
       article.dataset.responseId=ref.id;references.set(article,ref);
       const tools=article.querySelector('.response-tools');if(!tools)return;
-      if(ref.can_fork)tools.append(actionButton('Fork from this response','git-fork',()=>fork(ref)));
       tools.append(actionButton('Reply to this response','reply',()=>reply(ref)));
       const react=actionButton('React to this response','smile',()=>openMenu(article,ref,react.getBoundingClientRect(),react));tools.append(react);paint(article,ref);
       article.addEventListener('contextmenu',event=>{if(event.shiftKey||event.target.closest('a,button,input,textarea,select'))return;event.preventDefault();selected=selection()||undefined;selectionButton.hidePopover?.();openMenu(article,ref,{left:event.clientX,bottom:event.clientY},react);});

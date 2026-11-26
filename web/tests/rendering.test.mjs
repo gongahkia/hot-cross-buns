@@ -301,8 +301,8 @@ test("command and chat shortcuts stay scoped, switch modes, and reject stale sea
   assert.equal(document.activeElement, document.getElementById('message'));
   for (const modifier of ['ctrlKey', 'metaKey']) {
     assert.equal(key('p', { [modifier]: true }).defaultPrevented, true); await tick();
-    assert.equal(dialog.getAttribute('aria-label'), 'Chats');
-    assert.equal(input.placeholder, 'Search chats…');
+    assert.equal(dialog.getAttribute('aria-label'), 'History');
+    assert.equal(input.placeholder, 'Search history…');
     assert.match(document.getElementById('command-results').textContent, /Project notes/);
     assert.doesNotMatch(document.getElementById('command-results').textContent, /Models|sunshine/);
     input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }));
@@ -561,7 +561,7 @@ test("Memory groups topics and keeps an unsuccessful correction available for ed
   assert.equal(requests.at(-1).revision, 'original');
 });
 
-test('the chat list keeps main navigation separate while allowing main history in search', async () => {
+test('work history excludes the HCB home in both browsing and search', async () => {
   const menu=chatMenu({request:async()=>({items:[{id:'main',title:'Main notes',selection:'main-selection'},{id:'side',title:'A side chat',selection:'side-selection'}]}),open(){}});
   document.body.replaceChildren(menu.element);
   menu.updateCurrent('side','main');await menu.load('owner');
@@ -569,7 +569,7 @@ test('the chat list keeps main navigation separate while allowing main history i
   assert.equal(menu.element.querySelector('[aria-current="page"]').textContent,'A side chat');
   const search=menu.element.querySelector('input');search.value='notes';search.dispatchEvent(new window.Event('input'));
   await new Promise(resolve=>setTimeout(resolve,200));
-  assert.ok(menu.element.querySelector('[data-chat="main"]'));
+  assert.equal(menu.element.querySelector('[data-chat="main"]'), null);
 });
 
 test('the chat menu pages inside its own scroll area and opens only returned selections', async () => {
@@ -933,7 +933,7 @@ test('usage dashboard renders real series, provider logos, empty states and unca
 });
 
 
-test('response actions quote only model text, persist local emoji and expose reply and fork controls', async () => {
+test('response actions quote only model text, persist local emoji and keep replies in one assistant', async () => {
   const proto=window.HTMLElement.prototype;
   const oldShow=proto.showPopover, oldHide=proto.hidePopover;
   proto.showPopover=function(){this.dataset.open='true';};proto.hidePopover=function(){delete this.dataset.open;};
@@ -942,7 +942,7 @@ test('response actions quote only model text, persist local emoji and expose rep
   const calls=[],ref={id:'dialogue:one:response',digest:'a'.repeat(64),context:'conversation:one',conversation:'one',can_fork:true};
   const create=()=>responseInteractions({transcript,storage,react:async(r,emoji)=>calls.push(['reaction',r.id,emoji]),reply:r=>calls.push(['reply',r.id]),quote:(r,text)=>calls.push(['quote',text]),fork:r=>calls.push(['fork',r.id])});
   const view=create(),article=turn('Hello **world**.',false,'Hot Cross Buns');transcript.append(article);view.decorate(article,ref);
-  article.querySelector('[aria-label="Reply to this response"]').click();article.querySelector('[aria-label="Fork from this response"]').click();assert.equal(calls.length,2);
+  article.querySelector('[aria-label="Reply to this response"]').click();assert.equal(article.querySelector('[aria-label="Fork from this response"]'),null);assert.equal(calls.length,1);
   article.dispatchEvent(new window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:20,clientY:20}));
   document.querySelector('[aria-label="React with heart"]').click();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(article.querySelector('.user-reaction').textContent,'❤️');assert.equal(data.size,1);assert.deepEqual(calls.at(-1),['reaction',ref.id,'❤️']);assert.doesNotMatch(document.querySelector('.response-menu').textContent,/Reactions stay in this browser/);assert.equal(document.querySelector('[aria-label="React with heart"]').dataset.tooltip,'Heart');
   const source=article.querySelector('.response-content p').firstChild,range=document.createRange();range.setStart(source,0);range.setEnd(source,5);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);transcript.dispatchEvent(new window.Event('pointerup'));
@@ -1098,4 +1098,16 @@ test('specialist models expose a real select and exact Save review while CLI log
  [...view.element.querySelectorAll('button')].find(node=>node.textContent==='Save assignment').click();await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(calls[1].action,'specialist_save');assert.equal(calls[1].reviewId,'a'.repeat(48));
  [...view.element.querySelectorAll('[role=tab]')].find(node=>node.textContent==='CLI agents').click();assert.equal(view.element.querySelector('select'),null);assert.match(view.element.textContent,/Local Codex ChatGPT login/);view.element.remove();
+});
+
+test('task inspection shows retained results and live activity with an explicit reply action', async () => {
+  const replies = [], opened = [], decorated = [];
+  const view = taskDetailView({ id: 'task-a', openChat: id => opened.push(id), reply: id => replies.push(id), decorateFiles: (node, run) => decorated.push(run), request: async () => ({ id: 'task-a', current: false, connected: true, title: 'Inspect the notes', state: 'In progress', canReply: true, history: [{ role: 'Hot Cross Buns', text: '**Result** in project.md', run: 'run-a' }], artifacts: [{ name: 'project.md', run: 'run-a' }], activity: { state: 'running', active: true, entries: [{ id: 'read', tool: 'read_file', state: 'running' }] } }) });
+  document.body.replaceChildren(view.element); await view.load();
+  assert.equal(view.element.querySelector('.task-history strong').textContent, 'Result');
+  assert.equal(view.element.querySelector('.activity-group').dataset.state, 'running');
+  assert.deepEqual(decorated, ['run-a', 'run-a']);
+  assert.deepEqual(opened, []);
+  [...view.element.querySelectorAll('button')].find(node => node.textContent === 'Reply in HCB').click();
+  assert.deepEqual(replies, ['task-a']); assert.deepEqual(opened, []);
 });
