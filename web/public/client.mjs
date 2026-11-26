@@ -19,6 +19,7 @@ let modelDashboard;
 import { chatMenu } from './chats.mjs';
 import { settingsView } from './views.mjs';
 import { localModelsView } from './local-models.mjs';
+import { eventEndpoint } from './event-hooks.mjs';
 import { panelField } from './fields.mjs';
 import { transcriptFind } from './find.mjs';
 import { readingPosition } from './reading.mjs';
@@ -110,6 +111,7 @@ document.querySelector('.top-actions').append(agents.trigger);
 document.body.append(agents.element);
 const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...body }),
   description: 'Things I’ll check or remind you about later.',
+  events: task => void execute(async () => {const context=snapshot.context;const pane=eventEndpoint({id:task.id,request:body=>call({op:'event-hooks',context,...body})});openDetail('Event endpoint',pane.element);await pane.load();}),
   manage: () => execute(() => backendRoute('/followup')), goals: () => execute(() => backendRoute('/goals')) });
 document.querySelector('.top-actions').prepend(scheduled.trigger);
 document.body.append(scheduled.element);

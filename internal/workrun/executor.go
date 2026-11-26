@@ -425,6 +425,20 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		surface = append(surface, (tools.PersonalKnowledge{Notes: knowledgeStore, Memories: memoryStore, GoalID: request.GoalID, ExcludedIDs: request.ExcludedKnowledgeIDs}).Tools()...)
 	}
 	var routineEffects []string
+	if request.ScheduledRoutine != nil {
+		if request.ForegroundApp || request.ScheduledJobID == "" {
+			return outcome, errors.New("scheduled routine requires an unattended job identity")
+		}
+		skill, procedure, err := ResolveScheduledRoutine(knowledgeStore, *request.ScheduledRoutine, request.Mode)
+		if err != nil {
+			return outcome, err
+		}
+		if err := request.Budget.RestrictRemaining(skill.Routine.MaxRequests, skill.Routine.MaxTokens); err != nil {
+			return outcome, err
+		}
+		routineEffects = append([]string(nil), skill.Routine.Effects...)
+		request.System += scheduledRoutineContext(*request.ScheduledRoutine, procedure)
+	}
 	var routineCoordinator *orchestrator.Supervisor
 	if request.ForegroundApp && len(skills) > 0 {
 		previousSupervisor := request.OnSupervisor
@@ -512,7 +526,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	actions := make([]action.Record, 0, 4)
 	connectorPolicy := tools.ConnectorPolicy{
 		Mode: request.Mode, ExternalActions: request.Contract.ExternalActions, Approve: request.ApproveAction, ApproveRead: request.ApproveConnectorRead,
-		Permissions: request.ConnectorPermissions,
+		Permissions: scheduledConnectorPermissions(e.Connectors.Registry, request),
 		OnFailure: func(id, operation string, err error) {
 			var access connector.AccessError
 			var status connector.HTTPStatusError
@@ -1349,7 +1363,7 @@ func (e Executor) normalizeAndValidate(request Request) (Request, error) {
 	}
 	if _, err := tools.ConnectorTools(e.Connectors, request.ConnectorIDs, tools.ConnectorPolicy{
 		Mode: request.Mode, ExternalActions: request.Contract.ExternalActions, Approve: request.ApproveAction, ApproveRead: request.ApproveConnectorRead,
-		Permissions: request.ConnectorPermissions,
+		Permissions: scheduledConnectorPermissions(e.Connectors.Registry, request),
 	}); err != nil {
 		return Request{}, fmt.Errorf("select work connectors: %w", err)
 	}

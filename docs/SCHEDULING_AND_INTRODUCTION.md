@@ -27,6 +27,46 @@ by the following midnight in that task's timezone. Bounds are enforced by due
 selection, catch-up, occurrence previews and slot claiming; they are not merely
 instructions in a model prompt. Editing a boundary invalidates stale reviews.
 
+Chat-created schedules can explicitly bind selected connections and exact
+`read_operations`, inspect/draft mode, per-run request/token/time limits and an
+enabled parameterized routine's exact revision. These access changes always
+receive a fresh review even with Always scheduling. Account/descriptor changes,
+revocation and disabled/changed/stale-source routines invalidate continued use.
+Routine execution narrows the ordinary task's effects and budgets; it grants no
+additional tools. Scheduled drafts stay staged for foreground review. Notification
+conditions use the existing evidence-checked quiet/attention decision; creating
+an artifact or proposal cannot be silently classified as quiet.
+
+## Event-triggered work
+
+An event task uses `trigger: {types: [...], match: {field: "exact value"}}` instead
+of a timer. Matching is deliberately narrow: declared event types and exact
+top-level string fields. In Scheduled tasks choose **Event endpoint**, review
+the task, and enable its signed endpoint. The signing key is shown once in a
+password field for copying; rotate or disable it there. Keys never enter agent
+tool results, URLs, SSE or task arguments. This remains a desktop integration;
+the server binds loopback, and remote services require an intentionally configured
+forwarding route. No router port or public server is created automatically.
+
+Send JSON `{type, data}` with headers `X-HCB-Timestamp` (Unix seconds),
+`X-HCB-Event-ID` (unique delivery identity) and `X-HCB-Signature`: hex HMAC-SHA256
+using the key over `timestamp + "." + eventID + "." + exactRequestBytes`.
+Timestamps must be within five minutes. The endpoint rechecks the exact reviewed
+task policy, enabled/end state and filters before accepting data. Editing its
+policy requires reviewing the endpoint again. The existing supervisor admits
+queued work on its next tick; it batches up to eight events with at most one
+claimed batch per task per minute. Execution retains the normal limits and
+read/draft permissions, and data is explicitly untrusted model context.
+
+Delivery identities survive restart and interrupted attempts retain their input
+in the durable intent. They are not silently replayed as new work. Replay
+identities are kept for thirty days, bounded to 4096 deliveries and 64 pending
+inputs per task; exhausted capacity rejects new input. Claimed payloads remain
+in immutable attempt history while their queue copy is reduced to metadata.
+Pausing/ending a task rejects new input. Disabling an endpoint stops new admission;
+already accepted work remains subject to the saved task state and permissions.
+Neither a queued input nor a completed run establishes successful external delivery.
+
 The normal `web/main.mjs` entry point starts the Go job supervisor while the server is open. A separately installed, already-running supervisor keeps ownership; the browser does not terminate that external service. The browser stops only a supervisor process it started. Closing a browser tab alone does not close the server.
 
 The supervisor checks due work on startup and every 15 seconds. It also retains availability gaps, scheduled times, immutable attempt records and notification delivery state. New in-app tasks use `run_once` catch-up. Existing tasks retain their reviewed missed-run policy; the timing editor can change that policy explicitly.

@@ -139,6 +139,17 @@ func ReadChecks(stateDir string, supervisor bool, now time.Time) ([]Check, error
 			} else if ready {
 				check.NextDue, check.DueNow = due, true
 			}
+			if definition.Trigger != nil {
+				at, ready, err := store.EventDue(definition, now)
+				if err != nil {
+					return nil, err
+				}
+				if ready {
+					check.NextDue, check.DueNow = at, true
+				} else if check.State == "waiting for first check" || check.State == "completed" {
+					check.State = "waiting for event"
+				}
+			}
 			if definition.Expired(check.NextDue) {
 				check.NextDue = time.Time{}
 			}

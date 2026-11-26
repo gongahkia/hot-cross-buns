@@ -29,47 +29,52 @@ import (
 const Version = 2
 
 type Definition struct {
-	RuntimeScheduledAt   time.Time              `json:"-"`
-	RunAt                time.Time              `json:"run_at,omitzero"`
-	StartsAt             time.Time              `json:"starts_at,omitzero"`
-	EndsAt               time.Time              `json:"ends_at,omitzero"`
-	OriginConversationID string                 `json:"origin_conversation_id,omitempty"`
-	Limits               agent.Limits           `json:"limits"`
-	WebOrigins           []string               `json:"web_origins,omitempty"`
-	Project              *projectcapture.Bundle `json:"project_configuration,omitempty"`
-	SnapshotID           string                 `json:"snapshot_id,omitempty"`
-	Code                 workrun.CodePolicy     `json:"code_policy,omitempty"`
-	EnableCode           bool                   `json:"enable_code,omitempty"`
-	Version              int                    `json:"version"`
-	ID                   string                 `json:"id"`
-	Name                 string                 `json:"name"`
-	GoalID               string                 `json:"goal_id,omitempty"`
-	Enabled              bool                   `json:"enabled"`
-	Schedule             string                 `json:"schedule"`
-	Timezone             string                 `json:"timezone"`
-	Missed               string                 `json:"missed"`
-	SourcePath           string                 `json:"source_path"`
-	RefreshSnapshot      bool                   `json:"refresh_snapshot"`
-	ChangeOnly           bool                   `json:"change_only,omitempty"`
-	GoalWatch            bool                   `json:"goal_watch,omitempty"`
-	PollMinutes          int                    `json:"poll_minutes,omitempty"`
-	AlertWhen            string                 `json:"alert_when,omitempty"`
-	MaxChecksPerDay      int                    `json:"max_checks_per_day,omitempty"`
-	WatchSources         []WatchSource          `json:"watch_sources,omitempty"`
-	RuntimeWatchChanges  []WatchChange          `json:"-"`
-	RuntimeWatchItems    []WatchItem            `json:"-"`
-	Objective            string                 `json:"objective"`
-	Provider             string                 `json:"provider,omitempty"`
-	Model                string                 `json:"model,omitempty"`
-	Mode                 action.Mode            `json:"mode"`
-	Contract             artifact.Contract      `json:"contract"`
-	ConnectorIDs         []string               `json:"connector_ids,omitempty"`
-	OAuthRefreshPins     map[string]string      `json:"oauth_refresh_pins,omitempty"`
-	OAuthAccountPins     map[string]string      `json:"oauth_account_pins,omitempty"`
-	MaxSteps             int                    `json:"max_steps"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-	LastScheduledAt      time.Time              `json:"last_scheduled_at,omitempty"`
+	Trigger              *EventTrigger             `json:"trigger,omitempty"`
+	RuntimeEvents        []InputEvent              `json:"-"`
+	RuntimeScheduledAt   time.Time                 `json:"-"`
+	RunAt                time.Time                 `json:"run_at,omitzero"`
+	StartsAt             time.Time                 `json:"starts_at,omitzero"`
+	EndsAt               time.Time                 `json:"ends_at,omitzero"`
+	OriginConversationID string                    `json:"origin_conversation_id,omitempty"`
+	Limits               agent.Limits              `json:"limits"`
+	WebOrigins           []string                  `json:"web_origins,omitempty"`
+	Project              *projectcapture.Bundle    `json:"project_configuration,omitempty"`
+	SnapshotID           string                    `json:"snapshot_id,omitempty"`
+	Code                 workrun.CodePolicy        `json:"code_policy,omitempty"`
+	EnableCode           bool                      `json:"enable_code,omitempty"`
+	Version              int                       `json:"version"`
+	ID                   string                    `json:"id"`
+	Name                 string                    `json:"name"`
+	GoalID               string                    `json:"goal_id,omitempty"`
+	Enabled              bool                      `json:"enabled"`
+	Schedule             string                    `json:"schedule"`
+	Timezone             string                    `json:"timezone"`
+	Missed               string                    `json:"missed"`
+	SourcePath           string                    `json:"source_path"`
+	RefreshSnapshot      bool                      `json:"refresh_snapshot"`
+	ChangeOnly           bool                      `json:"change_only,omitempty"`
+	GoalWatch            bool                      `json:"goal_watch,omitempty"`
+	PollMinutes          int                       `json:"poll_minutes,omitempty"`
+	AlertWhen            string                    `json:"alert_when,omitempty"`
+	MaxChecksPerDay      int                       `json:"max_checks_per_day,omitempty"`
+	WatchSources         []WatchSource             `json:"watch_sources,omitempty"`
+	RuntimeWatchChanges  []WatchChange             `json:"-"`
+	RuntimeWatchItems    []WatchItem               `json:"-"`
+	Objective            string                    `json:"objective"`
+	Provider             string                    `json:"provider,omitempty"`
+	Model                string                    `json:"model,omitempty"`
+	Mode                 action.Mode               `json:"mode"`
+	Contract             artifact.Contract         `json:"contract"`
+	ConnectorIDs         []string                  `json:"connector_ids,omitempty"`
+	OAuthRefreshPins     map[string]string         `json:"oauth_refresh_pins,omitempty"`
+	OAuthAccountPins     map[string]string         `json:"oauth_account_pins,omitempty"`
+	CredentialPins       map[string]string         `json:"credential_pins,omitempty"`
+	ReadOperations       map[string][]string       `json:"read_operations,omitempty"`
+	Routine              *workrun.RoutineReference `json:"routine,omitempty"`
+	MaxSteps             int                       `json:"max_steps"`
+	CreatedAt            time.Time                 `json:"created_at"`
+	UpdatedAt            time.Time                 `json:"updated_at"`
+	LastScheduledAt      time.Time                 `json:"last_scheduled_at,omitempty"`
 }
 
 // WatchSource is a user-selected read surface for a polled goal watch. It
@@ -120,6 +125,7 @@ type WatchCursor struct {
 }
 
 type Attempt struct {
+	InputEvents              []InputEvent   `json:"input_events,omitempty"`
 	LimitReason              string         `json:"limit_reason,omitempty"`
 	Runs                     []RunReference `json:"runs,omitempty"`
 	Version                  int            `json:"version"`
@@ -165,12 +171,13 @@ func (s Store) RecordRun(attempt Attempt, run RunReference) error {
 }
 
 type intent struct {
-	Version          int        `json:"version"`
-	ExecutionID      string     `json:"execution_id"`
-	DefinitionSHA256 string     `json:"definition_sha256"`
-	ScheduledAt      time.Time  `json:"scheduled_at"`
-	StartedAt        time.Time  `json:"started_at"`
-	Definition       Definition `json:"definition"`
+	InputEvents      []InputEvent `json:"input_events,omitempty"`
+	Version          int          `json:"version"`
+	ExecutionID      string       `json:"execution_id"`
+	DefinitionSHA256 string       `json:"definition_sha256"`
+	ScheduledAt      time.Time    `json:"scheduled_at"`
+	StartedAt        time.Time    `json:"started_at"`
+	Definition       Definition   `json:"definition"`
 }
 
 type lifecycleEvent struct {
@@ -345,8 +352,35 @@ func (d Definition) Validate() error {
 	if d.Mode != action.Inspect && d.Mode != action.Draft {
 		return errors.New("scheduled jobs may only inspect or draft")
 	}
-	if d.Contract.AllowOptionalArtifacts && (!d.GoalWatch || d.Mode != action.Draft) {
-		return errors.New("optional scheduled drafts require a draft goal watch")
+	if d.Contract.AllowOptionalArtifacts && d.Mode != action.Draft {
+		return errors.New("optional scheduled drafts require draft mode")
+	}
+	if d.Routine != nil {
+		if err := d.Routine.Validate(); err != nil {
+			return err
+		}
+	}
+	if len(d.ReadOperations) > 16 || len(d.CredentialPins) > 16 {
+		return errors.New("too many scheduled access bindings")
+	}
+	for id, operations := range d.ReadOperations {
+		if len(operations) < 1 || len(operations) > 64 {
+			return errors.New("choose 1–64 read operations per scheduled source")
+		}
+		found := false
+		for _, selected := range d.ConnectorIDs {
+			found = found || selected == id
+		}
+		if !found {
+			return errors.New("scheduled read scope requires a selected source")
+		}
+		seen := map[string]bool{}
+		for _, operation := range operations {
+			if operation == "" || len(operation) > 128 || strings.ContainsAny(operation, "\x00\r\n") || seen[operation] {
+				return errors.New("invalid or duplicated scheduled operation")
+			}
+			seen[operation] = true
+		}
 	}
 	if d.Contract.Normalize().ExternalActions == action.Approve {
 		return errors.New("scheduled jobs cannot approve external actions")
@@ -641,6 +675,7 @@ func (s Store) Begin(definition Definition, scheduledAt time.Time) (Attempt, err
 	}
 	now := time.Now().UTC()
 	attempt := Attempt{
+		InputEvents:      definition.RuntimeEvents,
 		Version:          Version,
 		ID:               newID("attempt"),
 		JobID:            definition.ID,
@@ -658,7 +693,7 @@ func (s Store) Begin(definition Definition, scheduledAt time.Time) (Attempt, err
 	if err := os.Mkdir(directory, 0o700); err != nil {
 		return Attempt{}, err
 	}
-	intentRecord := intent{Version: Version, ExecutionID: attempt.ID, DefinitionSHA256: digest, ScheduledAt: attempt.ScheduledAt, StartedAt: attempt.StartedAt, Definition: definition}
+	intentRecord := intent{InputEvents: definition.RuntimeEvents, Version: Version, ExecutionID: attempt.ID, DefinitionSHA256: digest, ScheduledAt: attempt.ScheduledAt, StartedAt: attempt.StartedAt, Definition: definition}
 	if err := writeJSONExclusive(filepath.Join(directory, "intent.json"), intentRecord); err != nil {
 		return Attempt{}, err
 	}
@@ -736,7 +771,7 @@ func (s Store) History(id string, limit int) ([]Attempt, error) {
 			if err := readJSON(filepath.Join(s.root, "history", id, entry.Name(), "intent.json"), &started); err != nil {
 				return nil, err
 			}
-			recovered := Attempt{Version: Version, ID: started.ExecutionID, JobID: id, DefinitionSHA256: started.DefinitionSHA256, ScheduledAt: started.ScheduledAt, StartedAt: started.StartedAt, Try: 1, Status: "running"}
+			recovered := Attempt{InputEvents: started.InputEvents, Version: Version, ID: started.ExecutionID, JobID: id, DefinitionSHA256: started.DefinitionSHA256, ScheduledAt: started.ScheduledAt, StartedAt: started.StartedAt, Try: 1, Status: "running"}
 			for try := 1; try <= 3; try++ {
 				var run RunReference
 				readErr := readJSON(filepath.Join(s.root, "history", id, entry.Name(), fmt.Sprintf("try-%d.json", try)), &run)
@@ -762,6 +797,15 @@ func (s Store) History(id string, limit int) ([]Attempt, error) {
 }
 
 func Schedule(definition Definition) (cron.Schedule, error) {
+	if definition.Trigger != nil {
+		if definition.Schedule != "" || !definition.RunAt.IsZero() || definition.GoalWatch {
+			return nil, errors.New("event tasks cannot also have a timer or goal-watch rule")
+		}
+		if err := definition.Trigger.Validate(); err != nil {
+			return nil, err
+		}
+		return eventSchedule{}, nil
+	}
 	if !definition.RunAt.IsZero() {
 		if definition.Schedule != "" || !definition.RunAt.Equal(definition.RunAt.Truncate(time.Minute)) || definition.GoalWatch {
 			return nil, errors.New("one-time tasks need one minute-precision time and no recurring rule")
@@ -1036,6 +1080,15 @@ func (s Store) ClaimBegin(id string, scheduled time.Time) (Definition, Attempt, 
 			definition.LastScheduledAt = scheduled
 			_, err = s.save(definition)
 			return definition, attempt, false, err
+		}
+	}
+	if definition.Trigger != nil {
+		definition.RuntimeEvents, err = s.PendingEvents(definition)
+		if err != nil || len(definition.RuntimeEvents) == 0 {
+			return definition, Attempt{}, false, err
+		}
+		if len(definition.RuntimeEvents) > 8 {
+			definition.RuntimeEvents = definition.RuntimeEvents[:8]
 		}
 	}
 	attempt, err := s.Begin(definition, scheduled)

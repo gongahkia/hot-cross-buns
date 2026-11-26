@@ -52,8 +52,12 @@ between calls; in-flight requests may exceed a reported-token threshold. CLI
 workers retain their separate execution limits and costs. Existing task time,
 step and delegation bounds remain in force.
 
-Parameterized activation is foreground-only. Saving a routine does not create
-standing authorization, an unattended job or a second workflow engine.
+A scheduled task can bind an enabled routine by its exact revision and bounded
+parameters. The scheduling review shows the expanded procedure, allowed account
+reads and per-run budget. Editing or disabling that routine stops the binding
+until it is reviewed again. Scheduled routines may inspect or prepare staged
+drafts; they cannot send or publish. Saving a routine alone creates no schedule
+or standing authorization.
 
 ## Recovery
 

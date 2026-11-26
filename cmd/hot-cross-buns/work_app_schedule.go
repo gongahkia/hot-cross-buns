@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
@@ -20,36 +21,51 @@ import (
 )
 
 type scheduleChange struct {
-	Action         string  `json:"action"`
-	ID             string  `json:"id,omitempty"`
-	ExpectedDigest string  `json:"expected_digest,omitempty"`
-	Title          *string `json:"title,omitempty"`
-	Prompt         *string `json:"prompt,omitempty"`
-	Cron           *string `json:"cron,omitempty"`
-	RunAt          *string `json:"run_at,omitempty"`
-	Timezone       *string `json:"timezone,omitempty"`
-	StartsAt       *string `json:"starts_at,omitempty"`
-	EndsAt         *string `json:"ends_at,omitempty"`
-	Missed         *string `json:"missed,omitempty"`
+	ClearRoutine   bool                      `json:"clear_routine,omitempty"`
+	Trigger        *jobs.EventTrigger        `json:"trigger,omitempty"`
+	ConnectorIDs   *[]string                 `json:"connector_ids,omitempty"`
+	ReadOperations *map[string][]string      `json:"read_operations,omitempty"`
+	Mode           *action.Mode              `json:"mode,omitempty"`
+	Limits         *agent.Limits             `json:"limits,omitempty"`
+	Routine        *workrun.RoutineReference `json:"routine,omitempty"`
+	AlertWhen      *string                   `json:"alert_when,omitempty"`
+	Action         string                    `json:"action"`
+	ID             string                    `json:"id,omitempty"`
+	ExpectedDigest string                    `json:"expected_digest,omitempty"`
+	Title          *string                   `json:"title,omitempty"`
+	Prompt         *string                   `json:"prompt,omitempty"`
+	Cron           *string                   `json:"cron,omitempty"`
+	RunAt          *string                   `json:"run_at,omitempty"`
+	Timezone       *string                   `json:"timezone,omitempty"`
+	StartsAt       *string                   `json:"starts_at,omitempty"`
+	EndsAt         *string                   `json:"ends_at,omitempty"`
+	Missed         *string                   `json:"missed,omitempty"`
 }
 type scheduleView struct {
-	Provider        string      `json:"provider,omitempty"`
-	Model           string      `json:"model,omitempty"`
-	ID              string      `json:"id"`
-	Digest          string      `json:"expected_digest"`
-	Title           string      `json:"title"`
-	Prompt          string      `json:"prompt"`
-	PromptTruncated bool        `json:"prompt_truncated,omitempty"`
-	Kind            string      `json:"kind"`
-	Timing          string      `json:"timing"`
-	Timezone        string      `json:"timezone"`
-	State           string      `json:"state"`
-	Enabled         bool        `json:"enabled"`
-	NextDue         time.Time   `json:"next_due,omitzero"`
-	Upcoming        []time.Time `json:"upcoming"`
-	Issue           string      `json:"issue,omitempty"`
-	Origin          string      `json:"origin_conversation_id,omitempty"`
-	Source          string      `json:"source"`
+	Trigger         *jobs.EventTrigger        `json:"trigger,omitempty"`
+	ConnectorIDs    []string                  `json:"connector_ids,omitempty"`
+	ReadOperations  map[string][]string       `json:"read_operations,omitempty"`
+	Routine         *workrun.RoutineReference `json:"routine,omitempty"`
+	Mode            action.Mode               `json:"mode"`
+	Limits          agent.Limits              `json:"limits"`
+	AlertWhen       string                    `json:"alert_when,omitempty"`
+	Provider        string                    `json:"provider,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	ID              string                    `json:"id"`
+	Digest          string                    `json:"expected_digest"`
+	Title           string                    `json:"title"`
+	Prompt          string                    `json:"prompt"`
+	PromptTruncated bool                      `json:"prompt_truncated,omitempty"`
+	Kind            string                    `json:"kind"`
+	Timing          string                    `json:"timing"`
+	Timezone        string                    `json:"timezone"`
+	State           string                    `json:"state"`
+	Enabled         bool                      `json:"enabled"`
+	NextDue         time.Time                 `json:"next_due,omitzero"`
+	Upcoming        []time.Time               `json:"upcoming"`
+	Issue           string                    `json:"issue,omitempty"`
+	Origin          string                    `json:"origin_conversation_id,omitempty"`
+	Source          string                    `json:"source"`
 }
 
 func projectSchedule(check workhome.Check, full bool) scheduleView {
@@ -61,7 +77,7 @@ func projectSchedule(check workhome.Check, full bool) scheduleView {
 		prompt = boundedIntroduction(prompt, 240)
 	}
 	upcoming, _ := d.Upcoming(time.Now(), 3)
-	return scheduleView{Upcoming: upcoming, Provider: d.Provider, Model: d.Model, ID: d.ID, Digest: digest, Title: d.Name, Prompt: prompt, PromptTruncated: truncated, Kind: d.ScheduleKind(), Timing: d.Timing(), Timezone: d.Timezone, State: check.State, Enabled: d.Enabled, NextDue: check.NextDue, Issue: check.Issue, Origin: d.OriginConversationID, Source: d.SourcePath}
+	return scheduleView{Trigger: d.Trigger, ConnectorIDs: d.ConnectorIDs, ReadOperations: d.ReadOperations, Routine: d.Routine, Mode: d.Mode, Limits: d.Limits, AlertWhen: d.AlertWhen, Upcoming: upcoming, Provider: d.Provider, Model: d.Model, ID: d.ID, Digest: digest, Title: d.Name, Prompt: prompt, PromptTruncated: truncated, Kind: d.ScheduleKind(), Timing: d.Timing(), Timezone: d.Timezone, State: check.State, Enabled: d.Enabled, NextDue: check.NextDue, Issue: check.Issue, Origin: d.OriginConversationID, Source: d.SourcePath}
 }
 func (c hotCrossBunsAppController) inspectSchedules(query workrun.AppQuery) (any, error) {
 	if err := c.followupConversation(query.ConversationID); err != nil {
@@ -118,7 +134,7 @@ func (c hotCrossBunsAppController) withSchedulingPermission(m workrun.AppMutatio
 		return workrun.AppMutation{}, err
 	}
 	apply := m.Apply
-	m.Review = !policy.Always
+	m.Review = m.Review || !policy.Always
 	m.ScheduleReview = &review
 	m.ApplySchedule = func(ctx context.Context, choice string) (any, error) {
 		return store.Apply(ctx, policy.Revision, choice, func() (any, error) { return apply(ctx) })
@@ -171,9 +187,9 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 		}
 		payload, _ := json.Marshal(canonical)
 		digest := sha256.Sum256([]byte(identity + "\n" + change.ConversationID + "\n" + string(payload)))
-		next = jobs.Definition{Version: jobs.Version, ID: fmt.Sprintf("job-chat-%x", digest[:16]), Name: strings.TrimSpace(*v.Title), Objective: strings.TrimSpace(*v.Prompt), Enabled: true, SourcePath: filepath.Clean(c.request.SourcePath), OriginConversationID: change.ConversationID, Timezone: settings.JobDefaults.Timezone, Missed: "run_once", Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 24, Provider: settings.Defaults.Provider, Model: settings.Defaults.Model, RefreshSnapshot: true, CreatedAt: now, UpdatedAt: now}
-		if v.Cron == nil && v.RunAt == nil {
-			return workrun.AppMutation{}, errors.New("choose a future run_at for one-time work or cron for recurring work")
+		next = jobs.Definition{Version: jobs.Version, ID: fmt.Sprintf("job-chat-%x", digest[:16]), Name: strings.TrimSpace(*v.Title), Objective: strings.TrimSpace(*v.Prompt), Enabled: true, SourcePath: filepath.Clean(c.request.SourcePath), OriginConversationID: change.ConversationID, Timezone: settings.JobDefaults.Timezone, Missed: "run_once", Limits: agent.Limits{ModelRequests: 32, Tokens: 100000, WallSeconds: 300}, Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 24, Provider: settings.Defaults.Provider, Model: settings.Defaults.Model, RefreshSnapshot: true, CreatedAt: now, UpdatedAt: now}
+		if v.Cron == nil && v.RunAt == nil && v.Trigger == nil {
+			return workrun.AppMutation{}, errors.New("choose a future run_at, recurring cron, or explicit event trigger")
 		}
 	} else {
 		if v.ID == "" || v.ExpectedDigest == "" {
@@ -188,18 +204,31 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 			return workrun.AppMutation{}, errors.New("this schedule changed; inspect its current agreement")
 		}
 	}
-	changes := v.Title != nil || v.Prompt != nil || v.Cron != nil || v.RunAt != nil || v.Timezone != nil || v.StartsAt != nil || v.EndsAt != nil || v.Missed != nil
+	accessChanged := v.ConnectorIDs != nil || v.ReadOperations != nil || v.Mode != nil || v.Limits != nil || v.Routine != nil || v.ClearRoutine
+	changes := v.Trigger != nil || accessChanged || v.AlertWhen != nil || v.Title != nil || v.Prompt != nil || v.Cron != nil || v.RunAt != nil || v.Timezone != nil || v.StartsAt != nil || v.EndsAt != nil || v.Missed != nil
 	if v.Action == "edit" && !changes {
 		return workrun.AppMutation{}, errors.New("specify the fields to edit")
 	}
 	if v.Action != "create" && v.Action != "edit" && changes {
 		return workrun.AppMutation{}, errors.New("pause, resume and cancel accept only id and expected_digest")
 	}
+	if v.AlertWhen != nil {
+		next.AlertWhen = strings.TrimSpace(*v.AlertWhen)
+	}
 	if v.Title != nil {
 		next.Name = strings.TrimSpace(*v.Title)
 	}
 	if v.Prompt != nil {
 		next.Objective = strings.TrimSpace(*v.Prompt)
+	}
+	if v.Trigger != nil {
+		if v.Cron != nil || v.RunAt != nil {
+			return workrun.AppMutation{}, errors.New("choose an event trigger or a timer")
+		}
+		next.Trigger, next.Schedule, next.RunAt = v.Trigger, "", time.Time{}
+	}
+	if v.Cron != nil || v.RunAt != nil {
+		next.Trigger = nil
 	}
 	if v.Cron != nil && v.RunAt != nil {
 		return workrun.AppMutation{}, errors.New("choose either run_at or cron, not both")
@@ -257,6 +286,10 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 	if len(next.Objective) > 8192 && v.Prompt != nil {
 		return workrun.AppMutation{}, errors.New("keep a scheduled prompt within 8192 bytes")
 	}
+	accessLines, accessRevision, err := c.prepareScheduledAccess(ctx, &next, v)
+	if err != nil {
+		return workrun.AppMutation{}, err
+	}
 	if err := next.Validate(); err != nil {
 		return workrun.AppMutation{}, err
 	}
@@ -266,6 +299,7 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 		location, _ := time.LoadLocation(next.Timezone)
 		lines = append(lines, fmt.Sprintf("Upcoming %d: %s", i+1, at.In(location).Format("Mon Jan 2, 2006 at 3:04 PM MST")))
 	}
+	lines = append(lines, accessLines...)
 	modelLabel := strings.Trim(next.Provider+"/"+next.Model, "/")
 	if modelLabel == "" {
 		modelLabel = "Profile default"
@@ -284,8 +318,12 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 		if err := c.followupConversation(change.ConversationID); err != nil {
 			return nil, err
 		}
+		fresh := next
+		_, currentAccess, err := c.prepareScheduledAccess(ctx, &fresh, v)
+		if err != nil || currentAccess != accessRevision {
+			return nil, errors.New("scheduled access or routine changed during review; inspect and review again")
+		}
 		var saved jobs.Definition
-		var err error
 		switch v.Action {
 		case "create":
 			saved, err = store.CreateOnce(next)
@@ -311,5 +349,5 @@ func (c hotCrossBunsAppController) prepareSchedule(ctx context.Context, change w
 		}
 		return map[string]any{"saved": true, "id": saved.ID, "note": "Saved; refresh Scheduled tasks for its current state."}, nil
 	}
-	return c.withSchedulingPermission(workrun.AppMutation{Summary: "Schedule " + v.Action + ": " + next.Name, Apply: apply}, scheduleaccess.Review{Action: v.Action, Title: next.Name, Lines: lines})
+	return c.withSchedulingPermission(workrun.AppMutation{Review: accessChanged || v.Trigger != nil, Summary: "Schedule " + v.Action + ": " + next.Name, Apply: apply}, scheduleaccess.Review{Action: v.Action, Title: next.Name, Lines: lines})
 }

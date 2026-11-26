@@ -82,8 +82,10 @@ type Request struct {
 	UpdateContext         string
 	InputIDs              []string
 	ForegroundApp         bool
-	ScheduledJobID        string            `json:"-"`
-	ScheduledJobPolicy    string            `json:"-"`
+	ScheduledJobID        string `json:"-"`
+	ScheduledJobPolicy    string `json:"-"`
+	ScheduledReads        map[string][]string
+	ScheduledRoutine      *RoutineReference
 	CheckScheduledFiles   func() error      `json:"-"`
 	ApproveFilesystem     fileaccess.Decide `json:"-"`
 	FilesystemProtected   []string

@@ -14,11 +14,13 @@ import { Application } from "../app-host/src/application.mjs";
 import { attachmentLimit, uploadLimits } from "../app-host/src/attachment-limits.mjs";
 
 import { browserVoice } from "./voice-service.mjs";
+import { eventHooks } from './event-hooks.mjs';
 import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+  ["/event-hooks.mjs", ["event-hooks.mjs", "text/javascript; charset=utf-8"]],
   ["/answer-context.mjs", ["answer-context.mjs", "text/javascript; charset=utf-8"]],
   ["/voice.mjs", ["voice.mjs", "text/javascript; charset=utf-8"]],
   ["/voice-capture.mjs", ["voice-capture.mjs", "text/javascript; charset=utf-8"]],
@@ -134,6 +136,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
   await buildBrowserDependencies();
   const host = new Application(options);
   const voice = browserVoice(host, voiceOptions);
+  const hooks = eventHooks(host);
   const inspection = taskDetails(host);
   const corrections = correctionDrafts(host, reviewFor);
   const streams = new Set();
@@ -363,6 +366,8 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         if (result.error) throw new RequestError(409, result.error);
         return { entries: owner.state.checks || [], running: !!owner.state.supervisor_running, issue: owner.state.checks_issue };
       }
+      case 'event-hooks':
+        return hooks.manage(body);
       case "providers":
         return providers(body);
       case 'local-models': {
@@ -516,6 +521,12 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       if (req.headers.host !== expected) throw new RequestError(421, "Open the local address printed by the server.");
       const origin = "http://" + expected;
       const url = new URL(req.url, origin);
+      const eventPath = /^\/events\/([a-zA-Z0-9][a-zA-Z0-9_-]{0,95})$/.exec(url.pathname);
+      if (req.method === 'POST' && eventPath) {
+        if (closing || url.search || req.headers.origin || req.headers['sec-fetch-site']) throw new RequestError(403, 'Event endpoints require a signed service request.');
+        try { return json(res, 202, await hooks.deliver(eventPath[1], req.headers, await readBody(req, 18000))); }
+        catch { throw new RequestError(409, 'Event authentication or task agreement was rejected; nothing was confirmed queued.'); }
+      }
       if (req.method === "GET" && url.pathname === "/artifact") {
         const runtime = await readFile(new URL("./artifact-runtime.js", import.meta.url), "utf8");
         res.writeHead(200, { ...headers, "Content-Type": "text/html; charset=utf-8",

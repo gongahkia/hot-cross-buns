@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/introduction.mjs"; export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/event-hooks.mjs"; export * from "./public/introduction.mjs"; export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -27,7 +27,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -1068,4 +1068,16 @@ test('icon-only delegated-work control hides completed and disconnected work whi
  const task={id:'worker',title:'Review the note',state:'running',active:true,steps:[]};view.update([task]);assert.equal(view.trigger.hidden,false);
  view.update([{...task,active:false,state:'completed'}]);assert.equal(view.trigger.hidden,true);assert.match(view.element.textContent,/Review the note/);
  view.update([task],{connected:false});assert.equal(view.trigger.hidden,true);
+});
+
+
+test('event endpoint setup uses an exact review and keeps the signing key out of visible text', async()=>{
+ const calls=[];
+ const pane=eventEndpoint({id:'job-event',origin:'http://127.0.0.1:4317',request:async value=>{calls.push(value);return value.action==='status'?{enabled:false,path:'/events/job-event'}:value.action==='review'?{review:'exact',effect:'Review this task only.'}:{enabled:true,path:'/events/job-event',key:'a'.repeat(64)}}});
+ document.body.append(pane.element);await pane.load();
+ [...pane.element.querySelectorAll('button')].find(b=>b.textContent==='Enable endpoint').click();await new Promise(r=>setTimeout(r,0));
+ assert.equal(calls.at(-1).action,'review');assert.ok(!pane.element.querySelector('input[type="password"]'));
+ [...pane.element.querySelectorAll('button')].find(b=>b.textContent==='Confirm endpoint').click();await new Promise(r=>setTimeout(r,0));
+ assert.equal(calls.at(-1).review,'exact');assert.equal(pane.element.querySelector('input[type="password"]').value,'a'.repeat(64));
+ assert.ok(!pane.element.textContent.includes('a'.repeat(64)));pane.element.remove();
 });

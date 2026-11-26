@@ -2,7 +2,7 @@ import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
-export function scheduledPane({ request, manage, goals, description = '' }) {
+export function scheduledPane({ request, manage, goals, events, description = '' }) {
   const root = element('aside', undefined, 'task-inspector scheduled-pane'); root.id = 'scheduled-tasks';
   root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', 'scheduled-title');
   const trigger = element('button', undefined, 'quiet icon-button'); trigger.type = 'button'; trigger.append(icon('clock'));
@@ -15,7 +15,7 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
   const error = element('p', undefined, 'issue'); error.setAttribute('role', 'alert'); error.hidden = true;
   let selected='all';
   const filters=element('div',undefined,'models-tabs');filters.setAttribute('aria-label','Task type');
-  for(const [value,label] of [['all','All tasks'],['once','One-time'],['recurring','Recurring']])filters.append(button(label,()=>{selected=value;fingerprint='';update(latest);}));
+  for(const [value,label] of [['all','All tasks'],['once','One-time'],['recurring','Recurring'],['event','Event-triggered']])filters.append(button(label,()=>{selected=value;fingerprint='';update(latest);}));
   let latest={};
   const health = element('p', undefined, 'hint'), list = element('div'), actions = element('div', undefined, 'task-links');
   const refresh = button('Refresh', () => void perform({ action: 'refresh' })); actions.append(refresh);
@@ -36,7 +36,7 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
   function update(value = {}) {
     trigger.hidden=!(value.entries?.length);
     latest=value;
-    for(const [index,node] of [...filters.children].entries())node.setAttribute("aria-pressed",String(["all","once","recurring"][index]===selected));
+    for(const [index,node] of [...filters.children].entries())node.setAttribute("aria-pressed",String(["all","once","recurring","event"][index]===selected));
     const next = JSON.stringify(value); if (next === fingerprint) return; fingerprint = next;
     health.textContent = value.issue || (value.running === false ? 'Local scheduler is stopped.' : ''); health.hidden = !health.textContent;
     const expanded = new Set([...list.children].filter(row => row.open).map(row => row.dataset.taskId));
@@ -51,13 +51,14 @@ export function scheduledPane({ request, manage, goals, description = '' }) {
       row.dataset.taskId = task.id; row.open = expanded.has(task.id);
       const chevron = icon('chevron-right'); chevron.classList.add('disclosure-icon');
       head.append(heading, chevron); row.append(head);
-      row.append(element('p',task.kind==='once'?'One-time task':'Recurring task','hint'));
+      row.append(element('p',task.kind==='event'?'Event-triggered task':task.kind==='once'?'One-time task':'Recurring task','hint'));
       if (task.late)row.append(element('p','Missed while HCB was offline. One catch-up run is due.','hint'));
       if (task.outcome) row.append(element('p', task.outcome, 'hint'));
       row.append(element('p', task.timing || 'Recurring task · ' + task.timezone, 'hint'));
       if (task.issue) row.append(element('p', task.issue, 'issue'));
       const controls = element('div', undefined, 'task-links');
-      for (const [label, action] of [['Details', 'inspect'], ...(!['completed','ended'].includes(task.state)?[[task.enabled ? 'Pause' : 'Resume', task.enabled ? 'pause' : 'resume']]:[]), ...(task.editable ? [['Edit timing', 'edit']] : [])]) controls.append(button(label, () => perform({ action, id: task.id, digest: task.digest })));
+      if (task.kind === 'event' && events) controls.append(button('Event endpoint', () => { dismiss(); events(task); }));
+      for (const [label, action] of [['Details', 'inspect'], ...(!['completed','ended'].includes(task.state)?[[task.enabled ? 'Pause' : 'Resume', task.enabled ? 'pause' : 'resume']]:[]), ...(task.editable && task.kind !== 'event' ? [['Edit timing', 'edit']] : [])]) controls.append(button(label, () => perform({ action, id: task.id, digest: task.digest })));
       row.append(controls); list.append(row);
     }
     if (!list.children.length) list.append(element('p', selected==='once'?'No one-time tasks yet.':selected==='recurring'?'No recurring tasks yet.':'No scheduled tasks yet. Ask me to remind you or check on something regularly.', 'task-empty hint'));

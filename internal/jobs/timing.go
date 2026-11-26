@@ -25,6 +25,10 @@ func (d Definition) Timing() string {
 }
 
 func (d Definition) timingRule() string {
+	if d.Trigger != nil {
+		return "When an event arrives: " + strings.Join(d.Trigger.Types, ", ")
+	}
+
 	zone := d.Timezone
 	if zone == "Local" {
 		zone = "device time"
@@ -155,6 +159,9 @@ func weekdayWords(values []int) string {
 }
 
 func (d Definition) ScheduleKind() string {
+	if d.Trigger != nil {
+		return "event"
+	}
 	if !d.RunAt.IsZero() {
 		return "once"
 	}

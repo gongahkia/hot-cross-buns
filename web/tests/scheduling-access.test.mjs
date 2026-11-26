@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHmac} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
 import {fixture} from './fixture.mjs';
 
 async function events(app){
- const abort=new AbortController(),response=await fetch(app.url+'/api/events',{signal:abort.signal}),reader=response.body.pipeThrough(new TextDecoderStream()).getReader();let buffer='';
- return {close:()=>abort.abort(),async until(predicate){const timer=setTimeout(()=>abort.abort(),20000);try{while(true){const end=buffer.indexOf('\n\n');if(end>=0){const value=JSON.parse(buffer.slice(6,end));buffer=buffer.slice(end+2);if(predicate(value)&&!value.switching)return value;}else{const part=await reader.read();if(part.done)throw Error('Stream closed');buffer+=part.value;}}}finally{clearTimeout(timer);}}};
+ const abort=new AbortController(),response=await fetch(app.url+'/api/events',{signal:abort.signal}),reader=response.body.pipeThrough(new TextDecoderStream()).getReader();let buffer='',latest;
+ return {close:()=>abort.abort(),async until(predicate){const timer=setTimeout(()=>abort.abort(),35000);try{while(true){const end=buffer.indexOf('\n\n');if(end>=0){const value=JSON.parse(buffer.slice(6,end));latest=value;buffer=buffer.slice(end+2);if(predicate(value)&&!value.switching)return value;}else{const part=await reader.read();if(part.done)throw Error('Stream closed');buffer+=part.value;}}}catch(error){throw new Error('Awaited event state: '+JSON.stringify({issue:latest?.issue,running:latest?.state?.running,approval:!!latest?.state?.approval,scheduled:latest?.scheduled,messages:latest?.state?.messages?.slice(-2).map(m=>m.text)}),{cause:error})}finally{clearTimeout(timer);}}};
 }
 async function action(app,body){const response=await fetch(app.url+'/api/action',{method:'POST',headers:{Origin:app.url,'Content-Type':'application/json'},body:JSON.stringify(body)});return {status:response.status,value:await response.json()};}
 
@@ -37,4 +37,30 @@ for(const choice of ['once','always','deny'])test(`chat schedule ${choice} uses 
    assert.equal(JSON.parse(await readFile(path,'utf8')).always_allow,false);
   }
  }finally{live?.close();await app.close();}
+});
+
+
+test('a signed event queues and executes one reviewed task through the normal scheduler', {timeout:60000}, async()=>{
+ const app=await fixture({startInSide:true,schedulingTask:'event',startScheduler:true});let live;
+ try{
+  live=await events(app);let state=await live.until(v=>v.connection==='connected');const context=state.context;
+  assert.equal((await action(app,{op:'send',context,id:randomUUID(),text:'Create a task triggered by fixture issue events.',files:[]})).status,200);
+  state=await live.until(v=>v.state?.approval?.scheduling);const approval=state.state.approval;
+  assert.equal((await action(app,{op:'approve',context,id:approval.id,approved:true,permission_choice:'once'})).status,200);
+  state=await live.until(v=>!v.state?.running&&v.scheduled?.entries?.some(t=>t.kind==='event'));
+  const id=state.scheduled.entries.find(t=>t.kind==='event').id;
+  const reviewed=await action(app,{op:'event-hooks',context,id,action:'review'});assert.equal(reviewed.status,200);
+  const enabled=await action(app,{op:'event-hooks',context,id,action:'enable',review:reviewed.value.review});assert.equal(enabled.status,200);
+  const key=enabled.value.key,path=enabled.value.path;
+  assert.ok(!JSON.stringify(state).includes(key));
+  const raw=JSON.stringify({type:'issue',data:{repository:'fixture',title:'Check the evidence'}}),timestamp=String(Math.floor(Date.now()/1000)),delivery=randomUUID();
+  const signature=createHmac('sha256',key).update(timestamp+'.'+delivery+'.'+raw).digest('hex');
+  const headers={'Content-Type':'application/json','X-HCB-Timestamp':timestamp,'X-HCB-Event-ID':delivery,'X-HCB-Signature':signature};
+  let response=await fetch(app.url+path,{method:'POST',headers:{...headers,'X-HCB-Signature':'f'.repeat(64)},body:raw});assert.equal(response.status,409);
+  response=await fetch(app.url+path,{method:'POST',headers,body:raw});assert.equal(response.status,202);assert.equal((await response.json()).queued,true);
+  response=await fetch(app.url+path,{method:'POST',headers,body:raw});assert.equal(response.status,202);assert.equal((await response.json()).duplicate,true);
+  state=await live.until(v=>v.scheduled?.entries?.some(t=>t.id===id&&t.last_success));
+  assert.ok(!JSON.stringify(state).includes(key));
+  assert.ok(app.payloads.some(p=>JSON.stringify(p.messages).includes('Authenticated event delivery metadata')));
+ }finally{live?.close();await app.close()}
 });
