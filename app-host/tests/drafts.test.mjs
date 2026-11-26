@@ -134,3 +134,8 @@ test('response quotes survive quote-only drafts and reject oversized or malforme
   await store.request({action:'configure',enabled:false});assert.equal((await store.request({action:'list'})).drafts.length,0);
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('a selected task reply survives draft reload without creating a new conversation',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'hcb-task-reply-'));
+ try{const path=join(root,'drafts.json'),store=new DraftStore(path);const draft={context:'conversation:home',title:'Hot Cross Buns',source:'/project',text:'',reply_to_task_id:'task-owned'};await store.request({action:'save',draft});const saved=await new DraftStore(path).request({action:'list'});assert.equal(saved.drafts[0].reply_to_task_id,'task-owned');await assert.rejects(store.request({action:'save',draft:{...draft,reply_to_task_id:'../other'}}));}finally{await rm(root,{recursive:true,force:true})}
+});

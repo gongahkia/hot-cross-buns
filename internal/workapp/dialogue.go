@@ -326,7 +326,7 @@ func (m Model) retryDialogueAdmission(request BridgeUploadSubmission, text strin
 		return false, err
 	}
 	var input ConversationInput
-	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || turn.Text != text || !slices.Equal(input.RunOptions.Uploads, request.Files) || input.RunOptions.ReplyToUpdateID != request.ReplyToUpdateID || input.RunOptions.PlanFirst != request.PlanFirst {
+	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || turn.Text != text || !slices.Equal(input.RunOptions.Uploads, request.Files) || input.RunOptions.ReplyToUpdateID != request.ReplyToUpdateID || input.RunOptions.ReplyToTaskID != request.ReplyToTaskID || input.RunOptions.PlanFirst != request.PlanFirst {
 		return true, errors.New("this message identity already belongs to different text or inputs")
 	}
 	return true, nil
@@ -349,8 +349,18 @@ func (m Model) admitConversation(request BridgeUploadSubmission, text string) (t
 	options := m.submissionOptions()
 	options.Uploads = append([]string(nil), request.Files...)
 	options.ReplyToUpdateID = request.ReplyToUpdateID
+	options.ReplyToTaskID = request.ReplyToTaskID
 	options.PlanFirst = request.PlanFirst
 	input := ConversationInput{ConversationID: m.conversation, Version: 1, Source: m.source, GoalID: m.goalID, RunOptions: retainedRunOptions(options), Recent: m.conversationRecent(), TaskContext: m.conversationTasks()}
+	if options.ReplyToTaskID != "" {
+		selected := input.TaskContext[:0]
+		for _, task := range input.TaskContext {
+			if task.ID == options.ReplyToTaskID {
+				selected = append(selected, task)
+			}
+		}
+		input.TaskContext = selected
+	}
 	for index := range input.TaskContext {
 		input.TaskContext[index].CanGuide, input.TaskContext[index].CanStop = false, false
 		input.TaskContext[index].CanRevisePlan = false
@@ -414,9 +424,18 @@ func (m Model) startConversationRoute() (tea.Model, tea.Cmd) {
 	m.dialogueRouting = id
 	ctx, cancel := context.WithCancel(context.Background())
 	m.dialogueCancel = cancel
-	request := workrun.ConversationRequest{Text: turn.Text, Recent: input.Recent, Tasks: m.conversationTasks(), HasFiles: len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.ReplyToUpdateID != "", PlanFirst: input.RunOptions.PlanFirst, CanStart: m.dialogueCanStart}
+	request := workrun.ConversationRequest{ReplyToTaskID: input.RunOptions.ReplyToTaskID, Text: turn.Text, Recent: input.Recent, Tasks: m.conversationTasks(), HasFiles: len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.ReplyToUpdateID != "", PlanFirst: input.RunOptions.PlanFirst, CanStart: m.dialogueCanStart}
 	request.AcknowledgementBlocked = input.RunOptions.RefreshSource || m.acknowledgementBlocked() || !workrun.AcknowledgementContextSafe(input.TaskContext, input.Recent)
 	input.ConversationID, input.BeforeSequence, input.BeforeTime = m.conversation, turn.Sequence, turn.CreatedAt
+	if request.ReplyToTaskID != "" {
+		var selected []workrun.ConversationTask
+		for _, task := range request.Tasks {
+			if task.ID == request.ReplyToTaskID {
+				selected = append(selected, task)
+			}
+		}
+		request.Tasks = selected
+	}
 	route, conversation := m.config.RouteConversation, m.conversation
 	return m, func() tea.Msg {
 		decision, err := route(ctx, request, input)
@@ -633,6 +652,6 @@ func (m Model) acknowledgementBlocked() bool {
 
 func (m Model) canQuickAcknowledge(request BridgeUploadSubmission, text string) bool {
 	options := m.submissionOptions()
-	_, ok := workrun.QuickAcknowledgement(workrun.ConversationRequest{Text: text, Recent: m.conversationRecent(), Tasks: m.conversationTasks(), HasFiles: len(request.Files) > 0 || len(options.Attachments) > 0 || request.ReplyToUpdateID != "", PlanFirst: request.PlanFirst, AcknowledgementBlocked: options.RefreshSource || m.acknowledgementBlocked()})
+	_, ok := workrun.QuickAcknowledgement(workrun.ConversationRequest{Text: text, Recent: m.conversationRecent(), Tasks: m.conversationTasks(), HasFiles: len(request.Files) > 0 || len(options.Attachments) > 0 || request.ReplyToUpdateID != "" || request.ReplyToTaskID != "", PlanFirst: request.PlanFirst, AcknowledgementBlocked: options.RefreshSource || m.acknowledgementBlocked()})
 	return m.conversationAvailable() && ok
 }

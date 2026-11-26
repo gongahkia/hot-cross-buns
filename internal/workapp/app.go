@@ -141,6 +141,7 @@ type RunOptions struct {
 	BrowserPolicy           string
 	DesktopSession          string
 	DesktopPolicy           string
+	ReplyToTaskID           string `json:"ReplyToTaskID,omitempty"`
 	ReplyToUpdateID         string
 	ModelProvider           string
 	ModelName               string

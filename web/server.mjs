@@ -143,7 +143,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
   let tail = Promise.resolve(), closing = false;
   const admissions = new Map();
   const chatSelections = new Map();
-  const transientQuotes = new WeakMap();
+  const transientDraftRefs = new WeakMap();
   const serialized = operation => {
     const result = tail.then(operation);
     tail = result.catch(() => {});
@@ -158,17 +158,18 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
     const context = host.context;
     const { drafts, enabled } = await host.drafts.request({ action: "list" });
     const saved = drafts.find(item => item.context === context);
-    const transient = transientQuotes.get(host.backend);
+    const transient = transientDraftRefs.get(host.backend);
     const quote = enabled ? saved?.response_quote : transient?.context === context ? transient.quote : undefined;
+    const replyToTask = enabled ? saved?.reply_to_task_id : transient?.context === context ? transient.task : undefined;
     const { title = "", source = "" } = host.backend.state;
-    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(quote ? { response_quote: quote } : {}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
+    return corrections.overlay({ context, title, source, text: saved?.text ?? "", uploads: saved?.uploads ?? [], ...(quote ? { response_quote: quote } : {}), ...(replyToTask ? {reply_to_task_id:replyToTask}:{}), ...(saved?.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}) });
   }
   async function saveDraft(value) {
     const owner = host.backend;
     const { enabled } = await host.drafts.request({ action: "save", draft: value });
-    // Keep an active quote usable without retaining an unsent draft on disk.
-    if (!enabled && value.response_quote) transientQuotes.set(owner, {context:value.context,quote:value.response_quote});
-    else transientQuotes.delete(owner);
+    // Keep selected reply context usable when unsent drafts are not retained.
+    if (!enabled && (value.response_quote || value.reply_to_task_id)) transientDraftRefs.set(owner, {context:value.context,quote:value.response_quote,task:value.reply_to_task_id});
+    else transientDraftRefs.delete(owner);
     return value;
   }
   async function providers(body) {
@@ -210,7 +211,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
     const { context, op } = body;
     if (op === "send") {
       if (typeof body.id !== "string" || !/^[a-f0-9-]{36}$/.test(body.id) || typeof body.text !== "string" || Buffer.byteLength(body.text) > 128 * 1024 || !Array.isArray(body.files)) throw new RequestError(400, "Invalid message.");
-      const signature = digest([context, body.text, body.files, body.response_quote, !!body.queueOnly, body.correction || '']);
+      const signature = digest([context, body.text, body.files, body.response_quote, !!body.queueOnly, body.correction || '', body.reply_to_task_id]);
       const accepted = admissions.get(body.id);
       if (accepted) {
         if (accepted !== signature) throw new RequestError(409, "This message identity has already been used.");
@@ -219,6 +220,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       requireContext(context);
       const saved = await draft();
       if ((saved.correction?.id || '') !== (body.correction || '')) throw new RequestError(409, 'The selected correction draft changed. Review the composer before sending.');
+      if ((saved.reply_to_task_id || '') !== (body.reply_to_task_id || '')) throw new RequestError(409, 'The selected task changed. Review the composer before sending.');
       const files = saved.uploads.map(file => file.id);
       if (JSON.stringify(files) !== JSON.stringify(body.files)) throw new RequestError(409, "The attachments changed. Review the draft before sending.");
       if (!validResponseQuote(body.response_quote) || ['id','digest','text'].some(key=>saved.response_quote?.[key]!==body.response_quote?.[key])) throw new RequestError(409, "The quoted response changed. Review the composer before sending.");
@@ -234,10 +236,11 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       await host.send({ type: "upload_submit", upload: {
         request_id: body.id, context, text, files,
         ...(body.queueOnly === true ? { queue_only: true } : {}),
+        ...(!saved.correction && saved.reply_to_task_id ? {reply_to_task_id:saved.reply_to_task_id}:{}),
         ...(!saved.correction && saved.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}),
       } });
       admissions.set(body.id, signature);
-      transientQuotes.delete(host.backend);
+      transientDraftRefs.delete(host.backend);
       if (saved.correction) { corrections.complete(body.correction); broadcast(); return {}; }
       if (admissions.size > 64) admissions.delete(admissions.keys().next().value);
       // Work was admitted even if draft cleanup fails. Keep the receipt.
@@ -274,6 +277,17 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       }
       case 'file-preview':
         return localFilePreview(host, body);
+      case 'task-reply': {
+        const target=[...host.sessions.workers].find(owner=>!owner.closed&&owner.state?.conversation_id===body.id&&(owner===host.backend||host.sessions.canOpen(body.id)));
+        const parent=target?.state?.dialogue_task?.parent_id;
+        if(!parent||parent!==host.backend.state.primary_conversation_id)throw new RequestError(409,'Inspect this task in its original context before replying.');
+        await host.sessions.open({conversation_id:parent});
+        const saved=await draft();if(saved.correction)throw new RequestError(409,'Finish or cancel the current correction before replying to a task.');
+        return saveDraft({...saved,reply_to_task_id:body.id});
+      }
+      case 'clear-task-reply': {
+        const saved=await draft();delete saved.reply_to_task_id;return saveDraft(saved);
+      }
       case 'task-inspect':
         return inspection.inspect(body.id || host.backend.state.conversation_id);
       case 'task-control':

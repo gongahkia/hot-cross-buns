@@ -26,6 +26,10 @@ export function taskDetails(host) {
     const result = { id, current, connected: !owner.closed, title: state.title || 'Your request', state: owner.closed ? 'Disconnected · retained snapshot' : status(summary?.state || state.dialogue_task?.state || 'idle'),
       summary: summary?.summary || state.dialogue_task?.summary || '',
       identity: fields({ conversation: id, requesting_chat: state.dialogue_task?.parent_id, original_turn: state.dialogue_task?.turn_id, connection: owner.closed ? 'Disconnected' : 'Connected' }, ['conversation', 'requesting_chat', 'original_turn', 'connection']),
+      history:(state.messages||[]).filter(message=>message.text && message.result?.kind!=="approval").slice(-24).map(message=>({role:message.role,text:String(message.text).slice(0,4096),run:message.run_id||message.bundle?.RunID})),
+      activity: summary ? { state: summary.state, active: summary.active, started_at: summary.started_at, finished_at: summary.finished_at, entries: summary.steps, truncated: summary.truncated } : undefined,
+      artifacts:bundles(state).flatMap(bundle=>(bundle.Artifacts||[]).filter(file=>file.Valid).map(file=>({name:file.Path,run:bundle.RunID}))).slice(-32),
+      canReply: !owner.closed && !!state.dialogue_task?.parent_id && state.dialogue_task.parent_id === host.backend.state?.primary_conversation_id,
       records: [], receipts: [], notices: [], plans: (state.task_plans || []).map(plan => ({ id: plan.id, task: plan.task, phase: plan.phase, issue: plan.issue })),
       controls: { guide: !!state.dialogue_task?.can_guide, stop: !!state.dialogue_task?.can_stop, correct: !!state.dialogue_task?.can_correct_action, revise: !!state.dialogue_task?.can_revise_plan },
     };

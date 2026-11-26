@@ -54,3 +54,11 @@ test('recovery preparation requires a current original request and exact reviewe
   assert.equal(calls.at(-1).request_recovery.access_token, 'f'.repeat(64)); assert.equal(calls.at(-1).request_recovery.token, 'e'.repeat(64));
   await assert.rejects(details.control({ selection, action: 'prepare_access', connections: ['account-a'] }), /changed/);
 });
+
+test('ordinary history is inspectable but never becomes a task reply without a linked parent', () => {
+  const { details } = fixture({ conversation_id: 'legacy', messages: [{ role: 'You', text: 'Earlier request' }, { role: 'Hot Cross Buns', text: 'Earlier result', run_id: 'run-old' }, { role: 'Hot Cross Buns', text: 'Approval text', result: { kind: 'approval' } }] });
+  const value = details.inspect('legacy');
+  assert.equal(value.canReply, false);
+  assert.deepEqual(value.history.map(message => message.text), ['Earlier request', 'Earlier result']);
+  assert.equal(value.history[1].run, 'run-old');
+});

@@ -205,3 +205,17 @@ func TestUnplannedTaskOnlyOffersReviewTransitionForExplicitInputs(t *testing.T) 
 		t.Fatal("input transition invented owner authority")
 	}
 }
+
+func TestConversationReplyTargetCannotControlAnotherTask(t *testing.T) {
+	request := ConversationRequest{Text: "Stop this task", ReplyToTaskID: "task-a", Tasks: []ConversationTask{{ID: "task-a", Title: "Selected work", State: "running", CanStop: true}, {ID: "task-b", Title: "Other work", State: "running", CanStop: true}}}
+	if err := (ConversationDecision{Kind: "stop", Target: "task-a"}).Validate(request); err != nil {
+		t.Fatal(err)
+	}
+	if err := (ConversationDecision{Kind: "stop", Target: "task-b"}).Validate(request); err == nil {
+		t.Fatal("targeted reply controlled unrelated work")
+	}
+	request.ReplyToTaskID = "missing"
+	if err := (ConversationDecision{Kind: "reply", Text: "Done"}).Validate(request); err == nil {
+		t.Fatal("missing target was silently substituted")
+	}
+}

@@ -5,7 +5,7 @@ import "strings"
 // QuickAcknowledgement recognizes whole messages, never actionable fragments.
 // Missing confidence costs an ordinary route, not a suppressed useful answer.
 func QuickAcknowledgement(request ConversationRequest) (ConversationDecision, bool) {
-	if len(request.Text) > 160 || request.AcknowledgementBlocked || request.HasFiles || request.PlanFirst || validateConversationRequest(request) != nil || !AcknowledgementContextSafe(request.Tasks, request.Recent) {
+	if request.ReplyToTaskID != "" || len(request.Text) > 160 || request.AcknowledgementBlocked || request.HasFiles || request.PlanFirst || validateConversationRequest(request) != nil || !AcknowledgementContextSafe(request.Tasks, request.Recent) {
 		return ConversationDecision{}, false
 	}
 	text := strings.ToLower(strings.TrimSpace(request.Text))

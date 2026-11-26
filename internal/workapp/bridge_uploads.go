@@ -14,6 +14,7 @@ import (
 type BridgeUploadSubmission struct {
 	QueueOnly       bool     `json:"queue_only,omitempty"`
 	PlanFirst       bool     `json:"plan_first,omitempty"`
+	ReplyToTaskID   string   `json:"reply_to_task_id,omitempty"`
 	ReplyToUpdateID string   `json:"reply_to_update_id,omitempty"`
 	RequestID       string   `json:"request_id"`
 	Context         string   `json:"context"`
@@ -73,7 +74,7 @@ func (m Model) SubmitBridgeUploads(request BridgeUploadSubmission) (tea.Model, t
 			continue
 		}
 		var options RunOptions
-		if json.Unmarshal(retained.OriginalAdmissionOptions(), &options) != nil || retained.Text != text || options.ReplyToUpdateID != request.ReplyToUpdateID || options.PlanFirst != request.PlanFirst || !slices.Equal(options.Uploads, request.Files) {
+		if json.Unmarshal(retained.OriginalAdmissionOptions(), &options) != nil || retained.Text != text || options.ReplyToUpdateID != request.ReplyToUpdateID || options.ReplyToTaskID != request.ReplyToTaskID || options.PlanFirst != request.PlanFirst || !slices.Equal(options.Uploads, request.Files) {
 			return fail("This message identity was already used. Review the retained request before sending a different message.")
 		}
 		return m, nil
@@ -95,6 +96,15 @@ func (m Model) SubmitBridgeUploads(request BridgeUploadSubmission) (tea.Model, t
 		return fail("The queue is full. Remove a message before adding another.")
 	}
 	seen := map[string]bool{}
+	if request.ReplyToTaskID != "" {
+		valid := false
+		for _, task := range m.conversationTasks() {
+			valid = valid || task.ID == request.ReplyToTaskID
+		}
+		if !m.primary || !valid || request.QueueOnly {
+			return fail("This task is no longer available in HCB; inspect its current details before replying.")
+		}
+	}
 	if err := m.validateUpdateReply(request.ReplyToUpdateID); err != nil {
 		return fail(err.Error())
 	}
