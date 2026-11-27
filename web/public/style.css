@@ -694,12 +694,17 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .local-browser-open .compose-trailing { flex-wrap: wrap; justify-content: flex-end; }
 .browser-tabs { display: flex; gap: .35rem; overflow: auto; padding: .45rem .65rem; border-bottom: 1px solid var(--line); }
 .browser-tab { display: flex; align-items: center; flex-shrink: 0; }
+.browser-tab [role="tab"] { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .browser-tab [role="tab"][aria-selected="true"] { color: var(--accent); background: var(--wash); }
 .browser-toolbar { display: flex; align-items: center; gap: .3rem; padding: .45rem .65rem; }
 .browser-toolbar input { flex: 1; min-width: 0; padding: .3rem .45rem; border: 1px solid var(--line); border-radius: .3rem; background: var(--wash); font-size: .75rem; }
 .browser-toolbar a { display: inline-flex; align-items: center; }
 .browser-frames { flex: 1; min-height: 0; }
 .browser-frames iframe { width: 100%; height: 100%; border: 0; background: white; }
+.browser-file { overflow: auto; padding: 1rem; }
+.browser-file pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.browser-file .preview-actions:empty { display: none; }
+.browser-file .preview-actions { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
 .plan-questions { margin-bottom: 1.2rem; }
 .plan-questions h3 { font-size: 1rem; margin: 0 0 .35rem; }
 .plan-questions fieldset { border: 0; padding: 0; margin: 1.3rem 0; min-width: 0; }

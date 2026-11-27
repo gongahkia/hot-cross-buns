@@ -1,0 +1,44 @@
+# Shared file and app preview pane
+
+File chips previously downloaded immediately, composer attachments opened a
+modal, and prose filenames used a separate sidebar. They now open tabs in the
+existing local-app split pane. Apps and files can coexist within its existing
+four-tab limit. Reopening a selected file reuses its tab; closing a file leaves
+other tabs intact. Download is an explicit action for selected uploads and
+retained outputs.
+
+Local Markdown links, inline filenames and file references in detail views use
+the same pane. Source-file buttons open the exact retained capture, labeled as
+an excerpt, rather than guessing a workspace file with the same name. Canvas
+remains an explicit editing action. The pane retains loading and error states,
+PDF paging, keyboard tab navigation and focus restoration.
+
+Preview routing preserves the existing host checks for selected uploads,
+retained output hashes, workspace boundaries and linked files. Absolute paths
+are resolved only within the selected workspace. Unsupported formats show their
+preview notice; selected files retain the download action. This change does not
+grant access to arbitrary paths outside the admitted scope.
+
+## Verification
+
+- `make check` passed with Node 26.7.0 and canonical `TMPDIR`: Go tests and vet,
+  202 web tests, 148 host tests and the OAuth build test. The final source-file
+  interaction and focus refinements were followed by another full web run:
+  all 203 tests passed, with none skipped.
+- The initial targeted run exposed the existing macOS `/var` versus
+  `/private/var` workspace-test mismatch. The canonical-path full run passed.
+- Tests cover mixed app/file tabs without replacing app frames, PDF navigation,
+  explicit downloads, reload after errors, duplicate file opens, stale reads
+  after context changes, local Markdown links, filenames with spaces, workspace
+  escape rejection, retained-file tampering and file-view ownership checks.
+- T3 browser checks used the real gateway/native backend with the existing
+  controlled-provider fixture. Attachment cards, sent-file chips, prose
+  filenames and Sources-file buttons opened the pane. The Sources modal closed
+  when its file opened. Desktop used an even split; the 390-pixel layout used
+  the existing full-width pane, with no horizontal overflow.
+- After an idle-only server restart, the actual local profile's `memo.md` output
+  opened successfully in the pane with a separate download action. The original
+  conversation was preserved. No cloud-model call or external action was needed
+  for that real-profile check.
+
+Temporary fixture processes and the inspection tab were closed after testing.

@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {localFilePreview} from '../local-file-preview.mjs';
+import {pdfFixture} from '../../app-host/tests/pdf-fixture.mjs';
 test('file previews stay within the selected workspace and verify retained task outputs',async()=>{
  const root=await mkdtemp(join(tmpdir(),'hcb-file-preview-'));
  try {
@@ -24,6 +25,13 @@ test('file previews stay within the selected workspace and verify retained task 
   assert.equal((await localFilePreview(host,{...request,name:'project.test.md'})).text,'dotted filename');
   const workspacePreview=await localFilePreview(host,{...request,name:'project.test.md',run:'run'});
   assert.equal(workspacePreview.text,'dotted filename');assert.equal(workspacePreview.note,'Current workspace file');
+  await writeFile(join(source,'Project brief.md'),'filename with spaces');
+  assert.equal((await localFilePreview(host,{...request,name:join(source,'Project brief.md')})).text,'filename with spaces');
+  await assert.rejects(localFilePreview(host,{...request,name:join(bundle,'output','PROJECT.md')}),/outside/);
+  await writeFile(join(source,'brief.pdf'),pdfFixture());
+  const pdf=await localFilePreview(host,{...request,name:'brief.pdf',page:2});
+  assert.equal(pdf.kind,'pdf');assert.equal(pdf.page,2);assert.equal(pdf.pages,2);assert.match(pdf.data,/^data:image\/png;base64,/);
+  await assert.rejects(localFilePreview(host,{...request,name:'brief.pdf',page:3}),/page does not exist/);
   await writeFile(join(bundle,'output','PROJECT.md'),'tampered');await assert.rejects(localFilePreview(host,{...request,run:'run'}),/changed/);
  }finally{await rm(root,{recursive:true,force:true})}
 });

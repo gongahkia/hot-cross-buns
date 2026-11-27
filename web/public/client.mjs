@@ -35,7 +35,7 @@ import { streamingResponse } from './streaming.mjs';
 import { schedulingApprovalActions, filesystemApprovalActions, currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
 import { icon, setIcon } from "./icons.mjs";
 import { composerAction } from './composer-action.mjs';
-import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
+import { attachmentCard, pastedFiles } from "./attachments.mjs";
 
 const $ = id => document.getElementById(id);
 const input = $("message"), dialog = $("detail"), detail = $("detail-body");
@@ -76,18 +76,18 @@ const reading = readingPosition({ transcript: $('transcript'), streaming: $('str
 document.querySelector('.composer-wrap').prepend(reading.element);
 export const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
 let reactionMode = reactionPreference();
-const filePreviews = fileReferences({ request: body => call({ op: 'file-preview', ...body }) });
-document.body.append(filePreviews.element);
+const browser = localBrowser({ inspect: url => call({ op: 'local-app-status', url }) }); document.body.append(browser.element);
+const filePreviews = fileReferences({ request: body => call({ op: 'file-preview', ...body }), pane: browser });
 const canvas=canvasWorkspace({request:body=>call({op:'canvas-request',...body})});
 document.body.append(canvas.element);
-document.addEventListener('open-canvas',event=>{filePreviews.close();canvas.open(event.detail,snapshot.context)});
-document.addEventListener('local-file-preview-open',()=>canvas.close());
-const browser = localBrowser({ inspect: url => call({ op: 'local-app-status', url }) }); document.body.append(browser.element);
+document.addEventListener('open-canvas',event=>canvas.open(event.detail,snapshot.context));
+document.addEventListener('local-file-preview-open',()=>{canvas.close();if(dialog.open)dialog.close();showHistory(false);});
 document.addEventListener('open-local-app', event => browser.open(event.detail.url, event.detail.trigger));
-document.addEventListener('local-app-preview-open', () => { filePreviews.close(); canvas.close(); });
-document.addEventListener('local-file-preview-open', () => browser.close());
+document.addEventListener('local-app-preview-open', () => canvas.close());
 document.addEventListener('open-canvas', () => browser.close());
 const contextUsage = contextMeter($("context-meter"));
+const detailFiles = new MutationObserver(() => filePreviews.decorate(detail, detail.dataset.fileRun));
+detailFiles.observe(detail, { childList: true, subtree: true });
 const models = modelPicker({select: async (action, state) => {
   if (pending || snapshot.context !== state.context) throw new Error('Resolve the current message before changing models or effort.');
   await flush();
@@ -265,7 +265,7 @@ function showDraft(value) {
   for (const key of previewCache.keys()) if (!files.some(file => key.startsWith(file.id + ":"))) previewCache.delete(key);
   $("attachments").replaceChildren(...files.map(file => attachmentCard(file, {
     load: () => loadPreview(file, value.context),
-    open: () => void execute(() => openAttachment(file, value.context)),
+    open: event => void execute(() => openAttachment(file, value.context, event.currentTarget)),
     remove: () => void execute(async () => {
       if (pending?.context === value.context) return;
       await flush();
@@ -425,23 +425,8 @@ function loadPreview(file, context, page = 1) {
   }
   return previewCache.get(key);
 }
-async function openAttachment(file, context, page = 1) {
-  openDetail(file.name, element("p", "Preparing preview…", "hint"));
-  const generation = detailGeneration;
-  const view = await loadPreview(file, context, page);
-  if (context !== snapshot.context || generation !== detailGeneration || !dialog.open) return;
-  const actions = element("div", undefined, "preview-actions");
-  const original = download(file.name, { kind: "upload", id: file.id }, context);
-  original.textContent = "Download original";
-  if (view.kind === "pdf") {
-    const previous = button("Previous page", () => void execute(() => openAttachment(file, context, page - 1)));
-    const next = button("Next page", () => void execute(() => openAttachment(file, context, page + 1)));
-    previous.disabled = page <= 1;
-    next.disabled = page >= view.pages;
-    actions.append(previous, element("span", "Page " + page + " of " + view.pages, "hint"), next);
-  }
-  actions.append(original);
-  openDetail(file.name, previewContent(view), actions);
+function openAttachment(file, context, trigger) {
+  openSelectedFile(file.name, { kind: 'upload', id: file.id }, context, trigger);
 }
 $("model-picker").addEventListener("click", () => models.open($('model-picker')));
 
@@ -501,6 +486,7 @@ function showDetail(title, ...nodes) {
   dialog.classList.toggle("memory-pane", nodes.some(node => node.classList?.contains("memory-pane-content")));
   dialog.classList.toggle('wide-pane', nodes.some(node => node.classList?.contains('settings-view') || node.classList?.contains('usage-dashboard') || node.classList?.contains('models-dashboard')));
   $("detail-title").textContent = title;
+  delete detail.dataset.fileRun;
   detail.replaceChildren(...nodes);
   if (previousTitle !== title) dialog.scrollTop = 0;
   if (!dialog.open) dialog.showModal();
@@ -823,15 +809,22 @@ function showPlan(plan, context, conversation) {
   });
 }
 
-function download(label, ref, context) {
-  return button(label, () => void execute(async () => {
-    const blob = await call({ op: "download", ref, context }, true);
-    const url = URL.createObjectURL(blob), link = element("a");
-    link.href = url;
-    link.download = label.split("/").at(-1);
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-  }));
+function openSelectedFile(label, ref, context, trigger) {
+  browser.openFile({ key: JSON.stringify([context, ref]), name: label, trigger,
+    load: page => ref.kind === 'upload' ? loadPreview({ id: ref.id }, context, page) : call({ op: 'file-view', context, ref, page }),
+    download: () => void execute(async () => {
+      const blob = await call({ op: "download", ref, context }, true);
+      const url = URL.createObjectURL(blob), link = element("a");
+      link.href = url;
+      link.download = label.split("/").at(-1);
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }),
+  });
+}
+function fileButton(label, ref, context) {
+  const node = button(label, () => openSelectedFile(label, ref, context, node));
+  node.setAttribute('aria-label', 'Preview ' + label); return node;
 }
 let sourceChipContext = '';
 const sourceChips = new Map();
@@ -846,8 +839,14 @@ function contextSources(run, context) {
       current: () => snapshot.context === context,
       open: () => {
         const view = answerContextView({ request: () => call({ op: 'answer-context', context, run }),
+          openFile: reference => browser.openFile({ key: JSON.stringify([context, run, 'evidence', reference.id]), name: reference.label,
+            load: async () => {
+              if (!reference.preview) throw new Error(reference.error || 'A retained preview is unavailable for this source.');
+              return { kind: 'text', text: reference.preview.text, truncated: reference.preview.truncated, note: 'Retained source excerpt' };
+            },
+          }),
           current: () => snapshot.context === context && dialog.open && detail.contains(view.element) });
-        openDetail('Sources', view.element); void view.load();
+        openDetail('Sources', view.element); detail.dataset.fileRun = run; void view.load();
       },
     });
     chip.element.dataset.contextRun = run; sourceChips.set(run, chip);
@@ -894,7 +893,7 @@ function renderTranscript(state) {
       if (reaction) request.append(reactionChip(reaction));
       if (value.input_ids?.length) {
         const files = element("div", undefined, "meta");
-        for (const id of value.input_ids) files.append(download(id.split("/").at(-1), { kind: "upload", id }, context));
+        for (const id of value.input_ids) files.append(fileButton(id.split("/").at(-1), { kind: "upload", id }, context));
         request.append(files);
       }
       nodes.push(request);
@@ -925,8 +924,8 @@ function renderTranscript(state) {
     article.dataset.messageId = 'message:' + (value.revision_id || value.run_id || value.created_at || '') + ':' + messages.indexOf(value);
     decorate(article);
     if (value.result && value.result.title !== 'Context and sources') meta.append(button(value.result.title || "Details", () => openDetail(value.result.title || "Details", describeResult(value.result))));
-    for (const file of value.bundle?.Artifacts || []) if (file.Valid) meta.append(download(file.Path, { kind: "output", bundle: value.bundle.Path, path: file.Path }, context));
-    for (const id of value.input_ids || []) meta.append(download(id.split("/").at(-1), { kind: "upload", id }, context));
+    for (const file of value.bundle?.Artifacts || []) if (file.Valid) meta.append(fileButton(file.Path, { kind: "output", bundle: value.bundle.Path, path: file.Path }, context));
+    for (const id of value.input_ids || []) meta.append(fileButton(id.split("/").at(-1), { kind: "upload", id }, context));
     const contextRun = answerContextRun(value);
     if (contextRun && value.role !== 'You') meta.append(contextSources(contextRun, context));
     if (value.activity) {

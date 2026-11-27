@@ -345,6 +345,9 @@ test("attachment previews restore selected files, render PDF pages, and enforce 
     assert.equal(text.status, 200);
     assert.equal(text.value.kind, "text");
     assert.equal(text.value.text, "<script>keep this as text</script>");
+    const selected = await action({op:'file-view',context,ref:{kind:'upload',id:files[0].id}});
+    assert.equal(selected.status,200);assert.equal(selected.value.text,text.value.text);
+    assert.equal((await action({op:'file-view',context,ref:{kind:'path',path:'/etc/passwd'}})).status,400);
     const image = await action({ op: "attachment-preview", context, id: files[1].id });
     assert.match(image.value.data, /^data:image\/png;base64,/);
     const pdf = await action({ op: "attachment-preview", context, id: files[2].id, page: 2 });
@@ -352,6 +355,8 @@ test("attachment previews restore selected files, render PDF pages, and enforce 
     assert.equal(pdf.value.page, 2);
     assert.equal(pdf.value.pages, 2);
     assert.match(pdf.value.data, /^data:image\/png;base64,/);
+    const selectedPDF = await action({op:'file-view',context,ref:{kind:'upload',id:files[2].id},page:2});
+    assert.equal(selectedPDF.status,200);assert.equal(selectedPDF.value.page,2);assert.equal(selectedPDF.value.pages,2);
     assert.equal((await action({ op: "attachment-preview", context, id: files[2].id, page: 3 })).status, 400);
     assert.equal((await action({ op: "draft", context })).value.uploads.length, 3);
     assert.equal((await action({ op: "attachment-preview", context, id: "a".repeat(32) + "/other.txt" })).status, 400);

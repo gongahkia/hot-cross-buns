@@ -102,7 +102,7 @@ function excerpt(section, text) {
     full.append(element('summary', 'Full excerpt'), element('pre', value, 'source-excerpt')); section.append(full);
   }
 }
-export function answerContextView({ request, current = () => true }) {
+export function answerContextView({ request, current = () => true, openFile }) {
   const root = element('div', undefined, 'answer-context');
   function render(value) {
     root.replaceChildren();
@@ -127,11 +127,17 @@ export function answerContextView({ request, current = () => true }) {
       const url = sourceURL(reference), section = element('section', undefined, 'context-entry');
       const preview = reference.preview, capture = preview && readableCapture(preview);
       const head = element('div', undefined, 'context-source-heading');
-      const title = url ? element('a', capture?.title || reference.label || url.hostname) : element('span', reference.label || 'Retained source');
+      const file = openFile && ['file','attachment'].includes(reference.kind);
+      const title = url ? element('a', capture?.title || reference.label || url.hostname) : element(file ? 'button' : 'span', reference.label || 'Retained source', file ? 'file-reference' : undefined);
       if (url) { title.href = url.href; title.target = '_blank'; title.rel = 'noopener noreferrer'; }
+      if (file) { title.type = 'button'; title.setAttribute('aria-label', 'Preview ' + reference.label); title.onclick = () => openFile(reference); }
       head.append(sourceMark(reference), title); section.append(head);
       if (url) section.append(element('p', url.hostname.replace(/^www\./,''), 'hint'));
-      else if (reference.locator) section.append(element('p', reference.locator, 'hint'));
+      else if (reference.locator) {
+        const path = element(file ? 'button' : 'p', reference.locator, file ? 'file-reference hint' : 'hint');
+        if (file) { path.type = 'button'; path.onclick = () => openFile(reference); }
+        section.append(path);
+      }
       if (preview) {
         excerpt(section, capture.text);
         if (capture.raw || preview.notice || preview.truncated) {

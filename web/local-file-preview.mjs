@@ -1,13 +1,22 @@
 import { createHash } from 'node:crypto';
-import { basename, join, relative } from 'node:path';
+import { basename, join, relative, isAbsolute } from 'node:path';
+import { homedir } from 'node:os';
 import { readBoundedFile } from '../app-host/src/files.mjs';
 import { inspectContent } from '../app-host/src/file-content.mjs';
 import { attachmentPreview } from './attachment-preview.mjs';
+import { renderPDF } from '../app-host/src/pdf.mjs';
 
-export async function localFilePreview(host, { context, name, run }) {
-  if (host.context !== context || typeof name !== 'string' || name.length > 512 || !/^[\w-][\w.-]*(?:\/[\w.-]+)*\.[a-z0-9]+$/i.test(name) || name.split('/').some(part => part.startsWith('.'))) throw new Error('Choose a local file in the current conversation.');
+export async function localFilePreview(host, { context, name, run, page = 1 }) {
+  if (host.context !== context || typeof name !== 'string' || !name || name.length > 1024 || /[\\\x00-\x1f]/.test(name)) throw new Error('Choose a local file in the current conversation.');
   host.mutable();
   const current = host.backend;
+  const originalName = name;
+  if (name.startsWith('~/')) name = join(homedir(), name.slice(2));
+  if (isAbsolute(name)) {
+    if (!current.state?.source) throw new Error('No workspace is selected for this chat.');
+    name = relative(current.state.source, name);
+  }
+  if (!name || name.startsWith('/') || !/\.[a-z0-9]+$/i.test(name) || name.split('/').some(part => !part || part.startsWith('.'))) throw new Error('This file is outside the selected workspace or unavailable for preview. Open its original task or ask HCB to read it with the required folder access.');
   const owners = [...host.sessions.workers].filter(owner => !owner.closed && (owner === current || host.sessions.canOpen(owner.state?.conversation_id)));
   const candidates = [];
   for (const owner of run ? owners : []) {
@@ -52,5 +61,11 @@ export async function localFilePreview(host, { context, name, run }) {
     note = 'Current workspace file';
   }
   if (host.backend !== current || host.context !== context || current.closed || host.sessions.switching) throw new Error('The conversation changed. Hover the file again.');
-  return { name, ...attachmentPreview(inspectContent(name, bytes)), note };
+  const view = inspectContent(name, bytes);
+  if (view.kind === 'pdf') {
+    const rendered = await renderPDF(new Uint8Array(bytes), page, 900);
+    if (host.backend !== current || host.context !== context || current.closed || host.sessions.switching) throw new Error('The conversation changed. Reopen the file.');
+    return { name: originalName, kind: 'pdf', page: rendered.page, pages: rendered.pages, data: 'data:image/png;base64,' + Buffer.from(rendered.image).toString('base64'), note };
+  }
+  return { name: originalName, ...attachmentPreview(view), note };
 }

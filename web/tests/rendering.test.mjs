@@ -74,6 +74,15 @@ test('answer context has honest empty, partial failure, retry and stale-view sta
   view.element.remove();
 });
 
+test('source file buttons open the exact retained capture rather than guessing a workspace filename', async () => {
+  const selected = [], reference = {id:'capture-one',kind:'attachment',label:'notes.md',locator:'attachment/notes.md',preview:{text:'Retained source bytes'}};
+  const view = answerContextView({request:async()=>({references:[reference]}),openFile:file=>selected.push(file)});
+  document.body.replaceChildren(view.element); await view.load();
+  view.element.querySelector('[aria-label="Preview notes.md"]').click();
+  assert.deepEqual(selected, [reference]);
+  view.element.querySelector('button:not([aria-label])').click(); assert.equal(selected.length, 2);
+});
+
 test('the detailed Models view separates orchestrator choices from native and CLI assignments',async()=>{
   const state={provider:'openai',model:'manager',composer:{models:[{provider:'openai',model:'manager',label:'Manager'},{provider:'gemini',model:'worker',label:'Alternative'}],budget:{work_steps:24,code_steps:16},readiness:{processing:{description:'Configured provider'}}}};
   let chosen;
@@ -134,7 +143,7 @@ test('local app links open on click in bounded split tabs and cannot embed the h
   pane.open('http://localhost:3000/');assert.equal(pane.element.querySelectorAll('iframe').length,2);
   for(let port=5000;port<5004;port++)pane.open('http://localhost:'+port);assert.equal(pane.element.querySelectorAll('iframe').length,4);
   assert.equal(pane.open('https://example.com'),false);
-  pane.element.querySelector('[aria-label="Close app preview"]').click();assert.equal(pane.element.querySelector('iframe'),null);assert.equal(document.body.classList.contains('local-browser-open'),false);
+  pane.element.querySelector('[aria-label="Close preview"]').click();assert.equal(pane.element.querySelector('iframe'),null);assert.equal(document.body.classList.contains('local-browser-open'),false);
   document.removeEventListener('open-local-app',onOpen);
 });
 
@@ -956,19 +965,20 @@ test('response actions quote only model text, persist local emoji and keep repli
 });
 
 
-test('filename previews open a sidebar without following URLs or code samples and retire stale reads', async () => {
+test('filename previews use shared tabs without following URLs or code samples and retire stale reads', async () => {
  document.body.innerHTML = '<article><p>Open PROJECT.md and <code>notes.md</code>, plus src/file.test.ts.</p><pre>ignored.md</pre><a href="https://example.com/remote.md">remote.md</a></article>';
  let finish;
  const requests=[];
- const previews=fileReferences({request: body=>{requests.push(body);return new Promise(resolve=>finish=resolve)}});
- document.body.append(previews.element);previews.reset('conversation:one');previews.decorate(document.querySelector('article'));
+ const pane=localBrowser();
+ const previews=fileReferences({pane,request: body=>{requests.push(body);return new Promise(resolve=>finish=resolve)}});
+ document.body.append(pane.element);previews.reset('conversation:one');previews.decorate(document.querySelector('article'));
  const links=document.querySelectorAll('.file-reference');assert.equal(links.length,3);assert.equal(links[0].textContent,'PROJECT.md');assert.equal(links[2].textContent,'src/file.test.ts');
- links[0].click();assert.equal(previews.element.hidden,false);assert.equal(requests[0].context,'conversation:one');
+ links[0].click();assert.equal(pane.element.hidden,false);assert.equal(requests[0].context,'conversation:one');
  previews.reset('conversation:two');finish({kind:'text',text:'stale private output'});await new Promise(resolve=>setTimeout(resolve,0));
- assert.equal(previews.element.hidden,true);assert.doesNotMatch(previews.element.textContent,/stale private output/);
+ assert.equal(pane.element.hidden,true);assert.doesNotMatch(pane.element.textContent,/stale private output/);
  links[1].click();finish({kind:'text',text:'selected notes',note:'Current workspace file'});await new Promise(resolve=>setTimeout(resolve,0));
- assert.match(previews.element.textContent,/selected notes/);assert.equal(previews.element.getAttribute('aria-label'),'File preview');
- previews.element.querySelector('[aria-label="Close file preview"]').click();assert.equal(previews.element.hidden,true);
+ assert.match(pane.element.textContent,/selected notes/);assert.equal(pane.element.getAttribute('aria-label'),'Files and apps');
+ pane.element.querySelector('[aria-label="Close preview"]').click();assert.equal(pane.element.hidden,true);
 });
 
 test('robot agent panel is conditional, has a distinct identity, and shows literal output', () => {
@@ -979,6 +989,50 @@ test('robot agent panel is conditional, has a distinct identity, and shows liter
  assert.equal(pane.trigger.querySelector('[data-icon="bot"]').getAttribute('aria-hidden'),'true');
  assert.equal(pane.element.id,'agents-test');assert.match(pane.element.textContent,/literal log|worker failed/);assert.equal(pane.element.querySelector('script'),null);
  assert.match(pane.element.querySelector('pre').textContent,/<script>literal log/);
+});
+
+test('files and local apps share tabs, with PDF paging, explicit download and recoverable read errors', async () => {
+  document.body.replaceChildren();
+  const pane = localBrowser(); document.body.append(pane.element);
+  pane.open('http://localhost:3000/'); const frame = pane.element.querySelector('iframe');
+  const pages = []; let downloads = 0, fail = false;
+  const file = { key: 'owned-pdf', name: 'A long project brief.pdf',
+    load: async page => { pages.push(page); if (fail) throw Error('File changed. Reload it.'); return {kind:'pdf',page,pages:2,data:'data:image/png;base64,aGVsbG8='}; },
+    download: () => downloads++,
+  };
+  pane.openFile(file); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(pane.element.querySelectorAll('[role="tab"]').length, 2);
+  assert.equal(pane.element.querySelector('iframe'), frame, 'opening a file must preserve the app frame');
+  assert.equal(pane.element.querySelector('[aria-label="Open in browser"]').hidden, true);
+  assert.equal(downloads, 0, 'preview is not a download');
+  pane.element.querySelector('[aria-label="Download file"]').click(); assert.equal(downloads, 1);
+  assert.equal(pane.element.querySelector('[aria-label="Previous page"]').disabled, true);
+  pane.element.querySelector('[aria-label="Next page"]').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(pages, [1,2]); assert.equal(pane.element.querySelector('[aria-label="Next page"]').disabled, true);
+  pane.element.querySelector('[role="tab"]').click(); assert.equal(frame.closest('[role="tabpanel"]').hidden, false);
+  assert.equal(pane.element.querySelector('[aria-label="Download file"]').hidden, true);
+  pane.openFile(file); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(pane.element.querySelectorAll('[role="tab"]').length, 2);
+  fail = true; pane.element.querySelector('[aria-label="Reload file"]').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(pane.element.querySelector('[role="alert"]').textContent, /File changed/);
+  fail = false; pane.element.querySelector('[aria-label="Reload file"]').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(pane.element.querySelector('[role="alert"]'), null);
+  pane.closeFiles(); assert.equal(pane.element.querySelector('iframe'), frame); assert.equal(pane.element.hidden, false);
+  pane.close();
+});
+
+test('relative Markdown links and inline paths open files while web links remain web links', async () => {
+  document.body.replaceChildren();
+  const pane = localBrowser(), article = document.createElement('article');
+  article.append(prose('[Project brief](docs/Project%20brief.md) and `docs/My project.md` plus `/Users/alice/work/notes.md`. [Remote](https://example.com/remote.md)'));
+  document.body.append(article, pane.element);
+  const requests = [], refs = fileReferences({pane,request:async body=>{requests.push(body);return {kind:'text',text:'selected file'};}});
+  refs.reset('conversation:paths'); refs.decorate(article, 'retained-run'); refs.decorate(article, 'retained-run');
+  assert.equal(article.querySelectorAll('.file-reference').length, 3, 'repeat decoration must not nest buttons');
+  article.querySelector('a.file-reference').click(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(requests[0], {context:'conversation:paths',name:'docs/Project brief.md',page:1,run:'retained-run'});
+  assert.equal(article.querySelector('a[href^="https:"]').classList.contains('file-reference'), false);
+  refs.reset('conversation:other'); assert.equal(pane.element.hidden, true);
 });
 
 

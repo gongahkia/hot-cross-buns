@@ -544,8 +544,9 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         if (result.error) throw new RequestError(409, result.error);
         return result.catalog;
       }
+      case "file-view":
       case "attachment-preview": {
-        const request = { context, action: "open", ref: { kind: "upload", id: body.id } };
+        const request = { context, action: "open", ref: op === 'file-view' ? body.ref : { kind: "upload", id: body.id } };
         const view = await host.file(request);
         if (view.kind !== "pdf") return attachmentPreview(view);
         const page = await host.pdf(request, body.page ?? 1, 900);
