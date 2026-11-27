@@ -121,16 +121,14 @@ func directory(path string) error {
 	if err := os.MkdirAll(path, 0700); err != nil {
 		return err
 	}
-	resolved, err := filepath.EvalSymlinks(path)
+	// The private state root is selected by the host and may use the macOS
+	// /var alias. The managed destination itself must remain an ordinary directory.
+	info, err := os.Lstat(path)
 	if err != nil {
 		return err
 	}
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	if resolved != absolute {
-		return errors.New("sync directories must not contain symbolic links")
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("sync state must be an ordinary directory")
 	}
 	return privatefs.Protect(path)
 }
