@@ -1190,3 +1190,69 @@ test('new bakery assignments are native emoji while legacy task identities stay 
   assert.equal(handoff.querySelector('.task-bread').textContent,'🥧');
   assert.equal(handoff.querySelector('.task-bread').childElementCount,0);
 });
+
+test('repeated tools share a live count while every call and mixed outcome stays inspectable', () => {
+  const view=activityView('counted',{remember:false});
+  const first={id:'fetch-1',kind:'tool',tool:'http_fetch',icon:'globe',state:'running',details:[{kind:'fetched',domain:'first.example'}]};
+  view.update({state:'running',entries:[first]});
+  const row=view.element.querySelector('.activity-entry');row.open=true;
+  view.update({state:'running',entries:[{...first,state:'failed'}, {id:'read',kind:'tool',tool:'read_file',state:'completed'}, {...first,id:'fetch-2',icon:'book-open',state:'running',details:[{kind:'fetched',domain:'second.example'}]}]});
+  assert.equal(view.element.querySelectorAll('.activity-entry').length,2);
+  assert.equal(view.element.querySelector('.activity-entry'),row);
+  assert.equal(row.open,true);
+  assert.equal(row.querySelector('.activity-entry-label').textContent,'http fetch (2)');
+  assert.match(row.querySelector('.activity-entry-status').textContent,/1 running.*1 failed/);
+  assert.equal(row.dataset.state,'running');
+  assert.equal(row.querySelectorAll('.activity-call').length,2);
+  assert.match(row.textContent,/first.example/);assert.match(row.textContent,/second.example/);
+  const call=row.querySelector('.activity-call');call.open=true;
+  const values=[{...first,state:'failed'},{...first,id:'fetch-2',state:'completed'},{...first,id:'fetch-3',state:'running'}];
+  view.update({state:'running',entries:values});
+  assert.equal(row.querySelector('.activity-entry-label').textContent,'http fetch (3)');
+  assert.equal(row.querySelector('.activity-call'),call);assert.equal(call.open,true);
+  view.update({state:'completed',entries:values.map(value=>({...value,state:value.id==='fetch-1'?'failed':'completed'}))});
+  assert.equal(row.querySelector('.activity-entry-label').textContent,'http fetch (3)');
+  assert.equal(row.querySelector('.activity-entry-status').textContent,'1 failed · 2 completed');
+  assert.equal(row.dataset.state,'failed');
+});
+
+test('tool groups keep provider identities separate and counts reset for a different run', () => {
+  const view=activityView('providers',{remember:false});
+  const call={id:'one',kind:'tool',tool:'web_search',state:'completed',brand:'google'};
+  view.update({state:'completed',truncated:true,entries:[call,{...call,id:'two',brand:'openai'},{...call,id:'three',kind:'status',text:'A status'}]});
+  assert.equal(view.element.querySelectorAll('.activity-entry').length,3);
+  assert.doesNotMatch(view.element.querySelector('.activity-entry-label').textContent,/\(2\)/);
+  assert.match(view.element.querySelector('.activity-truncated').textContent,/truncated/);
+  view.update({state:'running',entries:[{...call,id:'new-run',state:'running'}]});
+  assert.equal(view.element.querySelectorAll('.activity-entry').length,1);
+  assert.equal(view.element.querySelectorAll('.activity-call').length,0);
+});
+
+test('composer and task popup share grouped tools and preserve nested inspection during live updates', () => {
+  const inspector=taskInspector({openChat(){}}), progress=composerProgress();
+  inspector.element.removeAttribute('popover');
+  document.body.replaceChildren(inspector.element,progress.element);
+  const steps=[{id:'one',tool:'http_fetch',state:'completed'},{id:'two',tool:'http_fetch',state:'running'}];
+  const task={id:'counted-task',title:'Research',active:true,state:'running',steps};
+  inspector.update([task]);progress.update(task);
+  for (const root of [inspector.element,progress.element]) {
+    assert.equal(root.querySelectorAll('.observed-step').length,1);
+    assert.equal(root.querySelector('.step-name').textContent,'http fetch (2)');
+    assert.equal(root.querySelectorAll('.activity-call').length,2);
+    root.querySelector('.step-disclosure').open=true;
+    root.querySelector('.activity-call').open=true;
+  }
+  assert.equal(progress.element.querySelector('.progress-label').textContent,'http fetch (2)');
+  const focused=inspector.element.querySelector('.activity-call > summary');focused.tabIndex=0;focused.focus();
+  assert.equal(document.activeElement,focused);
+  const updated={...task,steps:[...steps,{id:'three',tool:'http_fetch',state:'running'}]};
+  inspector.update([updated]);progress.update(updated);
+  assert.equal(document.activeElement,focused);
+  for (const root of [inspector.element,progress.element]) {
+    assert.equal(root.querySelector('.step-name').textContent,'http fetch (3)');
+    assert.equal(root.querySelector('.step-disclosure').open,true);
+    assert.equal(root.querySelector('.activity-call').open,true);
+  }
+  progress.update({...task,id:'another-task',steps:[steps[0]]});
+  assert.equal(progress.element.querySelector('.step-name').textContent,'http fetch');
+});

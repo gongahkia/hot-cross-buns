@@ -2,12 +2,13 @@ import { taskBread } from './task-identity.mjs';
 import { brandIcon } from './brands.mjs';
 import { animateSurfaceHeight } from './surface-motion.mjs';
 import { element } from './text.mjs';
-import { elapsed, toolLabel, activityFacts } from './activity.mjs';
+import { elapsed, groupActivityEntries, activityEntryLabel, activityEntryStatus, updateActivityFacts } from './activity.mjs';
 import { icon, setIcon, activityIcon } from './icons.mjs';
 
 const labels = { running: 'In progress', waiting: 'Needs you', stopping: 'Stopping', completed: 'Ready', failed: 'Needs attention', stopped: 'Stopped', disconnected: 'Connection lost', queued: 'Queued', idle: 'Waiting' };
 const marks = { completed: 'check', failed: 'circle-alert', waiting: 'pause', stopping: 'square', stopped: 'square', disconnected: 'wifi-off', queued: 'clock', idle: 'clock' };
 function stepIcon(step, state) { return marks[state] || activityIcon(step?.tool, step?.icon); }
+function groupedSteps(steps = []) { return groupActivityEntries(steps.map(step => ({ ...step, kind: step.tool ? 'tool' : 'status' }))); }
 
 function observedStep(step, state, rows, owner) {
   const key = owner + ':' + step.id;
@@ -24,13 +25,13 @@ function observedStep(step, state, rows, owner) {
     if (rows.size > 320) rows.delete(rows.keys().next().value);
   }
   row.item.dataset.state = state;
-  row.name.textContent = step.text || toolLabel(step.tool, step.state);
-  row.status.textContent = labels[state] || state;
+  row.name.textContent = step.tool ? activityEntryLabel(step) : step.text || 'Working';
+  row.status.textContent = step.calls?.length > 1 ? activityEntryStatus(step) : labels[state] || state;
   setIcon(row.mark, stepIcon(step, state));
   row.summary.querySelector('.brand-mark')?.remove();
   if (step.brand) row.name.before(brandIcon(step.brand, 'workflow'));
   const contentKey = JSON.stringify([step, state]);
-  if (row.key !== contentKey) { row.key = contentKey; row.body.replaceChildren(activityFacts({ ...step, state })); }
+  if (row.key !== contentKey) { row.key = contentKey; updateActivityFacts(row.body, { ...step, state }); }
   return row.item;
 }
 
@@ -105,8 +106,9 @@ export function taskInspector({ openChat, description = '', title: headingText =
       const key = JSON.stringify([task, connected]);
       if (row.key !== key) {
         row.key = key;
+        const focused = row.body.contains(document.activeElement) ? document.activeElement : null;
         const nodes = [], steps = element('ol', undefined, 'task-steps');
-        for (const step of task.steps || []) {
+        for (const step of groupedSteps(task.steps)) {
           const state = ['running', 'waiting'].includes(step.state) && (!connected || task.state === 'disconnected') ? 'disconnected'
             : ['running', 'waiting'].includes(step.state) && !task.active ? 'stopped' : step.state;
           steps.append(observedStep(step, state, stepRows, task.id));
@@ -140,6 +142,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
         if (task.parent) links.append(link('Your request', task.parent));
         if (links.childNodes.length) nodes.push(links);
         row.body.replaceChildren(...nodes);
+        if (focused?.isConnected) focused.focus({ preventScroll: true });
       }
       if (list.children[index] !== row.node) list.insertBefore(row.node, list.children[index] || null);
     }
@@ -176,8 +179,8 @@ export function composerProgress() {
     wasActive = !!task.active;
     const state = !connected ? 'disconnected' : task.state;
     root.dataset.state = state;
-    const current = task.steps?.findLast(step => step.state === 'running');
-    label.textContent = state === 'running' ? current?.text || (current?.tool && toolLabel(current.tool)) || 'Working on it' : labels[state] || 'Working on it';
+    const current = groupedSteps(task.steps).findLast(step => step.state === 'running');
+    label.textContent = state === 'running' ? current?.text || (current?.tool && activityEntryLabel(current)) || 'Working on it' : labels[state] || 'Working on it';
     setIcon(mark, stepIcon(current, state));
     summary.querySelector(".brand-mark")?.remove();
     if (current?.brand) label.before(brandIcon(current.brand, "workflow"));
@@ -186,7 +189,7 @@ export function composerProgress() {
       rendering = contentKey;
       const focused = body.contains(document.activeElement) ? document.activeElement : null;
       const list = element('ol', undefined, 'task-steps');
-      for (const step of task.steps || []) {
+      for (const step of groupedSteps(task.steps)) {
         const status = ['running', 'waiting'].includes(step.state) && (!connected || task.state === 'disconnected') ? 'disconnected' : ['running', 'waiting'].includes(step.state) && !task.active ? 'stopped' : step.state;
         list.append(observedStep(step, status, stepRows, task.id));
       }

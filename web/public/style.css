@@ -784,3 +784,8 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .technical-server > svg { flex: none; }
 #technical-activity h3 { font-size: .8rem; font-weight: 500; color: var(--muted); margin: 1.1rem 0 .4rem; }
 .history > [data-route="/hot-cross-buns"] { display: flex; align-items: center; gap: .45rem; width: 100%; margin-block-end: .55rem; }
+
+.activity-call { margin-block: .25rem; }
+.activity-call > summary { cursor: pointer; font-size: .75rem; padding-block: .2rem; }
+.activity-call-facts { padding: .3rem 0 .5rem .7rem; }
+.activity-entry-status { text-align: right; }

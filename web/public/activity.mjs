@@ -19,6 +19,37 @@ export function toolLabel(name, state) {
   if (name === 'memory_remember' && state === 'completed') return 'Saved to memory';
   return toolNames[name] || String(name || 'Step').replaceAll('_', ' ');
 }
+// Group exact tool/provider identities within one run. Icons and outcomes may
+// change between calls; neither creates another top-level row.
+export function groupActivityEntries(entries = []) {
+  const grouped = [], tools = new Map();
+  for (const entry of entries) {
+    if (entry.kind !== 'tool' || !entry.tool) { grouped.push(entry); continue; }
+    const key = JSON.stringify([entry.tool, entry.brand || '']);
+    let group = tools.get(key);
+    if (!group) {
+      group = { ...entry, calls: [] };
+      tools.set(key, group); grouped.push(group);
+    }
+    group.calls.push(entry);
+  }
+  for (const group of tools.values()) {
+    group.state = ['waiting', 'running', 'failed', 'stopped', 'queued', 'completed'].find(state => group.calls.some(call => call.state === state)) || group.state;
+  }
+  return grouped;
+}
+export function activityEntryLabel(entry) {
+  const name = toolLabel(entry.tool, entry.state);
+  return entry.calls?.length > 1 ? `${name} (${entry.calls.length})` : name;
+}
+export function activityEntryStatus(entry) {
+  if (!(entry.calls?.length > 1)) return entry.state;
+  const counts = new Map();
+  for (const call of entry.calls) counts.set(call.state, (counts.get(call.state) || 0) + 1);
+  if (counts.size === 1) return entry.state;
+  return [...counts].sort(([a], [b]) => ['waiting', 'running', 'failed', 'stopped', 'queued', 'completed'].indexOf(a) - ['waiting', 'running', 'failed', 'stopped', 'queued', 'completed'].indexOf(b))
+    .map(([state, count]) => `${count} ${state}`).join(' · ');
+}
 function disclosureIcon() { const node = libraryIcon('chevron-right'); node.classList.add('disclosure-icon'); return node; }
 export function elapsed(start, finish) {
   const from = Date.parse(start), to = Date.parse(finish);
@@ -47,6 +78,39 @@ export function activityFacts(entry) {
   for (const detail of entry.details || []) body.append(element('div', detailLabel(detail), 'activity-fact'));
   if (entry.partial) body.append(element('p', 'Some activity details were omitted.', 'hint'));
   return body;
+}
+const factViews = new WeakMap();
+export function updateActivityFacts(body, entry) {
+  let view = factViews.get(body);
+  if (!view) { view = { key: '', calls: new Map(), grouped: false }; factViews.set(body, view); }
+  const key = JSON.stringify(entry);
+  if (view.key === key) return;
+  view.key = key;
+  if (!(entry.calls?.length > 1)) {
+    view.grouped = false; view.calls.clear();
+    body.replaceChildren(activityFacts(entry.calls?.[0] || entry));
+    return;
+  }
+  const keep = new Set();
+  for (const [index, call] of entry.calls.entries()) {
+    keep.add(call.id);
+    let row = view.calls.get(call.id);
+    if (!row) {
+      const node = element('details', undefined, 'activity-call');
+      const summary = element('summary'), facts = element('div', undefined, 'activity-call-facts');
+      node.append(summary, facts);
+      node.open = !view.grouped && index === 0 && !!body.closest('details')?.open;
+      row = { node, summary, facts }; view.calls.set(call.id, row);
+    }
+    row.summary.textContent = `Call ${index + 1} · ${call.state}`;
+    const callKey = JSON.stringify(call);
+    if (row.key !== callKey) { row.key = callKey; row.facts.replaceChildren(activityFacts(call)); }
+    if (body.children[index] !== row.node) body.insertBefore(row.node, body.children[index] || null);
+  }
+  const retained = new Set([...view.calls].filter(([id]) => keep.has(id)).map(([, row]) => row.node));
+  for (const child of [...body.children]) if (!retained.has(child)) child.remove();
+  for (const [id, row] of view.calls) if (!keep.has(id)) { row.node.remove(); view.calls.delete(id); }
+  view.grouped = true;
 }
 const expanded = new Map();
 export function activityView(key = '', { remember = true, autoExpand = true } = {}) {
@@ -77,7 +141,7 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
     if (disconnected) text = 'Connection lost';
     else if (stopping) text = 'Stopping';
     else if (waiting || current?.state === 'waiting') text = 'Waiting for approval';
-    else if (current) text = toolLabel(current.tool);
+    else if (current) text = activityEntryLabel(groupActivityEntries(latest.entries).find(entry => entry.calls?.some(call => call.id === current.id)) || current);
     else if (latest.entries?.at(-1)?.kind === 'text') text = 'Writing response';
     const paused = waiting || current?.state === "waiting";
     const time = elapsed(latest.started_at, active ? new Date().toISOString() : latest.finished_at);
@@ -96,7 +160,7 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
     if (options.active && !wasActive && autoExpand) root.open = true;
     wasActive = options.active;
     const entries = activity.entries || [];
-    const shown = entries.filter((entry, index) => !(options.active && index === entries.length - 1 && entry.kind === 'text'));
+    const shown = groupActivityEntries(entries.filter((entry, index) => !(options.active && index === entries.length - 1 && entry.kind === 'text')));
     const ids = new Set();
     for (const entry of shown) {
       ids.add(entry.id);
@@ -116,15 +180,15 @@ export function activityView(key = '', { remember = true, autoExpand = true } = 
         rows.set(entry.id, row);
         list.append(node);
       }
-      row.title.textContent = entry.kind === 'tool' ? toolLabel(entry.tool, entry.state) : entry.text || 'Working';
-      row.status.textContent = entry.kind === 'tool' ? entry.state : '';
+      row.title.textContent = entry.kind === 'tool' ? activityEntryLabel(entry) : entry.text || 'Working';
+      row.status.textContent = entry.kind === 'tool' ? activityEntryStatus(entry) : '';
       row.node.dataset.state = options.active ? entry.state : entry.state === 'running' ? 'stopped' : entry.state;
       row.mark.dataset.active = String(options.active && entry.state === 'running' && !options.disconnected);
       setBrandIcon(row.mark, entry.brand, activityIcon(entry.tool, entry.icon));
       const bodyKey = JSON.stringify(entry);
       if (bodyKey !== row.bodyKey) {
         row.bodyKey = bodyKey;
-        row.body.replaceChildren(activityFacts(entry));
+        updateActivityFacts(row.body, entry);
       }
     }
     for (const [id, row] of rows) if (!ids.has(id)) { row.node.remove(); rows.delete(id); }
