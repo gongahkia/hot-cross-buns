@@ -73,3 +73,21 @@ for (const draftsEnabled of [true, false]) test(`one assistant inspects backgrou
     }
   } finally { app.release(); live?.close(); await app.close(); }
 });
+
+test('a descriptive topic title is shared by live tasks, breadcrumbs, the task catalog and inner chat', {timeout:30000}, async () => {
+  const app=await fixture({taskTitle:'Meiji Restoration research'});let live;
+  try {
+    live=await events(app);const main=await live.until(value=>value.state?.primary);
+    const original='Research the Meiji Restoration using multiple sources and compare historians’ interpretations.';
+    await action(app,{op:'send',context:main.context,id:randomUUID(),text:original,files:[]});
+    const created=await live.until(value=>value.tasks?.some(task=>task.parent&&task.title==='Meiji Restoration research'));
+    const task=created.tasks.find(task=>task.parent);
+    assert.equal(created.state.dialogue.find(turn=>turn.task_chat===task.id).task_title,'Meiji Restoration research');
+    assert.equal(created.state.dialogue.find(turn=>turn.task_chat===task.id).text,original);
+    const page=await action(app,{op:'chats',context:main.context,tasksOnly:true,query:'Meiji Restoration research'});
+    assert.ok(page.items.some(item=>item.id===task.id&&item.title==='Meiji Restoration research'));
+    await action(app,{op:'open-work',context:main.context,id:task.id});
+    const child=await live.until(value=>value.state?.conversation_id===task.id);
+    assert.equal(child.state.title,'Meiji Restoration research');
+  } finally {live?.close();await app.close();}
+});

@@ -229,7 +229,13 @@ func taskRecords(sessions worksession.Store, current string, turns []worksession
 		request worksession.Request
 	}
 	var outcomes []outcome
+	titles := map[string]string{}
 	for _, id := range ids {
+		if origin, err := sessions.DialogueTask(id); err == nil && origin != nil {
+			if chat, err := sessions.Load(id); err == nil && chat.Title != "New chat" {
+				titles[id] = chat.Title
+			}
+		}
 		journal, err := sessions.LoadRequests(id)
 		if errors.Is(err, os.ErrNotExist) {
 			result = append(result, Task{ConversationID: id, RecordedState: "owner_unavailable", NeedsInspection: true})
@@ -239,8 +245,12 @@ func taskRecords(sessions worksession.Store, current string, turns []worksession
 			return nil, nil, err
 		}
 		for _, r := range journal.Requests {
+			title := r.Text
+			if titles[id] != "" {
+				title = titles[id]
+			}
 			if len(result) < 12 && (r.Pending() || r.AwaitingRecovery()) {
-				result = append(result, Task{ConversationID: id, RequestID: r.ID, Title: Clip(r.Text, 512), RecordedState: r.State, NeedsInspection: true})
+				result = append(result, Task{ConversationID: id, RequestID: r.ID, Title: Clip(title, 512), RecordedState: r.State, NeedsInspection: true})
 			}
 			if r.State == "completed" || r.State == "failed" || r.State == "stopped" {
 				outcomes = append(outcomes, outcome{id, r})
@@ -251,7 +261,11 @@ func taskRecords(sessions worksession.Store, current string, turns []worksession
 	var reports []Report
 	for _, o := range outcomes[:min(4, len(outcomes))] {
 		r := o.request
-		report := Report{ID: r.ID, ConversationID: o.chat, Title: Clip(r.Text, 256), State: r.State, UpdatedAt: r.UpdatedAt, Summary: "Retained output is unavailable; inspect the owning task before relying on an outcome."}
+		title := r.Text
+		if titles[o.chat] != "" {
+			title = titles[o.chat]
+		}
+		report := Report{ID: r.ID, ConversationID: o.chat, Title: Clip(title, 256), State: r.State, UpdatedAt: r.UpdatedAt, Summary: "Retained output is unavailable; inspect the owning task before relying on an outcome."}
 		if r.RevisionID != "" {
 			revision, err := sessions.LoadRevision(o.chat, r.RevisionID)
 			if err == nil {
