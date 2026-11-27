@@ -278,11 +278,12 @@ func resolveDialogueExecutionScope(stateDir, source, conversation, text string, 
 	if err != nil {
 		return nil, goal.Record{}, err
 	}
+	inline := conversation == options.DialogueParent
 	origin, err := store.DialogueTask(conversation)
 	if err != nil {
 		return nil, goal.Record{}, err
 	}
-	if origin == nil || origin.ParentConversationID != options.DialogueParent || origin.TurnID != options.DialogueTurn {
+	if !inline && (origin == nil || origin.ParentConversationID != options.DialogueParent || !store.DialogueTaskTurn(conversation, options.DialogueParent, options.DialogueTurn)) {
 		return nil, goal.Record{}, errors.New("independent task origin changed")
 	}
 	turn, err := store.ReadDialogue(options.DialogueParent, options.DialogueTurn)
@@ -290,17 +291,34 @@ func resolveDialogueExecutionScope(stateDir, source, conversation, text string, 
 		return nil, goal.Record{}, err
 	}
 	var input workapp.ConversationInput
-	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || input.Source != source || turn.Text != text || turn.TaskChat != conversation {
+	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || input.Source != source || turn.Text != text || (!inline && turn.TaskChat != conversation || inline && turn.TaskChat != "") {
 		return nil, goal.Record{}, errors.New("independent task inputs changed")
 	}
-	if input.ConversationID != "" && input.ConversationID != origin.ParentConversationID {
+	if input.ConversationID != "" && input.ConversationID != options.DialogueParent {
 		return nil, goal.Record{}, errors.New("requesting conversation changed")
 	}
-	input.ConversationID, input.BeforeSequence, input.BeforeTime = origin.ParentConversationID, turn.Sequence, turn.CreatedAt
+	input.ConversationID, input.BeforeSequence, input.BeforeTime = options.DialogueParent, turn.Sequence, turn.CreatedAt
 	expected := input.RunOptions
 	var decision workrun.ConversationDecision
 	if json.Unmarshal(turn.Decision, &decision) != nil {
 		return nil, goal.Record{}, errors.New("the retained routing decision is unavailable")
+	}
+	if inline && (decision.Kind != "work" || input.RunOptions.PlanFirst) {
+		return nil, goal.Record{}, errors.New("invalid inline execution decision")
+	}
+	if !inline && decision.Kind == "continue" {
+		original, err := store.ReadDialogue(options.DialogueParent, origin.TurnID)
+		if err != nil {
+			return nil, goal.Record{}, err
+		}
+		var originalInput workapp.ConversationInput
+		if json.Unmarshal(original.Options, &originalInput) != nil || originalInput.Version != 1 || originalInput.Source != source || len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.PlanFirst {
+			return nil, goal.Record{}, errors.New("original continuation scope is unavailable")
+		}
+		originalInput.ConversationID, originalInput.BeforeSequence, originalInput.BeforeTime = input.ConversationID, input.BeforeSequence, input.BeforeTime
+		input = originalInput
+		expected = input.RunOptions
+		expected.PlanFirst = false
 	}
 	if decision.Kind == "plan" {
 		expected.PlanFirst = true
@@ -322,7 +340,7 @@ func resolveDialogueExecutionScope(stateDir, source, conversation, text string, 
 		}
 		matched := false
 		for _, retained := range journal.Requests {
-			if retained.ClientID == origin.TurnID && retained.Text == text && worksession.MatchesPlanInputEvolution(retained, a, b) {
+			if retained.ClientID == turn.ID && retained.Text == text && worksession.MatchesPlanInputEvolution(retained, a, b) {
 				matched = true
 			}
 		}
@@ -337,7 +355,7 @@ func resolveDialogueExecutionScope(stateDir, source, conversation, text string, 
 		return nil, goal.Record{}, err
 	}
 	for _, retained := range journal.Requests {
-		if retained.ClientID != origin.TurnID || retained.Text != text || !worksession.MatchesPlanInputEvolution(retained, a, b) {
+		if retained.ClientID != turn.ID || retained.Text != text || !worksession.MatchesPlanInputEvolution(retained, a, b) {
 			continue
 		}
 		if access := retained.Plan.LatestAccessChange(); access != nil {

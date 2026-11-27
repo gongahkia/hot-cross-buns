@@ -48,6 +48,9 @@ type DialogueTaskState struct {
 func (m Model) dialogueMessages() []DialogueMessage {
 	var messages []DialogueMessage
 	for _, turn := range m.dialogueTurns {
+		if m.inlineDialogueVisibleInMessages(turn.ID) {
+			continue
+		}
 		var input ConversationInput
 		if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 {
 			continue

@@ -59,6 +59,7 @@ func (m Model) startWork(source, conversation, prompt string, options RunOptions
 		options.TaskPlanRequestID = m.activeRequest
 	}
 	if len(m.messages) > 0 && m.messages[len(m.messages)-1].role == "You" {
+		m.messages[len(m.messages)-1].requestID = m.activeRequest
 		m.messages[len(m.messages)-1].inputs = uploadNames(options.Uploads)
 		m.messages[len(m.messages)-1].inputIDs = append([]string(nil), options.Uploads...)
 	}

@@ -202,6 +202,9 @@ func (m Model) conversationRecent() []workrun.ConversationMessage {
 		}
 	}
 	for _, turn := range m.dialogueTurns {
+		if m.inlineDialogueVisibleInMessages(turn.ID) {
+			continue
+		}
 		entries = append(entries, entry{turn.CreatedAt, workrun.ConversationMessage{Role: "user", Text: boundedConversation(turn.Text, 8192)}})
 		if turn.Response != "" {
 			entries = append(entries, entry{turn.UpdatedAt, workrun.ConversationMessage{Role: "assistant", Text: boundedConversation(turn.Response, 8192)}})
@@ -438,7 +441,7 @@ func (m Model) startConversationRoute() (tea.Model, tea.Cmd) {
 	m.dialogueRouting = id
 	ctx, cancel := context.WithCancel(context.Background())
 	m.dialogueCancel = cancel
-	request := workrun.ConversationRequest{ReplyToTaskID: input.RunOptions.ReplyToTaskID, Text: turn.Text, Recent: input.Recent, Tasks: m.conversationTasks(), HasFiles: len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.ReplyToUpdateID != "", PlanFirst: input.RunOptions.PlanFirst, CanStart: m.dialogueCanStart}
+	request := workrun.ConversationRequest{ReplyToTaskID: input.RunOptions.ReplyToTaskID, Text: turn.Text, Recent: input.Recent, Tasks: m.conversationTasks(), HasFiles: len(input.RunOptions.Uploads) > 0 || len(input.RunOptions.Attachments) > 0 || input.RunOptions.ReplyToUpdateID != "", PlanFirst: input.RunOptions.PlanFirst, CanStart: m.dialogueCanStart, CanWork: m.config.Run != nil && (m.dialogueCanStart || m.running) && len(m.queue) < 16}
 	request.AcknowledgementBlocked = input.RunOptions.RefreshSource || m.acknowledgementBlocked() || !workrun.AcknowledgementContextSafe(input.TaskContext, input.Recent)
 	input.ConversationID, input.BeforeSequence, input.BeforeTime = m.conversation, turn.Sequence, turn.CreatedAt
 	if request.ReplyToTaskID != "" {
@@ -492,6 +495,7 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 	current := value.Request
 	current.Tasks = m.conversationTasks()
 	current.CanStart = m.dialogueCanStart
+	current.CanWork = m.config.Run != nil && (m.dialogueCanStart || m.running) && len(m.queue) < 16
 	current.AcknowledgementBlocked = current.AcknowledgementBlocked || m.acknowledgementBlocked()
 	if err := value.Decision.Validate(current); err != nil {
 		return m.failConversation(turn, "The task or available controls changed while Hot Cross Buns considered this message. Send a new message after reviewing its current state.")
@@ -533,6 +537,9 @@ func (m Model) finishConversationRoute(value conversationRouted) (tea.Model, tea
 	if err != nil {
 		m.dialogueIssue = err.Error()
 		return m.startConversationRoute()
+	}
+	if value.Decision.Kind == "work" {
+		return m.startInlineDialogue(turn)
 	}
 	if value.Decision.Kind == "task" || value.Decision.Kind == "plan" || value.Decision.Kind == "continue" {
 		bind := m.config.BindConversationTask
