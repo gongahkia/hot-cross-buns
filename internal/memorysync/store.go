@@ -716,6 +716,7 @@ func (s Store) exportViews(device string) error {
 		if len(data) > 8<<20 {
 			return errors.New("memory view exceeds limit")
 		}
+		data = append([]byte("<!-- Read-only sync view. Edit the original category file through HCB; changes to this copy are not imported. -->\n\n"), data...)
 		if prior, readErr := read(root, filepath.Base(file.Path), 8<<20); readErr == nil && bytes.Equal(prior, data) {
 			continue
 		}
@@ -727,6 +728,32 @@ func (s Store) exportViews(device string) error {
 }
 
 func (s Store) Status() (Report, error) {
+	// Published state is replaced atomically. Inspection must remain available
+	// while an automatic import holds the mutation lease.
+	root, err := os.OpenRoot(s.localDirectory())
+	if err == nil {
+		defer root.Close()
+		for attempt := 0; attempt < 3; attempt++ {
+			data, readErr := read(root, "state.json", 16<<20)
+			if errors.Is(readErr, os.ErrNotExist) {
+				break
+			}
+			if readErr != nil {
+				continue
+			}
+			var state localState
+			if err = decode(data, &state); err != nil {
+				return Report{}, err
+			}
+			if state.Version != 1 || !validDevice(state.Device) {
+				return Report{}, errors.New("invalid sync status")
+			}
+			state.Report.Device = state.Device
+			return state.Report, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return Report{}, err
+	}
 	root, lock, state, err := s.open()
 	if err != nil {
 		return Report{}, err
@@ -735,9 +762,6 @@ func (s Store) Status() (Report, error) {
 	defer lock.Close()
 	defer filelock.Unlock(lock)
 	state.Report.Device = state.Device
-	if err = save(root, state); err != nil {
-		return Report{}, err
-	}
 	return state.Report, nil
 }
 

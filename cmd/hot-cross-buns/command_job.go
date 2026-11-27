@@ -998,6 +998,7 @@ func runJobSupervisor(arguments []string, out io.Writer) error {
 	defer os.Remove(filepath.Join(store.Root(), "supervisor.token"))
 	fmt.Fprintf(out, "Hot Cross Buns job supervisor running at %s (PID %d). Keep this terminal open.\n", state.URL, state.PID)
 	go summaryMaintenanceLoop(ctx, stateDir)
+	go memorySyncLoop(ctx, stateDir)
 	runDueJobsContext(ctx, store, stateDir, *notify, time.Now())
 	_, _ = lifecycle.Maintain(ctx, stateDir, time.Now())
 	runDueGoalReviews(stateDir, *notify, time.Now())

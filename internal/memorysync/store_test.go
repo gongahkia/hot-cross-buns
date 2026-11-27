@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gongahkia/hot-cross-buns/internal/filelock"
 	"github.com/gongahkia/hot-cross-buns/internal/knowledge"
 	"github.com/gongahkia/hot-cross-buns/internal/memory"
 )
@@ -226,5 +227,20 @@ func TestSharedDirectoryLinksCannotWriteOutsideTheSelectedFolder(t *testing.T) {
 	entries, _ := os.ReadDir(outside)
 	if len(entries) != 0 {
 		t.Fatal("sync wrote outside its selected folder", entries)
+	}
+}
+
+func TestStatusRemainsReadableDuringAnAutomaticMutation(t *testing.T) {
+	s := Store{StateDir: temporary(t), Folder: temporary(t)}
+	root, lock, state, err := s.open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	defer lock.Close()
+	defer filelock.Unlock(lock)
+	report, err := s.Status()
+	if err != nil || report.Device != state.Device {
+		t.Fatal("inspection was blocked by the active importer", report, err)
 	}
 }

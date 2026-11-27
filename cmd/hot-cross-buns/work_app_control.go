@@ -32,6 +32,8 @@ func (c hotCrossBunsAppController) Inspect(ctx context.Context, query workrun.Ap
 		return nil, err
 	}
 	switch query.Topic {
+	case "memory_sync":
+		return c.inspectMemorySync()
 	case "schedules":
 		return c.inspectSchedules(query)
 	case "followups":

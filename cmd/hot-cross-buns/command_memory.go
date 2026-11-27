@@ -59,6 +59,8 @@ func memoryCommand(args []string, out io.Writer) error {
 		return err
 	}
 	switch args[0] {
+	case "sync":
+		return memorySyncCommand(stateDir, args[1:], out)
 	case "withdrawals":
 		return memoryWithdrawalsCommand(store, args[1:], out)
 	case "reconcile":
