@@ -550,3 +550,30 @@ test('correctable review protocol preserves the normal draft and rejects the wit
     assert.equal((await action({ op: 'begin-correction', context, kind: 'plan', id: 'c'.repeat(32), revision: 1, digest: 'd'.repeat(64) })).status, 200);
   } finally { live.close(); await app.close(); }
 });
+
+
+test('main chat executes a small tool action inline without creating a secondary task', {timeout:25000}, async () => {
+  const app=await fixture({chatCount:1,inlineWork:true});
+  const live=await stream(app.url);
+  const action=async body=>{
+    const response=await fetch(app.url+'/api/action',{method:'POST',headers:{'Content-Type':'application/json',Origin:app.url},body:JSON.stringify(body)});
+    assert.equal(response.status,200);return response.json();
+  };
+  try {
+    const initial=await live.until(s=>s.connection==='connected','main');
+    assert.equal(initial.state.primary,true);
+    const context=initial.context;
+    await action({op:'save',context,text:'fixture activity: read the note here'});
+    const id=randomUUID();
+    await action({op:'send',context,id,text:'fixture activity: read the note here',files:[]});
+    const result=await live.until(s=>!s.state.running && s.state.messages?.some(message=>message.role==='Hot Cross Buns'&&message.text?.includes('Fixture answer')),'inline completion');
+    assert.equal(result.state.conversation_id,initial.state.conversation_id);
+    assert.equal(result.state.messages.filter(message=>message.role==='You'&&message.text==='fixture activity: read the note here').length,1);
+    assert.equal((result.state.dialogue || []).length,0);
+    assert.equal((await action({op:'chats',context,tasksOnly:true})).items.length,0);
+    assert.ok(app.payloads.some(payload=>payload.messages.some(message=>message.role==='tool')));
+    const metadata=await action({op:'technical-activity',context});
+    assert.ok(Array.isArray(metadata.servers));
+    assert.ok(metadata.servers.every(server=>!('args' in server)&&!('env' in server)));
+  } finally {live.close();await app.close();}
+});

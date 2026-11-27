@@ -246,3 +246,24 @@ func TestConversationContinuationHasAnExactCompletedTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestInlineWorkRequiresItsOwnCapacityAndCannotBypassPlanning(t *testing.T) {
+	request := ConversationRequest{Text: "Read my note", CanWork: true}
+	if err := (ConversationDecision{Kind: "work"}).Validate(request); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		request  ConversationRequest
+		decision ConversationDecision
+	}{
+		{ConversationRequest{Text: "Read my note"}, ConversationDecision{Kind: "work"}},
+		{ConversationRequest{Text: "Plan this first", CanWork: true, PlanFirst: true}, ConversationDecision{Kind: "work"}},
+		{request, ConversationDecision{Kind: "work", Target: "invented-owner"}},
+		{request, ConversationDecision{Kind: "work", Text: "Already done"}},
+		{request, ConversationDecision{Kind: "task"}},
+	} {
+		if err := tc.decision.Validate(tc.request); !errors.Is(err, ErrConversationDecision) {
+			t.Fatal("accepted unsupported inline authority", tc, err)
+		}
+	}
+}

@@ -27,10 +27,16 @@ func TestLiveRelatedTaskRouting(t *testing.T) {
 	for _, tc := range []struct{ title, summary, message, want string }{
 		{"2025 Iran war", "Researched the June 2025 war, its chronology and ceasefire.", "What about US intervention in that war?", "continue"},
 		{"Tokyo trip", "Compared accommodation and transport for a five-day Tokyo trip.", "Can you look into hotels near Shinjuku for that trip too?", "continue"},
-		{"2025 Iran war", "Researched the June 2025 war.", "Check my local Neovim config for errors.", "task"},
+		{"2025 Iran war", "Researched the June 2025 war.", "Find my local Dockerfiles.", "work"},
+		{"Preferences", "", "I prefer casual, concise replies. Please remember that.", "work"},
+		{"Research", "", "Research local-first personal assistants thoroughly, compare their capabilities and write a detailed report with sources.", "task"},
 	} {
 		t.Run(tc.title+tc.want, func(t *testing.T) {
-			request := workrun.ConversationRequest{Text: tc.message, CanStart: true, Recent: []workrun.ConversationMessage{{Role: "user", Text: "Please research " + tc.title}, {Role: "assistant", Text: tc.summary}}, Tasks: []workrun.ConversationTask{{ID: "research-task", Title: tc.title, State: "completed", Summary: tc.summary, CanContinue: true}}}
+			request := workrun.ConversationRequest{Text: tc.message, CanStart: true, CanWork: true, LearnFromChats: true, Recent: []workrun.ConversationMessage{{Role: "user", Text: "Please research " + tc.title}, {Role: "assistant", Text: tc.summary}}, Tasks: []workrun.ConversationTask{{ID: "research-task", Title: tc.title, State: "completed", Summary: tc.summary, CanContinue: true}}}
+			if tc.summary == "" {
+				request.Recent = nil
+				request.Tasks = nil
+			}
 			decision, err := workrun.RouteConversation(context.Background(), backend, request)
 			if err != nil {
 				t.Fatal(err)

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from 'node:crypto';
 import { startWeb } from "../server.mjs";
 
-export async function fixture({ modelWindows, contextWindow=262144, startScheduler = false, introductionReplies = false, schedulingTask = false, introductionStatus = "", voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
+export async function fixture({ inlineWork = false, modelWindows, contextWindow=262144, startScheduler = false, introductionReplies = false, schedulingTask = false, introductionStatus = "", voiceOptions, memories = [], chatCount = 0, dialogueCount = 0, runtimePath, draftsEnabled = true, designateMain = true, startInSide = false, conversationalReplies = false, planningQuestions = false, filesystemTask = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), "hcb-web-"));
   const workspace = join(root, "workspace");
   const payloads = [];
@@ -44,7 +44,7 @@ export async function fixture({ modelWindows, contextWindow=262144, startSchedul
     } : read ? {
       role: "assistant", content: "I’ll read the note first.",
       tool_calls: [{ id: "read-fixture", type: "function", function: { name: "read_file", arguments: JSON.stringify({ path: "source/note.md", display_icon: 'book-open' }) } }],
-    } : { role: "assistant", content: proposal ? JSON.stringify(plan) : classification ? '{"mode":"inspect"}' : planTarget ? JSON.stringify({kind:'revise_plan',target:planTarget.id,instruction:routed.message}) : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? conversationalReplies && !routed.message.includes('fixture activity') ? JSON.stringify({kind:'reply',text:'A continuing conversation.'}) : JSON.stringify({kind:planningQuestions ? 'plan' : 'task'}) : "## Fixture answer\n\nThe message reached the running Go backend." };
+    } : { role: "assistant", content: proposal ? JSON.stringify(plan) : classification ? '{"mode":"inspect"}' : planTarget ? JSON.stringify({kind:'revise_plan',target:planTarget.id,instruction:routed.message}) : correctionTarget ? JSON.stringify({ kind: 'revise_action', target: correctionTarget.id, instruction: 'Use a different site.' }) : decision ? conversationalReplies && !routed.message.includes('fixture activity') ? JSON.stringify({kind:'reply',text:'A continuing conversation.'}) : JSON.stringify({kind:planningQuestions ? 'plan' : inlineWork ? 'work' : 'task'}) : "## Fixture answer\n\nThe message reached the running Go backend." };
     if ((blocked && !classification && !review && !decision) || afterTool && value.messages.some(item => item.role === "tool")) await new Promise(resolve => { release = resolve; });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ choices: [{ message, finish_reason: message.tool_calls?.length ? "tool_calls" : "stop" }] }));
