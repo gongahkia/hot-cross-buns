@@ -699,7 +699,6 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .browser-toolbar a { display: inline-flex; align-items: center; }
 .browser-frames { flex: 1; min-height: 0; }
 .browser-frames iframe { width: 100%; height: 100%; border: 0; background: white; }
-.browser-hint { font-size: .7rem; margin: 0; padding: .4rem .8rem; border-top: 1px solid var(--line); }
 .plan-questions { margin-bottom: 1.2rem; }
 .plan-questions h3 { font-size: 1rem; margin: 0 0 .35rem; }
 .plan-questions fieldset { border: 0; padding: 0; margin: 1.3rem 0; min-width: 0; }
@@ -813,3 +812,8 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .context-source-group .context-entry h4 { font-size: .82rem; font-weight: 550; }
 .context-source-group .context-entry { padding-bottom: .6rem; }
 .context-source-group .context-entry + .context-entry { margin-top: .6rem; padding-top: .6rem; }
+
+.browser-panel { height: 100%; }
+.browser-notice { padding: 2rem; max-width: 42ch; margin-inline: auto; text-align: center; }
+.browser-notice > svg { width: 1.3rem; height: 1.3rem; color: var(--muted); }
+.browser-notice > p { margin-block: .7rem; }

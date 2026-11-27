@@ -30,7 +30,10 @@ never observed is not guessed, including daemons detached before discovery.
 The frontend checks bounded, credential-free HTTP HEAD requests to loopback
 addresses before showing app servers; redirects remain constrained to loopback
 by browser policy. Failed or disconnected observations are cleared. App previews
-use the existing loopback-only split view.
+use the existing loopback-only split view. Opening or reloading an app checks
+its current HCB ownership and embedding headers with a bounded, credential-free
+HEAD request. Redirects and embedding restrictions offer an external-browser
+fallback; stopped apps show an actionable message. Security headers are preserved.
 
 Answer footers use a compact Sources pill with source marks, or a Lucide mark
 for saved context such as memory. Its source view groups retained web excerpts,

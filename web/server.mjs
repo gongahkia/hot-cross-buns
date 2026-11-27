@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { attachmentPreview } from "./attachment-preview.mjs";
 import { taskSummaries, delegatedSummaries, agentSummaries } from "./task-summaries.mjs";
 import { localServers } from './local-servers.mjs';
+import { localAppStatus } from './local-app-status.mjs';
 import { taskDetails } from './task-details.mjs';
 import { localFilePreview } from './local-file-preview.mjs';
 import { correctionDrafts } from './corrections.mjs';
@@ -300,6 +301,11 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         requireContext(context);
         const internal = new Set([host.scheduler?.pid, ...[...host.sessions.workers].map(owner => owner.processId)]);
         return { ...result, servers: result.servers.map(server => ({ ...server, internal: internal.has(server.pid) || server.process === 'hot-cross-buns-runtime', application: server.pid === process.pid ? 'Hot Cross Buns' : '' })) };
+      }
+      case 'local-app-status': {
+        const result = await localAppStatus(body.url, 'http://127.0.0.1:' + server.address().port, discoverServers);
+        requireContext(context);
+        return result;
       }
       case 'task-inspect':
         return inspection.inspect(body.id || host.backend.state.conversation_id);

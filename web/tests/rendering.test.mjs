@@ -1373,3 +1373,24 @@ test('structured web captures expose retained descriptions instead of transport 
   assert.equal(view.element.querySelector('.source-record-details pre').textContent,text);
   assert.equal(view.element.querySelector('.source-record-details').open,false);
 });
+
+
+test('local previews explain blocked or stopped apps and create frames only after ownership admission',async()=>{
+  document.body.replaceChildren();
+  let answer={state:'external',message:'This app blocks embedded previews.'};
+  const pane=localBrowser({inspect:async()=>answer});document.body.append(pane.element);
+  pane.open('http://localhost:3000/');assert.match(pane.element.textContent,/Checking local app/);assert.equal(pane.element.querySelector('iframe'),null);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(pane.element.querySelector('[role="alert"]').textContent,/blocks embedded previews/);
+  assert.equal(pane.element.querySelector('.browser-notice a').href,'http://localhost:3000/');assert.equal(pane.element.querySelector('iframe'),null);
+  answer={state:'ready'};pane.element.querySelector('[aria-label="Reload local app"]').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.element.querySelector('iframe').src,'http://localhost:3000/');
+  answer={state:'unavailable',message:'This app is not responding.'};pane.element.querySelector('[aria-label="Reload local app"]').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(pane.element.querySelector('[role="alert"]').textContent,/not responding/);assert.equal(pane.element.querySelector('iframe'),null);
+  pane.close();
+  let release;
+  const late=localBrowser({inspect:()=>new Promise(resolve=>{release=resolve;})});document.body.append(late.element);
+  late.open('http://localhost:4000');late.close();release({state:'ready'});await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(late.element.hidden,true);assert.equal(late.element.querySelector('iframe'),null);
+  late.element.remove();pane.element.remove();
+});

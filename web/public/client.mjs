@@ -80,7 +80,7 @@ const canvas=canvasWorkspace({request:body=>call({op:'canvas-request',...body})}
 document.body.append(canvas.element);
 document.addEventListener('open-canvas',event=>{filePreviews.close();canvas.open(event.detail,snapshot.context)});
 document.addEventListener('local-file-preview-open',()=>canvas.close());
-const browser = localBrowser(); document.body.append(browser.element);
+const browser = localBrowser({ inspect: url => call({ op: 'local-app-status', url }) }); document.body.append(browser.element);
 document.addEventListener('open-local-app', event => browser.open(event.detail.url, event.detail.trigger));
 document.addEventListener('local-app-preview-open', () => { filePreviews.close(); canvas.close(); });
 document.addEventListener('local-file-preview-open', () => browser.close());
