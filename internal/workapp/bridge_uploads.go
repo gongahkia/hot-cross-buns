@@ -12,6 +12,7 @@ import (
 )
 
 type BridgeUploadSubmission struct {
+	PreferSteering  bool     `json:"prefer_steering,omitempty"`
 	QueueOnly       bool     `json:"queue_only,omitempty"`
 	PlanFirst       bool     `json:"plan_first,omitempty"`
 	ReplyToTaskID   string   `json:"reply_to_task_id,omitempty"`

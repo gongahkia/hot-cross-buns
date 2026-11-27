@@ -19,6 +19,7 @@ import (
 // ConversationInput is the immutable envelope captured by admission. Public
 // conversation text is context, never replay, tool results or approval grants.
 type ConversationInput struct {
+	PreferSteering   bool                          `json:"prefer_steering,omitempty"`
 	ConversationID   string                        `json:"conversation_id,omitempty"`
 	BeforeSequence   uint64                        `json:"-"`
 	BeforeTime       time.Time                     `json:"-"`
@@ -343,7 +344,7 @@ func (m Model) retryDialogueAdmission(request BridgeUploadSubmission, text strin
 		return false, err
 	}
 	var input ConversationInput
-	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || turn.Text != text || !slices.Equal(input.RunOptions.Uploads, request.Files) || input.RunOptions.ReplyToUpdateID != request.ReplyToUpdateID || input.RunOptions.ReplyToTaskID != request.ReplyToTaskID || input.RunOptions.PlanFirst != request.PlanFirst {
+	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || turn.Text != text || input.PreferSteering != request.PreferSteering || !slices.Equal(input.RunOptions.Uploads, request.Files) || input.RunOptions.ReplyToUpdateID != request.ReplyToUpdateID || input.RunOptions.ReplyToTaskID != request.ReplyToTaskID || input.RunOptions.PlanFirst != request.PlanFirst {
 		return true, errors.New("this message identity already belongs to different text or inputs")
 	}
 	return true, nil
@@ -368,7 +369,7 @@ func (m Model) admitConversation(request BridgeUploadSubmission, text string) (t
 	options.ReplyToUpdateID = request.ReplyToUpdateID
 	options.ReplyToTaskID = request.ReplyToTaskID
 	options.PlanFirst = request.PlanFirst
-	input := ConversationInput{ConversationID: m.conversation, Version: 1, Source: m.source, GoalID: m.goalID, RunOptions: retainedRunOptions(options), Recent: m.conversationRecent(), TaskContext: m.conversationTasks()}
+	input := ConversationInput{PreferSteering: request.PreferSteering, ConversationID: m.conversation, Version: 1, Source: m.source, GoalID: m.goalID, RunOptions: retainedRunOptions(options), Recent: m.conversationRecent(), TaskContext: m.conversationTasks()}
 	if options.ReplyToTaskID != "" {
 		selected := input.TaskContext[:0]
 		for _, task := range input.TaskContext {
@@ -432,6 +433,16 @@ func (m Model) startConversationRoute() (tea.Model, tea.Cmd) {
 	if json.Unmarshal(turn.Options, &input) != nil || input.Version != 1 || input.Source != m.source {
 		return m.failConversation(turn, "The captured conversation scope is unavailable. Send a new message after reviewing this chat.")
 	}
+	// Work admission can precede its operation channel. Retain early steering
+	// until that same owner is ready; never turn it into another execution.
+	if input.PreferSteering && m.running && m.operation == nil && !m.cancelling && m.planPreparing == "" && m.planRevising == "" && !input.RunOptions.PlanFirst && len(input.RunOptions.Uploads) == 0 && len(input.RunOptions.Attachments) == 0 {
+		for _, captured := range input.TaskContext {
+			if captured.ID == m.activeRequest && captured.State == "running" && (input.RunOptions.ReplyToTaskID == "" || input.RunOptions.ReplyToTaskID == captured.ID) {
+				m.dialogueQueue = append([]string{id}, m.dialogueQueue...)
+				return m, nil
+			}
+		}
+	}
 	turn.State = "routing"
 	turn, err = m.saveDialogue(turn)
 	if err != nil {
@@ -454,7 +465,11 @@ func (m Model) startConversationRoute() (tea.Model, tea.Cmd) {
 		request.Tasks = selected
 	}
 	route, conversation := m.config.RouteConversation, m.conversation
+	decision, steering := preferredSteering(request, input, m.activeRequest)
 	return m, func() tea.Msg {
+		if steering {
+			return conversationRouted{Conversation: conversation, TurnID: id, Revision: turn.Revision, Request: request, Decision: decision}
+		}
 		decision, err := route(ctx, request, input)
 		return conversationRouted{Conversation: conversation, TurnID: id, Revision: turn.Revision, Request: request, Decision: decision, Err: err}
 	}

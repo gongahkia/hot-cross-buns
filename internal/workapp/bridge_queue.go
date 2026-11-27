@@ -51,6 +51,16 @@ func (m Model) bridgeGuidanceID() string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(m.operation.RunID)))
 }
 
+func (m Model) bridgeStopID() string {
+	if m.running && m.cancel != nil && !m.cancelling {
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s:%d:%s:%s", m.conversation, m.loadingRun, m.activeRequest, m.runStarted))))
+	}
+	if !m.running && m.dialogueCancel != nil && m.dialogueRouting != "" {
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(m.conversation+":routing:"+m.dialogueRouting)))
+	}
+	return ""
+}
+
 // ApplyBridgeQueue changes the existing Go queue; the desktop keeps no copy of
 // the scheduler. IDs survive reordering and change after edits, so an old click
 // cannot change a message that has already started or a newer revision.
@@ -72,6 +82,26 @@ func (m Model) ApplyBridgeQueue(action BridgeQueueAction) (tea.Model, tea.Cmd) {
 	}
 	if m.models != nil || m.launcher || m.section != "" || m.bridgeExternal != nil || m.pendingBundleAction != nil {
 		return fail("Return to the conversation to change queued messages.")
+	}
+	if action.Action == "stop" {
+		if action.ID != m.bridgeStopID() || action.Text != "" {
+			return fail("The running task changed. No different task was stopped.")
+		}
+		if m.running {
+			m.interruptRun()
+			return m, nil
+		}
+		turn, err := m.dialogueByID(m.dialogueRouting)
+		if err != nil {
+			return fail(err.Error())
+		}
+		m.dialogueCancel()
+		m.dialogueCancel, m.dialogueRouting = nil, ""
+		turn.State, turn.Issue = "interrupted", "Stopped before execution. Your message is retained."
+		if _, err := m.saveDialogue(turn); err != nil {
+			return fail(err.Error())
+		}
+		return m.startConversationRoute()
 	}
 	if action.Action == "guide" {
 		if action.ID != m.bridgeGuidanceID() || m.operation == nil {

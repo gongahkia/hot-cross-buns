@@ -6,6 +6,7 @@ import { dirname, join, isAbsolute } from 'node:path';
 import { createServer } from "node:http";
 import { attachmentPreview } from "./attachment-preview.mjs";
 import { taskSummaries, delegatedSummaries, agentSummaries } from "./task-summaries.mjs";
+import { activeRunControl } from './run-control.mjs';
 import { localServers } from './local-servers.mjs';
 import { localAppStatus } from './local-app-status.mjs';
 import { taskDetails } from './task-details.mjs';
@@ -23,6 +24,7 @@ import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+  ["/composer-action.mjs", ["composer-action.mjs", "text/javascript; charset=utf-8"]],
   ["/bakery.json", ["../../internal/branding/bakery.json", "application/json"]],
 ["/context-meter.mjs",["context-meter.mjs","text/javascript; charset=utf-8"]],
   ["/event-hooks.mjs", ["event-hooks.mjs", "text/javascript; charset=utf-8"]],
@@ -115,6 +117,7 @@ function reviewFor(state, context) {
 function projection(host, corrections) {
   const snapshot = host.snapshot();
   const state = snapshot.state;
+  const control = activeRunControl(host);
   return {
     context: host.context, connection: snapshot.connection, switching: snapshot.sessionSwitching,
     correction: corrections?.overlay({})?.correction,
@@ -122,6 +125,7 @@ function projection(host, corrections) {
     activity: snapshot.chatActivity,
     tasks: taskSummaries(host),
     helpers: delegatedSummaries(host),
+    control: control && { stop: control.id },
     agents: agentSummaries(host),
     scheduled: { entries: state?.checks || [], running: !!state?.supervisor_running, issue: state?.checks_issue },
     responses: responseReferences(state),
@@ -220,8 +224,9 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new RequestError(400, "Choose a browser action.");
     const { context, op } = body;
     if (op === "send") {
+      if (body.preferSteering !== undefined && typeof body.preferSteering !== 'boolean') throw new RequestError(400, 'Invalid steering preference.');
       if (typeof body.id !== "string" || !/^[a-f0-9-]{36}$/.test(body.id) || typeof body.text !== "string" || Buffer.byteLength(body.text) > 128 * 1024 || !Array.isArray(body.files)) throw new RequestError(400, "Invalid message.");
-      const signature = digest([context, body.text, body.files, body.response_quote, !!body.queueOnly, body.correction || '', body.reply_to_task_id]);
+      const signature = digest([context, body.text, body.files, body.response_quote, !!body.queueOnly, body.correction || '', body.reply_to_task_id, !!body.preferSteering]);
       const accepted = admissions.get(body.id);
       if (accepted) {
         if (accepted !== signature) throw new RequestError(409, "This message identity has already been used.");
@@ -246,6 +251,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       await host.send({ type: "upload_submit", upload: {
         request_id: body.id, context, text, files,
         ...(body.queueOnly === true ? { queue_only: true } : {}),
+        ...(!saved.correction && body.preferSteering === true && !body.queueOnly ? { prefer_steering: true } : {}),
         ...(!saved.correction && saved.reply_to_task_id ? {reply_to_task_id:saved.reply_to_task_id}:{}),
         ...(!saved.correction && saved.reply_to_update_id ? { reply_to_update_id: saved.reply_to_update_id } : {}),
       } });
@@ -454,6 +460,13 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         await host.openSession(body.id);
         break;
       case "stop":
+        if (body.id !== undefined) {
+          const control = activeRunControl(host);
+          if (!control || body.id !== control.id) throw new RequestError(409, 'The running task changed. No different task was stopped.');
+          const result = await control.owner.controlRun({ request_id: randomUUID(), id: control.id, action: 'stop' });
+          if (result?.error) throw new RequestError(409, result.error);
+          break;
+        }
         if (!host.backend.state?.running) throw new RequestError(409, "This chat is no longer running.");
         await host.send({ type: "submit", text: "/cancel" });
         break;

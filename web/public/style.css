@@ -258,6 +258,7 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .icon-button svg { width: 1.25rem; height: 1.25rem; }
 #attach { border-radius: 50%; }
 #send { border-radius: 50%; padding: .35rem; }
+#send[data-action="stop"] svg { width: 1rem; height: 1rem; fill: currentColor; stroke-width: 0; }
 #send:disabled { background: var(--wash); color: #a4a39e; opacity: 1; }
 .model-picker { display: flex; align-items: center; gap: .3rem; padding: .3rem .4rem; min-width: 0; font-size: .78rem; }
 .model-picker #model-label { max-width: min(14rem, 38vw); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

@@ -33,7 +33,8 @@ import { taskDetailView } from './task-details.mjs';
 import { workspaceView } from './workspace.mjs';
 import { streamingResponse } from './streaming.mjs';
 import { schedulingApprovalActions, filesystemApprovalActions, currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
-import { icon } from "./icons.mjs";
+import { icon, setIcon } from "./icons.mjs";
+import { composerAction } from './composer-action.mjs';
 import { attachmentCard, previewContent, pastedFiles } from "./attachments.mjs";
 
 const $ = id => document.getElementById(id);
@@ -176,10 +177,12 @@ function controls() {
   input.readOnly = waiting;
   $("attach").disabled = !writing || waiting || !!draft?.correction;
   const correction = snapshot.correction?.id === draft?.correction?.id ? snapshot.correction : draft?.correction;
-  $("send").disabled = !writing || !waiting && (!!correction?.issue || !input.value.trim() && !draft?.uploads.length);
-  const sendLabel = waiting ? "Retry message" : state?.running && !state.dialogueActive ? "Queue message" : "Send message";
-  $("send").setAttribute("aria-label", sendLabel);
-  $("send").title = sendLabel;
+  const action = composerAction(snapshot, { text: input.value, files: draft?.uploads || [], pending: waiting, correction: !!correction });
+  $("send").dataset.action = action.action;
+  setIcon($("send"), action.icon);
+  $("send").disabled = !writing || action.disabled || action.action === 'send' && !waiting && (!!correction?.issue || !input.value.trim() && !draft?.uploads.length);
+  $("send").setAttribute("aria-label", action.label);
+  $("send").title = action.label;
   const model = state?.composer?.models?.find(row => row.provider === state.provider && row.model === state.model);
   const modelLabel = model?.label || state?.model || "Choose model";
   $("model-label").textContent = modelLabel;
@@ -332,7 +335,10 @@ pending = restore(":pending");
 
 $("composer").addEventListener("submit", event => {
   event.preventDefault();
-  void execute(submitMessage);
+  const control = snapshot.control?.stop, context = snapshot.context;
+  if ($('send').dataset.action === 'stop') {
+    if (control) void execute(() => call({ op: 'stop', context, id: control }));
+  } else void execute(submitMessage);
 });
 async function submitMessage() {
     if (!draft || draft.context !== snapshot.context) return;
@@ -342,7 +348,7 @@ async function submitMessage() {
       throw new Error("A message in another conversation is unconfirmed. Return there to review it.");
     }
     if (!pending && draft.response_quote) await call({op:'response',action:'validate',context:draft.context});
-    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(draft.correction ? { correction: draft.correction.id } : {}), ...(draft.reply_to_task_id?{reply_to_task_id:draft.reply_to_task_id}:{}), ...(draft.response_quote ? {response_quote:draft.response_quote} : {}) };
+    const next = pending || { id: crypto.randomUUID(), context: draft.context, text: input.value, files: draft.uploads.map(file => file.id), ...(!draft.correction ? { preferSteering: true } : {}), ...(draft.correction ? { correction: draft.correction.id } : {}), ...(draft.reply_to_task_id?{reply_to_task_id:draft.reply_to_task_id}:{}), ...(draft.response_quote ? {response_quote:draft.response_quote} : {}) };
     if (!next.text.trim() && !next.files.length) return;
     pending = next;
     remember(":pending", pending);
@@ -357,7 +363,7 @@ async function submitMessage() {
     }
 }
 input.addEventListener("keydown", event => {
-  if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !$("send").disabled) {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !$("send").disabled && $('send').dataset.action !== 'stop') {
     event.preventDefault();
     $("composer").requestSubmit();
   }
@@ -969,9 +975,7 @@ function renderWork(state) {
     nodes.push(element("span", "Approval requested", "hint"), button("Review action", () => approval(review, context)));
     if (review.result?.preview?.setting === 'memory') nodes.push(element('p', review.result.preview.reason || 'Review the exact memory statement before it can be saved.', 'hint'));
   } else if (state.needsApproval) nodes.push(element("span", "Waiting for exact review details…", "hint"));
-  if (state.running) {
-    if (!state.cancelling) nodes.push(button("Stop", () => void execute(() => call({ op: "stop", context }))));
-  } else if (!state.working && state.composer?.readiness?.state && state.composer.readiness.state !== "configured" && !state.panel) {
+  if (!state.running && !state.working && state.composer?.readiness?.state && state.composer.readiness.state !== "configured" && !state.panel) {
     nodes.push(element("span", state.composer.readiness.issue || "Choose a model to start.", "hint"));
   }
   for (const plan of state.plans || []) if (plan.digest) nodes.push(button(plan.questions?.length ? 'Answer plan questions' : "Review plan", () => showPlan(plan, context, state.conversation_id)));

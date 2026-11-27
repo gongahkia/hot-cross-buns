@@ -122,6 +122,7 @@ type BridgeState struct {
 	Specialists           []BridgeSpecialist         `json:"specialists,omitempty"`
 	SpecialistResult      *BridgeSpecialistResult    `json:"specialist_result,omitempty"`
 	GuidanceID            string                     `json:"guidance_id,omitempty"`
+	StopID                string                     `json:"stop_id,omitempty"`
 	Home                  bool                       `json:"home"`
 	FirstRun              bool                       `json:"first_run"`
 	SupervisorNeedsStart  bool                       `json:"supervisor_needs_start"`
@@ -316,6 +317,7 @@ func (m Model) BridgeState() BridgeState {
 		state.Queue = append(state.Queue, BridgeQueuedRun{ReplyToUpdateID: item.options.ReplyToUpdateID, Interrupted: item.interrupted, Inputs: uploadNames(item.options.Uploads), ID: bridgeQueuedRunID(item), Text: item.prompt})
 	}
 	state.GuidanceID = m.bridgeGuidanceID()
+	state.StopID = m.bridgeStopID()
 	switch {
 	case m.recallBusy:
 		state.PendingOperation = "Installing local recall…"

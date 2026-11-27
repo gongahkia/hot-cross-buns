@@ -237,13 +237,17 @@ func (m Model) Update(messageValue tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateAgentEvent(value)
 	case *workrun.Operation:
 		m.operation = value
-		return m, waitWorkEvent(m.live)
+		next, route := m.startConversationRoute()
+		return next, tea.Batch(waitWorkEvent(m.live), route)
 	case workrun.Interaction:
 		return m.updateInteraction(value)
 	case runDone:
 		next, command := m.updateRunDone(value)
 		model := next.(Model)
 		model.refreshBridgeConversations()
+		next, route := model.startConversationRoute()
+		model = next.(Model)
+		command = tea.Batch(command, route)
 		for _, change := range value.AppChanges {
 			if change.Setting == "schedule" || change.Setting == "followup" {
 				return model, tea.Batch(command, model.refreshChecksCommand(), model.refreshOverviewCommand())
