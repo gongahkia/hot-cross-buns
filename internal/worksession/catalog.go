@@ -44,6 +44,7 @@ type ConversationPage struct {
 	IndexFallback bool               `json:"index_fallback,omitempty"`
 }
 type ConversationItem struct {
+	TaskEmoji string    `json:"task_emoji,omitempty"`
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	Source    string    `json:"source"`
@@ -193,6 +194,9 @@ func (s Store) pageConversationFiles(query ConversationQuery) (ConversationPage,
 	remaining := catalogSearchBytes
 	for _, c := range records {
 		item := ConversationItem{ID: c.ID, Title: c.Title, Source: c.SourcePath, UpdatedAt: c.UpdatedAt, Pinned: c.Pinned, Archived: c.Archived, Version: ConversationDisplayVersion(c)}
+		if q.TaskParent != "" {
+			item.TaskEmoji = s.TaskEmoji(c.ID)
+		}
 		if term != "" {
 			if strings.Contains(strings.ToLower(c.Title), term) {
 				item.Match = "title"

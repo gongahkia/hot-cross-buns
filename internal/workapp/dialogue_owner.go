@@ -23,6 +23,7 @@ type DialogueReaction struct {
 // DialogueMessage projects public content and input references, never captured
 // execution options or another owner's approval token.
 type DialogueMessage struct {
+	TaskEmoji       string            `json:"task_emoji,omitempty"`
 	Revision        uint64            `json:"revision"`
 	Reaction        *DialogueReaction `json:"reaction,omitempty"`
 	ID              string            `json:"id"`
@@ -41,6 +42,7 @@ type DialogueMessage struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
 type DialogueTaskState struct {
+	TaskEmoji string `json:"task_emoji,omitempty"`
 	DialoguePeer
 	ParentID string `json:"parent_id"`
 }
@@ -66,7 +68,7 @@ func (m Model) dialogueMessages() []DialogueMessage {
 				taskResult = peer.Summary
 			}
 		}
-		messages = append(messages, DialogueMessage{TaskTitle: taskTitle, TaskContinued: decision.Kind == "continue", TaskResult: taskResult, Revision: turn.Revision, Reaction: retainedReaction(turn, input), ID: turn.ID, Sequence: turn.Sequence, Text: turn.Text, Response: turn.Response, State: turn.State, Issue: turn.Issue, TaskChat: turn.TaskChat, InputIDs: append([]string(nil), input.RunOptions.Uploads...), ReplyToUpdateID: input.RunOptions.ReplyToUpdateID, CreatedAt: turn.CreatedAt, UpdatedAt: turn.UpdatedAt})
+		messages = append(messages, DialogueMessage{TaskEmoji: m.config.SessionStore.TaskEmoji(turn.TaskChat), TaskTitle: taskTitle, TaskContinued: decision.Kind == "continue", TaskResult: taskResult, Revision: turn.Revision, Reaction: retainedReaction(turn, input), ID: turn.ID, Sequence: turn.Sequence, Text: turn.Text, Response: turn.Response, State: turn.State, Issue: turn.Issue, TaskChat: turn.TaskChat, InputIDs: append([]string(nil), input.RunOptions.Uploads...), ReplyToUpdateID: input.RunOptions.ReplyToUpdateID, CreatedAt: turn.CreatedAt, UpdatedAt: turn.UpdatedAt})
 	}
 	return messages
 }
@@ -79,7 +81,7 @@ func (m Model) dialogueTaskState() *DialogueTaskState {
 	if err != nil || origin == nil {
 		return nil
 	}
-	result := &DialogueTaskState{ParentID: origin.ParentConversationID, DialoguePeer: DialoguePeer{ConversationID: m.conversation, TurnID: origin.TurnID, State: "unconfirmed", NeedsInspection: m.acknowledgementBlocked()}}
+	result := &DialogueTaskState{TaskEmoji: m.config.SessionStore.TaskEmoji(m.conversation), ParentID: origin.ParentConversationID, DialoguePeer: DialoguePeer{ConversationID: m.conversation, TurnID: origin.TurnID, State: "unconfirmed", NeedsInspection: m.acknowledgementBlocked()}}
 	for i := len(m.requests.Requests) - 1; i >= 0; i-- {
 		r := m.requests.Requests[i]
 		if !m.config.SessionStore.DialogueTaskTurn(m.conversation, origin.ParentConversationID, r.ClientID) {
@@ -331,7 +333,7 @@ func (m Model) ControlDialogue(control DialogueControl) (Model, tea.Cmd) {
 		for _, r := range m.requests.Requests {
 			if r.ID == control.TurnID {
 				if task, ok := m.localConversationTask(r); ok {
-					state = &DialogueTaskState{ParentID: m.conversation, DialoguePeer: DialoguePeer{ConversationID: m.conversation, TurnID: r.ID, RunID: task.ControlID, CanRevisePlan: task.CanRevisePlan, CanReviewInputs: task.CanReviewInputs, PreparationControlID: task.PreparationControlID, CanCorrectAction: task.CanCorrectAction, ReviewControlID: task.ReviewControlID}}
+					state = &DialogueTaskState{TaskEmoji: m.config.SessionStore.TaskEmoji(m.conversation), ParentID: m.conversation, DialoguePeer: DialoguePeer{ConversationID: m.conversation, TurnID: r.ID, RunID: task.ControlID, CanRevisePlan: task.CanRevisePlan, CanReviewInputs: task.CanReviewInputs, PreparationControlID: task.PreparationControlID, CanCorrectAction: task.CanCorrectAction, ReviewControlID: task.ReviewControlID}}
 					ownerRequest = r.ID
 				}
 				break

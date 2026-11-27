@@ -183,6 +183,9 @@ func (s Store) BindDialogueTask(conversation, id, expectedSource string, expecte
 	if err := s.retainTaskOrigin(taskOrigin(parent, turn, child)); err != nil {
 		return turn, child, false, err
 	}
+	if err := s.retainTaskEmoji(child.ID); err != nil {
+		return turn, child, false, err
+	}
 	turn.State, turn.TaskChat, turn.UpdatedAt = "dispatching", child.ID, now.UTC()
 	bound, err := s.UpdateDialogue(turn, expected)
 	if errors.Is(err, ErrDialogueChanged) {
