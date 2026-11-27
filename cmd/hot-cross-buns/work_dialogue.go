@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
 	"maps"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
@@ -127,7 +131,17 @@ func verifyConversationScopeFor(input workapp.ConversationInput, conversationOnl
 }
 
 func routeInteractiveConversation(stateDir string) func(context.Context, workrun.ConversationRequest, workapp.ConversationInput) (workrun.ConversationDecision, error) {
-	return func(ctx context.Context, request workrun.ConversationRequest, input workapp.ConversationInput) (workrun.ConversationDecision, error) {
+	return func(ctx context.Context, request workrun.ConversationRequest, input workapp.ConversationInput) (decision workrun.ConversationDecision, routeErr error) {
+		var trace *telemetry.Trace
+		if input.TurnID != "" {
+			key := input.ConversationID + "\x00" + input.TurnID
+			trace = telemetry.NewLinked(telemetry.ID(key, 32), key, "", time.Now().UTC())
+			finish := trace.Phase("routing")
+			defer func() {
+				finish(routeErr)
+				routeErr = errors.Join(routeErr, trace.Finish(filepath.Join(stateDir, "hot-cross-buns", "traces", telemetry.ID(key, 32)), os.Getenv("HOT_CROSS_BUNS_OTLP_ENDPOINT")))
+			}()
+		}
 		if err := verifyConversationScopeFor(input, true); err != nil {
 			return workrun.ConversationDecision{}, err
 		}
@@ -151,7 +165,12 @@ func routeInteractiveConversation(stateDir string) func(context.Context, workrun
 		if input.ConversationID != "" {
 			summaryInput := input
 			summaryInput.RunOptions.ModelProvider, summaryInput.RunOptions.ModelName = provider, model
+			finishRecall := func(error) {}
+			if trace != nil {
+				finishRecall = trace.Phase("context_retrieval")
+			}
 			context, err := prepareDialogueContinuity(ctx, stateDir, backend, request.Text, summaryInput, workrun.ConversationTokens(agent.ContextFor(backend), workrun.ConversationRequest{Text: request.Text, Tasks: request.Tasks, CanStart: request.CanStart}))
+			finishRecall(err)
 			if err != nil {
 				return workrun.ConversationDecision{}, err
 			}

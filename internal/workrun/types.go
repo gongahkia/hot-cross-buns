@@ -101,6 +101,8 @@ type Request struct {
 	DisabledRoles         []string
 	RoleConfiguration     map[string]orchestrator.RoleConfiguration
 	OnSupervisor          func(*orchestrator.Supervisor)
+	TraceWorkflow         string
+	TraceParent           string
 	OTLPEndpoint          string
 	Limits                agent.Limits
 	Budget                *agent.Budget

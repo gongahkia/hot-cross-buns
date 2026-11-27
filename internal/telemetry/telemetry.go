@@ -21,6 +21,7 @@ import (
 )
 
 type Span struct {
+	Outcome            string                    `json:"outcome,omitempty"`
 	ProviderDiagnostic *agent.ProviderDiagnostic `json:"provider_diagnostic,omitempty"`
 	ID                 string                    `json:"id"`
 	Parent             string                    `json:"parent,omitempty"`
@@ -50,6 +51,41 @@ func New(run string, at time.Time) *Trace {
 	id := ID(run, 32)
 	return &Trace{Version: 1, ID: id, Spans: []Span{{ID: ID(run+"/work", 16), Name: "work", Start: at}}, open: map[string]int{}}
 }
+
+// NewLinked joins host-selected routing and work records without exporting
+// conversation identifiers or interpreting correlation as execution authority.
+func NewLinked(run, workflow, parent string, at time.Time) *Trace {
+	t := New(run, at)
+	if workflow != "" {
+		t.ID = ID(workflow, 32)
+	}
+	if parent != "" {
+		t.Spans[0].Parent = ID(parent+"/work", 16)
+	}
+	return t
+}
+
+func (t *Trace) Phase(name string) func(error) {
+	start := time.Now().UTC()
+	t.mu.Lock()
+	if len(t.Spans) >= 511 {
+		t.Dropped++
+		t.mu.Unlock()
+		return func(error) {}
+	}
+	i := len(t.Spans)
+	t.Spans = append(t.Spans, Span{ID: ID(fmt.Sprintf("%s/phase/%d", t.Spans[0].ID, i), 16), Parent: t.Spans[0].ID, Name: name, Start: start})
+	t.mu.Unlock()
+	return func(err error) {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		t.Spans[i].End = time.Now().UTC()
+		t.Spans[i].Outcome = "completed"
+		if err != nil {
+			t.Spans[i].Outcome = "failed"
+		}
+	}
+}
 func (t *Trace) Record(event agent.Event) {
 	switch event.Kind {
 	case agent.EventTextDelta, agent.EventText:
@@ -58,14 +94,25 @@ func (t *Trace) Record(event agent.Event) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	key := fmt.Sprintf("%s/%d/%d", event.TaskID, event.Step, event.Attempt)
+	approval := event.Kind == agent.EventApprovalRequested || event.Kind == agent.EventApprovalResolved
+	if approval {
+		key += "/approval"
+	}
 	if event.ToolCall != nil {
 		key += "/" + event.ToolCall.ID
 	}
-	if event.Kind == agent.EventModelAttemptFinished || event.Kind == agent.EventToolFinished {
+	if event.Kind == agent.EventModelAttemptFinished || event.Kind == agent.EventToolFinished || event.Kind == agent.EventApprovalResolved {
 		if index, ok := t.open[key]; ok {
 			t.Spans[index].End = event.At
 			t.Spans[index].Usage = event.Usage
 			t.Spans[index].ProviderDiagnostic = event.ProviderDiagnostic
+			t.Spans[index].Outcome = "completed"
+			if event.ToolError != "" || event.ProviderDiagnostic != nil {
+				t.Spans[index].Outcome = "failed"
+			}
+			if event.Outcome != "" {
+				t.Spans[index].Outcome = event.Outcome
+			}
 			delete(t.open, key)
 			return
 		}
@@ -95,7 +142,7 @@ func (t *Trace) Record(event agent.Event) {
 	if event.ToolCall != nil {
 		name = "tool/" + event.ToolCall.Name
 	}
-	if event.Kind == agent.EventToolCalled || event.Kind == agent.EventModelAttemptStarted {
+	if event.Kind == agent.EventToolCalled || event.Kind == agent.EventModelAttemptStarted || event.Kind == agent.EventApprovalRequested {
 		t.open[key] = len(t.Spans)
 	}
 	t.Spans = append(t.Spans, Span{ID: ID(fmt.Sprintf("%s/%d", t.ID, len(t.Spans)), 16), Parent: parent, Name: name, ProviderDiagnostic: event.ProviderDiagnostic, Start: event.At, End: event.At, Task: event.TaskID, Step: event.Step, Attempt: event.Attempt})
@@ -124,7 +171,36 @@ func (t *Trace) Finish(directory, endpoint string) error {
 func ExportOTLP(ctx context.Context, client *http.Client, endpoint string, trace *Trace) error {
 	spans := make([]map[string]any, 0, len(trace.Spans))
 	for _, span := range trace.Spans {
-		spans = append(spans, map[string]any{"traceId": trace.ID, "spanId": span.ID, "parentSpanId": span.Parent, "name": span.Name, "kind": 1, "startTimeUnixNano": strconv.FormatInt(span.Start.UnixNano(), 10), "endTimeUnixNano": strconv.FormatInt(span.End.UnixNano(), 10)})
+		attributes := []any{}
+		integer := func(key string, value int64) {
+			attributes = append(attributes, map[string]any{"key": key, "value": map[string]string{"intValue": strconv.FormatInt(value, 10)}})
+		}
+		text := func(key, value string) {
+			if value != "" {
+				attributes = append(attributes, map[string]any{"key": key, "value": map[string]string{"stringValue": value}})
+			}
+		}
+		integer("hcb.step", int64(span.Step))
+		integer("hcb.attempt", int64(span.Attempt))
+		text("hcb.outcome", span.Outcome)
+		if span.Task != "" {
+			text("hcb.task", ID(span.Task, 32))
+		}
+		if span.Usage != nil {
+			integer("gen_ai.usage.input_tokens", span.Usage.InputTokens)
+			integer("gen_ai.usage.output_tokens", span.Usage.OutputTokens)
+			integer("hcb.usage.unknown_requests", int64(span.Usage.UnknownRequests))
+		}
+		// Diagnostics may contain URLs or provider-generated text. Export only
+		// numeric status metadata; raw errors, prompts and tool arguments stay out.
+		if d := span.ProviderDiagnostic; d != nil {
+			integer("hcb.provider.http_status", int64(d.Status))
+		}
+		end := span.End
+		if end.IsZero() {
+			end = span.Start
+		}
+		spans = append(spans, map[string]any{"traceId": trace.ID, "spanId": span.ID, "parentSpanId": span.Parent, "name": span.Name, "kind": 1, "startTimeUnixNano": strconv.FormatInt(span.Start.UnixNano(), 10), "endTimeUnixNano": strconv.FormatInt(end.UnixNano(), 10), "attributes": attributes})
 	}
 	payload := map[string]any{"resourceSpans": []any{map[string]any{"resource": map[string]any{"attributes": []any{map[string]any{"key": "service.name", "value": map[string]string{"stringValue": "hot-cross-buns"}}}}, "scopeSpans": []any{map[string]any{"scope": map[string]string{"name": "hot-cross-buns.work", "version": "1"}, "spans": spans}}}}}
 	return Post(ctx, client, endpoint, "", payload, nil)
@@ -161,4 +237,17 @@ func Post(ctx context.Context, client *http.Client, endpoint, key string, value,
 	}
 	_, err = io.Copy(io.Discard, io.LimitReader(response.Body, 1024*1024))
 	return err
+}
+
+// Observe keeps lifecycle timing independent of the private inputs and outputs.
+func Observe[T, R any](trace *Trace, name string, fn func(context.Context, T) (R, error)) func(context.Context, T) (R, error) {
+	if fn == nil {
+		return nil
+	}
+	return func(ctx context.Context, input T) (R, error) {
+		finish := trace.Phase(name)
+		result, err := fn(ctx, input)
+		finish(err)
+		return result, err
+	}
 }

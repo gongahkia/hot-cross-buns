@@ -77,3 +77,37 @@ func TestCLIFailureMetadataPersistsInExistingPrivateTrace(t *testing.T) {
 		t.Fatalf("trace permissions: %v", info.Mode())
 	}
 }
+
+func TestLinkedTraceExportsSafeUsageAndLifecycleMetadata(t *testing.T) {
+	workflow := "private-conversation\x00private-turn"
+	routing := NewLinked("route", workflow, "", time.Now())
+	work := NewLinked("run", workflow, "route", time.Now())
+	if routing.ID != work.ID || work.Spans[0].Parent != routing.Spans[0].ID {
+		t.Fatal("workflow is disconnected")
+	}
+	done := work.Phase("approval")
+	done(context.Canceled)
+	work.Record(agent.Event{Kind: agent.EventModelAttemptStarted, Step: 2, Attempt: 3, At: time.Now()})
+	work.Record(agent.Event{Kind: agent.EventModelAttemptFinished, Step: 2, Attempt: 3, At: time.Now(), Outcome: "failed", Usage: &agent.Usage{InputTokens: 123, OutputTokens: 7, Reported: true}, ProviderDiagnostic: &agent.ProviderDiagnostic{Status: 429, Endpoint: "https://private.invalid/PRIVATE_ERROR"}})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		text := string(data)
+		for _, secret := range []string{"private-conversation", "private-turn", "PRIVATE_ERROR"} {
+			if strings.Contains(text, secret) {
+				t.Error("private metadata exported")
+			}
+		}
+		for _, field := range []string{"gen_ai.usage.input_tokens", "123", "hcb.attempt", "hcb.provider.http_status", "429", "hcb.outcome"} {
+			if !strings.Contains(text, field) {
+				t.Errorf("missing %s", field)
+			}
+		}
+	}))
+	defer server.Close()
+	if err := ExportOTLP(context.Background(), server.Client(), server.URL, work); err != nil {
+		t.Fatal(err)
+	}
+	if work.Spans[1].Outcome != "failed" || work.Spans[1].End.Before(work.Spans[1].Start) {
+		t.Fatal("lifecycle phase did not finish")
+	}
+}

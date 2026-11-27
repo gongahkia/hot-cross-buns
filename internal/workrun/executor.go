@@ -219,7 +219,15 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 			finalErr = errors.Join(finalErr, fmt.Errorf("retain Work history: %w", err))
 		}
 	}()
-	trace := telemetry.New(request.RunID, startedAt)
+	trace := telemetry.NewLinked(request.RunID, request.TraceWorkflow, request.TraceParent, startedAt)
+	request.ApproveAction = telemetry.Observe(trace, "approval", request.ApproveAction)
+	request.ApproveFilesystem = telemetry.Observe(trace, "approval", request.ApproveFilesystem)
+	request.ApproveAppChange = telemetry.Observe(trace, "approval", request.ApproveAppChange)
+	request.ApproveScheduleChange = telemetry.Observe(trace, "approval", request.ApproveScheduleChange)
+	request.ApproveCodeCommand = telemetry.Observe(trace, "approval", request.ApproveCodeCommand)
+	request.ApproveBrowser = telemetry.Observe(trace, "approval", request.ApproveBrowser)
+	request.ApproveDesktop = telemetry.Observe(trace, "approval", request.ApproveDesktop)
+	request.ApproveWebAccess = telemetry.Observe(trace, "approval", request.ApproveWebAccess)
 	defer func() {
 		if err := trace.Finish(filepath.Join(request.StateDir, "hot-cross-buns", "traces", request.RunID), request.OTLPEndpoint); err != nil {
 			finalErr = errors.Join(finalErr, fmt.Errorf("retain local telemetry: %w", err))

@@ -103,7 +103,7 @@ turnLoop:
 				turn, err = r.Model.Complete(WithContextReporter(ctx, options.OnContext), request)
 			}
 			usage := turn.Usage
-			r.emit(options.OnEvent, Event{Kind: EventModelAttemptFinished, At: now(), Step: step, Attempt: attempt, Usage: &usage, ProviderDiagnostic: ProviderDiagnosticFrom(err)})
+			r.emit(options.OnEvent, Event{Kind: EventModelAttemptFinished, At: now(), Step: step, Attempt: attempt, Outcome: outcomeName(err), Usage: &usage, ProviderDiagnostic: ProviderDiagnosticFrom(err)})
 			if err == nil {
 				break
 			}
@@ -448,4 +448,14 @@ func ToolBrand(tool Tool, arguments json.RawMessage) string {
 		}
 	}
 	return ""
+}
+
+func outcomeName(err error) string {
+	if err == nil {
+		return "completed"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
+	return "failed"
 }

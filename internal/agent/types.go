@@ -183,12 +183,15 @@ const (
 	EventSubagent                 EventKind = "subagent"
 	EventTerminal                 EventKind = "terminal"
 	EventWorktreeSetup            EventKind = "worktree_setup"
+	EventApprovalRequested        EventKind = "approval_requested"
+	EventApprovalResolved         EventKind = "approval_resolved"
 	EventRunFinished              EventKind = "run_finished"
 )
 
 // Event is intentionally structured so the UI, journal, and tests observe the
 // same behavior. Details is never used for unbounded raw model transcripts.
 type Event struct {
+	Outcome            string              `json:"outcome,omitempty"`
 	ProviderDiagnostic *ProviderDiagnostic `json:"provider_diagnostic,omitempty"`
 	Attempt            int                 `json:"attempt,omitempty"`
 	Usage              *Usage              `json:"usage,omitempty"`

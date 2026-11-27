@@ -32,6 +32,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"github.com/gongahkia/hot-cross-buns/internal/state"
 	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
+	"github.com/gongahkia/hot-cross-buns/internal/telemetry"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	sharedusage "github.com/gongahkia/hot-cross-buns/internal/usage"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
@@ -837,6 +838,8 @@ func runInteractiveWorkGoal(source, conversationID, prompt, stateDir string, opt
 	}
 	if dialogue != nil {
 		request.OriginConversationID = options.DialogueParent
+		request.TraceWorkflow = options.DialogueParent + "\x00" + options.DialogueTurn
+		request.TraceParent = telemetry.ID(request.TraceWorkflow, 32)
 		request.OAuthRefreshPins = dialogue.OAuthRefreshPins
 	}
 	parse := func(values []string) ([][]string, error) {

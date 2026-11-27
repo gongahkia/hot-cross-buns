@@ -19,6 +19,7 @@ import (
 // ConversationInput is the immutable envelope captured by admission. Public
 // conversation text is context, never replay, tool results or approval grants.
 type ConversationInput struct {
+	TurnID           string                        `json:"-"`
 	PreferSteering   bool                          `json:"prefer_steering,omitempty"`
 	ConversationID   string                        `json:"conversation_id,omitempty"`
 	BeforeSequence   uint64                        `json:"-"`
@@ -464,6 +465,7 @@ func (m Model) startConversationRoute() (tea.Model, tea.Cmd) {
 		}
 		request.Tasks = selected
 	}
+	input.TurnID = id
 	route, conversation := m.config.RouteConversation, m.conversation
 	decision, steering := preferredSteering(request, input, m.activeRequest)
 	return m, func() tea.Msg {
