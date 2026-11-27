@@ -27,11 +27,13 @@ func (m Model) startInlineDialogue(turn worksession.DialogueTurn) (tea.Model, te
 	options.DialogueParent, options.DialogueTurn = m.conversation, turn.ID
 	m.submissionID = turn.ID
 	var cmd tea.Cmd
+	userIndex := -1
 	if m.running {
 		m.queueSequence++
 		queue := append(append([]queuedRun(nil), m.queue...), queuedRun{id: m.queueSequence, prompt: turn.Text, options: options})
 		err = m.persistQueue(queue)
 	} else {
+		userIndex = len(m.messages)
 		m.messages = append(m.messages, message{role: "You", text: turn.Text, createdAt: turn.CreatedAt, replyToUpdateID: options.ReplyToUpdateID})
 		m.running, m.home = true, false
 		m.status = "Working on your request…"
@@ -47,6 +49,10 @@ func (m Model) startInlineDialogue(turn worksession.DialogueTurn) (tea.Model, te
 		}
 	}
 	if err != nil || !admitted {
+		if userIndex >= 0 && userIndex < len(m.messages) {
+			// The durable failed dialogue remains the single user message.
+			m.messages = append(m.messages[:userIndex], m.messages[userIndex+1:]...)
+		}
 		issue := m.bridgeNotice
 		if err != nil {
 			issue = err.Error()

@@ -60,3 +60,23 @@ func TestInlineDialogueQueuesCapturedInputsBehindLiveWork(t *testing.T) {
 		t.Fatal("restart replayed inline admission")
 	}
 }
+
+func TestInlineDialogueAdmissionFailureKeepsOneUserMessage(t *testing.T) {
+	config, _ := dialogueConfig(t)
+	config.RouteConversation = func(context.Context, workrun.ConversationRequest, ConversationInput) (workrun.ConversationDecision, error) {
+		return workrun.ConversationDecision{Kind: "work"}, nil
+	}
+	m := New(config).ConfigureDialogueHost(DialogueHost{CanStart: true})
+	m.primary = true
+	m, route := dialogueSubmit(t, m, "inline-failure-0001", "Read my note")
+	m.requestsIssue = "storage unavailable"
+	m = routeDialogue(t, m, route)
+	if m.running || len(m.requests.Requests) != 0 || len(m.dialogueMessages()) != 1 || m.dialogueTurns[0].State != "failed" {
+		t.Fatal("failed admission lost its retained outcome")
+	}
+	for _, message := range m.messages {
+		if message.role == "You" && message.text == "Read my note" {
+			t.Fatal("failed admission duplicated the user message")
+		}
+	}
+}
