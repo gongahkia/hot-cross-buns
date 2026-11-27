@@ -93,6 +93,7 @@ type ComputerUseModel interface{ ComputerUse() (ComputerUse, bool) }
 
 // TurnRequest is one model turn. Implementations must not mutate Messages.
 type TurnRequest struct {
+	Output           *OutputContract  `json:"output_contract,omitempty"`
 	ArchivedMessages []Message        `json:"-"`
 	MaxOutputTokens  int              `json:"max_output_tokens,omitempty"`
 	System           string           `json:"system"`
@@ -240,6 +241,7 @@ type RunOptions struct {
 
 // Result is the terminal state of a completed agent loop.
 type Result struct {
+	Completion       WorkResult
 	ArchivedMessages []Message `json:"-"`
 	ContextSummary   string    `json:"-"`
 	FinalText        string

@@ -27,7 +27,11 @@ type Runner struct {
 func (r Runner) Run(ctx context.Context, options RunOptions) (runResult Result, runError error) {
 	var archived []Message
 	var contextSummary string
-	defer func() { runResult.ArchivedMessages = archived; runResult.ContextSummary = contextSummary }()
+	defer func() {
+		runResult.ArchivedMessages = archived
+		runResult.ContextSummary = contextSummary
+		runResult.Completion = CompletionResult(runResult.FinalText, nil, runError)
+	}()
 	if r.Model == nil {
 		return Result{}, errors.New("agent model is required")
 	}

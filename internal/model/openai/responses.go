@@ -185,7 +185,15 @@ func (r Responses) requestBody(turn agent.TurnRequest) (responseRequest, error) 
 		}
 		store = true
 	}
+	var format any
+	if turn.Output != nil {
+		if !json.Valid(turn.Output.Schema) || turn.Output.Name == "" {
+			return responseRequest{}, agent.ErrStructuredOutput
+		}
+		format = map[string]any{"format": map[string]any{"type": "json_schema", "name": turn.Output.Name, "schema": turn.Output.Schema, "strict": true}}
+	}
 	return responseRequest{
+		Text:               format,
 		MaxOutputTokens:    turn.MaxOutputTokens,
 		Model:              modelOrDefault(r.Model),
 		Instructions:       turn.System,
@@ -218,6 +226,7 @@ func modelOrDefault(model string) string {
 }
 
 type responseRequest struct {
+	Text               any            `json:"text,omitempty"`
 	MaxOutputTokens    int            `json:"max_output_tokens,omitempty"`
 	Model              string         `json:"model"`
 	Instructions       string         `json:"instructions,omitempty"`

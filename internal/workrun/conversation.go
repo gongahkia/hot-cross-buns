@@ -1,11 +1,9 @@
 package workrun
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"strings"
 	"time"
 	"unicode"
@@ -100,25 +98,13 @@ func RouteConversation(ctx context.Context, backend agent.Model, request Convers
 	}
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
-	turn, err := backend.Complete(ctx, agent.TurnRequest{
+	decision, err := agent.CompleteStructured(ctx, backend, agent.TurnRequest{
 		System: conversationRoutingSystem, Messages: []agent.Message{{Role: agent.RoleUser, Content: string(data)}},
-	})
-	if err != nil {
-		return ConversationDecision{}, err
+	}, conversationOutput, func(value ConversationDecision) error { return value.Validate(request) })
+	if errors.Is(err, agent.ErrStructuredOutput) {
+		return ConversationDecision{}, errors.Join(ErrConversationDecision, err)
 	}
-	if err := ctx.Err(); err != nil {
-		return ConversationDecision{}, err
-	}
-	if len(turn.ToolCalls) != 0 || !utf8.ValidString(turn.Text) || len(turn.Text) > 96*1024 {
-		return ConversationDecision{}, ErrConversationDecision
-	}
-	var decision ConversationDecision
-	decoder := json.NewDecoder(bytes.NewBufferString(turn.Text))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&decision) != nil || decoder.Decode(new(any)) != io.EOF || decision.Validate(request) != nil {
-		return ConversationDecision{}, ErrConversationDecision
-	}
-	return decision, nil
+	return decision, err
 }
 
 func conversationText(value string, maxBytes int, empty bool) bool {
@@ -263,3 +249,5 @@ Use guide for an explicit correction to one unambiguously identified task that h
 Use plan instead of task when the user requests planning first or a substantial ambiguous task needs a reviewed plan and structured clarifying questions before implementation. Like task, plan requires can_start_task=true. It enters tool-free plan preparation and cannot start execution; the human must answer any questions and approve the exact resulting plan. A user's plan_first=true also requires planning for task requests. Do not use plan for a correction to an existing pending plan: use revise_plan for that same task.
 
 For work/continue/guide/stop/task/plan/revise_plan/revise_action do not include text, promise an outcome or claim the action was accepted. The host will acknowledge only after actual acceptance. For reply/clarify do not include a target or instruction. Never invent task IDs, completion, progress, reminders, access, delivery or saved preferences. If context is insufficient, ask one short clarifying question. Reply text at most 8192 bytes; guide instruction at most 65536 bytes.` + "\n\n" + visualOutputPrompt
+
+var conversationOutput = agent.OutputContract{Name: "hcb_conversation_decision", Schema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["kind","text","title","reaction","target","instruction"],"properties":{"kind":{"type":"string"},"text":{"type":"string"},"title":{"type":"string"},"reaction":{"type":"string"},"target":{"type":"string"},"instruction":{"type":"string"}}}`)}

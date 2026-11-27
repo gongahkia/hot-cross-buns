@@ -60,6 +60,7 @@ type Invocation struct {
 // Result is the bounded information returned from a specialist to its manager.
 // Artifact fields are optional trusted evidence supplied by the host.
 type Result struct {
+	Completion          *agent.WorkResult `json:",omitempty"`
 	InspectedPaths      []string
 	FullyInspectedPaths []string
 	MissingPaths        []string
@@ -231,15 +232,16 @@ type assignment struct {
 }
 
 type delegatedResult struct {
-	ID             string `json:"id"`
-	Agent          string `json:"agent"`
-	Status         string `json:"status"`
-	Summary        string `json:"summary,omitempty"`
-	Error          string `json:"error,omitempty"`
-	Steps          int    `json:"steps,omitempty"`
-	ArtifactPath   string `json:"artifact_path,omitempty"`
-	ArtifactSHA256 string `json:"artifact_sha256,omitempty"`
-	BaselineSHA256 string `json:"baseline_sha256,omitempty"`
+	Completion     agent.WorkResult `json:"completion"`
+	ID             string           `json:"id"`
+	Agent          string           `json:"agent"`
+	Status         string           `json:"status"`
+	Summary        string           `json:"summary,omitempty"`
+	Error          string           `json:"error,omitempty"`
+	Steps          int              `json:"steps,omitempty"`
+	ArtifactPath   string           `json:"artifact_path,omitempty"`
+	ArtifactSHA256 string           `json:"artifact_sha256,omitempty"`
+	BaselineSHA256 string           `json:"baseline_sha256,omitempty"`
 }
 
 func (t *delegateTool) Execute(ctx context.Context, raw json.RawMessage) (agent.ToolResult, error) {
@@ -339,7 +341,8 @@ func (t *delegateTool) Execute(ctx context.Context, raw json.RawMessage) (agent.
 				errorText = boundedText(err.Error(), 2048)
 			}
 			results[index] = delegatedResult{
-				ID: item.id, Agent: item.agent, Status: status, Summary: summary, Error: errorText,
+				Completion: agent.CompletionResult(summary, result.InspectedPaths, err),
+				ID:         item.id, Agent: item.agent, Status: status, Summary: summary, Error: errorText,
 				Steps: result.Steps, ArtifactPath: result.ArtifactPath, ArtifactSHA256: result.ArtifactSHA256,
 				BaselineSHA256: result.BaselineSHA256,
 			}

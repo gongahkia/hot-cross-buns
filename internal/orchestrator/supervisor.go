@@ -468,6 +468,8 @@ func (s *Supervisor) run(ctx context.Context, execution *taskExecution, input, b
 }
 func (s *Supervisor) finish(execution *taskExecution, result Result, runErr error, category string) {
 	result.Summary = boundedText(result.Summary, maxSummaryBytes)
+	completion := agent.CompletionResult(result.Summary, result.InspectedPaths, runErr)
+	result.Completion = &completion
 	s.mu.Lock()
 	execution.task.Result = result
 	execution.task.FinishedAt = s.options.Now().UTC()

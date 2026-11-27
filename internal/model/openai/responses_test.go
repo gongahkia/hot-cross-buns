@@ -361,3 +361,14 @@ func TestRequestPreservesModelOutputReserve(t *testing.T) {
 		t.Fatal(body.MaxOutputTokens, err)
 	}
 }
+
+func TestResponsesStructuredOutputContract(t *testing.T) {
+	body, err := (Responses{}).requestBody(agent.TurnRequest{Output: &agent.OutputContract{Name: "decision", Schema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(body)
+	if !strings.Contains(string(data), `"type":"json_schema"`) || !strings.Contains(string(data), `"strict":true`) {
+		t.Fatal(string(data))
+	}
+}
