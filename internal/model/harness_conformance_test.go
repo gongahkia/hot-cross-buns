@@ -18,6 +18,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/model/chatcompletions"
 	"github.com/gongahkia/hot-cross-buns/internal/model/gemini"
 	"github.com/gongahkia/hot-cross-buns/internal/model/openai"
+	"github.com/gongahkia/hot-cross-buns/internal/model/radius"
 )
 
 type harnessAdapter struct {
@@ -44,9 +45,24 @@ func harnessAdapters() []harnessAdapter {
 		{"chat-local-fallback", "chat", false, func(s *httptest.Server) agent.Model {
 			return chatcompletions.Model{Config: chatcompletions.Config{AllowEmptyAPIKey: true, Model: "fixture", BaseURL: s.URL, Client: s.Client()}}
 		}},
+		{"radius-fallback", "radius", false, func(s *httptest.Server) agent.Model {
+			return radius.Messages{APIKey: "fixture", Model: "fixture", BaseURL: s.URL, Client: s.Client()}
+		}},
 	}
 }
 func harnessResponse(w http.ResponseWriter, wire string, stream bool, text string, call bool) {
+	if wire == "radius" {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if call {
+			io.WriteString(w, "data: {\"type\":\"toolcall_end\",\"toolCall\":{\"id\":\"call-1\",\"name\":\"read_file\",\"arguments\":{}}}\n\n")
+		} else {
+			payload, _ := json.Marshal(map[string]any{"type": "text_delta", "delta": text})
+			fmt.Fprintf(w, "data: %s\n\n", payload)
+		}
+		io.WriteString(w, "data: {\"type\":\"done\"}\n\n")
+		return
+	}
+
 	var body any
 	switch wire {
 	case "responses":
@@ -252,7 +268,10 @@ func TestHarnessProviderConformance(t *testing.T) {
 }
 
 func TestHarnessPartialStreamsAreNotRetried(t *testing.T) {
-	for _, adapter := range harnessAdapters()[:2] {
+	for _, adapter := range harnessAdapters() {
+		if adapter.wire != "responses" && adapter.wire != "messages" && adapter.wire != "radius" {
+			continue
+		}
 		t.Run(adapter.name, func(t *testing.T) {
 			calls := atomic.Int32{}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -260,13 +279,22 @@ func TestHarnessPartialStreamsAreNotRetried(t *testing.T) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				if adapter.wire == "responses" {
 					io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n")
+
+				} else if adapter.wire == "radius" {
+					io.WriteString(w, "data: {\"type\":\"text_delta\",\"delta\":\"partial\"}\n\n")
 				} else {
 					io.WriteString(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"partial\"}}\n\n")
 				}
 			}))
 			defer server.Close()
-			_, err := (agent.Runner{Model: adapter.new(server)}).Run(context.Background(), agent.RunOptions{Task: "work"})
-			if err == nil || calls.Load() != 1 {
+
+			var deltas string
+			_, err := (agent.Runner{Model: adapter.new(server)}).Run(context.Background(), agent.RunOptions{Task: "work", OnEvent: func(e agent.Event) {
+				if e.Kind == agent.EventTextDelta {
+					deltas += e.Text
+				}
+			}})
+			if err == nil || calls.Load() != 1 || deltas != "partial" {
 				t.Fatal(err, calls.Load())
 			}
 		})
