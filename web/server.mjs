@@ -471,7 +471,8 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         if (handoff.error) throw new RequestError(409, handoff.error);
         return {};
       case "answer-context":
-        return host.answerContext({ context, run: body.run });
+        if (body.previews !== undefined && typeof body.previews !== "boolean") throw new RequestError(400, "Check the source preview request.");
+        return host.answerContext({ context, run: body.run, ...(body.previews === false ? { previews: false } : {}) });
       case "sources":
         return host.sourceCatalog({ context, run: body.run });
       case "source":

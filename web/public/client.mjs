@@ -6,7 +6,7 @@ import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs
 import { brandIcon, setBrandIcon, providerBrand, providerLabel } from './brands.mjs';
 import { animateSurfaceHeight, viewTransition } from './surface-motion.mjs';
 import { element, prose, turn } from "./text.mjs";
-import { answerContextRun, answerContextView } from './answer-context.mjs';
+import { answerContextRun, answerContextView, sourceChip } from './answer-context.mjs';
 import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
 import { taskConversations, composerProgress } from "./task-inspector.mjs";
@@ -825,18 +825,32 @@ function download(label, ref, context) {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }));
 }
-function contextSources(run, context) {
-  const action = button('Context and sources', () => {
-    const view = answerContextView({ request: () => call({ op: 'answer-context', context, run }),
-      current: () => snapshot.context === context && dialog.open && detail.contains(view.element) });
-    openDetail('Context and sources', view.element);
-    void view.load();
-  });
-  action.dataset.contextRun = run;
-  return action;
+let sourceChipContext = '';
+const sourceChips = new Map();
+function resetSourceChips(context) {
+  if (sourceChipContext === context) return;
+  for (const chip of sourceChips.values()) chip.dispose();
+  sourceChips.clear(); sourceChipContext = context;
 }
+function contextSources(run, context) {
+  if (!sourceChips.has(run)) {
+    const chip = sourceChip({ request: () => call({ op: 'answer-context', context, run, previews: false }),
+      current: () => snapshot.context === context,
+      open: () => {
+        const view = answerContextView({ request: () => call({ op: 'answer-context', context, run }),
+          current: () => snapshot.context === context && dialog.open && detail.contains(view.element) });
+        openDetail('Sources', view.element); void view.load();
+      },
+    });
+    chip.element.dataset.contextRun = run; sourceChips.set(run, chip);
+    if (sourceChips.size > 128) { const oldest = sourceChips.keys().next().value; sourceChips.get(oldest).dispose(); sourceChips.delete(oldest); }
+  }
+  return sourceChips.get(run).element;
+}
+
 function renderTranscript(state) {
   const context = snapshot.context;
+  resetSourceChips(context);
   filePreviews.reset(context);
   canvas.reset(context);
   const messages = state.messages || [], talks = state.dialogue || [], updates = state.updates || [];

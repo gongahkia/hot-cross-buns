@@ -29,7 +29,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { taskConversations, checkLocalServer, technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { sourceChip, taskConversations, checkLocalServer, technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -1319,4 +1319,57 @@ test('technical popup removes unreachable, stopped and internal listeners instea
   fail=true;pane.element.querySelector('.task-links > button').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(pane.element.querySelectorAll('.technical-server').length,0);
   assert.match(pane.element.textContent,/Discovery unavailable/);
+});
+
+test('source pills use real web identities or Lucide memory marks and open the supporting view', async () => {
+  let opened=0;
+  const memory=sourceChip({request:async()=>({context:{Items:[{Kind:'preference',Title:'Reply style',Text:'Keep it casual.'}]},references:[]}),open:()=>opened++});
+  await memory.load();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(memory.element.textContent,'Memory');assert.equal(memory.element.getAttribute('aria-label'),'View memory');
+  assert.ok(memory.element.querySelector('svg'));assert.equal(memory.element.querySelector('img'),null);
+  memory.element.click();assert.equal(opened,1);
+  const web=sourceChip({request:async()=>({references:[{kind:'web',locator:'https://github.com/a'},{kind:'web',locator:'https://github.com/b'},{kind:'web',locator:'https://en.wikipedia.org/wiki/Meiji'}]}),open(){}});
+  await web.load();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(web.element.querySelector('.source-chip-marks').children.length,2);
+  assert.match(web.element.textContent,/Sources/);assert.ok(web.element.querySelector('.brand-logo'));
+  assert.equal(web.element.querySelector('img[src*="wikipedia"]').getAttribute('referrerpolicy'),'no-referrer');
+  const empty=sourceChip({request:async()=>({context:{Items:[]},references:[]}),open(){}});
+  await empty.load();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(empty.element.hidden,true);
+  const stale=sourceChip({request:async()=>({context:{Items:[{Kind:'memory',Text:'Never show'}]}}),current:()=>false,open(){}});
+  await stale.load();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(stale.element.textContent,'Sources');
+});
+
+test('source details lead with grouped readable evidence and keep diagnostics collapsed', async () => {
+  const view=answerContextView({request:async()=>({context:{Outcome:'A long original task',Permission:'inspect',Recall:'technical recall trace',Usage:'15 model requests',Items:[{Kind:'preference',Title:'preference',Text:'Please keep replies casual.',Source:'internal-source-record',Updated:'Supplied at run start'}]},references:[{kind:'web',label:'History reference',original_url:'https://example.com/history',locator:'https://example.com/history',preview:{text:'Japan modernized its institutions.'}},{kind:'file',label:'notes.md',locator:'source/notes.md',preview:{text:'Local notes'}}]})});
+  await view.load();
+  assert.deepEqual([...view.element.querySelectorAll('.context-source-group > h3')].map(node=>node.textContent),['Memory','Web sources','Files and references']);
+  assert.match(view.element.querySelector('.context-source-group').textContent,/Please keep replies casual/);
+  const diagnostics=view.element.querySelector('.source-technical-details');assert.equal(diagnostics.open,false);
+  assert.match(diagnostics.textContent,/technical recall trace/);assert.match(diagnostics.textContent,/internal-source-record/);
+  assert.doesNotMatch(view.element.querySelector('.context-source-group').textContent,/internal-source-record|15 model requests/);
+  assert.equal(view.element.querySelector('a').href,'https://example.com/history');
+});
+
+
+test('legacy HTML sources show inert readable text and keep original markup collapsed', async () => {
+  const html='<!doctype html><html><head><title>Meiji history</title><style>unreadable CSS</style></head><body><nav>Menu clutter</nav><main><h1>Restoration</h1><p>Japan modernized its institutions.</p><script>throw Error("never execute")</script><img src="https://example.com/tracker"></main></body></html>';
+  const view=answerContextView({request:async()=>({references:[{kind:'web',locator:'https://example.com/history',preview:{text:html}}]})});
+  await view.load();
+  assert.equal(view.element.querySelector('a').textContent,'Meiji history');
+  assert.equal(view.element.querySelector('.context-excerpt').textContent,'Restoration Japan modernized its institutions.');
+  assert.equal(view.element.querySelector('.source-record-details').open,false);
+  assert.equal(view.element.querySelector('.source-record-details pre').textContent,html);
+  assert.equal(view.element.querySelector('script'),null);
+  assert.equal(view.element.querySelector('img[src*="tracker"]'),null);
+});
+
+
+test('structured web captures expose retained descriptions instead of transport metadata', async () => {
+  const text=JSON.stringify({server:'internal-transport',metadata:{title:'The Meiji Restoration',creator:['A historian'],description:'A history of political change.'}});
+  const view=answerContextView({request:async()=>({references:[{kind:'web',locator:'https://archive.org/metadata/meiji',preview:{text}}]})});
+  await view.load();
+  assert.equal(view.element.querySelector('a').textContent,'The Meiji Restoration');
+  assert.equal(view.element.querySelector('.context-excerpt').textContent,'The Meiji Restoration · A historian · A history of political change.');
+  assert.equal(view.element.querySelector('.source-record-details pre').textContent,text);
+  assert.equal(view.element.querySelector('.source-record-details').open,false);
 });

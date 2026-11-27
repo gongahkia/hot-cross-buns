@@ -201,3 +201,15 @@ test("current knowledge refresh is identified as a request-start snapshot rather
   const catalogue=await sourceCatalog({context:f.request.context,run:f.request.run},{state:f.state});assert.equal(catalogue.references[0].label,"Current saved knowledge status");
   const result=await f.read({context:f.request.context,run:f.request.run,path:"evidence:"+id});assert.equal(result.text,text);assert.match(result.notice,/supplied before this request/);assert.match(result.notice,/grants no permissions/);
 }));
+
+test('source-chip metadata keeps owner validation without reading preview bytes', () => fixture(async f => {
+  await replaceEvidence(f,[{id:'note',locator:'source/project.md',sha256:hash(f.text),snapshot_path:f.file}]);
+  const owner={state:f.state,stateRoot:f.root,current:()=>true};
+  await rm(join(f.path,f.file));
+  const request={context:f.request.context,run:'run-one',previews:false};
+  const result=await answerContext(request,owner,async()=>({context:{Items:[{Kind:'memory',Text:'Saved preference'}]}}));
+  assert.equal(result.references.length,1);assert.equal(result.references[0].preview,undefined);assert.equal(result.references[0].error,undefined);
+  assert.equal(result.context.Items[0].Kind,'memory');
+  await assert.rejects(answerContext({...request,context:'conversation:foreign'},owner,async()=>{throw Error('must not inspect')}));
+  await assert.rejects(answerContext({...request,previews:'false'},owner,async()=>({})));
+}));

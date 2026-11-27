@@ -796,3 +796,20 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .inactive-tasks .chat-row { color: var(--muted); }
 .inactive-tasks .chat-scroll { max-height: 17rem; }
 .inactive-tasks .chat-activity-summary { display: none; }
+
+.meta .source-chip { display: inline-flex; align-items: center; gap: .5rem; padding: .25rem .7rem; border: 1px solid var(--line); border-radius: 999px; font-size: .75rem; color: var(--muted); text-decoration: none; }
+.source-chip > svg, .source-chip-marks > svg, .source-site-icon, .source-chip .brand-mark { width: 1rem; height: 1rem; flex: 0 0 1rem; }
+.source-chip-marks { display: inline-flex; align-items: center; gap: .1rem; }
+.source-site-icon { display: inline-flex; align-items: center; justify-content: center; }
+.source-site-icon img, .source-site-icon svg { width: 1rem; height: 1rem; object-fit: contain; }
+.context-source-group h3 { display: flex; align-items: center; gap: .5rem; font-size: .95rem; }
+.context-source-group h3 svg, .context-source-heading > svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
+.context-source-heading { display: flex; align-items: center; gap: .55rem; font-weight: 550; overflow-wrap: anywhere; }
+.context-source-heading a { text-decoration: none; }
+.context-source-heading a:hover { text-decoration: underline; }
+.source-technical-details { margin-top: 1.5rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.source-technical-details > summary, .source-full-excerpt > summary, .source-record-details > summary { cursor: pointer; font-size: .78rem; }
+.source-technical-details .context-facts { margin-top: .8rem; }
+.context-source-group .context-entry h4 { font-size: .82rem; font-weight: 550; }
+.context-source-group .context-entry { padding-bottom: .6rem; }
+.context-source-group .context-entry + .context-entry { margin-top: .6rem; padding-top: .6rem; }

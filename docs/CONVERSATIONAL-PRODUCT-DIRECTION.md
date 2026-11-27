@@ -31,6 +31,13 @@ control listeners are hidden, and failed or disconnected observations are
 cleared. Listening alone does not establish HTTP compatibility. App previews use the existing
 loopback-only split view; HCB's own and internal control listeners are inert.
 
+Answer footers use a compact Sources pill with source marks, or a Lucide mark
+for saved context such as memory. Its source view groups retained web excerpts,
+memories and files before collapsed technical diagnostics. Legacy HTML and JSON
+captures are presented as readable text; original captures remain inspectable.
+Footer descriptors load on visibility without reading source preview bodies;
+opening the view loads the retained evidence with its original ownership checks.
+
 ## Current web direction · 22 November 2026
 
 The primary interaction should be one persistent conversation with Hot Cross
