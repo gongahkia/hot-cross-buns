@@ -20,6 +20,7 @@ import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+  ["/bakery.json", ["../../internal/branding/bakery.json", "application/json"]],
 ["/context-meter.mjs",["context-meter.mjs","text/javascript; charset=utf-8"]],
   ["/event-hooks.mjs", ["event-hooks.mjs", "text/javascript; charset=utf-8"]],
   ["/answer-context.mjs", ["answer-context.mjs", "text/javascript; charset=utf-8"]],
@@ -121,7 +122,7 @@ function projection(host, corrections) {
     responses: responseReferences(state),
     state: state && {
       conversation_id: state.conversation_id, title: state.title, recent: state.recent_conversations,
-      primary: state.primary, primary_conversation_id: state.primary_conversation_id, task_thread: !!state.dialogue_task?.parent_id,
+      primary: state.primary, primary_conversation_id: state.primary_conversation_id, task_thread: !!state.dialogue_task?.parent_id, task_emoji: state.dialogue_task?.task_emoji,
       source: state.source,
       recentId: state.recent_id, recentIssue: state.recent_issue, provider: state.provider, model: state.model,
       messages: state.messages, dialogue: state.dialogue, peers: state.dialogue_peers,
@@ -307,7 +308,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         const items = (result.page?.items || []).map(item => {
           const selection = randomUUID();
           chatSelections.set(selection, { owner, context, id: item.id, version: item.version, query, tasksOnly: body.tasksOnly === true, after: body.after || '' });
-          return { id: item.id, title: item.title, snippet: item.snippet, match: item.match, pinned: item.pinned, archived: item.archived, updated_at: item.updated_at, selection };
+          return { id: item.id, task_emoji: item.task_emoji, title: item.title, snippet: item.snippet, match: item.match, pinned: item.pinned, archived: item.archived, updated_at: item.updated_at, selection };
         });
         while (chatSelections.size > 10000) chatSelections.delete(chatSelections.keys().next().value);
         return { items, next: result.page?.next || '', incomplete: !!result.page?.incomplete, skipped: result.page?.skipped || 0 };

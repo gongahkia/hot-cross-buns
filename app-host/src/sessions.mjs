@@ -84,7 +84,7 @@ export class Sessions extends EventEmitter {
 					can_start: live.filter(owner => owner.state?.running).length < 3,
 					other_busy: live.some(owner => owner !== worker && owner.state?.running),
 					peers: live.filter(owner => !!worker.state?.conversation_id && !!owner.state?.dialogue_task && owner.state.dialogue_task.parent_id === worker.state.conversation_id).map(owner => {
-						const { parent_id, ...peer } = owner.state.dialogue_task; return peer;
+						const { parent_id, task_emoji, ...peer } = owner.state.dialogue_task; return peer;
 					}),
 				};
 				const signature = JSON.stringify(host);

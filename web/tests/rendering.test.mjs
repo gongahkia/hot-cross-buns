@@ -15,7 +15,9 @@ const { outputFiles } = await build({
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
-  plugins: [{ name: "local-browser-dependencies", setup(builder) {
+  plugins: [{ name: 'bakery-catalog', setup(builder) {
+    builder.onResolve({filter:/^\/bakery\.json$/},()=>({path:fileURLToPath(new URL('../../internal/branding/bakery.json',import.meta.url))}));
+  } }, { name: "local-browser-dependencies", setup(builder) {
     builder.onResolve({ filter: /^\/vendor\/math-entry\.mjs$/ }, () => ({
       path: fileURLToPath(new URL("../math-entry.mjs", import.meta.url)),
     }));
@@ -1159,4 +1161,13 @@ test('bread handoffs name the task, distinguish continuation and keep identity a
   const menu=chatMenu({tasksOnly:true,request:async()=>({items:[{id:'research-2025',title:'2025 Iran war',selection:'selected'}]}),open(){}});
   await menu.load('main');assert.equal(menu.element.querySelector('.task-bread').textContent,taskBread('research-2025'));
   const unsafe=taskHandoff({id:'safe',title:'<script>bad()</script>',state:'failed',open(){}});assert.equal(unsafe.querySelector('script'),null);
+});
+
+
+test('new bakery assignments are native emoji while legacy task identities stay stable', () => {
+  assert.equal(taskBread('research-2025','🧁'),'🧁');
+  assert.equal(taskBread('research-2025','<svg>'),taskBread('research-2025'));
+  const handoff=taskHandoff({id:'new-task',title:'Report',emoji:'🥧',open(){}});
+  assert.equal(handoff.querySelector('.task-bread').textContent,'🥧');
+  assert.equal(handoff.querySelector('.task-bread').childElementCount,0);
 });

@@ -494,7 +494,6 @@ for (const node of document.querySelectorAll("[data-route]")) node.addEventListe
 function renderHistory(state) {
  taskChats.updateCurrent(state.conversation_id, state.primary_conversation_id);
  taskChats.updateActivity(snapshot.activity || [], snapshot.tasks || []);
-  $('assistant-home').hidden = !!state.primary || !state.conversation_id;
 
 }
 function showDetail(title, ...nodes) {
@@ -526,6 +525,12 @@ async function replyToTask(id, context) {
   });
   if (focusContext === snapshot.context && !input.disabled) input.focus();
 }
+async function openTaskConversation(id) {
+  await flush();
+  await call({ op: 'open-work', id });
+  showHistory(false);
+}
+
 async function showTaskDetails(id = snapshot.state?.conversation_id) {
   const context = snapshot.context;
   if (snapshot.state?.panel) await call({ op: 'navigate', context, route: '/chat' });
@@ -887,8 +892,8 @@ function renderTranscript(state) {
         const peer = (state.peers || []).find(item => item.conversation_id === value.task_chat && item.turn_id === value.id);
         const card=element('article',undefined,'turn assistant-task');card.setAttribute('aria-label','Task update');
         const title = value.task_title || (snapshot.tasks || []).find(task => task.id === value.task_chat)?.title || value.text;
-        card.append(taskHandoff({ id: value.task_chat, title, state: peer?.state || (value.task_result ? 'completed' : ''), continuing: !!value.task_continued,
-          open: () => void execute(async () => { await flush(); await showTaskDetails(value.task_chat); }) }));
+        card.append(taskHandoff({ id: value.task_chat, title, emoji: value.task_emoji, state: peer?.state || (value.task_result ? 'completed' : ''), continuing: !!value.task_continued,
+          open: () => void execute(() => openTaskConversation(value.task_chat)) }));
         if (value.task_result || peer?.summary) { const result = element('div', undefined, 'response-content'); result.append(prose(value.task_result || peer.summary)); filePreviews.decorate(result, peer?.run_id); card.append(result); }
         nodes.push(card);
       }
@@ -1024,7 +1029,7 @@ events.onmessage = ({ data }) => {
     else { pending = undefined; remember(":pending", null); issue = receipt.error; }
   }
   $("title").textContent = state.primary ? "Hot Cross Buns" : state.title && !["Hot Cross Buns","New chat"].includes(state.title) ? state.title : "Task details";
-  if (!state.primary && state.task_thread && state.conversation_id) { const bread = element('span', taskBread(state.conversation_id), 'task-bread'); bread.setAttribute('aria-hidden', 'true'); $('title').prepend(bread, document.createTextNode(' ')); }
+  if (!state.primary && state.task_thread && state.conversation_id) { const bread = element('span', taskBread(state.conversation_id, state.task_emoji), 'task-bread'); bread.setAttribute('aria-hidden', 'true'); $('title').prepend(bread, document.createTextNode(' ')); }
   input.placeholder = state.primary ? "Message Hot Cross Buns…" : "Reply about this task…";
   $('title').classList.toggle('sr-only',!!state.primary);
   document.title = !state.primary && state.conversation_id ? $("title").textContent + " · Hot Cross Buns" : "Hot Cross Buns";
@@ -1044,7 +1049,7 @@ events.onmessage = ({ data }) => {
 
 export function paletteCommands() {
   const commands = [
-    { label: "Hot Cross Buns", action: () => void execute(() => navigate("/hot-cross-buns")) },
+    { label: "Main chat", action: () => void execute(() => navigate("/hot-cross-buns")) },
     { label: 'Past work', action: () => document.dispatchEvent(new Event('open-past-work')) },
     { label: 'Find in this chat', action: find.open },
     { label: 'Jump to latest', action: reading.latest },

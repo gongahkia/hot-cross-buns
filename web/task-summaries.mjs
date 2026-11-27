@@ -21,7 +21,7 @@ export function taskSummaries(host) {
     if (!active && !trace && !waiting && !state.queued) continue;
     const status = owner.closed ? 'disconnected' : state.cancelling ? 'stopping' : waiting ? 'waiting' : active ? 'running' : state.queued ? 'queued' : trace?.state || 'idle';
     tasks.push({
-      id: state.conversation_id, title: String(state.title || 'Your request').slice(0, 180),
+      id: state.conversation_id, task_emoji: state.dialogue_task?.task_emoji, title: String(state.title || 'Your request').slice(0, 180),
       context: state.composer?.context,
       current: owner === host.backend, state: status, active: !owner.closed && (active || waiting),
       canOpen: owner === host.backend || host.sessions.canOpen(state.conversation_id),

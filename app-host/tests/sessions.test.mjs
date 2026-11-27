@@ -55,6 +55,9 @@ test("dialogue dispatch starts one background owner and returns results without 
     assert.equal(sessions.current,parent);assert.deepEqual(child.focuses,[]);assert.deepEqual(child.bootstraps,[{parent:"parent",turn:"original-turn"}]);
     assert.deepEqual(parent.results,[{turn_id:"original-turn",child_id:"child"}]);
     assert.equal(parent.configured.at(-1).peers[0].run_id,"child-operation");
+    child.change({dialogue_task:{...child.state.dialogue_task,task_emoji:'🥧'}});
+    await new Promise(resolve=>queueMicrotask(resolve));
+    assert.equal(parent.configured.at(-1).peers[0].task_emoji,undefined);
     parent.change({dialogue_dispatch:{sequence:1,kind:"task",turn_id:"original-turn",child_id:"child"}});await sessions.settled();assert.equal(child.bootstraps.length,1);
     parent.change({dialogue_dispatch:{sequence:2,kind:"guide",turn_id:"correction",child_id:"child",target_run:"child-operation",instruction:"Use the new budget"}});await sessions.settled();
     assert.deepEqual(child.controls,[{parent_id:"parent",turn_id:"original-turn",request_id:"correction",run_id:"child-operation",action:"guide",instruction:"Use the new budget"}]);
