@@ -45,7 +45,7 @@ export function installSmoothCaret() {
     const top = box.top + position.top - origin.top - input.scrollTop;
     const innerLeft = box.left + input.clientLeft, innerTop = box.top + input.clientTop;
     if (left < innerLeft - 1 || left > innerLeft + input.clientWidth || top + height < innerTop || top > innerTop + input.clientHeight) return;
-    return { left, top, height, root: input.closest('dialog[open]') || document.body, input };
+    return { left, top, height, root: input.closest('dialog[open], [popover]') || document.body, input };
   }
   function selectionRect() {
     const selection = document.getSelection();
@@ -62,7 +62,7 @@ export function installSmoothCaret() {
       box = { left: selection.focusOffset === node.length ? character.right : character.left, top: character.top, height: character.height };
     }
     if (!box?.height) return;
-    return { left: box.left, top: box.top, height: box.height, root: parent.closest('dialog[open]') || document.body };
+    return { left: box.left, top: box.top, height: box.height, root: parent.closest('dialog[open], [popover]') || document.body };
   }
   function update() {
     scheduled = false;
