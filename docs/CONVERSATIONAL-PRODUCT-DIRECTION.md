@@ -14,9 +14,9 @@ Task continuations retain the original task's access and processing settings.
 Restoring the app or retrying a message does not replay interrupted execution.
 
 Task breadcrumbs open the conversation directly. Main chat is available in the
-wordmark menu and command palette. The robot popup shows open task conversations;
-retained tasks remain searchable in the wordmark menu after their live owner is
-retired. New task threads receive a persisted standard Unicode bakery emoji;
+wordmark menu and command palette. The robot popup contains task search, active
+work and a collapsed Past tasks section with muted, clickable retained tasks.
+The wordmark menu focuses on the assistant and settings. New task threads receive a persisted standard Unicode bakery emoji;
 older threads retain the original five-bread assignment. Emojis can repeat.
 
 The terminal icon opens captured worker output and observed local TCP listeners.
@@ -24,8 +24,11 @@ These are headless CLI logs, not interactive terminal sessions or private model
 reasoning. Listener discovery reads bounded process names, PIDs and ports for the
 current OS user, filtered to known development runtimes; it neither probes
 services nor starts or stops them. Custom-named server executables may not be
-discovered. System services such as AirPlay and device discovery are excluded. Listening
-alone does not establish HTTP compatibility. App previews use the existing
+discovered. System services such as AirPlay and device discovery are excluded. The frontend checks bounded, credential-free HTTP HEAD requests to loopback
+addresses before showing app servers; redirects remain constrained to loopback
+by browser policy. Internal
+control listeners are hidden, and failed or disconnected observations are
+cleared. Listening alone does not establish HTTP compatibility. App previews use the existing
 loopback-only split view; HCB's own and internal control listeners are inert.
 
 ## Current web direction · 22 November 2026

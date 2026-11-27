@@ -74,6 +74,7 @@ test("local browser keeps the Go owner and draft across reconnects, with exact f
     const artifact = await fetch(app.url + "/artifact");
     assert.equal(artifact.status, 200);
     const policy = artifact.headers.get("content-security-policy");
+    assert.match(page.headers.get("content-security-policy"), /connect-src 'self' http:\/\/127\.0\.0\.1:\*/);
     assert.match(policy, /script-src 'unsafe-inline'/);
     for (const directive of ["default-src", "connect-src", "frame-src", "form-action", "object-src"]) {
       assert.ok(policy.includes(directive + " 'none'"));

@@ -71,7 +71,7 @@ const assets = new Map([
 ]);
 const headers = {
   "Cache-Control": "no-store",
-  "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; frame-src 'self' about: http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: http:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  "Content-Security-Policy": "default-src 'self'; connect-src 'self' http://127.0.0.1:* https://127.0.0.1:* http://localhost:* https://localhost:*; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; frame-src 'self' about: http://localhost:* https://localhost:* http://127.0.0.1:* https://127.0.0.1:* https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: http:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
 };

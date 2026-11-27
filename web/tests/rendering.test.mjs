@@ -29,7 +29,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { taskConversations, technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { taskConversations, checkLocalServer, technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -1133,7 +1133,7 @@ test('past work remains pageable in the palette without a separate history list'
   assert.deepEqual(requests, [{ query: '', after: '' }, { query: '', after: 'older-page' }]);
 });
 
-test('the wordmark task list requests only agent-created conversations and keeps search', async () => {
+test('the retained task list requests only agent-created conversations and keeps search', async () => {
   const calls=[];
   const menu=chatMenu({tasksOnly:true,request:async request=>{calls.push(request);return {items:[{id:'research',title:'2025 Iran war',selection:'research-choice'}]};},open(){}});
   document.body.replaceChildren(menu.element);await menu.load('main-context');
@@ -1164,20 +1164,20 @@ test('bread handoffs name the task, distinguish continuation and keep identity a
 });
 
 
-test('technical activity lists observed servers, keeps internal services inert and exposes real agent output', async () => {
+test('technical activity lists checked apps, hides internal services and exposes real agent output', async () => {
   let opened;
   const pane = technicalActivity({request: async () => ({servers:[
     {id:'1:4317',pid:1,port:4317,process:'node',url:'http://127.0.0.1:4317',application:'Hot Cross Buns'},
     {id:'2:4318',pid:2,port:4318,process:'node',url:'http://127.0.0.1:4318'},
     {id:'3:52239',pid:3,port:52239,process:'runtime',url:'http://127.0.0.1:52239',internal:true},
-  ]}),openChat(){},openServer:url=>opened=url});
+  ]}),checkServer:async()=>true,openChat(){},openServer:url=>opened=url});
   pane.element.hidePopover=()=>{};
   pane.update([{id:'main:cli',title:'Review',engine:'Pi',active:true,state:'running',output:'Reading init.lua',steps:[]}],{connected:true,context:'main'});
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(pane.trigger.hidden,false);
   assert.match(pane.element.querySelector('.agent-output pre').textContent,/Reading init.lua/);
   const buttons=pane.element.querySelectorAll('.technical-server');
-  assert.equal(buttons[0].tagName,'DIV');assert.equal(buttons[2].tagName,'DIV');
+  assert.equal(buttons[0].tagName,'DIV');assert.equal(buttons.length,2);
   buttons[1].click();assert.equal(opened,'http://127.0.0.1:4318/');
   pane.update([],{connected:false,context:'main'});assert.equal(pane.trigger.hidden,true);
 });
@@ -1287,4 +1287,36 @@ test('robot task browser keeps active work above a collapsed searchable past-tas
   await new Promise(resolve=>setTimeout(resolve,210));
   assert.equal(pane.trigger.hidden,false);assert.equal(pane.element.querySelectorAll('.task-item').length,0);
   assert.ok(pane.element.querySelector('.inactive-tasks [data-chat="live"]'));
+});
+
+test('local HTTP liveness checks are bounded and omit credentials with loopback-only delivery policy', async () => {
+  const calls=[];
+  assert.equal(await checkLocalServer('http://127.0.0.1:4318/',undefined,async(url,options)=>calls.push({url,options})),true);
+  assert.equal(calls[0].options.method,'HEAD');assert.equal(calls[0].options.mode,'no-cors');
+  assert.equal(calls[0].options.credentials,'omit');assert.equal(calls[0].options.redirect,'follow');assert.equal(calls[0].options.referrerPolicy,'no-referrer');
+  assert.ok(calls[0].options.signal instanceof AbortSignal);
+  assert.equal(await checkLocalServer('https://remote.example',undefined,()=>{throw Error('must not fetch')}),false);
+  assert.equal(await checkLocalServer('http://user:secret@localhost:4318',undefined,()=>{throw Error('must not fetch')}),false);
+  assert.equal(await checkLocalServer('http://localhost:4318',undefined,async()=>{throw Error('connection refused')}),false);
+});
+
+test('technical popup removes unreachable, stopped and internal listeners instead of retaining stale entries', async () => {
+  let servers=[{id:'app',port:4318,url:'http://127.0.0.1:4318',process:'node'},{id:'dead',port:4320,url:'http://127.0.0.1:4320',process:'node'},{id:'internal',port:5000,url:'http://127.0.0.1:5000',internal:true}],alive=true,fail=false;
+  const checked=[];
+  const pane=technicalActivity({request:async()=>{if(fail)throw Error('Discovery unavailable');return {servers};},checkServer:async url=>{checked.push(url);return alive&&url.endsWith('4318');},openChat(){},openServer(){}});
+  pane.update([],{connected:true,context:'main'});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.element.querySelectorAll('.technical-server').length,1);
+  assert.ok(!checked.some(url=>url.endsWith('5000')));
+  alive=false;
+  pane.element.querySelector('.task-links > button').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.element.querySelectorAll('.technical-server').length,0);
+  assert.match(pane.element.textContent,/No live local apps/);
+  alive=true;servers=servers.slice(0,1);
+  pane.element.querySelector('.task-links > button').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.element.querySelectorAll('.technical-server').length,1);
+  fail=true;pane.element.querySelector('.task-links > button').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.element.querySelectorAll('.technical-server').length,0);
+  assert.match(pane.element.textContent,/Discovery unavailable/);
 });
