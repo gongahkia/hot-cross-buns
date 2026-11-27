@@ -47,6 +47,11 @@ import (
 // failure. The retained output can therefore be reviewed after an interrupted
 // or unsuccessful attempt.
 func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Outcome, finalErr error) {
+	defer func() {
+		// The outer executor can still fail while applying deferred changes, sealing
+		// artifacts or retaining history after the model loop has finished.
+		finalOutcome.Result.Completion = agent.CompletionResult(finalOutcome.Result.FinalText, finalOutcome.Result.Completion.Evidence, finalErr)
+	}()
 	if len(e.Policies) > 0 && e.PolicyRevision == "" {
 		return Outcome{}, errors.New("host policies require an explicit revision for recovery binding")
 	}

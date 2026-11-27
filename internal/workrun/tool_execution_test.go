@@ -3,6 +3,7 @@ package workrun
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/tools"
+	"github.com/gongahkia/hot-cross-buns/internal/workspace"
 )
 
 func TestWorkHarnessDeferredDiscoveryAndPrivateCheckpoint(t *testing.T) {
@@ -50,5 +52,35 @@ func TestOnlyVettedFrozenSourceReadsCanRunTogether(t *testing.T) {
 		if read(agent.ToolCall{Name: c.name, Arguments: args}) != c.want {
 			t.Fatal(c)
 		}
+	}
+}
+
+func TestWorkCompletionIncludesPostModelPersistenceFailure(t *testing.T) {
+	state := t.TempDir()
+	injected := false
+	out, err := (Executor{Model: &scriptedModel{turns: []agent.Turn{{Text: "done"}}}, StateDir: state}).Execute(context.Background(), Request{RunID: "post-model-failure", SourcePath: t.TempDir(), Objective: "Inspect source", Mode: action.Inspect, Contract: artifact.InspectionContract(), OnEvent: func(event agent.Event) {
+		if event.Kind != agent.EventRunFinished {
+			return
+		}
+		walkErr := filepath.WalkDir(filepath.Join(state, "hot-cross-buns", "workspaces"), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() && entry.Name() == "post-model-failure" {
+				work, err := workspace.OpenWork(path)
+				if err != nil {
+					return err
+				}
+				injected = true
+				return os.Mkdir(work.ManifestPath, 0700)
+			}
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatal(walkErr)
+		}
+	}})
+	if !injected || err == nil || out.Result.FinalText != "done" || out.Result.Completion.Status != "partial" || !out.Result.Completion.FollowUpRequired {
+		t.Fatal(out.Result.Completion, err, injected)
 	}
 }
