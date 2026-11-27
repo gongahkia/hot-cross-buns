@@ -575,6 +575,7 @@ test('main chat executes a small tool action inline without creating a secondary
     assert.ok(app.payloads.some(payload=>payload.messages.some(message=>message.role==='tool')));
     const metadata=await action({op:'technical-activity',context});
     assert.ok(Array.isArray(metadata.servers));
+    assert.ok(metadata.servers.every(server=>server.pid!==process.pid),'the browser host and unrelated parent processes are not agent apps');
     assert.ok(metadata.servers.every(server=>!('args' in server)&&!('env' in server)));
   } finally {live.close();await app.close();}
 });

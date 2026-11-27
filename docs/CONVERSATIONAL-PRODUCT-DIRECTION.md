@@ -19,17 +19,18 @@ work and a collapsed Past tasks section with muted, clickable retained tasks.
 The wordmark menu focuses on the assistant and settings. New task threads receive a persisted standard Unicode bakery emoji;
 older threads retain the original five-bread assignment. Emojis can repeat.
 
-The terminal icon opens captured worker output and observed local TCP listeners.
+The terminal icon opens captured worker output and live local app servers.
 These are headless CLI logs, not interactive terminal sessions or private model
-reasoning. Listener discovery reads bounded process names, PIDs and ports for the
-current OS user, filtered to known development runtimes; it neither probes
-services nor starts or stops them. Custom-named server executables may not be
-discovered. System services such as AirPlay and device discovery are excluded. The frontend checks bounded, credential-free HTTP HEAD requests to loopback
+reasoning. Listener discovery reads bounded process names, PIDs, parent PIDs and
+start times for the current OS user. Only descendants of HCB's runtimes or
+scheduled workers qualify; unrelated development servers and HCB's own control
+surfaces are omitted. Observed process start times retain attribution after a
+child is reparented and discard it when its PID is reused. Ownership that was
+never observed is not guessed, including daemons detached before discovery.
+The frontend checks bounded, credential-free HTTP HEAD requests to loopback
 addresses before showing app servers; redirects remain constrained to loopback
-by browser policy. Internal
-control listeners are hidden, and failed or disconnected observations are
-cleared. Listening alone does not establish HTTP compatibility. App previews use the existing
-loopback-only split view; HCB's own and internal control listeners are inert.
+by browser policy. Failed or disconnected observations are cleared. App previews
+use the existing loopback-only split view.
 
 Answer footers use a compact Sources pill with source marks, or a Lucide mark
 for saved context such as memory. Its source view groups retained web excerpts,

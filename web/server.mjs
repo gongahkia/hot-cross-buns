@@ -144,7 +144,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
   const voice = browserVoice(host, voiceOptions);
   const hooks = eventHooks(host);
   const inspection = taskDetails(host);
-  const discoverServers = localServers();
+  const discoverServers = localServers({ roots: () => [host.scheduler?.pid, ...[...host.sessions.workers].filter(owner => !owner.closed).map(owner => owner.processId)] });
   const corrections = correctionDrafts(host, reviewFor);
   const streams = new Set();
   let tail = Promise.resolve(), closing = false;
