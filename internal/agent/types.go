@@ -186,6 +186,7 @@ const (
 	EventWorktreeSetup            EventKind = "worktree_setup"
 	EventApprovalRequested        EventKind = "approval_requested"
 	EventApprovalResolved         EventKind = "approval_resolved"
+	EventPolicyDecision           EventKind = "policy_decision"
 	EventRunFinished              EventKind = "run_finished"
 )
 
@@ -215,14 +216,23 @@ type EventSink func(Event)
 
 // RunOptions defines one bounded autonomous run.
 type RunOptions struct {
-	OnContext       func(ContextUsage) `json:"-"`
-	Task            string
-	Images          []Image
-	Attachments     []Attachment
-	System          string
-	InitialMessages []Message
-	MaxSteps        int
-	OnEvent         EventSink
+	// Non-nil InitialTools enables deferred discovery over the filtered inventory.
+	InitialTools []string
+	// IndependentRead must approve only immutable, concurrency-safe observations.
+	IndependentRead  func(ToolCall) bool
+	MaxParallelReads int
+	Checkpoint       *CheckpointConfig
+	Pause            <-chan struct{}
+	Policies         []PolicyRule
+	ApprovePolicy    func(context.Context, string, PolicyInputValue, string) (bool, error)
+	OnContext        func(ContextUsage) `json:"-"`
+	Task             string
+	Images           []Image
+	Attachments      []Attachment
+	System           string
+	InitialMessages  []Message
+	MaxSteps         int
+	OnEvent          EventSink
 	// Steering receives developer instructions submitted while a native agent
 	// run is active. The runner consumes them only at model/tool boundaries.
 	Steering <-chan string

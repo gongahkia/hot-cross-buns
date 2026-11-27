@@ -17,7 +17,9 @@ func TestMixedModelDependencyPipelineRetainsDisagreementAndProducesArtifact(t *t
 	verifier := &scriptedModel{turns: []agent.Turn{{Text: "SOURCE_B: deadline Monday; timestamp unverified."}}}
 	reviewer := &scriptedModel{turns: []agent.Turn{{Text: "Conflict remains unresolved: Friday versus Monday. Ask the source owner before choosing."}}}
 	start := func(role, task string) agent.ToolCall {
-		return dynamicCall("start_agent", map[string]any{"agent": role, "task": task, "continue": ""}).ToolCalls[0]
+		call := dynamicCall("start_agent", map[string]any{"agent": role, "task": task, "continue": ""}).ToolCalls[0]
+		call.ID += "-" + role
+		return call
 	}
 	manager := &scriptedModel{turns: []agent.Turn{
 		{ToolCalls: []agent.ToolCall{start("source_researcher", "Read source A in facts.md"), start("claim_verifier", "Verify source B and its timestamp")}},

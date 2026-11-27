@@ -325,8 +325,13 @@ func TestRunnerRequiresCompletionEvidence(t *testing.T) {
 	if result.Steps != 3 || result.FinalText != "The feature is done and reviewed." {
 		t.Fatalf("result = %#v", result)
 	}
-	if events[4].Kind != EventCompletionBlocked || !strings.Contains(events[4].Text, "inspect the changed files") {
-		t.Fatalf("completion-block event = %#v", events[4])
+	if events[3].Kind != EventCompletionBlocked || !strings.Contains(events[3].Text, "inspect the changed files") {
+		t.Fatalf("completion-block event = %#v", events[3])
+	}
+	for _, event := range events {
+		if (event.Kind == EventText || event.Kind == EventTextDelta) && event.Text == "The feature is done." {
+			t.Fatal("unverified final response was published")
+		}
 	}
 }
 

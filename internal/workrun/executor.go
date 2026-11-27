@@ -47,6 +47,9 @@ import (
 // failure. The retained output can therefore be reviewed after an interrupted
 // or unsuccessful attempt.
 func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Outcome, finalErr error) {
+	if len(e.Policies) > 0 && e.PolicyRevision == "" {
+		return Outcome{}, errors.New("host policies require an explicit revision for recovery binding")
+	}
 	now := e.Now
 	if now == nil {
 		now = time.Now
@@ -946,8 +949,24 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		}
 		return nil
 	}
+
+	checkpointScope, err := json.Marshal(struct{ Policy, Revision, Workspace, Conversation, Snapshot string }{policySHA256, e.PolicyRevision, work.Path, conversation.ID, sourceSnapshot.ID})
+	if err != nil {
+		return outcome, err
+	}
+	checkpointConfig := &agent.CheckpointConfig{Directory: filepath.Join(request.StateDir, "hot-cross-buns", "checkpoints"), ID: request.RunID, Scope: string(checkpointScope), Sanitize: func(messages []agent.Message) []agent.Message {
+		return sanitizeComputerReplay(messages, request.DesktopSession != "")
+	}}
+	var initialTools []string
+	if e.DeferredTools && request.reviewedPlan == nil && len(surface) > 24 {
+		initialTools = initialWorkTools(surface)
+	}
 	readOnlyAttempt := true
 	result, runErr := runner.Run(ctx, agent.RunOptions{
+		Policies:        e.Policies,
+		Checkpoint:      checkpointConfig,
+		InitialTools:    initialTools,
+		IndependentRead: frozenIndependentRead(surface),
 		OnContext: func(value agent.ContextUsage) {
 			var view struct {
 				Summary string `json:"earlier_conversation_summary"`
@@ -966,6 +985,9 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 				case "desktop_snapshot":
 					desktopNeedsVerification = false
 				}
+			}
+			if call.Name == "discover_tools" {
+				return nil
 			}
 			tool, ok := registeredRecoveryTools[call.Name]
 			if !ok {

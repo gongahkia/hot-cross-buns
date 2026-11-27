@@ -60,7 +60,7 @@ func (s Specialist) validate() error {
 // LLMSpecialist adapts Hot Cross Buns's provider-neutral agent runner into a
 // fresh-context specialist. It shares the same Result contract as hosted
 // specialists; artifact and baseline fields stay empty unless a caller wraps Run.
-func LLMSpecialist(name, description string, model agent.Model, tools []agent.Tool, system string, maxSteps int, now func() time.Time) Specialist {
+func LLMSpecialist(name, description string, model agent.Model, tools []agent.Tool, system string, maxSteps int, now func() time.Time, policies ...agent.PolicyRule) Specialist {
 	name = strings.TrimSpace(name)
 	description = strings.TrimSpace(description)
 	policyErr := hostPolicyTools(name, tools)
@@ -86,7 +86,8 @@ func LLMSpecialist(name, description string, model agent.Model, tools []agent.To
 			seen := map[string]bool{}
 			coverage := map[string]*readCoverage{}
 			result, err := (agent.Runner{Model: agent.WithBudget(model, usage), Tools: tools, Now: now}).Run(ctx, agent.RunOptions{
-				Task: invocation.Task, System: selectedSystem, MaxSteps: selectedSteps, OnEvent: invocation.OnEvent, Steering: invocation.Steering,
+				Policies: policies,
+				Task:     invocation.Task, System: selectedSystem, MaxSteps: selectedSteps, OnEvent: invocation.OnEvent, Steering: invocation.Steering,
 				AfterTool: func(_ context.Context, call agent.ToolCall, result agent.ToolResult, err error) error {
 					if call.Name != "read_file" {
 						return nil

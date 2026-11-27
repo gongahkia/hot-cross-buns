@@ -145,7 +145,7 @@ func (t *Trace) Record(event agent.Event) {
 	if event.Kind == agent.EventToolCalled || event.Kind == agent.EventModelAttemptStarted || event.Kind == agent.EventApprovalRequested {
 		t.open[key] = len(t.Spans)
 	}
-	t.Spans = append(t.Spans, Span{ID: ID(fmt.Sprintf("%s/%d", t.ID, len(t.Spans)), 16), Parent: parent, Name: name, ProviderDiagnostic: event.ProviderDiagnostic, Start: event.At, End: event.At, Task: event.TaskID, Step: event.Step, Attempt: event.Attempt})
+	t.Spans = append(t.Spans, Span{ID: ID(fmt.Sprintf("%s/%d", t.ID, len(t.Spans)), 16), Parent: parent, Name: name, ProviderDiagnostic: event.ProviderDiagnostic, Start: event.At, End: event.At, Task: event.TaskID, Step: event.Step, Attempt: event.Attempt, Outcome: event.Outcome})
 }
 func (t *Trace) Finish(directory, endpoint string) error {
 	t.mu.Lock()

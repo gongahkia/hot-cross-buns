@@ -290,6 +290,10 @@ type CodeDelegate func(context.Context, CodeRequest) (CodeResult, error)
 // Executor combines a provider-independent model with private workspace
 // allocation and artifact sealing.
 type Executor struct {
+	DeferredTools bool
+	// PolicyRevision changes whenever trusted policy behavior changes.
+	PolicyRevision    string
+	Policies          []agent.PolicyRule
 	App               AppController
 	RoleConfiguration map[string]orchestrator.RoleConfiguration
 	RoleSteps         map[string]int

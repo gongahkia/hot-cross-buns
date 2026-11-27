@@ -31,6 +31,12 @@ func CompletionResult(summary string, evidence []string, err error) WorkResult {
 		if summary != "" || len(result.Evidence) > 0 {
 			result.Status = "partial"
 		}
+		if errors.Is(err, ErrPaused) {
+			result.Status = "paused"
+		}
+		if errors.Is(err, ErrPolicy) {
+			result.Status = "blocked"
+		}
 		if errors.Is(err, context.Canceled) {
 			result.Status = "cancelled"
 		}

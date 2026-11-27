@@ -24,7 +24,7 @@ import (
 // of saved knowledge. Removing the latter alone cannot erase earlier inputs.
 var content = map[string][]string{
 	"knowledge": {"memory", "knowledge", "learnings", "observations", "retrieval", "agent-profiles"},
-	"history":   {"conversations", "cache", "work-history", "workspaces", "external-actions", "reconciliations", "work-control", "traces", "interactions", "tasks", "candidates", "delivery", "suggestions", "inbox", "pilot", "jobs/history", "observations", "migrations", "files"},
+	"history":   {"conversations", "cache", "checkpoints", "work-history", "workspaces", "external-actions", "reconciliations", "work-control", "traces", "interactions", "tasks", "candidates", "delivery", "suggestions", "inbox", "pilot", "jobs/history", "observations", "migrations", "files"},
 	"snapshots": {"snapshots"},
 	"goals":     {"goals", "jobs/definitions", "empty-workspace"},
 }

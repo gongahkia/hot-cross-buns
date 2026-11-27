@@ -12,6 +12,7 @@ import (
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/actionlog"
+	"github.com/gongahkia/hot-cross-buns/internal/agent"
 	"github.com/gongahkia/hot-cross-buns/internal/goal"
 	"github.com/gongahkia/hot-cross-buns/internal/jobs"
 	"github.com/gongahkia/hot-cross-buns/internal/snapshot"
@@ -213,6 +214,8 @@ func (s Store) selectRetention(ctx context.Context, now time.Time, p Policy) (Pl
 				continue
 			}
 			removedWork[run.ID] = true
+			checkpoint := agent.CheckpointPath("checkpoints", run.ID)
+			selected = append(selected, checkpoint, strings.TrimSuffix(checkpoint, ".json")+".lock")
 			selected = append(selected, filepath.Join("work-history", run.ID+".json"), filepath.Join("work-history", run.ID+".lock"))
 			for _, base := range []string{"traces", "interactions", "tasks", "candidates", "delivery", "external-actions", "reconciliations", "work-control"} {
 				selected = append(selected, filepath.Join(base, run.ID))

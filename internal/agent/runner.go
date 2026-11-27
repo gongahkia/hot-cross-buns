@@ -13,9 +13,8 @@ import (
 
 const defaultMaxSteps = 24
 
-// Runner executes a bounded tool-use loop. It deliberately runs tool calls in
-// response order: this makes filesystem effects, events, and replay behavior
-// deterministic until we have a policy for safe parallelism.
+// Runner executes a bounded tool-use loop. Effects and host callbacks remain
+// ordered; only explicitly approved independent reads may overlap.
 type Runner struct {
 	Model Model
 	Tools []Tool
@@ -39,6 +38,10 @@ func (r Runner) Run(ctx context.Context, options RunOptions) (runResult Result, 
 		return Result{}, errors.New("agent task is required")
 	}
 
+	if _, err := evaluatePolicy(ctx, options, PolicyInputValue{Stage: PolicyInput, Text: options.Task, Messages: cloneMessages(options.InitialMessages), Images: cloneImages(options.Images), Attachments: cloneAttachments(options.Attachments)}); err != nil {
+		return Result{}, err
+	}
+
 	maxSteps := options.MaxSteps
 	if maxSteps == 0 {
 		maxSteps = defaultMaxSteps
@@ -56,14 +59,92 @@ func (r Runner) Run(ctx context.Context, options RunOptions) (runResult Result, 
 		return Result{}, err
 	}
 	activeDefinitions := definitions
+	var catalog *toolCatalog
+	if options.InitialTools != nil {
+		options.System += "\nAdditional host-permitted tools may be deferred. Use discover_tools to find capabilities before calling a tool that is not currently listed. Discovery cannot grant permissions."
+		catalog, err = newToolCatalog(definitions, options.InitialTools)
+		if err != nil {
+			return Result{}, err
+		}
+		tools["discover_tools"] = catalog
+		definitions = append(definitions, catalog.Definition())
+		activeDefinitions = catalog.active()
+	}
+	parallelLimit := options.MaxParallelReads
+	if parallelLimit == 0 {
+		parallelLimit = 4
+	}
+	if parallelLimit < 1 || parallelLimit > 4 {
+		return Result{}, errors.New("parallel read limit must be between one and four")
+	}
+
 	fallbackApplied := false
 	messages := cloneMessages(options.InitialMessages)
 	if len(messages) == 0 {
 		messages = []Message{{Role: RoleUser, Content: options.Task, Images: cloneImages(options.Images), Attachments: cloneAttachments(options.Attachments)}}
 	}
 
+	startStep := 1
+	var checkpoint *checkpointSession
+	if options.Checkpoint != nil {
+		checkpoint, err = openCheckpoint(*options.Checkpoint, checkpointBinding(options, definitions, r.Model, maxSteps))
+		if err != nil {
+			return Result{}, err
+		}
+		defer checkpoint.close()
+		if options.Checkpoint.Resume {
+			saved, err := checkpoint.load(ctx, maxSteps)
+			if err != nil {
+				return Result{}, err
+			}
+			if err := restoreCheckpointBudget(r.Model, saved.Budget); err != nil {
+				return Result{}, err
+			}
+			// Only a subset of the current host-owned surface may be restored.
+			for _, definition := range saved.ActiveTools {
+				if _, ok := tools[definition.Name]; !ok {
+					return Result{}, ErrCheckpoint
+				}
+			}
+			messages = cloneMessages(saved.Messages)
+			archived = cloneMessages(saved.Archived)
+			contextSummary = saved.Summary
+			activeDefinitions = saved.ActiveTools
+			if catalog != nil {
+				for _, definition := range activeDefinitions {
+					catalog.exposed[definition.Name] = true
+				}
+				if saved.FallbackApplied {
+					for _, name := range options.MalformedCallFallback {
+						catalog.disabled[name] = true
+					}
+				}
+			}
+
+			fallbackApplied = saved.FallbackApplied
+			startStep = saved.NextStep
+		}
+	}
+	saveCheckpoint := func(state string, step int, pending *ToolCall) error {
+		if checkpoint == nil {
+			return nil
+		}
+		return checkpoint.save(ctx, RunCheckpoint{State: state, NextStep: step, Messages: messages, Archived: archived, Summary: contextSummary, ActiveTools: activeDefinitions, FallbackApplied: fallbackApplied, PendingCall: pending, Budget: checkpointBudget(r.Model)})
+	}
+
 turnLoop:
-	for step := 1; step <= maxSteps; step++ {
+	for step := startStep; step <= maxSteps; step++ {
+		if err := ctx.Err(); err != nil {
+			return Result{Messages: messages, Steps: step - 1}, err
+		}
+		if err := saveCheckpoint("ready", step, nil); err != nil {
+			return Result{Messages: messages, Steps: step - 1}, err
+		}
+		select {
+		case <-options.Pause:
+			return Result{Messages: messages, Steps: step - 1}, ErrPaused
+		default:
+		}
 		r.consumeSteering(&messages, options.Steering, options.OnEvent, now, step)
 		r.emit(options.OnEvent, Event{Kind: EventTurnStarted, At: now(), Step: step})
 		request := TurnRequest{
@@ -89,6 +170,9 @@ turnLoop:
 			request = prepared
 			r.emit(options.OnEvent, Event{Kind: EventContextCompacted, At: now(), Step: step, Text: fmt.Sprintf("Compacted context for a %d-token model window.", ContextFor(r.Model).Window)})
 		}
+		if err := saveCheckpoint("model_pending", step, nil); err != nil {
+			return Result{Messages: messages, Steps: step}, err
+		}
 		var streamedText bool
 		var turn Turn
 		var err error
@@ -101,6 +185,9 @@ turnLoop:
 						return
 					}
 					streamedText = true
+					if len(options.Policies) > 0 || options.CompletionCheck != nil {
+						return
+					}
 					r.emit(options.OnEvent, Event{Kind: EventTextDelta, At: now(), Step: step, Text: delta})
 				})
 			} else {
@@ -116,6 +203,9 @@ turnLoop:
 				dropped := make(map[string]bool, len(options.MalformedCallFallback))
 				for _, name := range options.MalformedCallFallback {
 					dropped[name] = true
+					if catalog != nil {
+						catalog.disabled[name] = true
+					}
 				}
 				var reduced []ToolDefinition
 				for _, definition := range activeDefinitions {
@@ -155,11 +245,52 @@ turnLoop:
 				}
 			}
 		}
+		if err := ctx.Err(); err != nil {
+			return Result{Messages: messages, Steps: step}, err
+		}
+		if err := validateTurn(turn); err != nil {
+			return Result{Messages: messages, Steps: step}, err
+		}
 		// A steering instruction that arrived during model generation supersedes
 		// the unexecuted response. Do not add tool calls to history unless their
 		// matching results will also be added.
 		if r.consumeSteering(&messages, options.Steering, options.OnEvent, now, step) {
 			continue
+		}
+
+		modelRedacted := false
+		text, outputErr := evaluatePolicy(ctx, options, PolicyInputValue{Stage: PolicyModelOutput, Text: turn.Text, redacted: &modelRedacted})
+		if outputErr != nil {
+			return Result{Messages: messages, Steps: step}, outputErr
+		}
+		turn.Text = text
+		if len(turn.ToolCalls) == 0 {
+			text, policyErr := evaluatePolicy(ctx, options, PolicyInputValue{Stage: PolicyFinal, Text: turn.Text, redacted: &modelRedacted})
+			if policyErr != nil {
+				var verify verificationRequired
+				if errors.As(policyErr, &verify) {
+					messages = append(messages, Message{Role: RoleUser, Content: "Host verification required before completion: " + verify.reason})
+					r.emit(options.OnEvent, Event{Kind: EventCompletionBlocked, At: now(), Step: step, Text: verify.reason})
+					continue
+				}
+				return Result{Messages: messages, Steps: step}, policyErr
+			}
+			turn.Text = text
+		}
+
+		if modelRedacted {
+			turn.ProviderData = nil
+		}
+		for index, call := range turn.ToolCalls {
+			args, policyErr := evaluatePolicy(ctx, options, PolicyInputValue{Stage: PolicyToolInput, Text: string(call.Arguments), Call: cloneCall(call)})
+			if policyErr != nil {
+				return Result{Messages: messages, Steps: step}, policyErr
+			}
+			if args != string(call.Arguments) {
+				turn.ProviderData = nil
+			}
+			turn.ToolCalls[index].Arguments = json.RawMessage(args)
+
 		}
 
 		if turn.Text != "" || len(turn.ToolCalls) > 0 {
@@ -170,8 +301,8 @@ turnLoop:
 				ProviderData: append(json.RawMessage(nil), turn.ProviderData...),
 			})
 		}
-		if turn.Text != "" {
-			if !streamedText {
+		if turn.Text != "" && len(turn.ToolCalls) > 0 {
+			if !streamedText || len(options.Policies) > 0 || options.CompletionCheck != nil {
 				r.emit(options.OnEvent, Event{Kind: EventText, At: now(), Step: step, Text: turn.Text})
 			}
 		}
@@ -187,28 +318,89 @@ turnLoop:
 					continue
 				}
 			}
+			if err := saveCheckpoint("completed", step, nil); err != nil {
+				return Result{Messages: messages, Steps: step}, err
+			}
+			if !streamedText || len(options.Policies) > 0 || options.CompletionCheck != nil {
+				r.emit(options.OnEvent, Event{Kind: EventText, At: now(), Step: step, Text: turn.Text})
+			}
 			r.emit(options.OnEvent, Event{Kind: EventRunFinished, At: now(), Step: step, Text: turn.Text})
 			return Result{FinalText: turn.Text, Messages: messages, Steps: step}, nil
 		}
 
 		observations := make([]Observation, 0)
+		var batch []toolExecution
+		batchStart, batchEnd := 0, 0
 		for callIndex, call := range turn.ToolCalls {
-			if instructions := drainSteering(options.Steering); len(instructions) > 0 {
+			if instructions := func() []string {
+				if callIndex < batchEnd {
+					return nil
+				}
+				return drainSteering(options.Steering)
+			}(); len(instructions) > 0 {
 				r.skipToolCalls(&messages, turn.ToolCalls[callIndex:], options.OnEvent, now, step)
 				r.applySteering(&messages, instructions, options.OnEvent, now, step)
 				continue turnLoop
 			}
+
 			brand := ToolBrand(tools[call.Name], call.Arguments)
-			r.emit(options.OnEvent, Event{Brand: brand, Kind: EventToolCalled, At: now(), Step: step, ToolCall: cloneCall(call)})
 			var result ToolResult
 			var toolErr error
 			executed := false
-			if options.BeforeTool != nil {
-				toolErr = options.BeforeTool(ctx, *cloneCall(call))
+			visible := exposedTools(tools, activeDefinitions)
+			if callIndex >= batchEnd {
+				batchEnd = independentBatch(turn.ToolCalls, callIndex, parallelLimit, func(call ToolCall) bool {
+					return visible[call.Name] != nil && call.Name != "discover_tools" && options.IndependentRead != nil && options.IndependentRead(call)
+				})
+				batchStart = callIndex
+				batch = nil
+				if batchEnd-callIndex > 1 {
+					if err := saveCheckpoint("tool_pending", step, cloneCall(call)); err != nil {
+						return Result{Messages: messages, Steps: step}, err
+					}
+					for _, item := range turn.ToolCalls[callIndex:batchEnd] {
+						r.emit(options.OnEvent, Event{Brand: ToolBrand(tools[item.Name], item.Arguments), Kind: EventToolCalled, At: now(), Step: step, ToolCall: cloneCall(item)})
+					}
+					batch = parallelReads(ctx, visible, turn.ToolCalls[callIndex:batchEnd], options.BeforeTool)
+				}
 			}
-			if toolErr == nil {
-				executed = true
-				result, toolErr = executeTool(ctx, tools, call)
+			if batch != nil {
+				item := batch[callIndex-batchStart]
+				result, toolErr, executed = item.result, item.err, item.executed
+			} else {
+				r.emit(options.OnEvent, Event{Brand: brand, Kind: EventToolCalled, At: now(), Step: step, ToolCall: cloneCall(call)})
+				if options.BeforeTool != nil {
+					toolErr = options.BeforeTool(ctx, *cloneCall(call))
+				}
+				if toolErr == nil {
+					if err := saveCheckpoint("tool_pending", step, cloneCall(call)); err != nil {
+						return Result{Messages: messages, Steps: step}, err
+					}
+					executed = true
+					result, toolErr = executeTool(ctx, visible, call)
+				}
+			}
+			if catalog != nil && call.Name == "discover_tools" && toolErr == nil {
+				activeDefinitions = catalog.active()
+			}
+
+			if toolErr != nil {
+				result.Content = encodeToolFailure(toolErr)
+			}
+			{
+				resultRedacted := false
+				text, policyErr := evaluatePolicy(ctx, options, PolicyInputValue{Stage: PolicyToolOutput, Text: result.Content, Call: cloneCall(call), Result: &result, redacted: &resultRedacted})
+				if policyErr != nil {
+					return Result{Messages: messages, Steps: step}, policyErr
+				}
+				if resultRedacted {
+					result.Observations = nil
+					result.Computer = nil
+					if toolErr != nil {
+						toolErr = errors.New("tool failed; details redacted by host policy")
+					}
+				}
+				result.Content = text
 			}
 			if executed && options.AfterTool != nil {
 				if afterErr := options.AfterTool(ctx, *cloneCall(call), result, toolErr); afterErr != nil {
@@ -216,11 +408,20 @@ turnLoop:
 						toolErr = fmt.Errorf("%v; post-tool hook: %w", toolErr, afterErr)
 					} else {
 						toolErr = fmt.Errorf("post-tool hook: %w", afterErr)
+
 					}
+					text, policyErr := evaluatePolicy(ctx, options, PolicyInputValue{Stage: PolicyToolOutput, Text: encodeToolFailure(toolErr), Call: cloneCall(call)})
+					if policyErr != nil {
+						return Result{Messages: messages, Steps: step}, policyErr
+					}
+					if text != encodeToolFailure(toolErr) {
+						toolErr = errors.New("post-tool details redacted by host policy")
+					}
+					result.Content = text
 				}
 			}
 			content := result.Content
-			if toolErr != nil {
+			if toolErr != nil && content == "" {
 				content = encodeToolFailure(toolErr)
 			}
 			messages = append(messages, Message{
@@ -328,6 +529,9 @@ func indexTools(tools []Tool) (map[string]Tool, []ToolDefinition, error) {
 }
 
 func executeTool(ctx context.Context, tools map[string]Tool, call ToolCall) (ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return ToolResult{}, err
+	}
 	if strings.TrimSpace(call.ID) == "" {
 		return ToolResult{}, errors.New("tool call id is required")
 	}
