@@ -2,7 +2,7 @@ import { element } from './text.mjs';
 import { taskBread } from './task-identity.mjs';
 import { icon } from './icons.mjs';
 
-export function chatMenu({ request, open, rename, tasksOnly = false }) {
+export function chatMenu({ request, open, rename, tasksOnly = false, inactiveOnly = false, onSearch = () => {} }) {
   const container = element('div', undefined, 'chat-menu');
   const search = element('input'); search.type = 'search'; search.placeholder = tasksOnly ? 'Search tasks…' : 'Search history…'; search.maxLength = 512; search.setAttribute('aria-label', tasksOnly ? 'Search task conversations' : 'Search retained work');
   const searchHelp = element('p', 'Titles, folders, and indexed work messages. Other dialogue is not indexed.', 'hint chat-search-help'); searchHelp.hidden = true;
@@ -13,7 +13,7 @@ export function chatMenu({ request, open, rename, tasksOnly = false }) {
   const editor = element('form', undefined, 'chat-rename'); editor.hidden = true;
   root.append(list); container.append(search, searchHelp, activitySummary, root, issue, editor);
   let context, current, primary, next = '', busy = false, generation = 0, items = new Map(), query = '', timer;
-  let activity = new Map();
+  let activity = new Map(), activeIDs = new Set();
   function activityState() {
     let working = 0, waiting = 0;
     for (const [id, value] of activity) if (id !== current) {
@@ -60,7 +60,7 @@ export function chatMenu({ request, open, rename, tasksOnly = false }) {
   }
   function render() {
     const position = list.scrollTop, ownerContext = context;
-    const visible=[...items.values()].filter(item=>item.id!==primary);
+    const visible=[...items.values()].filter(item=>item.id!==primary && (!inactiveOnly || !activeIDs.has(item.id)));
     list.replaceChildren(...visible.map(item => {
       const wrapper = element('div', undefined, 'chat-item');
       wrapper.dataset.chat = item.id;
@@ -86,7 +86,7 @@ export function chatMenu({ request, open, rename, tasksOnly = false }) {
       }
       return wrapper;
     }));
-    if (!visible.length) list.append(element('p', query ? (tasksOnly ? 'No matching tasks.' : 'No matching history.') : (tasksOnly ? 'Tasks I work on for you will appear here.' : 'No earlier work yet.'), 'hint'));
+    if (!visible.length) list.append(element('p', inactiveOnly ? (query ? 'No matching past tasks.' : 'No past tasks.') : query ? (tasksOnly ? 'No matching tasks.' : 'No matching history.') : (tasksOnly ? 'Tasks I work on for you will appear here.' : 'No earlier work yet.'), 'hint'));
     if (next) list.append(more);
     list.scrollTop = position; edges(); activityState();
   }
@@ -111,7 +111,7 @@ export function chatMenu({ request, open, rename, tasksOnly = false }) {
   search.addEventListener('input', () => {
     clearTimeout(timer); generation++; query = search.value.trim(); editor.hidden = true; searchHelp.hidden = !query;
     // immediately retire old selections while the debounced query is pending.
-    items.clear(); next = ''; render();
+    items.clear(); next = ''; render(); onSearch(query);
     timer = setTimeout(() => void load(context), 180);
   });
   list.addEventListener('scroll', () => {
@@ -119,10 +119,13 @@ export function chatMenu({ request, open, rename, tasksOnly = false }) {
     if (next && list.scrollHeight - list.clientHeight - list.scrollTop < 70) void load(context, false);
   }, { passive: true });
   if (globalThis.ResizeObserver) new ResizeObserver(edges).observe(list);
-  return { element: container, load, updateActivity(values = [], tasks = []) {
+  return { element: container, search, get query() { return query; }, load, updateActivity(values = [], tasks = []) {
+    const nextActive = new Set(tasks.filter(task => task.active).map(task => task.id));
+    const changed = nextActive.size !== activeIDs.size || [...nextActive].some(id => !activeIDs.has(id));
+    activeIDs = nextActive;
     activity = new Map(values.map(value => [value.id, value.status]));
     const labels = { running: 'In progress', waiting: 'Needs you', stopping: 'Stopping', failed: 'Needs attention', disconnected: 'Disconnected', queued: 'Queued' };
     for (const task of tasks) if (labels[task.state] && !activity.has(task.id)) activity.set(task.id, labels[task.state]);
-    activityState();
+    if (inactiveOnly && changed) render(); else activityState();
   }, updateCurrent(id, main) { if (current !== id || primary !== main) { current = id; primary = main; render(); } } };
 }

@@ -789,3 +789,10 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .activity-call > summary { cursor: pointer; font-size: .75rem; padding-block: .2rem; }
 .activity-call-facts { padding: .3rem 0 .5rem .7rem; }
 .activity-entry-status { text-align: right; }
+
+#agent-inspector > .surface-content > input, #agent-inspector > input { width: 100%; margin-block: .8rem .5rem; }
+.inactive-tasks { margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .65rem; }
+.inactive-tasks > summary { cursor: pointer; font-size: .8rem; }
+.inactive-tasks .chat-row { color: var(--muted); }
+.inactive-tasks .chat-scroll { max-height: 17rem; }
+.inactive-tasks .chat-activity-summary { display: none; }

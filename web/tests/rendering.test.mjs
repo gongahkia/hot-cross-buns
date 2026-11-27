@@ -29,7 +29,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { taskConversations, technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -1255,4 +1255,36 @@ test('composer and task popup share grouped tools and preserve nested inspection
   }
   progress.update({...task,id:'another-task',steps:[steps[0]]});
   assert.equal(progress.element.querySelector('.step-name').textContent,'http fetch');
+});
+
+test('robot task browser keeps active work above a collapsed searchable past-task list', async () => {
+  const requests=[],opened=[];
+  const pane=taskConversations({request:async body=>{requests.push(body);return {items:[
+    {id:'live',title:'Meiji research',selection:'live-selection'},
+    {id:'past',title:'Japan summary',selection:'past-selection'},
+  ]};},openChat:id=>opened.push(id),openSelection:body=>opened.push(body.selection)});
+  pane.element.hidePopover=()=>{};
+  const task={id:'live',title:'Meiji research',parent:'main',active:true,state:'running',canOpen:true,steps:[]};
+  pane.update([task],{context:'main-context',connected:true,current:'main',primary:'main'});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.trigger.hidden,false);
+  assert.equal(pane.element.querySelector('.inactive-tasks').open,false);
+  assert.match(pane.element.querySelector('.task-list').textContent,/Meiji research/);
+  assert.equal(pane.element.querySelector('.inactive-tasks [data-chat="live"]'),null);
+  assert.ok(pane.element.querySelector('.inactive-tasks [data-chat="past"]'));
+  assert.equal(pane.element.querySelector('.inactive-tasks input[type="search"]'),null);
+  const search=pane.element.querySelector('input[type="search"]');
+  assert.equal(search.getAttribute('aria-label'),'Search task conversations');
+  search.value='Japan';search.dispatchEvent(new window.Event('input'));
+  assert.equal(pane.element.querySelector('.inactive-tasks').open,true);
+  await new Promise(resolve=>setTimeout(resolve,210));
+  assert.equal(requests.at(-1).tasksOnly,true);assert.equal(requests.at(-1).query,'Japan');
+  pane.element.querySelector('.inactive-tasks [data-chat="past"] button').click();
+  await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(opened,['past-selection']);
+  search.value='';search.dispatchEvent(new window.Event('input'));
+  assert.equal(pane.element.querySelector('.inactive-tasks').open,false);
+  pane.update([{...task,active:false,state:'completed'}],{context:'main-context',connected:true,current:'main',primary:'main'});
+  await new Promise(resolve=>setTimeout(resolve,210));
+  assert.equal(pane.trigger.hidden,false);assert.equal(pane.element.querySelectorAll('.task-item').length,0);
+  assert.ok(pane.element.querySelector('.inactive-tasks [data-chat="live"]'));
 });

@@ -1,3 +1,4 @@
+import { chatMenu } from './chats.mjs';
 import { taskBread } from './task-identity.mjs';
 import { brandIcon } from './brands.mjs';
 import { animateSurfaceHeight } from './surface-motion.mjs';
@@ -35,7 +36,7 @@ function observedStep(step, state, rows, owner) {
   return row.item;
 }
 
-export function taskInspector({ openChat, description = '', title: headingText = 'Delegated work', iconName, showEmpty = false, id = 'task-inspector', visibleWhen = () => true }) {
+export function taskInspector({ openChat, description = '', title: headingText = 'Delegated work', iconName, showEmpty = false, emptyText = 'Nothing delegated right now. Work I hand off will appear here.', id = 'task-inspector', visibleWhen = () => true }) {
   const root = element('aside', undefined, 'task-inspector');
   root.id = id; root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', id + '-title');
   const trigger = element('button', undefined, 'quiet task-trigger'); trigger.type = 'button'; trigger.hidden = true;
@@ -148,7 +149,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
     }
     for (const [id, row] of rows) if (!keep.has(id)) { row.node.remove(); rows.delete(id); }
     list.querySelector('.task-empty')?.remove();
-    if (!tasks.length) list.append(element('p', 'Nothing delegated right now. Work I hand off will appear here.', 'task-empty hint'));
+    if (!tasks.length) list.append(element('p', emptyText, 'task-empty hint'));
     tick();
   }
   animateSurfaceHeight(root);
@@ -207,4 +208,52 @@ export function composerProgress() {
     tick();
   }
   return { element: root, update, tick };
+}
+
+
+export function taskConversations({ request, openChat, openSelection }) {
+  const pane = taskInspector({ id: 'agent-inspector', title: 'Tasks', iconName: 'bot', openChat,
+    emptyText: 'No active tasks.', visibleWhen: () => true, showEmpty: true });
+  const past = element('details', undefined, 'inactive-tasks');
+  past.append(element('summary', 'Past tasks'));
+  let tasks = [], activity = [], connected = false, context, signature = '', hasSaved = false, matched = new Set(), searching = false, previouslyOpen = false;
+  function apply() {
+    const query = menu.query.toLocaleLowerCase();
+    pane.update(tasks.filter(task => task.parent && task.active && (!query || task.title.toLocaleLowerCase().includes(query) || matched.has(task.id))), { connected });
+    pane.trigger.hidden = !connected || !(hasSaved || tasks.some(task => task.parent));
+  }
+  const menu = chatMenu({ tasksOnly: true, inactiveOnly: true,
+    request: async body => {
+      const page = await request(body);
+      if (body.context === context && body.query === menu.query) {
+        if (!body.query && !body.after) hasSaved = !!(page.items?.length || page.next);
+        matched = new Set([...(body.after ? matched : []), ...(page.items || []).map(item => item.id)]);
+        apply();
+      }
+      return page;
+    },
+    open: async body => { await openSelection(body); pane.element.hidePopover(); },
+    onSearch: query => {
+      if (query && !searching) { previouslyOpen = past.open; past.open = true; }
+      if (!query && searching) past.open = previouslyOpen;
+      searching = !!query; matched.clear(); apply();
+    },
+  });
+  pane.element.querySelector('.task-list').before(menu.search);
+  past.append(menu.element); pane.element.querySelector('.task-list').after(past);
+  pane.element.addEventListener('toggle', event => {
+    if (event.target === pane.element && event.newState === 'open' && connected) void menu.load(context);
+  });
+  function update(values = [], options = {}) {
+    tasks = values; activity = options.activity || []; connected = options.connected !== false;
+    const changed = context !== options.context;
+    context = options.context;
+    menu.updateCurrent(options.current, options.primary);
+    menu.updateActivity(activity, tasks);
+    apply();
+    const next = JSON.stringify(tasks.filter(task => task.parent).map(task => [task.id, task.title, task.active]));
+    if (connected && context && (changed || next !== signature)) void menu.load(context);
+    signature = next;
+  }
+  return { ...pane, update };
 }

@@ -1,7 +1,6 @@
 import { taskBread } from './task-identity.mjs';
 import { technicalActivity } from './technical-activity.mjs';
 import { taskHandoff } from './task-handoff.mjs';
-import { chatMenu } from './chats.mjs';
 import { voiceInput } from './voice.mjs';
 import { responseInteractions, parseQuotedRequest } from "./response-actions.mjs";
 import { brandIcon, setBrandIcon, providerBrand, providerLabel } from './brands.mjs';
@@ -10,7 +9,7 @@ import { element, prose, turn } from "./text.mjs";
 import { answerContextRun, answerContextView } from './answer-context.mjs';
 import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
-import { taskInspector, composerProgress } from "./task-inspector.mjs";
+import { taskConversations, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
 import { reviewQueue } from './review-queue.mjs';
 import { introduction } from './introduction.mjs';
@@ -102,11 +101,10 @@ const inspector = technicalActivity({ request: () => call({ op: 'technical-activ
   openServer: (url, trigger) => browser.open(url, trigger) });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
-const agents = taskInspector({ id: 'agent-inspector', title: 'Tasks', iconName: 'bot',
-  visibleWhen: tasks => tasks.length > 0,
-  openChat: openTaskConversation,
+const agents = taskConversations({ request: body => call({ op: 'chats', ...body }), openChat: openTaskConversation,
+  openSelection: async body => { await flush(); await call({ op: 'open-chat', ...body }); },
 });
-document.querySelector('.top-actions').append(agents.trigger);
+inspector.trigger.before(agents.trigger);
 document.body.append(agents.element);
 const scheduled = scheduledPane({ request: body => call({ op: 'scheduled', ...body }),
   description: 'Things I’ll check or remind you about later.',
@@ -144,7 +142,7 @@ function renderProgress() {
   const current = candidates.find(task => task.active && task.current) || candidates.find(task => task.active) || candidates.find(task => task.current) || candidates[0];
   progress.update(current, { connected: online });
   inspector.update(snapshot.agents, { connected: online, context: snapshot.context });
-  agents.update((snapshot.tasks || []).filter(task => task.parent && task.open), { connected: online });
+  agents.update(snapshot.tasks || [], { connected: online, context: snapshot.context, current: snapshot.state?.conversation_id, primary: snapshot.state?.primary_conversation_id, activity: snapshot.activity });
   scheduled.update(snapshot.scheduled);
 }
 
@@ -440,8 +438,6 @@ async function openAttachment(file, context, page = 1) {
 }
 $("model-picker").addEventListener("click", () => models.open($('model-picker')));
 
-const taskChats = chatMenu({ tasksOnly: true, request: body => call({ op: 'chats', ...body }), open: async body => { await flush(); await call({ op: 'open-chat', ...body }); showHistory(false); } });
-$('task-conversations').append(taskChats.element);
 function showHistory(open) {
   const history = $('history');
   if (open === history.matches(':popover-open')) return;
@@ -451,7 +447,6 @@ $('history').addEventListener('toggle', event => {
   if (event.target !== $('history')) return;
   const open = event.newState === 'open';
   $('history-toggle').setAttribute('aria-expanded', String(open));
-  if (open) void taskChats.load(snapshot.context);
 });
 async function navigate(route) {
   await flush();
@@ -490,11 +485,7 @@ async function navigate(route) {
 async function backendRoute(route) { await flush(); showHistory(false); await call({ op: 'navigate', route }); }
 for (const node of document.querySelectorAll("[data-route]")) node.addEventListener("click", () => void execute(() => navigate(node.dataset.route)));
 
-function renderHistory(state) {
- taskChats.updateCurrent(state.conversation_id, state.primary_conversation_id);
- taskChats.updateActivity(snapshot.activity || [], snapshot.tasks || []);
 
-}
 function showDetail(title, ...nodes) {
   const changingView = dialog.open;
   const previousTitle = $('detail-title').textContent;
@@ -1033,7 +1024,6 @@ events.onmessage = ({ data }) => {
   $('title').classList.toggle('sr-only',!!state.primary);
   document.title = !state.primary && state.conversation_id ? $("title").textContent + " · Hot Cross Buns" : "Hot Cross Buns";
   reviews.observe(JSON.stringify([snapshot.context, snapshot.connection, state.running, state.working, state.dialogue?.length, state.messages?.length, (snapshot.tasks || []).map(task => [task.id, task.state])]));
-  renderHistory(state);
   renderProgress();
   renderTranscript(state);
   renderLiveActivity(state);
