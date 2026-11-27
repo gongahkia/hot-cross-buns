@@ -579,3 +579,15 @@ test('main chat executes a small tool action inline without creating a secondary
     assert.ok(metadata.servers.every(server=>!('args' in server)&&!('env' in server)));
   } finally {live.close();await app.close();}
 });
+
+
+test('memory sync uses the current native profile and rejects renderer process controls', {timeout:15000},async()=>{
+  const app=await fixture({introductionStatus:'skipped'});let events;
+  try {
+    events=await stream(app.url);const current=await events.until(value=>value.connection==='connected','memory sync owner');
+    const send=body=>fetch(app.url+'/api/action',{method:'POST',headers:{'Content-Type':'application/json',Origin:app.url},body:JSON.stringify({context:current.context,op:'memory-sync',...body})});
+    const status=await send({action:'status'});assert.equal(status.status,200);const value=await status.json();assert.equal(value.config.enabled,false);assert.match(value.report.device,/^[a-f0-9]{24}$/);assert.ok(!JSON.stringify(value).includes('api_key'));
+    const unsafe=await send({action:'status',env:{PRIVATE:'value'}});assert.equal(unsafe.status,400);
+    const stale=await send({action:'status',context:'conversation:wrong'});assert.equal(stale.status,409);
+  } finally {events?.close();await app.close();}
+});

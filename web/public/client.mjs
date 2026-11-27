@@ -9,6 +9,7 @@ import { element, prose, turn } from "./text.mjs";
 import { answerContextRun, answerContextView, sourceChip } from './answer-context.mjs';
 import { activityView } from "./activity.mjs";
 import { memoryPane } from "./memory.mjs";
+import { memorySyncView } from "./memory-sync.mjs";
 import { taskConversations, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
 import { reviewQueue } from './review-queue.mjs';
@@ -642,6 +643,7 @@ function renderPanel(panel) {
   const context = snapshot.context, id = panel.id, nodes = [], fields = new Map();
   const customUsage = panel.kind === 'usage' && panel.usage;
   if (customUsage) nodes.push(usageView(panel.usage));
+  if(panel.kind==='memory')nodes.push(memorySyncView({request:body=>call({op:'memory-sync',context,...body})}).element);
   const controlStart = nodes.length;
   const act = (action, rest = {}, key) => frame({ type: "panel", ...(key ? { key } : {}), panel: { id, action, ...rest } }, context);
   if (panel.subtitle) nodes.push(element("p", panel.subtitle, "hint"));

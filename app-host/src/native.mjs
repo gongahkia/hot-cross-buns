@@ -3,9 +3,9 @@ import { externalURL } from "./policy.mjs";
 import { powershellPath } from "./platform.mjs";
 import { MAX_AUDIO_BYTES } from "./voice.mjs";
 
-export function helper(program, args, { input, maxBytes = 16 * 1024 * 1024, signal } = {}) {
+export function helper(program, args, { input, maxBytes = 16 * 1024 * 1024, signal, cwd, env } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"], signal });
+    const child = spawn(program, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"], signal, cwd, env });
     const chunks = []; let size = 0, errorText = "", failure;
     child.stdout.on("data", chunk => { size += chunk.length; if (size > maxBytes) { failure = new Error("The native helper exceeded its output limit."); child.kill("SIGKILL"); } else chunks.push(chunk); });
     child.stderr.on("data", chunk => { errorText = (errorText + chunk).slice(-4096); });

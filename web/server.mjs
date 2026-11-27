@@ -15,6 +15,7 @@ import { buildBrowserDependencies } from "./build.mjs";
 import { Application } from "../app-host/src/application.mjs";
 import { attachmentLimit, uploadLimits } from "../app-host/src/attachment-limits.mjs";
 
+import { memorySync } from "../app-host/src/memory-sync.mjs";
 import { browserVoice } from "./voice-service.mjs";
 import { eventHooks } from './event-hooks.mjs';
 import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
@@ -58,6 +59,7 @@ const assets = new Map([
   ["/text.mjs", ["text.mjs", "text/javascript; charset=utf-8"]],
   ["/boot.mjs", ["boot.mjs", "text/javascript; charset=utf-8"]],
   ["/memory.mjs", ["memory.mjs", "text/javascript; charset=utf-8"]],
+ ["/memory-sync.mjs",["memory-sync.mjs","text/javascript; charset=utf-8"]],
   ["/icons.mjs", ["icons.mjs", "text/javascript; charset=utf-8"]],
   ["/attachments.mjs", ["attachments.mjs", "text/javascript; charset=utf-8"]],
   ["/caret.mjs", ["caret.mjs", "text/javascript; charset=utf-8"]],
@@ -301,6 +303,10 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         requireContext(context);
         const internal = new Set([host.scheduler?.pid, ...[...host.sessions.workers].map(owner => owner.processId)]);
         return { ...result, servers: result.servers.map(server => ({ ...server, internal: internal.has(server.pid) || server.process === 'hot-cross-buns-runtime', application: server.pid === process.pid ? 'Hot Cross Buns' : '' })) };
+      }
+      case 'memory-sync': {
+        const {op:ignored,context:owner,...request}=body;
+        const result=await memorySync(host,request);requireContext(context);return result;
       }
       case 'local-app-status': {
         const result = await localAppStatus(body.url, 'http://127.0.0.1:' + server.address().port, discoverServers);
