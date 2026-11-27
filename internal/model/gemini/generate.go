@@ -129,7 +129,9 @@ type request struct {
 }
 
 type generationConfig struct {
-	MaxOutputTokens int `json:"maxOutputTokens"`
+	ResponseMimeType   string          `json:"responseMimeType,omitempty"`
+	ResponseJSONSchema json.RawMessage `json:"responseJsonSchema,omitempty"`
+	MaxOutputTokens    int             `json:"maxOutputTokens"`
 }
 
 type toolConfig struct {
@@ -176,6 +178,16 @@ func requestBody(turn agent.TurnRequest) (request, error) {
 	body := request{Contents: contents, Tools: tools}
 	if turn.MaxOutputTokens > 0 {
 		body.GenerationConfig = &generationConfig{MaxOutputTokens: turn.MaxOutputTokens}
+	}
+	if turn.Output != nil {
+		if !json.Valid(turn.Output.Schema) {
+			return request{}, agent.ErrStructuredOutput
+		}
+		if body.GenerationConfig == nil {
+			body.GenerationConfig = &generationConfig{}
+		}
+		body.GenerationConfig.ResponseMimeType = "application/json"
+		body.GenerationConfig.ResponseJSONSchema = append(json.RawMessage(nil), turn.Output.Schema...)
 	}
 	if len(tools) > 0 {
 		body.ToolConfig = &toolConfig{}

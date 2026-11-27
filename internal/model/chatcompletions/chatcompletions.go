@@ -24,6 +24,8 @@ const maxResponseBytes = 2 * 1024 * 1024
 // Config describes one OpenAI-compatible Chat Completions endpoint.
 // ProviderName and APIKeyEnv are only used in clear, non-secret errors.
 type Config struct {
+	// NativeStructured is set only for endpoints known to support json_schema.
+	NativeStructured    bool
 	ProviderID          string
 	CredentialSource    string
 	APIKey              string
@@ -70,6 +72,12 @@ func (m Model) Complete(ctx context.Context, turn agent.TurnRequest) (agent.Turn
 	body, err := requestBody(turn, m.Config.Model)
 	if err != nil {
 		return agent.Turn{}, err
+	}
+	if turn.Output != nil && m.Config.NativeStructured {
+		if !json.Valid(turn.Output.Schema) {
+			return agent.Turn{}, agent.ErrStructuredOutput
+		}
+		body.ResponseFormat = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": turn.Output.Name, "schema": turn.Output.Schema, "strict": true}}
 	}
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -157,10 +165,11 @@ func (m Model) client() *http.Client {
 }
 
 type request struct {
-	MaxTokens int            `json:"max_tokens,omitempty"`
-	Model     string         `json:"model"`
-	Messages  []message      `json:"messages"`
-	Tools     []functionTool `json:"tools,omitempty"`
+	ResponseFormat any            `json:"response_format,omitempty"`
+	MaxTokens      int            `json:"max_tokens,omitempty"`
+	Model          string         `json:"model"`
+	Messages       []message      `json:"messages"`
+	Tools          []functionTool `json:"tools,omitempty"`
 }
 
 type message struct {

@@ -135,13 +135,14 @@ func (m Messages) client() *http.Client {
 }
 
 type request struct {
-	Model      string          `json:"model"`
-	MaxTokens  int             `json:"max_tokens"`
-	System     string          `json:"system,omitempty"`
-	Messages   []message       `json:"messages"`
-	Tools      []functionTool  `json:"tools,omitempty"`
-	Stream     bool            `json:"stream,omitempty"`
-	ToolChoice json.RawMessage `json:"tool_choice,omitempty"`
+	OutputConfig any             `json:"output_config,omitempty"`
+	Model        string          `json:"model"`
+	MaxTokens    int             `json:"max_tokens"`
+	System       string          `json:"system,omitempty"`
+	Messages     []message       `json:"messages"`
+	Tools        []functionTool  `json:"tools,omitempty"`
+	Stream       bool            `json:"stream,omitempty"`
+	ToolChoice   json.RawMessage `json:"tool_choice,omitempty"`
 }
 
 type message struct {
@@ -189,7 +190,14 @@ func requestBody(turn agent.TurnRequest, model string) (request, error) {
 	if limit <= 0 {
 		limit = defaultMaxToken
 	}
-	return request{Model: model, MaxTokens: limit, System: turn.System, Messages: messages, Tools: tools}, nil
+	body := request{Model: model, MaxTokens: limit, System: turn.System, Messages: messages, Tools: tools}
+	if turn.Output != nil {
+		if !json.Valid(turn.Output.Schema) {
+			return request{}, agent.ErrStructuredOutput
+		}
+		body.OutputConfig = map[string]any{"format": map[string]any{"type": "json_schema", "schema": turn.Output.Schema}}
+	}
+	return body, nil
 }
 
 func encodeMessages(source []agent.Message) ([]message, error) {

@@ -101,6 +101,10 @@ func CompleteStructured[T any](ctx context.Context, model Model, request TurnReq
 	if limit < 1 || limit > 96*1024 {
 		return zero, ErrStructuredOutput
 	}
+	if len(request.Tools) > 0 || request.Computer != nil {
+		return zero, ErrStructuredOutput
+	}
+	request.System += "\nReturn one JSON object, no Markdown or tool calls, matching this host-owned output schema:\n" + string(contract.Schema)
 	request.Output = &contract
 	request.Messages = cloneMessages(request.Messages)
 	for attempt := 0; attempt < attempts; attempt++ {
