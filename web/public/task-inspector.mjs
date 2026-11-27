@@ -135,7 +135,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
           const summary = element('details', undefined, 'task-result'); summary.append(element('summary', 'Summary'), element('p', task.summary)); nodes.push(summary);
         }
         const links = element('div', undefined, 'task-links');
-        if (task.canOpen && !task.current) links.append(link('Task details', task.conversation || task.id));
+        if (task.canOpen && !task.current) links.append(link('Open conversation', task.conversation || task.id));
         if (task.current && task.state === 'waiting') links.append(link('Review task', task.id));
         if (task.parent) links.append(link('Your request', task.parent));
         if (links.childNodes.length) nodes.push(links);

@@ -776,3 +776,11 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .task-handoff-title { font-weight: 500; overflow-wrap: anywhere; }
 .task-handoff-status { flex-shrink: 0; font-size: .75rem; }
 @media (max-width: 480px) { .task-handoff-status { max-width: 5.5rem; white-space: normal; } }
+
+.technical-servers { margin-block: 1rem; }
+.technical-server { display: flex; align-items: center; gap: .8rem; width: 100%; text-align: left; padding: .65rem 0; }
+.technical-server > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.technical-server small { display: block; margin-top: .15rem; }
+.technical-server > svg { flex: none; }
+#technical-activity h3 { font-size: .8rem; font-weight: 500; color: var(--muted); margin: 1.1rem 0 .4rem; }
+.history > [data-route="/hot-cross-buns"] { display: flex; align-items: center; gap: .45rem; width: 100%; margin-block-end: .55rem; }

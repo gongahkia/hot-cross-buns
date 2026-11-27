@@ -74,3 +74,13 @@ test('new activity and pending plans never reuse steps or a summary from an earl
   assert.equal(taskSummaries(host)[0].state, 'disconnected');
   assert.equal(taskSummaries(host)[0].active, false);
 });
+
+test('open completed task conversations remain inspectable under the robot without becoming active agents', () => {
+  const parent={state:{conversation_id:'main'}};
+  const child={closed:false,state:{conversation_id:'research',title:'Report',dialogue_task:{parent_id:'main',task_emoji:'🥧'},messages:[{text:'A result',activity:finished}]}};
+  const host=fixture([parent,child],parent,[]);
+  host.sessions.canOpen=id=>['main','research'].includes(id);
+  const tasks=taskSummaries(host);
+  assert.equal(tasks.length,1);assert.equal(tasks[0].open,true);assert.equal(tasks[0].active,false);assert.equal(tasks[0].task_emoji,'🥧');
+  child.closed=true;assert.equal(taskSummaries(host).length,0);
+});

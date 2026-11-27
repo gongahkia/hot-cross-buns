@@ -41,7 +41,9 @@ export class Sessions extends EventEmitter {
   // still a valid ancestry link, but arbitrary conversation IDs are not.
   canOpen(id) {
     if (typeof id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(id)) return false;
-    return !!(this.activity().some(item => item.id === id) || !this.current?.closed && (this.current?.state?.branch?.conversation_id === id || this.current?.state?.dialogue_task?.parent_id === id || this.current?.state?.dialogue?.some(turn => turn.task_chat === id)));
+    const primary = this.current?.state?.primary_conversation_id;
+    const openTask = !!primary && [...this.workers].some(worker => !worker.closed && worker.state?.conversation_id === id && worker.state?.dialogue_task?.parent_id === primary);
+    return !!(this.activity().some(item => item.id === id) || !this.current?.closed && (openTask || this.current?.state?.branch?.conversation_id === id || this.current?.state?.dialogue_task?.parent_id === id || this.current?.state?.dialogue?.some(turn => turn.task_chat === id)));
   }
   #changed(worker) {
     const before = this.#previous.get(worker), state = worker.state;

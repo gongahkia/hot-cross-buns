@@ -12,7 +12,7 @@ export function taskSummaries(host) {
   const tasks = [];
   for (const owner of host.sessions.workers) {
     const state = owner.state;
-    if (!state?.conversation_id || owner !== host.backend && !visible.has(state.conversation_id)) continue;
+    if (!state?.conversation_id || owner !== host.backend && !visible.has(state.conversation_id) && !(!owner.closed && state.dialogue_task?.parent_id && host.sessions.canOpen(state.conversation_id))) continue;
     const retained = state.messages?.findLast(message => message.activity);
     const plans = state.task_plans || [];
     const active = !owner.closed && !!(state.running || state.dialogue_busy || state.pending_operation || plans.some(plan => ['preparing', 'revising'].includes(plan.phase)));
@@ -23,7 +23,7 @@ export function taskSummaries(host) {
     tasks.push({
       id: state.conversation_id, task_emoji: state.dialogue_task?.task_emoji, title: String(state.title || 'Your request').slice(0, 180),
       context: state.composer?.context,
-      current: owner === host.backend, state: status, active: !owner.closed && (active || waiting),
+      open: !owner.closed, current: owner === host.backend, state: status, active: !owner.closed && (active || waiting),
       canOpen: owner === host.backend || host.sessions.canOpen(state.conversation_id),
       parent: state.dialogue_task?.parent_id && (state.dialogue_task.parent_id === host.backend?.state?.conversation_id || host.sessions.canOpen(state.dialogue_task.parent_id)) ? state.dialogue_task.parent_id : undefined,
       summary: !active && !waiting && !state.queued ? String(state.dialogue_task?.summary || retained?.text || '').slice(0, 700) : '',

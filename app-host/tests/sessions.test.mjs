@@ -359,3 +359,16 @@ test("confirmed preference changes refresh cached owners once without replaying 
   parent.refreshPreferences=async()=>{refreshes++;throw Error("Preference store unavailable")};child.change({preferences_revision:2});await Promise.resolve();assert.match(sessions.issue,/cached chat could not refresh/);assert.equal(parent.state.running,true);assert.deepEqual(parent.frames,[])
  }finally{await sessions.stop()}
 })
+
+test('an opened retained task stays reachable without an activity badge or recent parent turn', async () => {
+  const parent=new DialogueWorker('parent'), child=new DialogueWorker('child');
+  parent.state={...parent.state,primary_conversation_id:'parent',dialogue:[]};
+  child.state={...child.state,dialogue_task:{parent_id:'parent',conversation_id:'child',turn_id:'retained',state:'completed'}};
+  const sessions=new Sessions(request=>request.conversation_id==='child'?child:parent);
+  try {
+    await sessions.open();await sessions.open({conversation_id:'child'});await sessions.open({conversation_id:'parent'});
+    assert.equal(sessions.activity().some(item=>item.id==='child'),false);
+    assert.equal(sessions.canOpen('child'),true);
+    assert.equal(sessions.canOpen('unrelated'),false);
+  } finally {await sessions.stop();}
+});

@@ -29,6 +29,8 @@ export class Backend extends EventEmitter {
     });
   }
 
+  get processId() { return this.#child.pid; }
+
   #consume(chunk) {
     this.#buffer += chunk;
     if (Buffer.byteLength(this.#buffer) > 16 * 1024 * 1024) { this.failure = "Hot Cross Buns sent an oversized state frame."; this.stop(); return; }

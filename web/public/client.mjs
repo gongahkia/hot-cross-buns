@@ -1,4 +1,5 @@
 import { taskBread } from './task-identity.mjs';
+import { technicalActivity } from './technical-activity.mjs';
 import { taskHandoff } from './task-handoff.mjs';
 import { chatMenu } from './chats.mjs';
 import { voiceInput } from './voice.mjs';
@@ -97,15 +98,13 @@ $("send").replaceChildren(icon("send"));
 $("model-picker").append(icon("chevron"));
 const progress = composerProgress();
 document.querySelector('.composer-wrap').prepend(progress.element);
-const inspector = taskInspector({ iconName: 'helpers', visibleWhen: tasks=>tasks.some(task=>task.active), openChat: async id => {
-  await flush();
-  await showTaskDetails(id);
-} });
+const inspector = technicalActivity({ request: () => call({ op: 'technical-activity' }), openChat: openTaskConversation,
+  openServer: (url, trigger) => browser.open(url, trigger) });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
-const agents = taskInspector({ id: 'agent-inspector', title: 'Agents', iconName: 'bot',
-  visibleWhen: tasks => tasks.filter(task=>task.active).length >= 2,
-  openChat: async id => { await flush(); await showTaskDetails(id); },
+const agents = taskInspector({ id: 'agent-inspector', title: 'Tasks', iconName: 'bot',
+  visibleWhen: tasks => tasks.length > 0,
+  openChat: openTaskConversation,
 });
 document.querySelector('.top-actions').append(agents.trigger);
 document.body.append(agents.element);
@@ -144,8 +143,8 @@ function renderProgress() {
   const candidates = (snapshot.tasks || []).filter(task => task.current || task.parent === snapshot.state?.conversation_id);
   const current = candidates.find(task => task.active && task.current) || candidates.find(task => task.active) || candidates.find(task => task.current) || candidates[0];
   progress.update(current, { connected: online });
-  inspector.update(snapshot.helpers, { connected: online });
-  agents.update(snapshot.agents, { connected: online });
+  inspector.update(snapshot.agents, { connected: online, context: snapshot.context });
+  agents.update((snapshot.tasks || []).filter(task => task.parent && task.open), { connected: online });
   scheduled.update(snapshot.scheduled);
 }
 
@@ -1055,7 +1054,8 @@ export function paletteCommands() {
     { label: 'Jump to latest', action: reading.latest },
     { label: 'Task details', action: () => void execute(() => showTaskDetails()) },
     { label: 'Delegated work', action: inspector.open },
-    { label: 'Agents', action: agents.open },
+    { label: 'Tasks', action: agents.open },
+    { label: 'Terminals and servers', action: inspector.open },
     { label: 'Review queue', action: reviews.open },
     { label: 'Scheduled tasks', action: scheduled.open },
     { label: 'Skills and routines', action: () => void execute(() => backendRoute('/routines')) },

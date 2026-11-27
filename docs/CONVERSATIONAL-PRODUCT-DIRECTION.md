@@ -1,5 +1,33 @@
 # Hot Cross Buns as a personal agent you message
 
+## Work routing and inspection · 27 November 2026
+
+Ordinary questions, quick tool-assisted lookups, memory changes and small actions
+stay in the main conversation. Substantial research, larger deliverables, ongoing
+projects and explicitly independent work receive a task conversation. Clear
+follow-ups continue the same completed task; ambiguous references are clarified.
+The model chooses intent, while the host validates capacity, the exact target and
+captured scope. A task thread and a delegated worker are different concepts.
+
+Inline work uses the main owner's journal, lease, queue and permission controls.
+Task continuations retain the original task's access and processing settings.
+Restoring the app or retrying a message does not replay interrupted execution.
+
+Task breadcrumbs open the conversation directly. Main chat is available in the
+wordmark menu and command palette. The robot popup shows open task conversations;
+retained tasks remain searchable in the wordmark menu after their live owner is
+retired. New task threads receive a persisted standard Unicode bakery emoji;
+older threads retain the original five-bread assignment. Emojis can repeat.
+
+The terminal icon opens captured worker output and observed local TCP listeners.
+These are headless CLI logs, not interactive terminal sessions or private model
+reasoning. Listener discovery reads bounded process names, PIDs and ports for the
+current OS user, filtered to known development runtimes; it neither probes
+services nor starts or stops them. Custom-named server executables may not be
+discovered. System services such as AirPlay and device discovery are excluded. Listening
+alone does not establish HTTP compatibility. App previews use the existing
+loopback-only split view; HCB's own and internal control listeners are inert.
+
 ## Current web direction · 22 November 2026
 
 The primary interaction should be one persistent conversation with Hot Cross

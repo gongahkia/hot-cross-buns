@@ -11,7 +11,7 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
 const { outputFiles } = await build({
-  stdin: { contents: 'export * from "./public/task-identity.mjs"; export * from "./public/task-handoff.mjs"; export * from "./public/event-hooks.mjs"; export * from "./public/introduction.mjs"; export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
+  stdin: { contents: 'export * from "./public/technical-activity.mjs"; export * from "./public/task-identity.mjs"; export * from "./public/task-handoff.mjs"; export * from "./public/event-hooks.mjs"; export * from "./public/introduction.mjs"; export * from "./public/review-queue.mjs"; export * from "./public/answer-context.mjs"; export * from "./public/models-view.mjs"; export * from "./public/model-picker.mjs"; export * from "./public/local-browser.mjs"; export * from "./public/local-url.mjs"; export * from "./public/canvas.mjs"; export * from "./public/file-references.mjs"; export * from "./public/response-actions.mjs"; export * from "./public/usage.mjs"; export * from "./public/brands.mjs"; export * from "./public/text.mjs"; export * from "./public/palette.mjs"; export * from "./public/activity.mjs"; export * from "./public/attachments.mjs"; export * from "./public/memory.mjs"; export * from "./public/task-inspector.mjs"; export * from "./public/scheduled.mjs"; export * from "./public/icons.mjs"; export * from "./public/chats.mjs"; export * from "./public/views.mjs"; export * from "./public/local-models.mjs"; export * from "./public/fields.mjs"; export * from "./public/find.mjs"; export * from "./public/reading.mjs"; export * from "./public/reactions.mjs"; export * from "./public/task-details.mjs"; export * from "./public/workspace.mjs"; export * from "./public/streaming.mjs"; export * from "./public/reviews.mjs";', resolveDir: fileURLToPath(new URL("..", import.meta.url)) },
   define: { PACKAGE_VERSION: JSON.stringify(mathjaxPackage.version) },
     bundle: true, write: false, format: "esm", platform: "browser",
   external: ["/vendor/mermaid-entry.mjs"],
@@ -29,7 +29,7 @@ const { outputFiles } = await build({
     }));
   } }],
 });
-const { taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
+const { technicalActivity, taskBread, taskHandoff, eventEndpoint, introduction, reviewQueue, answerContextRun, answerContextView, modelsView, currentPlan, modelPicker, localBrowser, localAppURL, planQuestions, canvasWorkspace, fileReferences, responseInteractions, parseQuotedRequest, usageView, usageLimits, brandIcon, setBrandIcon, providerBrand, prose, installPalette, activityView, elapsed, attachmentCard, previewContent, pastedFiles, memoryPane, taskInspector, composerProgress, scheduledPane, icon, activityIconNames, decorateIcons, chatMenu, settingsView, localModelsView, panelField, transcriptFind, readingPosition, reactionFor, reactionPreference, reactionChip, taskDetailView, workspaceView, StreamingReveal, streamingResponse, turn, planReview, correctionText } = await import("data:text/javascript;base64," + Buffer.from(outputFiles[0].contents).toString("base64"));
 
 test('Plan is scoped to active retained planning rather than draft preferences or ordinary chat',()=>{
   assert.equal(currentPlan(),null);assert.equal(currentPlan({plans:[],peers:[]}),null);
@@ -1161,6 +1161,25 @@ test('bread handoffs name the task, distinguish continuation and keep identity a
   const menu=chatMenu({tasksOnly:true,request:async()=>({items:[{id:'research-2025',title:'2025 Iran war',selection:'selected'}]}),open(){}});
   await menu.load('main');assert.equal(menu.element.querySelector('.task-bread').textContent,taskBread('research-2025'));
   const unsafe=taskHandoff({id:'safe',title:'<script>bad()</script>',state:'failed',open(){}});assert.equal(unsafe.querySelector('script'),null);
+});
+
+
+test('technical activity lists observed servers, keeps internal services inert and exposes real agent output', async () => {
+  let opened;
+  const pane = technicalActivity({request: async () => ({servers:[
+    {id:'1:4317',pid:1,port:4317,process:'node',url:'http://127.0.0.1:4317',application:'Hot Cross Buns'},
+    {id:'2:4318',pid:2,port:4318,process:'node',url:'http://127.0.0.1:4318'},
+    {id:'3:52239',pid:3,port:52239,process:'runtime',url:'http://127.0.0.1:52239',internal:true},
+  ]}),openChat(){},openServer:url=>opened=url});
+  pane.element.hidePopover=()=>{};
+  pane.update([{id:'main:cli',title:'Review',engine:'Pi',active:true,state:'running',output:'Reading init.lua',steps:[]}],{connected:true,context:'main'});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(pane.trigger.hidden,false);
+  assert.match(pane.element.querySelector('.agent-output pre').textContent,/Reading init.lua/);
+  const buttons=pane.element.querySelectorAll('.technical-server');
+  assert.equal(buttons[0].tagName,'DIV');assert.equal(buttons[2].tagName,'DIV');
+  buttons[1].click();assert.equal(opened,'http://127.0.0.1:4318/');
+  pane.update([],{connected:false,context:'main'});assert.equal(pane.trigger.hidden,true);
 });
 
 

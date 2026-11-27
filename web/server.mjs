@@ -6,6 +6,7 @@ import { dirname, join, isAbsolute } from 'node:path';
 import { createServer } from "node:http";
 import { attachmentPreview } from "./attachment-preview.mjs";
 import { taskSummaries, delegatedSummaries, agentSummaries } from "./task-summaries.mjs";
+import { localServers } from './local-servers.mjs';
 import { taskDetails } from './task-details.mjs';
 import { localFilePreview } from './local-file-preview.mjs';
 import { correctionDrafts } from './corrections.mjs';
@@ -60,6 +61,7 @@ const assets = new Map([
   ["/attachments.mjs", ["attachments.mjs", "text/javascript; charset=utf-8"]],
   ["/caret.mjs", ["caret.mjs", "text/javascript; charset=utf-8"]],
   ["/activity.mjs", ["activity.mjs", "text/javascript; charset=utf-8"]],
+  ["/technical-activity.mjs", ["technical-activity.mjs", "text/javascript; charset=utf-8"]],
   ["/task-inspector.mjs", ["task-inspector.mjs", "text/javascript; charset=utf-8"]],
   ["/surface-motion.mjs", ["surface-motion.mjs", "text/javascript; charset=utf-8"]],
   ["/scheduled.mjs", ["scheduled.mjs", "text/javascript; charset=utf-8"]],
@@ -142,6 +144,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
   const voice = browserVoice(host, voiceOptions);
   const hooks = eventHooks(host);
   const inspection = taskDetails(host);
+  const discoverServers = localServers();
   const corrections = correctionDrafts(host, reviewFor);
   const streams = new Set();
   let tail = Promise.resolve(), closing = false;
@@ -291,6 +294,12 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       }
       case 'clear-task-reply': {
         const saved=await draft();delete saved.reply_to_task_id;return saveDraft(saved);
+      }
+      case 'technical-activity': {
+        const result = await discoverServers();
+        requireContext(context);
+        const internal = new Set([host.scheduler?.pid, ...[...host.sessions.workers].map(owner => owner.processId)]);
+        return { ...result, servers: result.servers.map(server => ({ ...server, internal: internal.has(server.pid) || server.process === 'hot-cross-buns-runtime', application: server.pid === process.pid ? 'Hot Cross Buns' : '' })) };
       }
       case 'task-inspect':
         return inspection.inspect(body.id || host.backend.state.conversation_id);
