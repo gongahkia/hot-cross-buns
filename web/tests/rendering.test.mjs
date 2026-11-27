@@ -1151,6 +1151,8 @@ test('bread handoffs name the task, distinguish continuation and keep identity a
   assert.match(first.getAttribute('aria-label'),/Opened task: 2025 Iran war · Working on it/);
   assert.match(follow.getAttribute('aria-label'),/Continued task: 2025 Iran war · Done/);
   assert.equal(first.querySelector('.task-bread').getAttribute('aria-hidden'),'true');
+  assert.equal(first.querySelector('.task-bread').childElementCount,0);
+  assert.match(first.querySelector('.task-bread').textContent,/^\p{Emoji_Presentation}$/u);
   first.click();assert.equal(opened,1);
   const unknown = taskHandoff({id:'unconfirmed',title:'Check my inbox',open(){}});
   assert.match(unknown.textContent,/Awaiting confirmation/);assert.doesNotMatch(unknown.textContent,/Working on it/);

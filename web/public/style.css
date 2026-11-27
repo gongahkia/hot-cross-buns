@@ -767,7 +767,7 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
   .compose-trailing:has(#context-meter:not([hidden])) .composer-select { flex-shrink: 0; white-space: nowrap; }
 }
 
-.task-bread { flex: 0 0 auto; font-weight: 400; }
+.task-bread { flex: 0 0 auto; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; font-weight: 400; font-variant-emoji: emoji; }
 .chat-row > .task-bread { flex: 0 0 1.25em; overflow: visible; }
 .assistant-task > .task-handoff { display: flex; max-width: 100%; gap: .65rem; text-align: left; }
 .task-handoff > .task-bread { font-size: 1.2rem; }
