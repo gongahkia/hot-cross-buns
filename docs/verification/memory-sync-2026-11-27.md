@@ -35,7 +35,8 @@ Verification performed:
 An initial broad Go run failed the existing strict-sandbox OpenCode credential
 fixture with exit 126 under macOS's `/var` temporary-path alias. The whole
 workrun package passed when TMPDIR used the canonical `/private/var` path.
-This check does not weaken the sandbox or change that unrelated fixture.
+The final full `go test ./...` run passed with canonical TMPDIR, and targeted
+`go vet` passed. This does not weaken the sandbox or change that unrelated fixture.
 
 Limits: the real transport test used two profiles on one Mac, not two physical
 computers or cross-OS filesystems. Syncthing must already be installed, running
