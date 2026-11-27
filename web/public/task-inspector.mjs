@@ -239,7 +239,9 @@ export function taskConversations({ request, openChat, openSelection }) {
       searching = !!query; matched.clear(); apply();
     },
   });
-  pane.element.querySelector('.task-list').before(menu.search);
+  const search = element('label', undefined, 'task-search');
+  search.append(icon('search'), menu.search);
+  pane.element.querySelector('.task-list').before(search);
   past.append(menu.element); pane.element.querySelector('.task-list').after(past);
   pane.element.addEventListener('toggle', event => {
     if (event.target === pane.element && event.newState === 'open' && connected) void menu.load(context);

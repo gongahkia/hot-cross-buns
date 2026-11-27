@@ -789,7 +789,14 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .activity-call-facts { padding: .3rem 0 .5rem .7rem; }
 .activity-entry-status { text-align: right; }
 
-#agent-inspector > .surface-content > input, #agent-inspector > input { width: 100%; margin-block: .8rem .5rem; }
+.task-search { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 2.4rem; margin-block: .8rem .5rem; padding: .45rem .65rem; border: 1px solid var(--line); border-radius: .55rem; background: var(--wash); transition: border-color 140ms ease-out, background-color 140ms ease-out; }
+.task-search > svg { width: 1rem; height: 1rem; flex: 0 0 1rem; color: var(--muted); }
+.task-search input { appearance: none; width: 100%; min-width: 0; padding: 0; border: 0; outline: none; background: transparent; font-size: .8rem; line-height: 1.5; }
+.task-search input::placeholder { color: #706f6b; opacity: 1; }
+.task-search:hover { border-color: #d6d5d0; }
+.task-search:focus-within { border-color: var(--accent); background: var(--paper); }
+.task-search:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .task-search { transition: none; } }
 .inactive-tasks { margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .65rem; }
 .inactive-tasks > summary { cursor: pointer; font-size: .8rem; }
 .inactive-tasks .chat-row { color: var(--muted); }
