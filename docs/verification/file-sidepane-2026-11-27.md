@@ -2,8 +2,8 @@
 
 File chips previously downloaded immediately, composer attachments opened a
 modal, and prose filenames used a separate sidebar. They now open tabs in the
-existing local-app split pane. Apps and files can coexist within its existing
-four-tab limit. Reopening a selected file reuses its tab; closing a file leaves
+existing local-app split pane. Apps, files and terminal output can coexist;
+opening another tab does not evict earlier tabs. Reopening a selected file reuses its tab; closing a file leaves
 other tabs intact. Download is an explicit action for selected uploads and
 retained outputs.
 
@@ -42,3 +42,31 @@ grant access to arbitrary paths outside the admitted scope.
   for that real-profile check.
 
 Temporary fixture processes and the inspection tab were closed after testing.
+
+## Follow-up: terminal tabs and reordering
+
+The terminal activity popup opens each worker's public output in a sidepane tab.
+Existing activity snapshots update the log; switching tabs retains its DOM and
+scroll position. Closing a terminal tab closes only the view and sends no agent
+stop command. These are output views, not interactive shell sessions.
+
+Tabs support drag-and-drop ordering and Alt/Option+Shift+Arrow keys. Ordinary
+arrows select adjacent tabs; Delete closes a focused tab. Each tab has its own
+close button. The toolbar close button and Escape close the selected tab while
+leaving the others open. Reordering moves only labels, so app iframes stay mounted.
+
+- All 205 web tests passed. A subsequent queued-to-running output binding
+  refinement and its additional regression passed in the final 89-test rendering
+  run. Syntax checks and `git diff --check` passed.
+- Regressions cover mixed file/app/terminal ordering, independent closure, more
+  than four retained tabs, live and disconnected output, literal HTML log text,
+  queued workers acquiring a start time, and rejection of replacement runs or
+  other conversation contexts.
+- Browser checks reordered actual local-profile file tabs and closed one while
+  retaining another. A controlled frontend component check exercised synthesized
+  HTML drag events, mixed file/terminal tabs and output updates without selection
+  changes. Desktop and 390-pixel layouts were checked; the narrow layout had no
+  horizontal page overflow. The controlled terminal output was removed afterward.
+- No live CLI agent was launched for this frontend change. Native shell execution
+  and agent permissions were unchanged. The backend was left running; refreshing
+  the app loads the updated frontend.

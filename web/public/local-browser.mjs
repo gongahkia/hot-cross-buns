@@ -4,8 +4,9 @@ import { localAppURL } from './local-url.mjs';
 import { previewContent } from './attachments.mjs';
 
 export function localBrowser({ inspect } = {}) {
-  const root = element('aside', undefined, 'local-browser'); root.hidden = true; root.setAttribute('aria-label', 'Files and apps');
-  const tabs = element('div', undefined, 'browser-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Files and apps');
+  const root = element('aside', undefined, 'local-browser'); root.hidden = true; root.setAttribute('aria-label', 'Files, terminals and apps');
+  const tabs = element('div', undefined, 'browser-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Files, terminals and apps');
+  const announcement = element('span', '', 'sr-only'); announcement.setAttribute('role', 'status');
   const toolbar = element('div', undefined, 'browser-toolbar');
   const address = element('input'); address.type = 'url'; address.setAttribute('aria-label', 'Local app address'); address.readOnly = true;
   function tool(label, name, action) { const node = element('button', undefined, 'quiet icon-button'); node.type = 'button'; node.title = label; node.setAttribute('aria-label', label); node.append(icon(name)); node.addEventListener('click', action); return node; }
@@ -13,18 +14,18 @@ export function localBrowser({ inspect } = {}) {
   const frames = element('div', undefined, 'browser-frames');
   const reload = tool('Reload local app', 'refresh-cw', () => { const tab = entries.find(item => item.id === selected); if (tab) void load(tab); });
   const download = tool('Download file', 'download', () => { const tab = entries.find(item => item.id === selected); if (tab?.download) tab.download(); });
-  toolbar.append(reload, address, external, download, tool('Close preview', 'x', () => close(true))); root.append(tabs, toolbar, frames);
-  let entries = [], selected, counter = 0, origin;
+  toolbar.append(reload, address, external, download, tool('Close current tab', 'x', () => remove(selected))); root.append(tabs, toolbar, frames, announcement);
+  let entries = [], selected, counter = 0, origin, dragging;
   function select(id) {
     selected = id;
     for (const entry of entries) {
       const active = entry.id === id; entry.button.setAttribute('aria-selected', String(active)); entry.button.tabIndex = active ? 0 : -1; entry.panel.hidden = !active;
       if (active) {
-        const file = entry.kind === 'file'; address.value = file ? entry.title : entry.url;
-        address.type = file ? 'text' : 'url'; address.setAttribute('aria-label', file ? 'File name' : 'Local app address');
-        external.hidden = file; if (!file) external.href = entry.url; else external.removeAttribute('href');
+        const app = entry.kind === 'app'; address.value = app ? entry.url : entry.title;
+        address.type = app ? 'url' : 'text'; address.setAttribute('aria-label', app ? 'Local app address' : entry.kind === 'terminal' ? 'Terminal name' : 'File name');
+        external.hidden = !app; if (app) external.href = entry.url; else external.removeAttribute('href');
         download.hidden = !entry.download;
-        reload.title = file ? 'Reload file' : 'Reload local app'; reload.setAttribute('aria-label', reload.title);
+        reload.hidden = entry.kind === 'terminal'; reload.title = app ? 'Reload local app' : 'Reload file'; reload.setAttribute('aria-label', reload.title);
       }
     }
   }
@@ -36,6 +37,7 @@ export function localBrowser({ inspect } = {}) {
     entries.find(item => item.id === selected)?.button.focus();
   }
   function close(restoreFocus = false) {
+    endDrag();
     for (const entry of entries) entry.panel.remove(); entries = []; tabs.replaceChildren(); root.hidden = true; document.body.classList.remove('local-browser-open');
     if (restoreFocus) {
       const target = origin?.isConnected && !origin.closest('dialog:not([open]), [hidden]') ? origin : document.getElementById('message');
@@ -44,13 +46,46 @@ export function localBrowser({ inspect } = {}) {
     origin = undefined;
   }
   function closeFiles() { for (const entry of [...entries]) if (entry.kind === 'file') remove(entry.id); }
+  function reorder(id, destination) {
+    const index = entries.findIndex(entry => entry.id === id);
+    if (index < 0) return;
+    const next = Math.max(0, Math.min(entries.length - 1, destination));
+    if (index === next) return;
+    const [entry] = entries.splice(index, 1); entries.splice(next, 0, entry);
+    // Move only tab labels. Moving an iframe's DOM node reloads its app.
+    for (const item of entries) tabs.append(item.row);
+    announcement.textContent = entry.title + ', tab ' + (next + 1) + ' of ' + entries.length;
+  }
+  function endDrag() { dragging = undefined; for (const entry of entries) entry.row.classList.remove('tab-dragging', 'tab-drop-before', 'tab-drop-after'); }
   function add(title, key, kind) {
-    if (entries.length === 4) remove(entries[0].id);
     const id = 'preview-' + ++counter, row = element('div', undefined, 'browser-tab');
-    const button = element('button', title, 'quiet'); button.type = 'button'; button.id = id + '-tab'; button.setAttribute('role', 'tab'); button.setAttribute('aria-controls', id); button.title = title;
+    const button = element('button', title, 'quiet'); button.type = 'button'; button.id = id + '-tab'; button.setAttribute('role', 'tab'); button.setAttribute('aria-controls', id); button.title = title + ' · Drag to reorder, or use Alt+Shift+Arrow keys'; button.draggable = true;
     const panel = element('section', undefined, 'browser-panel'); panel.id = id; panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', button.id);
     button.addEventListener('click', () => select(id));
-    button.addEventListener('keydown', event => { if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) { event.preventDefault(); const at = entries.findIndex(item => item.id === id); const next = event.key === 'Home' ? 0 : event.key === 'End' ? entries.length - 1 : (at + (event.key === 'ArrowLeft' ? -1 : 1) + entries.length) % entries.length; select(entries[next].id); entries[next].button.focus(); } });
+    button.addEventListener('keydown', event => {
+      if (event.key === 'Delete') { event.preventDefault(); remove(id); return; }
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault(); const at = entries.findIndex(item => item.id === id);
+      if (event.altKey && event.shiftKey) { reorder(id, event.key === 'Home' ? 0 : event.key === 'End' ? entries.length - 1 : at + (event.key === 'ArrowLeft' ? -1 : 1)); button.focus({preventScroll:true}); button.scrollIntoView?.({block:'nearest',inline:'nearest'}); return; }
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? entries.length - 1 : (at + (event.key === 'ArrowLeft' ? -1 : 1) + entries.length) % entries.length;
+      select(entries[next].id); entries[next].button.focus();
+    });
+    button.addEventListener('dragstart', event => { dragging = id; row.classList.add('tab-dragging'); if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', id); } });
+    button.addEventListener('dragend', endDrag);
+    row.addEventListener('dragover', event => {
+      if (!dragging || dragging === id) return;
+      event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      const before = event.clientX < row.getBoundingClientRect().left + row.getBoundingClientRect().width / 2;
+      row.classList.toggle('tab-drop-before', before); row.classList.toggle('tab-drop-after', !before);
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('tab-drop-before', 'tab-drop-after'));
+    row.addEventListener('drop', event => {
+      if (!dragging) return; event.preventDefault();
+      if (dragging === id) { endDrag(); return; }
+      const from = entries.findIndex(item => item.id === dragging), target = entries.findIndex(item => item.id === id);
+      const after = event.clientX >= row.getBoundingClientRect().left + row.getBoundingClientRect().width / 2;
+      reorder(dragging, target + Number(after) - Number(from < target)); endDrag();
+    });
     row.append(button, tool('Close ' + title, 'x', () => remove(id))); tabs.append(row); frames.append(panel);
     const entry = { id, title, key, kind, row, button, panel, page: 1 }; entries.push(entry); return entry;
   }
@@ -115,7 +150,7 @@ export function localBrowser({ inspect } = {}) {
     document.dispatchEvent(new window.Event('local-app-preview-open'));
     let entry = entries.find(item => item.kind === 'app' && item.url === url);
     if (!entry) {
-      entry = add(new URL(url).host, url, 'app'); entry.url = url; entry.button.title = url; void load(entry);
+      entry = add(new URL(url).host, url, 'app'); entry.url = url; void load(entry);
     }
     reveal(entry, trigger); return true;
   }
@@ -126,6 +161,44 @@ export function localBrowser({ inspect } = {}) {
     Object.assign(entry, { load: read, download, edit }); entry.panel.classList.add('browser-file');
     void load(entry); reveal(entry, trigger, focus);
   }
-  root.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); close(true); } });
-  return {element:root, open, openFile, closeFiles, close};
+  function renderTerminal(entry, task, connected = true) {
+    entry.task = task;
+    const status = !connected ? 'Connection lost · Showing last received output' : task ? (task.engine || 'Agent') + ' · ' + (task.state || 'Waiting') : 'No longer in live activity · Showing last received output';
+    entry.status.textContent = status;
+    if (!task) return;
+    entry.assignment.textContent = task.assignment || ''; entry.assignment.hidden = !task.assignment;
+    entry.error.textContent = task.error || ''; entry.error.hidden = !task.error;
+    const text = task.output || 'Waiting for agent output…';
+    if (entry.log.textContent !== text) {
+      const following = entry.panel.scrollHeight - entry.panel.scrollTop - entry.panel.clientHeight < 32;
+      entry.log.textContent = text;
+      if (following) entry.panel.scrollTop = entry.panel.scrollHeight;
+    }
+  }
+  function terminalStart(task) { return task.started_at && !task.started_at.startsWith('0001-') ? task.started_at : ''; }
+  function terminalKey(task, context) { return JSON.stringify([context, task.id, terminalStart(task)]); }
+  function openTerminal(task, { context, trigger } = {}) {
+    document.dispatchEvent(new window.Event('terminal-preview-open'));
+    const key = terminalKey(task, context);
+    let entry = entries.find(item => item.kind === 'terminal' && item.key === key);
+    if (!entry) {
+      entry = add((task.engine || task.title || 'Agent') + ' output', key, 'terminal'); entry.context = context; entry.taskID = task.id; entry.started = terminalStart(task);
+      entry.panel.classList.add('browser-terminal');
+      entry.status = element('p', '', 'hint'); entry.status.setAttribute('role', 'status');
+      entry.assignment = element('p', '', 'hint'); entry.error = element('p', '', 'issue'); entry.log = element('pre', '', 'terminal-output');
+      entry.panel.append(entry.status, entry.assignment, entry.error, entry.log);
+    }
+    renderTerminal(entry, task); reveal(entry, trigger);
+  }
+  function updateTerminals(tasks = [], { context, connected = true } = {}) {
+    for (const entry of [...entries]) if (entry.kind === 'terminal') {
+      if (entry.context !== context) { remove(entry.id); continue; }
+      const task = tasks.find(task => terminalKey(task, context) === entry.key || !entry.started && task.id === entry.taskID);
+      if (task && !entry.started) { entry.started = terminalStart(task); entry.key = terminalKey(task, context); }
+      renderTerminal(entry, task, connected);
+    }
+  }
+  root.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); remove(selected); } });
+  window.addEventListener('blur', endDrag);
+  return {element:root, open, openFile, openTerminal, updateTerminals, closeFiles, close};
 }

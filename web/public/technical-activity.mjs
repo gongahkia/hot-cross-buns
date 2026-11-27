@@ -19,8 +19,8 @@ export async function checkLocalServer(value, signal, fetcher = fetch) {
   finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
 }
 
-export function technicalActivity({ request, openChat, openServer, checkServer = checkLocalServer }) {
-  const pane = taskInspector({ id: 'technical-activity', title: 'Terminals and servers', iconName: 'terminal', openChat,
+export function technicalActivity({ request, openChat, openServer, openOutput, checkServer = checkLocalServer }) {
+  const pane = taskInspector({ id: 'technical-activity', title: 'Terminals and servers', iconName: 'terminal', openChat, openOutput,
     visibleWhen: () => true, showEmpty: true });
   const servers = element('section', undefined, 'technical-servers');
   servers.setAttribute('aria-label', 'Local servers');

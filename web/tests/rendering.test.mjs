@@ -129,7 +129,7 @@ test('orchestrator catalog opens exact cloud setup and local management without 
   view.element.remove();
 });
 
-test('local app links open on click in bounded split tabs and cannot embed the host or remote sites', () => {
+test('local app links open on click in retained split tabs and cannot embed the host or remote sites', () => {
   document.body.replaceChildren();
   for (const value of ['https://example.com','http://127.0.0.1:4317/','http://localhost:4317/','http://[::1]:3000/','http://localhost.evil.test:3000','http://user:password@localhost:3000','javascript:alert(1)','file:///tmp/app.html']) assert.equal(localAppURL(value),null);
   assert.equal(localAppURL('http://localhost:3000/path'),'http://localhost:3000/path');
@@ -141,9 +141,9 @@ test('local app links open on click in bounded split tabs and cannot embed the h
   const frame=pane.element.querySelector('iframe');assert.equal(frame.getAttribute('sandbox'),'allow-scripts allow-same-origin allow-forms allow-downloads');assert.ok(!frame.sandbox?.contains?.('allow-top-navigation'));
   rendered.querySelector('code a').click();assert.equal(pane.element.querySelectorAll('iframe').length,2);
   pane.open('http://localhost:3000/');assert.equal(pane.element.querySelectorAll('iframe').length,2);
-  for(let port=5000;port<5004;port++)pane.open('http://localhost:'+port);assert.equal(pane.element.querySelectorAll('iframe').length,4);
+  for(let port=5000;port<5004;port++)pane.open('http://localhost:'+port);assert.equal(pane.element.querySelectorAll('iframe').length,6);
   assert.equal(pane.open('https://example.com'),false);
-  pane.element.querySelector('[aria-label="Close preview"]').click();assert.equal(pane.element.querySelector('iframe'),null);assert.equal(document.body.classList.contains('local-browser-open'),false);
+  pane.element.querySelector('[aria-label="Close current tab"]').click();assert.equal(pane.element.querySelectorAll('iframe').length,5);assert.equal(document.body.classList.contains('local-browser-open'),true);pane.close();
   document.removeEventListener('open-local-app',onOpen);
 });
 
@@ -977,8 +977,8 @@ test('filename previews use shared tabs without following URLs or code samples a
  previews.reset('conversation:two');finish({kind:'text',text:'stale private output'});await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(pane.element.hidden,true);assert.doesNotMatch(pane.element.textContent,/stale private output/);
  links[1].click();finish({kind:'text',text:'selected notes',note:'Current workspace file'});await new Promise(resolve=>setTimeout(resolve,0));
- assert.match(pane.element.textContent,/selected notes/);assert.equal(pane.element.getAttribute('aria-label'),'Files and apps');
- pane.element.querySelector('[aria-label="Close preview"]').click();assert.equal(pane.element.hidden,true);
+ assert.match(pane.element.textContent,/selected notes/);assert.equal(pane.element.getAttribute('aria-label'),'Files, terminals and apps');
+ pane.element.querySelector('[aria-label="Close current tab"]').click();assert.equal(pane.element.hidden,true);
 });
 
 test('robot agent panel is conditional, has a distinct identity, and shows literal output', () => {
@@ -1033,6 +1033,56 @@ test('relative Markdown links and inline paths open files while web links remain
   assert.deepEqual(requests[0], {context:'conversation:paths',name:'docs/Project brief.md',page:1,run:'retained-run'});
   assert.equal(article.querySelector('a[href^="https:"]').classList.contains('file-reference'), false);
   refs.reset('conversation:other'); assert.equal(pane.element.hidden, true);
+});
+
+test('mixed sidepane tabs reorder with keyboard and drag, retain content and close independently', async () => {
+  document.body.replaceChildren(); const pane=localBrowser(); document.body.append(pane.element);
+  pane.open('http://localhost:3000'); const frame=pane.element.querySelector('iframe');
+  pane.openFile({key:'a',name:'PROJECT.md',load:async()=>({kind:'text',text:'File A'})});
+  const task={id:'cli-one',engine:'Codex',state:'running',started_at:'2026-11-27T00:00:00Z',output:'first output'};
+  pane.openTerminal(task,{context:'conversation:one'});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  const labels=()=>[...pane.element.querySelectorAll('[role="tab"]')].map(node=>node.textContent);
+  assert.deepEqual(labels(),['localhost:3000','PROJECT.md','Codex output']);
+  const terminal=pane.element.querySelector('[role="tab"][aria-selected="true"]'),log=pane.element.querySelector('.terminal-output');
+  terminal.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowLeft',altKey:true,shiftKey:true,bubbles:true}));
+  assert.deepEqual(labels(),['localhost:3000','Codex output','PROJECT.md']);
+  assert.equal(terminal.getAttribute('aria-selected'),'true');assert.equal(pane.element.querySelector('iframe'),frame);
+  const drag=(node,type,x)=>{const event=new window.Event(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'clientX',{value:x});Object.defineProperty(event,'dataTransfer',{value:{setData(){}}});node.dispatchEvent(event);};
+  drag(terminal,'dragstart',0);drag(pane.element.querySelector('.browser-tab'),'dragover',-1);drag(pane.element.querySelector('.browser-tab'),'drop',-1);
+  assert.deepEqual(labels(),['Codex output','localhost:3000','PROJECT.md']);
+  assert.equal(pane.element.querySelector('.terminal-output'),log);assert.equal(pane.element.querySelector('iframe'),frame);
+  pane.updateTerminals([{...task,output:'first output\n<script>literal output</script>',state:'completed'}],{context:'conversation:one'});
+  assert.equal(pane.element.querySelector('.terminal-output'),log);assert.match(log.textContent,/<script>literal output<\/script>/);assert.equal(pane.element.querySelector('script'),null);
+  assert.match(pane.element.querySelector('.browser-terminal').textContent,/completed/);
+  pane.updateTerminals([],{context:'conversation:one',connected:false});assert.match(pane.element.querySelector('.browser-terminal').textContent,/Connection lost/);
+  pane.element.querySelector('[aria-label="Close PROJECT.md"]').click();assert.deepEqual(labels(),['Codex output','localhost:3000']);
+  pane.element.querySelector('[aria-label="Close current tab"]').click();assert.deepEqual(labels(),['localhost:3000']);assert.equal(pane.element.querySelector('iframe'),frame);
+  for(let i=0;i<5;i++)pane.openFile({key:'file-'+i,name:'note-'+i+'.md',load:async()=>({kind:'text',text:'Retained file'})});
+  assert.equal(labels().length,6,'opening more tabs must not evict earlier tabs');assert.equal(pane.element.querySelector('iframe'),frame);
+  pane.close();await new Promise(resolve=>setTimeout(resolve,0));assert.equal(pane.element.hidden,true);
+});
+
+test('terminal tabs follow queued-to-running activity without accepting replacement runs or other contexts', () => {
+  document.body.replaceChildren();const pane=localBrowser();document.body.append(pane.element);
+  const task={id:'worker',engine:'Pi',state:'queued',started_at:'0001-01-01T00:00:00Z'};
+  pane.openTerminal(task,{context:'conversation:one'});
+  const active={...task,state:'running',started_at:'2026-11-27T00:00:00Z',output:'live output'};
+  pane.updateTerminals([active],{context:'conversation:one'});assert.match(pane.element.querySelector('.terminal-output').textContent,/live output/);
+  pane.updateTerminals([{...active,started_at:'2026-11-27T01:00:00Z',output:'replacement private output'}],{context:'conversation:one'});
+  assert.doesNotMatch(pane.element.textContent,/replacement private output/);assert.match(pane.element.textContent,/No longer in live activity/);
+  pane.updateTerminals([active],{context:'conversation:other'});assert.equal(pane.element.hidden,true);
+});
+
+test('technical activity opens output in a terminal tab instead of embedding logs in the popup', () => {
+  const old=window.HTMLElement.prototype.hidePopover;window.HTMLElement.prototype.hidePopover=function(){};
+  const opened=[],pane=technicalActivity({request:async()=>({servers:[]}),openOutput:(task,trigger)=>opened.push({task,trigger})});
+  document.body.replaceChildren(pane.element);const task={id:'worker',engine:'Pi',title:'cli_pi',state:'running',active:true,output:'literal log'};
+  pane.update([task],{context:'conversation:one',connected:false});
+  assert.equal(pane.element.querySelector('.agent-output'),null);
+  [...pane.element.querySelectorAll('button')].find(button=>button.textContent==='Open terminal output').click();
+  assert.equal(opened[0].task.id,'worker');assert.equal(opened[0].trigger,pane.trigger);
+  window.HTMLElement.prototype.hidePopover=old;
 });
 
 

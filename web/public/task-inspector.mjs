@@ -36,7 +36,7 @@ function observedStep(step, state, rows, owner) {
   return row.item;
 }
 
-export function taskInspector({ openChat, description = '', title: headingText = 'Delegated work', iconName, showEmpty = false, emptyText = 'Nothing delegated right now. Work I hand off will appear here.', id = 'task-inspector', visibleWhen = () => true }) {
+export function taskInspector({ openChat, openOutput, description = '', title: headingText = 'Delegated work', iconName, showEmpty = false, emptyText = 'Nothing delegated right now. Work I hand off will appear here.', id = 'task-inspector', visibleWhen = () => true }) {
   const root = element('aside', undefined, 'task-inspector');
   root.id = id; root.setAttribute('popover', 'auto'); root.setAttribute('aria-labelledby', id + '-title');
   const trigger = element('button', undefined, 'quiet task-trigger'); trigger.type = 'button'; trigger.hidden = true;
@@ -119,7 +119,7 @@ export function taskInspector({ openChat, description = '', title: headingText =
         else if (task.active && connected && task.state === 'running' && !(task.steps || []).some(step => step.state === 'running')) nodes.push(element('p', 'Thinking it through…', 'task-thinking hint'));
         else if (!steps.childNodes.length) nodes.push(element('p', 'No steps recorded yet.', 'hint'));
         if (task.model) nodes.push(element('p', task.model, 'hint'));
-        if (task.output) {
+        if (task.output && !openOutput) {
           let output = row.body.querySelector('.agent-output');
           if (!output) { output = element('details', undefined, 'agent-output'); output.append(element('summary', 'Output'), element('pre')); }
           const log = output.querySelector('pre'); if (log.textContent !== task.output) log.textContent = task.output;
@@ -138,6 +138,10 @@ export function taskInspector({ openChat, description = '', title: headingText =
           const summary = element('details', undefined, 'task-result'); summary.append(element('summary', 'Summary'), element('p', task.summary)); nodes.push(summary);
         }
         const links = element('div', undefined, 'task-links');
+        if (openOutput) {
+          const output = element('button', 'Open terminal output', 'quiet'); output.type = 'button';
+          output.addEventListener('click', () => { root.hidePopover(); openOutput(task, trigger); }); links.append(output);
+        }
         if (task.canOpen && !task.current) links.append(link('Open conversation', task.conversation || task.id));
         if (task.current && task.state === 'waiting') links.append(link('Review task', task.id));
         if (task.parent) links.append(link('Your request', task.parent));

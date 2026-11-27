@@ -695,6 +695,10 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .browser-tabs { display: flex; gap: .35rem; overflow: auto; padding: .45rem .65rem; border-bottom: 1px solid var(--line); }
 .browser-tab { display: flex; align-items: center; flex-shrink: 0; }
 .browser-tab [role="tab"] { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-tab [draggable="true"] { cursor: grab; }
+.browser-tab.tab-dragging { opacity: .5; }
+.browser-tab.tab-drop-before { box-shadow: -2px 0 var(--accent); }
+.browser-tab.tab-drop-after { box-shadow: 2px 0 var(--accent); }
 .browser-tab [role="tab"][aria-selected="true"] { color: var(--accent); background: var(--wash); }
 .browser-toolbar { display: flex; align-items: center; gap: .3rem; padding: .45rem .65rem; }
 .browser-toolbar input { flex: 1; min-width: 0; padding: .3rem .45rem; border: 1px solid var(--line); border-radius: .3rem; background: var(--wash); font-size: .75rem; }
@@ -702,6 +706,8 @@ details[open] > summary > .disclosure-icon { rotate: 90deg; }
 .browser-frames { flex: 1; min-height: 0; }
 .browser-frames iframe { width: 100%; height: 100%; border: 0; background: white; }
 .browser-file { overflow: auto; padding: 1rem; }
+.browser-terminal { overflow: auto; padding: 1rem; }
+.terminal-output { white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
 .browser-file pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .browser-file .preview-actions:empty { display: none; }
 .browser-file .preview-actions { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }

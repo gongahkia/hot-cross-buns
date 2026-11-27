@@ -81,7 +81,9 @@ const filePreviews = fileReferences({ request: body => call({ op: 'file-preview'
 const canvas=canvasWorkspace({request:body=>call({op:'canvas-request',...body})});
 document.body.append(canvas.element);
 document.addEventListener('open-canvas',event=>canvas.open(event.detail,snapshot.context));
-document.addEventListener('local-file-preview-open',()=>{canvas.close();if(dialog.open)dialog.close();showHistory(false);});
+function prepareSidepane() { canvas.close(); if (dialog.open) dialog.close(); showHistory(false); }
+document.addEventListener('local-file-preview-open', prepareSidepane);
+document.addEventListener('terminal-preview-open', prepareSidepane);
 document.addEventListener('open-local-app', event => browser.open(event.detail.url, event.detail.trigger));
 document.addEventListener('local-app-preview-open', () => canvas.close());
 document.addEventListener('open-canvas', () => browser.close());
@@ -100,6 +102,7 @@ $("model-picker").append(icon("chevron"));
 const progress = composerProgress();
 document.querySelector('.composer-wrap').prepend(progress.element);
 const inspector = technicalActivity({ request: () => call({ op: 'technical-activity' }), openChat: openTaskConversation,
+  openOutput: (task, trigger) => browser.openTerminal(task, { context: snapshot.context, trigger }),
   openServer: (url, trigger) => browser.open(url, trigger) });
 document.querySelector('.top-actions').prepend(inspector.trigger);
 document.body.append(inspector.element);
@@ -144,6 +147,7 @@ function renderProgress() {
   const current = candidates.find(task => task.active && task.current) || candidates.find(task => task.active) || candidates.find(task => task.current) || candidates[0];
   progress.update(current, { connected: online });
   inspector.update(snapshot.agents, { connected: online, context: snapshot.context });
+  browser.updateTerminals(snapshot.agents, { connected: online, context: snapshot.context });
   agents.update(snapshot.tasks || [], { connected: online, context: snapshot.context, current: snapshot.state?.conversation_id, primary: snapshot.state?.primary_conversation_id, activity: snapshot.activity });
   scheduled.update(snapshot.scheduled);
 }
