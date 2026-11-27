@@ -318,6 +318,9 @@ turnLoop:
 					continue
 				}
 			}
+			if err := ctx.Err(); err != nil {
+				return Result{Messages: messages, Steps: step}, err
+			}
 			if err := saveCheckpoint("completed", step, nil); err != nil {
 				return Result{Messages: messages, Steps: step}, err
 			}

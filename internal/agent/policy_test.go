@@ -147,3 +147,29 @@ func TestCompletionCheckWithholdsUnverifiedStreamingFinal(t *testing.T) {
 		t.Fatal(err, output)
 	}
 }
+
+func TestInvalidPolicyActionDoesNotEnterTelemetry(t *testing.T) {
+	const secret = "private-invalid-decision"
+	var events []Event
+	_, err := (Runner{Model: &scriptedModel{}}).Run(context.Background(), RunOptions{Task: "work", OnEvent: func(e Event) { events = append(events, e) }, Policies: []PolicyRule{{ID: "host", Check: func(context.Context, PolicyInputValue) (PolicyDecision, error) {
+		return PolicyDecision{Action: PolicyAction(secret)}, nil
+	}}}})
+	raw, _ := json.Marshal(events)
+	if !errors.Is(err, ErrPolicy) || strings.Contains(string(raw), secret) {
+		t.Fatal(err, string(raw))
+	}
+}
+
+func TestCancellationDuringPolicyApprovalCannotPublishCompletion(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result, err := (Runner{Model: &scriptedModel{turns: []Turn{{Text: "done"}}}}).Run(ctx, RunOptions{Task: "work", ApprovePolicy: func(context.Context, string, PolicyInputValue, string) (bool, error) { cancel(); return true, nil }, Policies: []PolicyRule{{ID: "approval", Check: func(_ context.Context, v PolicyInputValue) (PolicyDecision, error) {
+		if v.Stage == PolicyFinal {
+			return PolicyDecision{Action: PolicyApproval}, nil
+		}
+		return PolicyDecision{Action: PolicyAllow}, nil
+	}}}})
+	if !errors.Is(err, context.Canceled) || result.FinalText != "" || result.Completion.Status != "cancelled" {
+		t.Fatal(result, err)
+	}
+}

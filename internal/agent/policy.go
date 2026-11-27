@@ -73,7 +73,13 @@ func evaluatePolicy(ctx context.Context, options RunOptions, value PolicyInputVa
 			return "", err
 		}
 		if options.OnEvent != nil {
-			options.OnEvent(Event{Kind: EventPolicyDecision, At: time.Now(), Outcome: string(decision.Action)})
+			outcome := decision.Action
+			switch outcome {
+			case PolicyAllow, PolicyBlock, PolicyApproval, PolicyRedact, PolicyVerify:
+			default:
+				outcome = "invalid"
+			}
+			options.OnEvent(Event{Kind: EventPolicyDecision, At: time.Now(), Outcome: string(outcome)})
 		}
 		switch decision.Action {
 		case PolicyAllow:
@@ -84,6 +90,9 @@ func evaluatePolicy(ctx context.Context, options RunOptions, value PolicyInputVa
 				return "", fmt.Errorf("%w: approval unavailable for %s", ErrPolicy, rule.ID)
 			}
 			approved, err := options.ApprovePolicy(ctx, rule.ID, value, decision.Reason)
+			if contextErr := ctx.Err(); contextErr != nil {
+				return "", contextErr
+			}
 			if err != nil {
 				return "", err
 			}
