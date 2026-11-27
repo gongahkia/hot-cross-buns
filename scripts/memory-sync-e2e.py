@@ -39,7 +39,12 @@ def start(p):
  wait_for(lambda:api(p,'/rest/system/status'))
 def stop(p):
  child=p.get('process')
- if child and child.poll() is None:child.terminate();child.wait(timeout=10)
+ terminate(child)
+def terminate(child):
+ if child and child.poll() is None:
+  child.terminate()
+  try:child.wait(timeout=15)
+  except subprocess.TimeoutExpired:child.kill();child.wait(timeout=5)
 def cli(p,args,input=None):
  env=dict(os.environ,HOT_CROSS_BUNS_INTERNAL_COMMANDS='1',HOT_CROSS_BUNS_STATE_DIR=str(p['state']),HOT_CROSS_BUNS_CONFIG_DIR=str(p['config']))
  result=subprocess.run([str(runtime)]+args,input=json.dumps(input) if input is not None else None,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,timeout=35)
@@ -85,7 +90,7 @@ try:
  wait_for(packet)
  wait_for(lambda:'casual and concise' in cli(b,['memory','list']))
  received=json.loads(cli(b,['memory','sync','status']))
- print('Automatic import and recall on the second profile passed.',flush=True)
+ print('Automatic import and stored-memory listing on the second profile passed; model recall is not exercised.',flush=True)
  assert 'casual and concise' in cli(b,['memory','list']),'memory did not import on the second device'
  wait_for(lambda:list((a['folder']/'hcb-memory-profile'/'receipts').glob('*.json')) and len(list((a['folder']/'hcb-memory-profile'/'receipts').glob('*.json')))>=2)
  def imported_receipt():
@@ -106,6 +111,9 @@ try:
  outcome={'syncthing':subprocess.check_output([str(binary),'--version'],text=True).splitlines()[0],'profiles':2,'imported_preference':True,'import_receipt_confirmed':True,'offline_delivery_reported_pending':True,'offline_catch_up_imported':True,'automatic_import_verified':True,'fixture_directory':str(base),'first_publish':first['report']['published'],'first_import':received['report']['imported']}
  (artifacts/'memory-sync-e2e-result.json').write_text(json.dumps(outcome,indent=2));print(json.dumps(outcome))
 finally:
- for child in supervisors:
-  if child.poll() is None:child.terminate();child.wait(timeout=15)
- for p in profiles:stop(p)
+ # Attempt cleanup for every owned child even if another process fails to stop.
+ failures=[]
+ for child in supervisors+processes:
+  try:terminate(child)
+  except (OSError,subprocess.TimeoutExpired) as error:failures.append(str(error))
+ if failures:print('Cleanup issues: '+'; '.join(failures),file=sys.stderr)
