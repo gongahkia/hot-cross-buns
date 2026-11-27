@@ -267,3 +267,18 @@ func TestInlineWorkRequiresItsOwnCapacityAndCannotBypassPlanning(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutingTitlesAreBoundedDisplayMetadataForNewTasksOnly(t *testing.T) {
+	request := ConversationRequest{Text: "Research the Meiji Restoration", CanStart: true, CanWork: true}
+	for _, kind := range []string{"task", "plan"} {
+		decision, err := RouteConversation(context.Background(), &conversationModel{turn: agent.Turn{Text: `{"kind":"` + kind + `","title":"Meiji Restoration research"}`}}, request)
+		if err != nil || decision.Title != "Meiji Restoration research" {
+			t.Fatal("lost generated title", err)
+		}
+	}
+	for _, output := range []string{`{"kind":"work","title":"Do this"}`, `{"kind":"reply","text":"An explanation","title":"Topic"}`, `{"kind":"task","title":"Two\nlines"}`} {
+		if _, err := RouteConversation(context.Background(), &conversationModel{turn: agent.Turn{Text: output}}, request); !errors.Is(err, ErrConversationDecision) {
+			t.Fatal("accepted invalid title metadata", output, err)
+		}
+	}
+}

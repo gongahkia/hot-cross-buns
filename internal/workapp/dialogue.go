@@ -266,7 +266,7 @@ func (m Model) conversationTasks() []workrun.ConversationTask {
 			if err != nil || turn.TaskChat != peer.ConversationID {
 				continue
 			}
-			tasks = append(tasks, workrun.ConversationTask{NeedsInspection: peer.NeedsInspection, ID: peer.ConversationID, Title: boundedConversation(turn.Text, 256), State: peer.State, Summary: boundedConversation(peer.Summary, 2048), CanGuide: peer.CanGuide && peer.RunID != "", CanStop: peer.CanStop && peer.RunID != "", CanRevisePlan: peer.CanRevisePlan && peer.RunID != "", CanReviewInputs: peer.CanReviewInputs && peer.RunID != "", ControlID: peer.RunID, PreparationControlID: peer.PreparationControlID, CanCorrectAction: peer.CanCorrectAction && peer.ReviewControlID != "", ReviewControlID: peer.ReviewControlID})
+			tasks = append(tasks, workrun.ConversationTask{NeedsInspection: peer.NeedsInspection, ID: peer.ConversationID, Title: m.taskDisplayTitle(peer.ConversationID, turn.Text), State: peer.State, Summary: boundedConversation(peer.Summary, 2048), CanGuide: peer.CanGuide && peer.RunID != "", CanStop: peer.CanStop && peer.RunID != "", CanRevisePlan: peer.CanRevisePlan && peer.RunID != "", CanReviewInputs: peer.CanReviewInputs && peer.RunID != "", ControlID: peer.RunID, PreparationControlID: peer.PreparationControlID, CanCorrectAction: peer.CanCorrectAction && peer.ReviewControlID != "", ReviewControlID: peer.ReviewControlID})
 			seen[peer.ConversationID] = true
 		}
 	}
@@ -286,7 +286,7 @@ func (m Model) conversationTasks() []workrun.ConversationTask {
 		if err != nil || current.TaskChat != peer.ConversationID {
 			continue
 		}
-		tasks = append(tasks, workrun.ConversationTask{NeedsInspection: peer.NeedsInspection, ID: peer.ConversationID, Title: boundedConversation(current.Text, 256), State: peer.State, Summary: boundedConversation(peer.Summary, 2048), CanContinue: peer.State == "completed"})
+		tasks = append(tasks, workrun.ConversationTask{NeedsInspection: peer.NeedsInspection, ID: peer.ConversationID, Title: m.taskDisplayTitle(peer.ConversationID, current.Text), State: peer.State, Summary: boundedConversation(peer.Summary, 2048), CanContinue: peer.State == "completed"})
 		seen[peer.ConversationID] = true
 	}
 	return tasks
@@ -678,4 +678,13 @@ func (m Model) canQuickAcknowledge(request BridgeUploadSubmission, text string) 
 	options := m.submissionOptions()
 	_, ok := workrun.QuickAcknowledgement(workrun.ConversationRequest{Text: text, Recent: m.conversationRecent(), Tasks: m.conversationTasks(), HasFiles: len(request.Files) > 0 || len(options.Attachments) > 0 || request.ReplyToUpdateID != "" || request.ReplyToTaskID != "", PlanFirst: request.PlanFirst, AcknowledgementBlocked: options.RefreshSource || m.acknowledgementBlocked()})
 	return m.conversationAvailable() && ok
+}
+
+func (m Model) taskDisplayTitle(id, fallback string) string {
+	if m.config.SessionStore != nil {
+		if chat, err := m.config.SessionStore.Load(id); err == nil && chat.Title != "" && chat.Title != "New chat" {
+			return boundedConversation(chat.Title, 256)
+		}
+	}
+	return boundedConversation(fallback, 256)
 }

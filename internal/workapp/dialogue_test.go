@@ -451,3 +451,48 @@ func TestRelatedFollowupReusesTaskAndKeepsEarlierResults(t *testing.T) {
 		t.Fatal("unrelated parent accepted")
 	}
 }
+
+func TestTaskTopicTitleReachesBreadcrumbChildAndFutureRouterContext(t *testing.T) {
+	config, store := dialogueConfig(t)
+	config.RouteConversation = func(context.Context, workrun.ConversationRequest, ConversationInput) (workrun.ConversationDecision, error) {
+		return workrun.ConversationDecision{Kind: "task", Title: "Meiji Restoration research"}, nil
+	}
+	m := New(config).ConfigureDialogueHost(DialogueHost{CanStart: true})
+	m.primary = true
+	original := "Research Japanese modernization using several sources and compare historians."
+	m, route := dialogueSubmit(t, m, "topic-summary-task-0001", original)
+	m = routeDialogue(t, m, route)
+	dispatch := *m.dialogueDispatch
+	if state := m.BridgeState(); len(state.Dialogue) != 1 || state.Dialogue[0].TaskTitle != "Meiji Restoration research" || state.Dialogue[0].Text != original {
+		t.Fatal("breadcrumb lost title or original request")
+	}
+	childConfig := config
+	childConfig.StartConversationID = dispatch.ChildID
+	child := New(childConfig)
+	if child.BridgeState().Title != "Meiji Restoration research" {
+		t.Fatal("child heading has a different title")
+	}
+	next, run := child.BootstrapDialogue(m.conversation, dispatch.TurnID)
+	child = next.(Model)
+	if run == nil || child.dialogueBootstrapResult.Error != "" {
+		t.Fatal("named task failed admission", child.dialogueBootstrapResult)
+	}
+	if child.requests.Requests[0].Text != original {
+		t.Fatal("execution used title as the task")
+	}
+	m = m.ConfigureDialogueHost(DialogueHost{CanStart: true, Peers: []DialoguePeer{child.dialogueTaskState().DialoguePeer}})
+	tasks := m.conversationTasks()
+	if len(tasks) != 1 || tasks[0].Title != "Meiji Restoration research" {
+		t.Fatal("follow-up router still received the full pasted request", tasks)
+	}
+	renamed, err := store.Load(dispatch.ChildID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.OrganizeConversation(worksession.ConversationChange{ID: renamed.ID, Version: worksession.ConversationDisplayVersion(renamed), Action: "rename", Title: "Japan modernization research"}); err != nil {
+		t.Fatal(err)
+	}
+	if m.dialogueMessages()[0].TaskTitle != "Japan modernization research" || m.conversationTasks()[0].Title != "Japan modernization research" {
+		t.Fatal("canonical rename did not reach parent titles")
+	}
+}

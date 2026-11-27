@@ -59,7 +59,7 @@ func (s Store) ForkDialogueOnce(parent, turnID string, expected uint64, request 
 	if len(seed.dialogue) == 0 || seed.dialogue[len(seed.dialogue)-1].ID != turnID || seed.dialogue[len(seed.dialogue)-1].Revision != expected {
 		return Conversation{}, errors.New("selected dialogue boundary is unavailable")
 	}
-	return s.createChatOnce(c.SourcePath, request, now, seed)
+	return s.createChatOnce(c.SourcePath, request, now, seed, "")
 }
 
 func (s Store) seedDialogue(seed *forkSeed, parent string, before uint64, boundary time.Time) error {

@@ -31,11 +31,11 @@ type chatCreation struct {
 // Publish a complete directory only after saving its receipt: a missing published
 // directory is never recreated after deletion. No source capture or work runs.
 func (s Store) CreateChatOnce(source, requestID string, now time.Time) (Conversation, error) {
-	return s.createChatOnce(source, requestID, now, nil)
+	return s.createChatOnce(source, requestID, now, nil, "")
 }
 
-func (s Store) createChatOnce(source, requestID string, now time.Time, fork *forkSeed) (Conversation, error) {
-	if !creationIdentity.MatchString(requestID) || !filepath.IsAbs(source) {
+func (s Store) createChatOnce(source, requestID string, now time.Time, fork *forkSeed, title string) (Conversation, error) {
+	if !creationIdentity.MatchString(requestID) || !filepath.IsAbs(source) || title != "" && !ValidTaskTitle(title) {
 		return Conversation{}, errors.New("invalid new-chat request")
 	}
 	root, err := os.OpenRoot(s.root)
@@ -64,6 +64,9 @@ func (s Store) createChatOnce(source, requestID string, now time.Time, fork *for
 			binding += "\x00dialogue\x00" + fork.info.ParentTurnID
 		}
 	}
+	if title != "" {
+		binding += "\x00task-title\x00" + title
+	}
 	sourceSum := sha256.Sum256([]byte(binding))
 	sourceHash := hex.EncodeToString(sourceSum[:])
 	receiptPath, stage := filepath.Join(".creations", key+".json"), filepath.Join(".creations", "stage-"+key)
@@ -86,6 +89,9 @@ func (s Store) createChatOnce(source, requestID string, now time.Time, fork *for
 	// Keep the durable retry receipt free of source paths and conversation text.
 	// The source is supplied by the configured host and checked against its digest.
 	c := Conversation{Version: Version, ID: receipt.ConversationID, Title: "New chat", SourcePath: source, CreatedAt: receipt.CreatedAt, UpdatedAt: receipt.CreatedAt}
+	if title != "" {
+		c.Title = title
+	}
 	if !receipt.Publishing {
 		if _, err := root.Lstat(c.ID); !errors.Is(err, os.ErrNotExist) {
 			return Conversation{}, errors.New("new-chat identity already exists")

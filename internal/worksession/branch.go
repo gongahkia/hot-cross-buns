@@ -64,7 +64,7 @@ func (s Store) ForkChatOnce(parent, revision, run, requestID string, now time.Ti
 	if err := s.seedDialogue(seed, parent, 0, selected.CreatedAt); err != nil {
 		return Conversation{}, err
 	}
-	return s.createChatOnce(c.SourcePath, requestID, now, seed)
+	return s.createChatOnce(c.SourcePath, requestID, now, seed, "")
 }
 
 func (s Store) revisionForkSeed(parent, revision string, turns []Revision) (*forkSeed, error) {

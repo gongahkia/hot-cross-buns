@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
@@ -28,6 +29,7 @@ func TestLiveRelatedTaskRouting(t *testing.T) {
 		{"2025 Iran war", "Researched the June 2025 war, its chronology and ceasefire.", "What about US intervention in that war?", "continue"},
 		{"Tokyo trip", "Compared accommodation and transport for a five-day Tokyo trip.", "Can you look into hotels near Shinjuku for that trip too?", "continue"},
 		{"2025 Iran war", "Researched the June 2025 war.", "Find my local Dockerfiles.", "work"},
+		{"Meiji", "", "Research the Meiji Restoration using multiple sources and compare historians’ interpretations.", "task"},
 		{"Preferences", "", "I prefer casual, concise replies. Please remember that.", "work"},
 		{"Research", "", "Research local-first personal assistants thoroughly, compare their capabilities and write a detailed report with sources.", "task"},
 	} {
@@ -40,6 +42,15 @@ func TestLiveRelatedTaskRouting(t *testing.T) {
 			decision, err := workrun.RouteConversation(context.Background(), backend, request)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.want == "task" && (decision.Title == "" || decision.Title == tc.message) {
+				t.Fatal("task lacks a descriptive topic title", decision.Title)
+			}
+			if tc.title == "Meiji" && !strings.Contains(strings.ToLower(decision.Title), "meiji") {
+				t.Fatal("title lost its topic", decision.Title)
+			}
+			if decision.Title != "" {
+				t.Logf("Generated title: %s", decision.Title)
 			}
 			if decision.Kind != tc.want || tc.want == "continue" && decision.Target != "research-task" {
 				t.Fatalf("expected %s: %+v", tc.want, decision)

@@ -75,10 +75,18 @@ func (s Store) ReadDialogue(conversation, id string) (DialogueTurn, error) {
 
 func dialogueTaskDecision(data json.RawMessage) bool {
 	var value map[string]json.RawMessage
-	if json.Unmarshal(data, &value) != nil || len(value) != 1 {
+	if json.Unmarshal(data, &value) != nil || len(value) < 1 || len(value) > 2 {
 		return false
 	}
-	var kind string
+	for key := range value {
+		if key != "kind" && key != "title" {
+			return false
+		}
+	}
+	var kind, title string
+	if raw, ok := value["title"]; ok && (json.Unmarshal(raw, &title) != nil || !ValidTaskTitle(title)) {
+		return false
+	}
 	return json.Unmarshal(value["kind"], &kind) == nil && (kind == "task" || kind == "plan")
 }
 
@@ -173,7 +181,11 @@ func (s Store) BindDialogueTask(conversation, id, expectedSource string, expecte
 	if now.Before(turn.UpdatedAt) {
 		now = turn.UpdatedAt
 	}
-	child, err := s.CreateChatOnce(parent.SourcePath, taskCreationKey(parent.ID, turn.ID), now)
+	var decision struct {
+		Title string `json:"title"`
+	}
+	_ = json.Unmarshal(turn.Decision, &decision)
+	child, err := s.createChatOnce(parent.SourcePath, taskCreationKey(parent.ID, turn.ID), now, nil, decision.Title)
 	if err != nil {
 		return turn, child, false, err
 	}
