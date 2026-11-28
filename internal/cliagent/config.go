@@ -134,6 +134,11 @@ func (c Config) Arguments(edit bool) []string {
 		if c.Model != "" {
 			args = append(args, "--model", c.Model)
 		}
+		if c.LiveFiles != nil {
+			for _, path := range c.LiveFiles.Read {
+				args = append(args, "--add-dir", path)
+			}
+		}
 		return args
 	case "claude":
 		tools := "Read,Glob,Grep"

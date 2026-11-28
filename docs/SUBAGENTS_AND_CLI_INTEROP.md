@@ -180,6 +180,14 @@ It does not inherit hidden native conversation state. See the
 [23 November live verification](verification/orchestration-2026-11-23.md) for
 versions, results and the Codex/Gemini blockers.
 
+Copilot receives each host-approved live read directory through `--add-dir`,
+in addition to the outer sandbox mount. Its read/edit tools remain bounded;
+shell execution is still disabled. The specialist catalogue describes these
+limits. Assign command-based setup diagnostics to an enabled `cli_codex`.
+An installed executable alone does not enable that adapter. After a failure,
+the manager should inspect actual findings, avoid retrying an unchanged blocked
+adapter, and use a configured alternative when the user authorized fallback.
+
 ## Use from Hot Cross Buns
 
 Enabled adapters appear as `cli_codex`, `cli_claude`, `cli_pi`, `cli_opencode`,

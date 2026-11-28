@@ -1,9 +1,10 @@
 import { element } from './text.mjs';
 import { icon } from './icons.mjs';
 
-export function workspaceView({ source = '', request, selected }) {
+export function workspaceView({ source = '', request, selected, navigation }) {
   const root = element('section', undefined, 'workspace-view');
-  root.append(element('p', 'Work reads a snapshot of this folder. Choosing a different folder opens a separate chat; your existing conversation, draft, and background work keep their workspace.', 'hint'));
+  root.append(element('p', navigation ? 'Search root: '+navigation.root+'. Choose a working folder without leaving this chat. File access still uses your existing permissions.' : 'Work reads a snapshot of this folder. Choosing a different folder opens a separate chat; your existing conversation, draft, and background work keep their workspace.', 'hint'));
+  if(navigation?.recent_folders?.length){const recent=element('div',undefined,'workspace-folders');recent.setAttribute('aria-label','Recent folders');for(const item of navigation.recent_folders.slice(0,10)){const choice=element('button',item.path,'quiet');choice.type='button';choice.addEventListener('click',()=>void run('workspace-select',item.path));recent.append(choice)}root.append(recent);}
   const form = element('form'), label = element('label', 'Folder');
   const path = element('input'); path.value = source; path.required = true; path.setAttribute('aria-label', 'Workspace folder'); path.autocomplete = 'off'; label.append(path);
   const browse = element('button', 'Browse', 'quiet'); browse.type = 'submit'; browse.prepend(icon('folder-search'));

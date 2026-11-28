@@ -91,7 +91,7 @@ func TestConnectorAccessCheckUsesTheConfiguredAtlassianProduct(t *testing.T) {
 	}
 }
 
-func TestConnectorTestInvocationUsesMappedRemoteMCPReadOperation(t *testing.T) {
+func TestConnectorTestInvocationDiscoversRemoteMCPWithoutCallingTools(t *testing.T) {
 	tests := []struct {
 		name       string
 		descriptor connector.Descriptor
@@ -103,7 +103,7 @@ func TestConnectorTestInvocationUsesMappedRemoteMCPReadOperation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			operation, input := connectorTestInvocation(test.descriptor)
-			if operation != test.operation || string(input) != `{"arguments":{}}` {
+			if operation != "status" || string(input) != `{}` {
 				t.Fatalf("invocation = %q, %s", operation, input)
 			}
 		})

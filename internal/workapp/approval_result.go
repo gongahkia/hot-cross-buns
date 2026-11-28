@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/mcpaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workrun"
@@ -28,6 +29,26 @@ func approvalMessage(interaction workrun.Interaction) message {
 		},
 	}
 
+	var mcpRead struct {
+		Kind       string              `json:"kind"`
+		Connection workrun.MCPIdentity `json:"connection"`
+		Tool       string              `json:"tool"`
+		Arguments  json.RawMessage     `json:"arguments"`
+	}
+	if interaction.Kind == "app_change" && json.Unmarshal(preview, &mcpRead) == nil && mcpRead.Kind == "mcp_read" {
+		result.result.Title = "Read from " + mcpRead.Connection.Server
+		result.result.Summary = "Allow this MCP tool call once."
+		result.result.Fields = []uisnapshot.Field{{Label: "Server", Value: mcpRead.Connection.Server}, {Label: "Tool", Value: mcpRead.Tool}, {Label: "Project", Value: mcpRead.Connection.Repository}, {Label: "Arguments", Value: string(mcpRead.Arguments)}}
+		result.result.Preview = nil
+		result.result.Footer = "The server declares this tool read-only. Review its purpose and arguments; this grants no later calls."
+	}
+	if review, ok := interaction.Preview.(mcpaccess.Review); ok && interaction.Kind == "mcp_call" {
+		result.result.Title = "Allow MCP call: " + review.Connection.Server
+		result.result.Summary = "Allow this call once, or always allow all tools and actions from this trusted MCP server."
+		result.result.Preview = nil
+		result.result.Fields = []uisnapshot.Field{{Label: "Server", Value: review.Connection.Server}, {Label: "Tool", Value: review.Tool}, {Label: "Project", Value: review.Connection.Repository}, {Label: "Arguments", Value: string(review.Arguments)}}
+		result.result.Footer = "Always allow includes reads and actions from this exact server in this project until revoked in Settings → Permissions. Changed configuration or executable needs fresh approval. Task mode, access boundaries and action receipts still apply."
+	}
 	var consolidation struct {
 		Setting, Action, Effect string
 		Title                   string `json:"proposed_title"`

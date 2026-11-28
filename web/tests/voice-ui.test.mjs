@@ -37,6 +37,7 @@ function fixture({ enabled = false } = {}) {
 
 test('transcription is off by default; setup lives in Settings and enabling never opens a microphone', async () => {
   const { view, calls, captured } = fixture(); await turn();
+  assert.equal(view.trigger.hidden, true);
   assert.equal(view.trigger.disabled, true);
   assert.match(view.trigger.title, /Settings → Voice models/);
   assert.equal(view.settings.hasAttribute('popover'), false);
@@ -45,12 +46,18 @@ test('transcription is off by default; setup lives in Settings and enabling neve
   view.trigger.click(); await turn(); assert.equal(captured(), 0);
   const toggle = view.settings.querySelector('#voice-enabled'); toggle.checked = true; toggle.dispatchEvent(new dom.window.Event('change')); await turn();
   assert.deepEqual(calls.find(call => call.action === 'configure').preferences, { enabled: true, provider: 'whisper-local', model: 'base' });
+  assert.equal(view.trigger.hidden, false);
   assert.equal(view.trigger.disabled, false); assert.equal(captured(), 0);
+  toggle.checked = false; toggle.dispatchEvent(new dom.window.Event('change')); await turn();
+  assert.equal(view.trigger.hidden, true);
   assert.doesNotMatch(JSON.stringify(calls), /api_key|OPENAI_API_KEY/);
 });
 
 test('composer microphone starts directly, meters real capture levels and finishes into an unsent draft', async () => {
-  const { view, calls, captured, appended, submitted } = fixture({ enabled: true }); await turn();
+  const { view, calls, captured, appended, submitted } = fixture({ enabled: true });
+  assert.equal(view.trigger.hidden, true);
+  await turn();
+  assert.equal(view.trigger.hidden, false);
   view.trigger.click(); await turn(); await turn();
   assert.equal(captured(), 1); assert.equal(view.bar.hidden, false);
   assert.equal(view.bar.dataset.phase, 'recording'); assert.equal(view.trigger.getAttribute('aria-label'), 'Finish transcription');

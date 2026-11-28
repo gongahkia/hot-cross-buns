@@ -84,7 +84,7 @@ func TestPublicResearchWaitsForBoundForegroundReviewAndRetainsFetchedEvidence(t 
 		t.Fatal("review evidence not retained", record, err)
 	}
 	// An explicit continuation can retain old evidence but never its grant.
-	nextModel := &scriptedModel{turns: []agent.Turn{dynamicCall("http_fetch", map[string]any{"url": "https://other.invalid/new"}), {Text: "New web access needs review."}}}
+	nextModel := &scriptedModel{turns: []agent.Turn{dynamicCall("http_fetch", map[string]any{"url": "https://other.invalid/new"}), {Text: "New web access needs review."}, {Text: "No current grant permits this read; fresh user review is required."}}}
 	second, err := (Executor{Model: nextModel, StateDir: state, HTTP: service.Executor.HTTP}).Execute(ctx, Request{SourcePath: source, ConversationID: out.ConversationID, ParentRevisionID: out.RevisionID, Objective: "Check again without a new grant", Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 3, DisableBrowser: true, ForegroundApp: true, ApproveWebAccess: func(context.Context, WebAccessReview) (bool, error) {
 		t.Error("direct read unexpectedly acquired consent")
 		return false, nil
@@ -226,6 +226,7 @@ func TestManagerAndDynamicResearcherShareSearchCapacity(t *testing.T) {
 		dynamicCall("await_agent", map[string]any{"id": "subagent-001", "timeout_seconds": 5}),
 		dynamicCall("web_search", map[string]any{"query": "another primary source"}),
 		{Text: "No additional search capacity remains."},
+		{Text: "The shared search budget is exhausted; no further search is permitted."},
 	}}
 	out, err := (Executor{Model: manager, RoleModels: map[string]agent.Model{"connected_researcher": child}, StateDir: t.TempDir(), HTTP: tools.HTTPFetchOptions{Client: http, Resolver: researchResolver{}, BraveSearchAPIKey: "fixture"}}).Execute(context.Background(), Request{SourcePath: t.TempDir(), Objective: "Use a research specialist", Mode: action.Inspect, Contract: artifact.InspectionContract(), MaxSteps: 6, ForegroundApp: true, ApproveWebAccess: func(context.Context, WebAccessReview) (bool, error) { return true, nil }, DisableBrowser: true})
 	if err != nil || http.calls != 8 || len(out.Manifest.Subagents) != 1 || out.Manifest.Research.Searches != 8 || out.Manifest.Research.Requests != 8 {
@@ -236,7 +237,13 @@ func TestManagerAndDynamicResearcherShareSearchCapacity(t *testing.T) {
 			t.Fatal("worker gained authority to request new grants")
 		}
 	}
-	if !strings.Contains(manager.requests[len(manager.requests)-1].Messages[len(manager.requests[len(manager.requests)-1].Messages)-1].Content, "budget exhausted") {
+	lastSearchResult := ""
+	for _, message := range manager.requests[len(manager.requests)-1].Messages {
+		if message.Role == agent.RoleTool && message.ToolName == "web_search" {
+			lastSearchResult = message.Content
+		}
+	}
+	if !strings.Contains(lastSearchResult, "budget exhausted") {
 		t.Fatal("manager did not observe child's exhausted shared budget")
 	}
 }

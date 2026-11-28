@@ -127,7 +127,7 @@ export function localBrowser({ inspect } = {}) {
         if (entry.edit && view.kind === 'text' && !view.truncated) {
           const edit = element('button', 'Open in Canvas', 'quiet'); edit.type = 'button'; edit.onclick = () => entry.edit(view); tools.append(edit);
         }
-        entry.panel.replaceChildren(tools, previewContent(view));
+        entry.panel.replaceChildren(tools, entry.prepare ? entry.prepare(view) : previewContent(view));
       } catch (error) {
         if (!entries.includes(entry) || entry.generation !== generation) return;
         const message = element('p', error.message || 'The file could not be loaded. Reload to try again.', 'issue'); message.setAttribute('role', 'alert'); entry.panel.replaceChildren(message);
@@ -154,11 +154,11 @@ export function localBrowser({ inspect } = {}) {
     }
     reveal(entry, trigger); return true;
   }
-  function openFile({ key, name, load: read, download, edit, trigger, focus = true }) {
+  function openFile({ key, name, load: read, download, edit, prepare, trigger, focus = true }) {
     document.dispatchEvent(new window.Event('local-file-preview-open'));
     let entry = entries.find(item => item.kind === 'file' && item.key === key);
     if (!entry) entry = add(name, key, 'file');
-    Object.assign(entry, { load: read, download, edit }); entry.panel.classList.add('browser-file');
+    Object.assign(entry, { load: read, download, edit, prepare }); entry.panel.classList.add('browser-file');
     void load(entry); reveal(entry, trigger, focus);
   }
   function renderTerminal(entry, task, connected = true) {

@@ -40,8 +40,9 @@
   "dependencies": {
     "@napi-rs/canvas": "1.0.13",
     "@xmldom/xmldom": "0.9.12",
+    "classic-level": "3.0.0",
     "fflate": "0.8.3",
-    "pdfjs-dist": "6.4.299",
-    "classic-level": "3.0.0"
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.4.299"
   }
 }

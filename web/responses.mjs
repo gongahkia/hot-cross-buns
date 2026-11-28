@@ -27,9 +27,18 @@ export function responseRecords(state = {}) {
     records.push({ id: 'dialogue:' + turn.id + ':response', message_id: 'dialogue:' + turn.id + ':response', digest: hash(turn.response), text: turn.response,
       boundary: { turn_id: turn.id, turn_revision: turn.revision } });
   }
+  for (const [index, message] of (state.messages || []).entries()) {
+    if (message.role !== 'You' || !message.text) continue;
+    const message_id = 'message:' + (message.revision_id || message.run_id || message.created_at || '') + ':' + index;
+    records.push({ id: 'user:' + hash(message_id + message.text), message_id, digest: hash(message.text), text: message.text, role: 'user', boundary: null });
+  }
+  for (const turn of state.dialogue || []) {
+    if (!turn.text) continue;
+    records.push({ id: 'dialogue:' + turn.id + ':user', message_id: 'dialogue:' + turn.id + ':user', digest: hash(turn.text), text: turn.text, role: 'user', boundary: null });
+  }
   return records;
 }
-export function responseReferences(state) { return responseRecords(state).map(({id,message_id,digest,boundary})=>({id,message_id,digest,can_fork:!!boundary})); }
+export function responseReferences(state) { return responseRecords(state).map(({id,message_id,digest,boundary,role})=>({id,message_id,digest,role:role || 'assistant',can_fork:!!boundary})); }
 export function selectedResponse(state, id, digest) {
   const response = responseRecords(state).find(value => value.id === id && value.digest === digest);
   if (!response) throw new Error('This response changed or is no longer loaded. Return to it and select it again.');
@@ -38,7 +47,7 @@ export function selectedResponse(state, id, digest) {
 export function quoteResponse(response, selected) {
   const plain = decode(plainTokens(marked.lexer(response.text))).trim() || response.text;
   const text = selected === undefined ? Array.from(plain.trim()).slice(0,1200).join('') : selected;
-  const quote = { id: response.id, digest: response.digest, text };
+  const quote = { id: response.id, digest: response.digest, text, ...(response.role === 'user' ? { role: 'user' } : {}) };
   if (!validResponseQuote(quote) || !normalize(text) || ![plain,response.text].some(value => normalize(value).includes(normalize(text)))) throw new Error('Choose a shorter text selection within one response.');
   return quote;
 }

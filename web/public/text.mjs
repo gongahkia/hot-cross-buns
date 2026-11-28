@@ -303,8 +303,7 @@ export function turn(text, user, name, options) {
   const article = element("article", undefined, user ? "turn user" : "turn");
   article.setAttribute("aria-label", name);
   if (text) {
-    if (user) article.append(element("p", text));
-    else { const content=element("div",undefined,"response-content");content.append(prose(text,options));article.append(content); }
+    const content=element("div",undefined,"response-content");content.append(prose(text,options));article.append(content);
   }
   if (text && !user) article.append(responseCopy(() => text));
   return article;

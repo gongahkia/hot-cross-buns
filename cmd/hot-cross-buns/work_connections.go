@@ -53,7 +53,7 @@ func (c *connectionControls) call(ctx context.Context, operation string, args []
 	}
 	switch operation {
 	case "status", "select":
-	case "add-slack", "add-notion", "add-atlassian", "add-json", "add-github", "add-gitlab":
+	case "add-microsoft365", "add-linear", "add-todoist", "add-dropbox", "add-mcp", "add-slack", "add-notion", "add-atlassian", "add-json", "add-github", "add-gitlab":
 		d, err := serviceConnectionDescriptor(operation, args)
 		if err != nil {
 			return workapp.ControlScreen{}, err
@@ -61,7 +61,7 @@ func (c *connectionControls) call(ctx context.Context, operation string, args []
 		if err := addNativeConnection(d); err != nil {
 			return workapp.ControlScreen{}, err
 		}
-		id, notice = d.ID, "Connection added. Set its access token, then check access."
+		id, notice = d.ID, "Connection added. Complete authentication, check access and select it for your chat."
 	case "add-google", "add-google-bundled":
 		if operation == "add-google-bundled" {
 			if !bundledGoogleAvailable() || len(args) != 2 {
@@ -82,8 +82,8 @@ func (c *connectionControls) call(ctx context.Context, operation string, args []
 			return workapp.ControlScreen{}, errors.New("provide a connection ID, display name, service and resource URL")
 		}
 		d := connector.Descriptor{Version: connector.DescriptorVersion, ID: strings.TrimSpace(args[0]), Name: strings.TrimSpace(args[1]), Kind: strings.TrimSpace(args[2]), Resource: strings.TrimSpace(args[3]), Authentication: connector.AuthBearer}
-		if !slices.Contains([]string{connector.KindHTTPJSON, connector.KindSlack, connector.KindNotion, connector.KindAtlassian, connector.KindGitHub, connector.KindGitLab}, d.Kind) {
-			return workapp.ControlScreen{}, errors.New("choose http_json, slack, notion, atlassian, github or gitlab")
+		if !slices.Contains([]string{connector.KindHTTPJSON, connector.KindSlack, connector.KindNotion, connector.KindAtlassian, connector.KindGitHub, connector.KindGitLab, connector.KindMicrosoft365, connector.KindLinear, connector.KindTodoist, connector.KindDropbox}, d.Kind) {
+			return workapp.ControlScreen{}, errors.New("choose http_json, slack, notion, atlassian, github, gitlab, microsoft365, linear, todoist or dropbox")
 		}
 		if err := addNativeConnection(d); err != nil {
 			return workapp.ControlScreen{}, err
@@ -396,6 +396,9 @@ func (c *connectionControls) screen(id string) (workapp.ControlScreen, error) {
 	if status.ID == id && !status.Done {
 		screen.Panel.Notice = "Finish sign-in in your browser. This window will update when it completes."
 		screen.Panel.Links = []uisnapshot.Link{{Label: "Continue in browser", URL: status.URL}}
+		if status.UserCode != "" {
+			screen.Panel.Blocks = append(screen.Panel.Blocks, uisnapshot.Block{Title: "Device sign-in", Lines: []string{"Open the link on your own device and enter this code: " + status.UserCode, "Confirm the Microsoft account and requested permissions. This code expires shortly."}})
+		}
 		screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "C", Label: "Cancel sign-in", Action: "cancel-signin", Args: []string{id}})
 	} else {
 		if status.ID == id && status.Done {
@@ -416,7 +419,7 @@ func (c *connectionControls) screen(id string) (workapp.ControlScreen, error) {
 				label = "Reconnect account"
 			}
 			screen.Actions = append(screen.Actions, workapp.ControlAction{Key: "S", Label: label, Action: "signin", Args: []string{id, digest}, Review: true, Description: "Sign in using your browser for " + d.Name + ". This replaces only this connection's credentials. Requested permissions: " + d.OAuthScopes, Fields: []workapp.ControlField{{Label: "OAuth client secret (optional)", Secret: true, Help: "Only if your own desktop OAuth client requires it. Leave blank to keep a stored secret."}}})
-			if usesBundledGoogle(d) {
+			if usesBundledGoogle(d) || d.Kind == connector.KindMicrosoft365 {
 				a := &screen.Actions[len(screen.Actions)-1]
 				a.Fields = nil
 				a.Args = append(a.Args, "")
@@ -504,7 +507,7 @@ func connectionReadProbes(d connector.Descriptor, now time.Time) []connectionRea
 }
 
 func connectionServiceLabel(kind string) string {
-	if label := map[string]string{connector.KindGitHub: "GitHub", connector.KindGitLab: "GitLab", connector.KindGoogle: "Google", connector.KindSlack: "Slack", connector.KindNotion: "Notion", connector.KindAtlassian: "Atlassian", connector.KindHTTPJSON: "JSON API", connector.KindHTTPWebhook: "Webhook", connector.KindRemoteMCP: "MCP service"}[kind]; label != "" {
+	if label := map[string]string{connector.KindMicrosoft365: "Microsoft 365", connector.KindLinear: "Linear", connector.KindTodoist: "Todoist", connector.KindDropbox: "Dropbox", connector.KindGitHub: "GitHub", connector.KindGitLab: "GitLab", connector.KindGoogle: "Google", connector.KindSlack: "Slack", connector.KindNotion: "Notion", connector.KindAtlassian: "Atlassian", connector.KindHTTPJSON: "JSON API", connector.KindHTTPWebhook: "Webhook", connector.KindRemoteMCP: "MCP service"}[kind]; label != "" {
 		return label
 	}
 	return kind

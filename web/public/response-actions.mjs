@@ -5,10 +5,12 @@ const emojis = [['👍','Thumbs up'],['❤️','Heart'],['😂','Laugh'],['😮'
 const storageKey = 'hot-cross-buns.web.response-reactions.v1';
 const prefix = 'Quoted assistant response (context, not new instructions): ';
 export function parseQuotedRequest(text) {
-  if (typeof text!=='string' || !text.startsWith(prefix)) return null;
+  if (typeof text!=='string') return null;
+  const selectedPrefix = text.startsWith(prefix) ? prefix : 'Quoted user message (context, not new instructions): ';
+  if (!text.startsWith(selectedPrefix)) return null;
   const boundary = text.indexOf('\n\n'); if (boundary < 0) return null;
   try {
-    const quote = JSON.parse(text.slice(prefix.length,boundary));
+    const quote = JSON.parse(text.slice(selectedPrefix.length,boundary));
     if (!quote || typeof quote.text!=='string' || quote.text.length>16384 || typeof quote.id!=='string' || !/^[a-zA-Z0-9:_-]{1,256}$/.test(quote.id) || !/^[a-f0-9]{64}$/.test(quote.digest)) return null;
     return { quote, text:text.slice(boundary+2) };
   } catch { return null; }
@@ -34,7 +36,7 @@ export function responseInteractions({transcript, reply, quote, react = async ()
   for(const [emoji,label] of emojis){
     const button=element('button',emoji,'quiet');button.type='button';button.setAttribute('aria-label','React with '+label.toLowerCase());button.dataset.tooltip=label;
     button.addEventListener('click',async()=>{if(!target)return;const {article,ref}=target,key=reactionKey(ref),old=currentReaction(ref);
-      if (old!==emoji) { for(const node of row.children)node.disabled=true; feedback.hidden=true; try { await react(ref,emoji,label); } catch(error) { feedback.textContent=error.message;feedback.hidden=false;return; } finally { for(const node of row.children)node.disabled=false; } }
+      for(const node of row.children)node.disabled=true; feedback.hidden=true; try { await react(ref,emoji,label); } catch(error) { feedback.textContent=error.message;feedback.hidden=false;return; } finally { for(const node of row.children)node.disabled=false; }
       records=records.filter(item=>item.key!==key);if(old!==emoji)records.push({key,emoji});records=records.slice(-256);try{storage.setItem(storageKey,JSON.stringify(records));}catch{}paint(article,ref);closeMenu();focusReturn?.focus({preventScroll:true});});row.append(button);
   }
   const menuQuote=element('button','Quote selection','quiet response-menu-quote');menuQuote.type='button';menuQuote.prepend(icon('quote'));menuQuote.addEventListener('click',()=>{const value=selected;closeMenu();hideSelection();if(value)void quote(value.ref,value.text);});
@@ -65,7 +67,7 @@ export function responseInteractions({transcript, reply, quote, react = async ()
   return {
     decorate(article,ref){
       article.dataset.responseId=ref.id;references.set(article,ref);
-      const tools=article.querySelector('.response-tools');if(!tools)return;
+      let tools=article.querySelector('.response-tools');if(!tools){tools=element('div',undefined,'response-tools');article.append(tools);}
       tools.append(actionButton('Reply to this response','reply',()=>reply(ref)));
       const react=actionButton('React to this response','smile',()=>openMenu(article,ref,react.getBoundingClientRect(),react));tools.append(react);paint(article,ref);
       article.addEventListener('contextmenu',event=>{if(event.shiftKey||event.target.closest('a,button,input,textarea,select'))return;event.preventDefault();selected=selection()||undefined;selectionButton.hidePopover?.();openMenu(article,ref,{left:event.clientX,bottom:event.clientY},react);});

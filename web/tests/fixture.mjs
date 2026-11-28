@@ -58,6 +58,7 @@ export async function fixture({ taskTitle = "", inlineWork = false, modelWindows
     version: 4, defaults: { provider: "fixture", model: "fixture" },
     context_windows: {"fixture:fixture":contextWindow,...Object.fromEntries(Object.entries(modelWindows||{}).map(([name,window])=>["fixture:"+name,window]))},
     ...(introductionStatus?{desktop:{introduction:introductionStatus}}:{}),
+    file_navigation:{root:workspace},
     custom_providers: [{ id: "fixture", default_model: "fixture", models: ["fixture",...Object.keys(modelWindows||{}).filter(name=>name!=="fixture")], base_url: "http://127.0.0.1:" + provider.address().port + "/chat" }],
   }));
   const binary = process.env.HOT_CROSS_BUNS_WEB_BINARY || fileURLToPath(new URL(

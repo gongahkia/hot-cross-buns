@@ -11,6 +11,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/config"
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/jobs"
+	"github.com/gongahkia/hot-cross-buns/internal/mcpaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/uisnapshot"
 	"github.com/gongahkia/hot-cross-buns/internal/workapp"
@@ -45,6 +46,25 @@ func permissionControl(ctx context.Context, stateDir, operation string, args []s
 			return workapp.ControlScreen{}, err
 		}
 		notice = "Scheduling permissions updated. Existing tasks retain their saved schedules and execution permissions."
+		operation = "status"
+		args = nil
+	}
+	mcpStore, err := mcpaccess.Open(stateDir)
+	if err != nil {
+		return workapp.ControlScreen{}, err
+	}
+	if operation == "mcp-revoke" {
+		if len(args) != 4 {
+			return workapp.ControlScreen{}, errors.New("refresh MCP permissions before revoking")
+		}
+		revision, e := strconv.ParseUint(args[0], 10, 64)
+		if e != nil {
+			return workapp.ControlScreen{}, e
+		}
+		if e = mcpStore.Revoke(revision, mcpaccess.Scope{Repository: args[1], Hash: args[2], Server: args[3]}); e != nil {
+			return workapp.ControlScreen{}, e
+		}
+		notice = "MCP always-allow permission revoked. Calls already admitted may finish."
 		operation = "status"
 		args = nil
 	}
@@ -173,6 +193,16 @@ func permissionControl(ctx context.Context, stateDir, operation string, args []s
 		mode = "Full filesystem access enabled"
 	}
 	screen := workapp.ControlScreen{Panel: uisnapshot.Panel{Kind: "permissions", Title: "Permissions", Subtitle: "Manage live filesystem access and other app capabilities.", Notice: notice, Blocks: []uisnapshot.Block{{Title: "Filesystem", Lines: []string{mode, "Allow once lasts for one task and its delegates. Always saves the requested folder access. Full access allows live reads, creation, changes and deletion across accessible paths; OS permissions still apply.", "One-task grants remain on their task reviews; Revoke all also invalidates those grants. Foreground access is separate from read-only grants for exact scheduled task definitions. Scheduled jobs do not inherit full access or ordinary saved folders. Permission changes invalidate active filesystem access; completed changes are not undone."}}}}}
+	mcpPolicy, err := mcpStore.Get()
+	if err != nil {
+		return workapp.ControlScreen{}, err
+	}
+	mcpLines := []string{"MCP calls ask for permission unless you explicitly choose Always allow this MCP. Grants are bound to the exact project, server and trusted bundle, and apply to foreground calls only."}
+	for _, grant := range mcpPolicy.Grants {
+		mcpLines = append(mcpLines, grant.Server+" · "+grant.Repository)
+		screen.Actions = append(screen.Actions, workapp.ControlAction{Label: "Ask before calls to " + grant.Server, Action: "mcp-revoke", Args: []string{strconv.FormatUint(mcpPolicy.Revision, 10), grant.Repository, grant.Hash, grant.Server}})
+	}
+	screen.Panel.Blocks = append(screen.Panel.Blocks, uisnapshot.Block{Title: "MCP servers", Lines: mcpLines})
 	schedulePolicy, err := scheduling.Get()
 	if err != nil {
 		return workapp.ControlScreen{}, err

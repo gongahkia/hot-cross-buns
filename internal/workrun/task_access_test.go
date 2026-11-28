@@ -49,6 +49,7 @@ func TestTaskAccessRequirementFencesLaterToolsInTheSameModelTurn(t *testing.T) {
 			{ID: "must-not-apply", Name: "hot_cross_buns_app_update", Arguments: json.RawMessage(`{"setting":"theme","value":{"theme":"mono"}}`)},
 		}},
 		{Text: "Account setup is required before this task can finish."},
+		{Text: "The missing account requires user setup; no authorized recovery remains."},
 	}}
 	outcome, err := (Executor{Model: model, App: fixture, StateDir: t.TempDir()}).Execute(context.Background(), Request{ForegroundApp: true, SourcePath: t.TempDir(), Objective: "Read my report", Mode: action.Inspect, Contract: artifact.InspectionContract()})
 	if !errors.Is(err, errTaskAccess) || outcome.Recovery == nil || !outcome.Recovery.RetrySafe || len(outcome.Recovery.Needs) != 1 {

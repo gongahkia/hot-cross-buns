@@ -22,6 +22,12 @@ func (c hotCrossBunsAppController) prepareSettings(ctx context.Context, change w
 		return workrun.AppMutation{}, err
 	}
 	switch change.Setting {
+	case "folder":
+		return c.prepareFolder(change)
+	case "connection_setup":
+		return c.prepareConnectionSetup(change)
+	case "mcp_setup":
+		return c.prepareMCPSetup(change)
 	case "memory_sync":
 		return c.prepareMemorySync(change)
 	case "work_effort":

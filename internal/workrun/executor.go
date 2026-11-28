@@ -230,6 +230,7 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	trace := telemetry.NewLinked(request.RunID, request.TraceWorkflow, request.TraceParent, startedAt)
 	request.ApproveAction = telemetry.Observe(trace, "approval", request.ApproveAction)
 	request.ApproveFilesystem = telemetry.Observe(trace, "approval", request.ApproveFilesystem)
+	request.ApproveMCPCall = telemetry.Observe(trace, "approval", request.ApproveMCPCall)
 	request.ApproveAppChange = telemetry.Observe(trace, "approval", request.ApproveAppChange)
 	request.ApproveScheduleChange = telemetry.Observe(trace, "approval", request.ApproveScheduleChange)
 	request.ApproveCodeCommand = telemetry.Observe(trace, "approval", request.ApproveCodeCommand)
@@ -640,7 +641,11 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 	activity := workactivity.New(startedAt)
 	events := make([]agent.Event, 0, 32)
 	var knowledgeEvidenceErr error
+	var recovery failureRecovery
 	emit := func(event agent.Event) {
+		if event.Kind == agent.EventToolFinished && event.ToolError != "" {
+			recovery.record()
+		}
 		eventMu.Lock()
 		defer eventMu.Unlock()
 		trace.Record(event)
@@ -747,6 +752,9 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		surface = append(surface, directCode.Tools()...)
 	}
 	delegationSurface, closeSpecialists, err := e.subagentTools(ctx, request, work, previousRoot, emit, func(record orchestrator.Record) {
+		if record.Status == "failed" {
+			recovery.record()
+		}
 		stateMu.Lock()
 		defer stateMu.Unlock()
 		subagents = append(subagents, subagentEvidence(record))
@@ -767,6 +775,10 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		}{change, mutation})
 	}
 	surface = append(surface, applicationTools(e.App, request)...)
+	if chatMCP := newChatMCP(e.App, request, connectorPolicy); chatMCP != nil {
+		defer chatMCP.Close()
+		surface = append(surface, chatMCP)
+	}
 	planSurface := surface
 	surface = filterTaskPlanTools(request, surface)
 	if request.ForegroundApp {
@@ -842,6 +854,9 @@ func (e Executor) Execute(ctx context.Context, request Request) (finalOutcome Ou
 		}
 	}
 
+	if request.ForegroundApp {
+		check = recovery.completion(check)
+	}
 	beforeCompactionRefs, beforeCompactionOverflow := retainedKnowledgeReferences(initial)
 	initial, summary, compacted, compactErr := compactRetainedContext(ctx, e.Model, initial)
 	if compactErr != nil {

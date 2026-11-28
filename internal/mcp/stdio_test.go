@@ -45,12 +45,18 @@ func TestMCPChild(t *testing.T) {
 		var result any
 		switch call.Method {
 		case "server/discover":
+			if mode == "modern-slow" {
+				time.Sleep(probeTimeout + 250*time.Millisecond)
+			}
 			if strings.HasPrefix(mode, "legacy") {
 				_ = encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": call.ID, "error": map[string]any{"code": -32602}})
 				continue
 			}
 			result = modernDiscovery()
 		case "initialize":
+			if mode == "modern-slow" {
+				os.Exit(4)
+			}
 			result = map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"tools": map[string]any{}}}
 		case "tools/list":
 			result = map[string]any{"resultType": "complete", "tools": []toolDescription{fixtureTool("lookup")}}
@@ -94,10 +100,10 @@ func childClient(t *testing.T, mode string) (*stdioClient, *atomic.Int32) {
 	return client, cleanup
 }
 func TestStdioRealProcessModernAndLegacyDiscovery(t *testing.T) {
-	for _, mode := range []string{"modern", "legacy", "legacy-silent", "legacy-late"} {
+	for _, mode := range []string{"modern", "modern-slow", "legacy", "legacy-silent", "legacy-late"} {
 		t.Run(mode, func(t *testing.T) {
 			c, _ := childClient(t, mode)
-			ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), stdioProbeTimeout+4*time.Second)
 			defer cancel()
 			tools, err := listTools(ctx, c)
 			if err != nil || len(tools) != 1 {

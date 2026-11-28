@@ -205,7 +205,7 @@ export function composerProgress() {
         item.append(dot, element('span', text), element('span', 'Proposed', 'sr-only')); list.append(item);
       }
       body.replaceChildren(list);
-      if (!list.childNodes.length) body.append(element('p', state === 'waiting' ? 'Your review is needed in the conversation.' : 'I’ll keep the steps here as I work.', 'hint'));
+      if (!list.childNodes.length && state === 'waiting') body.append(element('p', 'Your review is needed in the conversation.', 'hint'));
       if (focused?.isConnected) focused.focus({ preventScroll: true });
 
     }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/mcpaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"os/exec"
 	"strings"
@@ -169,6 +170,7 @@ func bridgeExternal(kind, action, id string, command *exec.Cmd) *BridgeExternal 
 }
 
 type BridgeMessage struct {
+	Introduction    bool                `json:"introduction,omitempty"`
 	RevisionID      string              `json:"revision_id,omitempty"`
 	RunID           string              `json:"run_id,omitempty"`
 	CreatedAt       time.Time           `json:"created_at,omitempty"`
@@ -392,7 +394,7 @@ func (m Model) BridgeState() BridgeState {
 		state.Messages = append(state.Messages, BridgeMessage{RevisionID: item.revisionID, RunID: item.runID, CreatedAt: item.createdAt, ReplyToUpdateID: item.replyToUpdateID, InputIDs: append([]string(nil), item.inputIDs...), Inputs: append([]string(nil), item.inputs...), Activity: item.activity.Clone(), Role: item.role, Text: item.text, Bundle: cloneBundlePointer(item.bundle), Result: item.result})
 	}
 	if intake := m.desktop.IntroductionChat; intake != nil && intake.ConversationID == m.conversation {
-		state.Messages = append(state.Messages, BridgeMessage{Role: "Hot Cross Buns", Text: intake.Greeting, CreatedAt: intake.StartedAt})
+		state.Messages = append(state.Messages, BridgeMessage{Introduction: true, Role: "Hot Cross Buns", Text: intake.Greeting, CreatedAt: intake.StartedAt})
 	}
 	for _, item := range m.availableCommandEntries() {
 		state.Commands = append(state.Commands, BridgeCommand{
@@ -463,7 +465,7 @@ func (m Model) RespondBridgeApproval(id int, token string, approved bool, choice
 		command = "/approve"
 	}
 	if len(choices) > 0 && choices[0] != "" {
-		valid := m.interaction.Kind == "file_access" && fileaccess.ValidChoice(choices[0]) || m.interaction.Kind == "schedule_change" && scheduleaccess.ValidChoice(choices[0])
+		valid := m.interaction.Kind == "file_access" && fileaccess.ValidChoice(choices[0]) || m.interaction.Kind == "schedule_change" && scheduleaccess.ValidChoice(choices[0]) || m.interaction.Kind == "mcp_call" && mcpaccess.ValidChoice(choices[0])
 		if !approved || !valid || len(choices) != 1 {
 			m.bridgeNotice = "Invalid permission choice for this review"
 			return m, nil

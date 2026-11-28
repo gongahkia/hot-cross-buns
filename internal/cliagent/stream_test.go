@@ -1,9 +1,31 @@
 package cliagent
 
 import (
+	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
 	"strings"
 	"testing"
 )
+
+func TestCopilotForwardsOnlyReviewedDirectoriesAndKeepsShellDisabled(t *testing.T) {
+	cfg := Config{Kind: "copilot", LiveFiles: &sandbox.LiveFilesystem{Read: []string{"/approved/project", "/approved/notes"}}}
+	args := cfg.Arguments(false)
+	dirs := []string{}
+	for i, arg := range args {
+		if arg == "--add-dir" {
+			dirs = append(dirs, args[i+1])
+		}
+		if strings.Contains(arg, "allow-all") || strings.Contains(arg, "shell") {
+			t.Fatal("broadened Copilot permissions", args)
+		}
+	}
+	if strings.Join(dirs, ",") != "/approved/project,/approved/notes" {
+		t.Fatal("live paths not forwarded", args)
+	}
+	cfg.LiveFiles = nil
+	if strings.Contains(strings.Join(cfg.Arguments(false), " "), "--add-dir") {
+		t.Fatal("ungranted folder forwarded")
+	}
+}
 
 func TestStreamsRequireTerminalSuccess(t *testing.T) {
 	for _, test := range []struct {

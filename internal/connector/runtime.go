@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gongahkia/hot-cross-buns/internal/action"
 	"github.com/gongahkia/hot-cross-buns/internal/auth"
@@ -248,6 +250,9 @@ func (r Runtime) PrepareAction(connectorID, operationID string, input json.RawMe
 	if isServiceKind(descriptor.Kind) {
 		if !(descriptor.Kind == KindGoogle && operation.ID == "batch") {
 			preconditionPayload, precondition, preconditionErr := googlePrecondition(descriptor, payload)
+			if productivityKind(descriptor.Kind) {
+				preconditionPayload, precondition, preconditionErr = productivityPrecondition(descriptor, operation.ID, payload)
+			}
 			if preconditionErr != nil {
 				return PreparedAction{}, preconditionErr
 			}
@@ -460,6 +465,35 @@ func validGoogleResourceID(id string) bool {
 }
 
 func (r Runtime) invokeRemoteMCP(ctx context.Context, descriptor Descriptor, operation Operation, raw json.RawMessage) (Result, error) {
+	if operation.ID == "status" {
+		if err := decodeEmptyInput(raw); err != nil {
+			return Result{}, err
+		}
+		token, err := r.bearerToken(ctx, descriptor)
+		if err != nil {
+			return Result{}, err
+		}
+		tools, err := mcp.DiscoverRemoteTools(ctx, descriptor.Resource, token)
+		if err != nil {
+			return Result{}, err
+		}
+		names := map[string]bool{}
+		for _, t := range tools {
+			names[t.Name] = true
+		}
+		for _, name := range []string{descriptor.SearchTool, descriptor.ReadTool, descriptor.ActionTool} {
+			if name != "" && !names[name] {
+				return Result{}, fmt.Errorf("MCP server does not expose mapped tool %q; review the connection mapping", name)
+			}
+		}
+		data := nativeJSON(map[string]any{"tools": tools, "mappings_verified": true})
+		if len(data) > maxHTTPJSONBytes {
+			return Result{}, errors.New("MCP discovery metadata exceeds 256 KiB")
+		}
+		digest := sha256.Sum256(data)
+		return Result{Data: data, Provenance: Provenance{ConnectorID: descriptor.ID, Operation: "status", Resource: descriptor.Resource, RetrievedAt: r.now(), Bytes: int64(len(data)), SHA256: hex.EncodeToString(digest[:])}}, nil
+	}
+
 	var input struct {
 		Arguments json.RawMessage `json:"arguments"`
 	}
@@ -527,6 +561,9 @@ func (r Runtime) invokeService(ctx context.Context, descriptor Descriptor, opera
 }
 
 func serviceRead(descriptor Descriptor, operation string, input serviceInput) (string, string, []byte, error) {
+	if productivityKind(descriptor.Kind) {
+		return productivityRead(descriptor, operation, input)
+	}
 	if descriptor.Kind == KindSlack && (operation == "channels_list" || operation == "thread_replies") {
 		return slackConversationRead(descriptor, operation, input)
 	}
@@ -700,6 +737,9 @@ func serviceRead(descriptor Descriptor, operation string, input serviceInput) (s
 }
 
 func serviceAction(descriptor Descriptor, operation string, payload []byte, correlationID string, gmailAttachments ...gmailAttachment) (string, []byte, error) {
+	if productivityKind(descriptor.Kind) {
+		return productivityAction(descriptor, operation, payload)
+	}
 	if descriptor.Kind == KindNotion && (operation == "block_append" || operation == "block_update") {
 		return notionBlockAction(descriptor, operation, payload)
 	}
@@ -785,6 +825,9 @@ func serviceAction(descriptor Descriptor, operation string, payload []byte, corr
 }
 
 func serviceActionMethod(descriptor Descriptor, operation string) string {
+	if productivityKind(descriptor.Kind) {
+		return productivityActionMethod(descriptor.Kind, operation)
+	}
 	if descriptor.Kind == KindGitLab {
 		switch operation {
 		case "issue_update", "merge_request_update", "merge_request_merge":
@@ -992,7 +1035,7 @@ func googlePrecondition(descriptor Descriptor, payload []byte) ([]byte, string, 
 }
 
 func isServiceKind(kind string) bool {
-	return kind == KindGitLab || kind == KindGitHub || kind == KindSlack || kind == KindGoogle || kind == KindAtlassian || kind == KindNotion
+	return productivityKind(kind) || kind == KindGitLab || kind == KindGitHub || kind == KindSlack || kind == KindGoogle || kind == KindAtlassian || kind == KindNotion
 }
 
 func (r Runtime) requestJSON(ctx context.Context, descriptor Descriptor, operation, method, endpoint string, body []byte, uncertain bool) (Result, error) {
@@ -1019,6 +1062,15 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 	}
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
+		if descriptor.Kind == KindLinear && descriptor.Authentication == AuthBearer {
+			request.Header.Set("Authorization", token)
+		}
+	}
+	if descriptor.Kind == KindDropbox && operation == "file_download" {
+		request.Header.Set("Dropbox-API-Arg", string(body))
+		request.Body = nil
+		request.ContentLength = 0
+		request.Header.Del("Content-Type")
 	}
 	if ifMatch != "" {
 		request.Header.Set("If-Match", ifMatch)
@@ -1054,6 +1106,21 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 	if descriptor.Kind == KindGoogle && operation == "calendar_event_delete" && response.StatusCode != http.StatusNoContent {
 		return Result{}, action.MarkUncertain(errors.New("Calendar did not confirm deletion with HTTP 204; inspect the event before retrying"))
 	}
+	if descriptor.Kind == KindDropbox && operation == "file_download" {
+		if len(contents) > 128*1024 {
+			return Result{}, errors.New("Dropbox file exceeds 128 KiB; use a separately reviewed file import")
+		}
+		metadata := json.RawMessage(response.Header.Get("Dropbox-API-Result"))
+		if !json.Valid(metadata) {
+			return Result{}, errors.New("Dropbox download returned invalid metadata")
+		}
+		digest := sha256.Sum256(contents)
+		encoding, value := "base64", base64.StdEncoding.EncodeToString(contents)
+		if utf8.Valid(contents) {
+			encoding, value = "utf-8", string(contents)
+		}
+		contents = nativeJSON(map[string]any{"metadata": metadata, "encoding": encoding, "content": value, "bytes": len(contents), "sha256": hex.EncodeToString(digest[:])})
+	}
 	if len(contents) == 0 {
 		contents = []byte(`{}`)
 	}
@@ -1062,6 +1129,35 @@ func (r Runtime) requestJSONWithPrecondition(ctx context.Context, descriptor Des
 			return Result{}, action.MarkUncertain(errors.New("connector returned invalid or oversized JSON after action"))
 		}
 		return Result{}, errors.New("connector returned invalid or oversized JSON")
+	}
+	if descriptor.Kind == KindLinear {
+		var envelope struct {
+			Data   map[string]json.RawMessage `json:"data"`
+			Errors []json.RawMessage          `json:"errors"`
+		}
+		if json.Unmarshal(contents, &envelope) != nil || len(envelope.Errors) > 0 || len(envelope.Data) == 0 {
+			e := errors.New("Linear returned GraphQL errors or missing data; inspect the resource before retrying")
+			if uncertain {
+				return Result{}, action.MarkUncertain(e)
+			}
+			return Result{}, e
+		}
+		if uncertain {
+			valid := false
+			for _, v := range envelope.Data {
+				var item struct {
+					Success *bool `json:"success"`
+				}
+				if json.Unmarshal(v, &item) == nil && item.Success != nil && *item.Success {
+					valid = true
+				} else {
+					return Result{}, action.MarkUncertain(errors.New("Linear did not confirm mutation success; inspect before retrying"))
+				}
+			}
+			if !valid {
+				return Result{}, action.MarkUncertain(errors.New("Linear mutation result missing"))
+			}
+		}
 	}
 	if descriptor.Kind == KindSlack {
 		var slack struct {
@@ -1465,6 +1561,9 @@ func (r Runtime) unverifiedBearerToken(ctx context.Context, descriptor Descripto
 			return "", AccessError{ConnectorID: descriptor.ID, Kind: "expired_credentials"}
 		}
 		flow := auth.BrowserFlow{ClientID: descriptor.OAuthClientID, ClientSecret: credential.OAuthClientSecret, TokenURL: descriptor.OAuthTokenURL, AllowMissingExpiry: true, RequireBearerToken: true, HTTPClient: r.HTTPClient}
+		if descriptor.Kind == KindRemoteMCP {
+			flow.TokenParams = map[string]string{"resource": descriptor.Resource}
+		}
 		refreshed, refreshErr := flow.Refresh(ctx, credential)
 		if refreshErr != nil {
 			return "", fmt.Errorf("refresh connector %q credential: %w", descriptor.ID, refreshErr)

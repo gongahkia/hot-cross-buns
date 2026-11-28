@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	maxPages     = 32
-	maxTools     = 256
-	maxCatalog   = 1024 * 1024
-	maxCursor    = 4096
-	maxWire      = 128 * 1024
-	callTimeout  = 2 * time.Minute
-	probeTimeout = 2 * time.Second
+	maxPages          = 32
+	maxTools          = 256
+	maxCatalog        = 1024 * 1024
+	maxCursor         = 4096
+	maxWire           = 128 * 1024
+	callTimeout       = 2 * time.Minute
+	probeTimeout      = 2 * time.Second
+	stdioProbeTimeout = 15 * time.Second
 )
 
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,128}$`)
@@ -41,7 +42,13 @@ func initialize(ctx context.Context, c client) error {
 		return errors.New("MCP transport cannot negotiate protocol versions")
 	}
 	pc.setProtocol(modernVersion)
-	probe, cancel := context.WithTimeout(ctx, probeTimeout)
+	timeout := probeTimeout
+	if _, stdio := c.(*stdioClient); stdio {
+		// Local interpreters may still be importing their server at two seconds.
+		// A premature legacy handshake can conflict with a late modern response.
+		timeout = stdioProbeTimeout
+	}
+	probe, cancel := context.WithTimeout(ctx, timeout)
 	raw, err := c.Call(probe, "server/discover", map[string]any{})
 	cancel()
 	if err == nil {
@@ -93,7 +100,7 @@ func listTools(ctx context.Context, c client) ([]toolDescription, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	if err := initialize(ctx, c); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MCP protocol negotiation failed: %w", err)
 	}
 	var tools []toolDescription
 	seen, cursors := map[string]bool{}, map[string]bool{}
@@ -105,7 +112,7 @@ func listTools(ctx context.Context, c client) ([]toolDescription, error) {
 		}
 		raw, err := c.Call(ctx, "tools/list", params)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MCP tool discovery failed: %w", err)
 		}
 		total += len(raw)
 		if total > maxCatalog {

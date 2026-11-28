@@ -27,8 +27,10 @@ control or model-facing policy bypass was added.
 
 ## Protocol selection
 
-The preferred tools path is `2026-07-28`. A two-second read-only
-`server/discover` probe carries modern per-request metadata. A valid response
+The preferred tools path is `2026-07-28`. A read-only `server/discover` probe
+carries modern per-request metadata. HTTP probes have a two-second budget;
+local stdio startup has fifteen seconds to import and start its server before
+legacy fallback. The caller's deadline still applies. A valid response
 must advertise that exact supported version and a tools capability. No numeric
 "future version is probably compatible" inference is used.
 

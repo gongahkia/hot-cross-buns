@@ -21,12 +21,14 @@ type connectionSignIn struct {
 }
 type connectionSignInAttempt struct {
 	id, url, issue string
+	userCode       string
 	notice         string
 	done           bool
 	cancel         context.CancelFunc
 }
 type connectionSignInStatus struct {
 	ID, URL, Issue string
+	UserCode       string
 	Notice         string
 	Done           bool
 }
@@ -38,7 +40,7 @@ func (s *connectionSignIn) Status() connectionSignInStatus {
 		return connectionSignInStatus{}
 	}
 	a := s.active
-	return connectionSignInStatus{ID: a.id, URL: a.url, Issue: a.issue, Notice: a.notice, Done: a.done}
+	return connectionSignInStatus{ID: a.id, URL: a.url, Issue: a.issue, Notice: a.notice, Done: a.done, UserCode: a.userCode}
 }
 func (s *connectionSignIn) Pending() string {
 	status := s.Status()
@@ -124,7 +126,16 @@ func (s *connectionSignIn) begin(stateDir, id, digest, clientSecret, credentialD
 	if clientSecret == "" && usesBundledGoogle(descriptor) {
 		clientSecret = googleDesktopClientSecret
 	}
+	if descriptor.Kind == connector.KindMicrosoft365 {
+		result, err := s.beginMicrosoft(descriptor, credentials, expected, digest, release)
+		transferred = err == nil
+		return result, err
+	}
 	flow := auth.BrowserFlow{ClientID: descriptor.OAuthClientID, ClientSecret: clientSecret, AuthorizationURL: descriptor.OAuthAuthorizeURL, TokenURL: descriptor.OAuthTokenURL, RedirectURL: descriptor.OAuthRedirectURL, Scopes: strings.Fields(requested.OAuthScopes), AllowMissingExpiry: true, RequireBearerToken: true}
+	if descriptor.Kind == connector.KindRemoteMCP {
+		flow.AuthorizeParams = map[string]string{"resource": descriptor.Resource}
+		flow.TokenParams = map[string]string{"resource": descriptor.Resource}
+	}
 	var attempt auth.BrowserAttempt
 	var callback *auth.Callback
 	if descriptor.Kind == connector.KindGoogle {

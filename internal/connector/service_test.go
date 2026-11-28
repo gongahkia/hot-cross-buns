@@ -462,7 +462,7 @@ func TestRemoteMCPRequiresTypedMapping(t *testing.T) {
 	if err := descriptor.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if len(descriptor.Operations()) != 3 {
+	if len(descriptor.Operations()) != 4 {
 		t.Fatalf("operations = %#v", descriptor.Operations())
 	}
 }

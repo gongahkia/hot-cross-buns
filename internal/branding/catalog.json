@@ -464,5 +464,49 @@
     ],
     "searches": [],
     "specialists": []
+  },
+  {
+    "id": "microsoft365",
+    "label": "Microsoft 365",
+    "file": "microsoft365.png",
+    "providers": [],
+    "connectors": [
+      "microsoft365"
+    ],
+    "searches": [],
+    "specialists": []
+  },
+  {
+    "id": "linear",
+    "label": "Linear",
+    "file": "linear.png",
+    "providers": [],
+    "connectors": [
+      "linear"
+    ],
+    "searches": [],
+    "specialists": []
+  },
+  {
+    "id": "todoist",
+    "label": "Todoist",
+    "file": "todoist.png",
+    "providers": [],
+    "connectors": [
+      "todoist"
+    ],
+    "searches": [],
+    "specialists": []
+  },
+  {
+    "id": "dropbox",
+    "label": "Dropbox",
+    "file": "dropbox.png",
+    "providers": [],
+    "connectors": [
+      "dropbox"
+    ],
+    "searches": [],
+    "specialists": []
   }
 ]

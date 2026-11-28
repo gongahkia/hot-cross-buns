@@ -49,7 +49,7 @@ export function reviewQueue({ request }) {
       content.append(element('p', review.kind === 'conflict' ? 'Accept acknowledges this conflict. It does not correct the sources.' : (review.cron || review.run_at) ? 'Accept creates this responsibility or schedule and enables its scheduled checks. Inspect the timing and instructions above.' : 'Accept applies this exact proposal to your saved knowledge or plan.', 'hint'));
       if (review.status === 'pending') {
         const controls = element('div', undefined, 'review-actions');
-        for (const [label, action] of [['Reject proposal', 'reject'], ['Accept proposal', 'accept']]) controls.append(button(label, () => perform({ action, id: review.id, revision: review.revision })));
+        for (const [label, action] of [['Reject proposal', 'reject'], ['Accept proposal', 'accept']]) { const choice=button(label, () => perform({ action, id: review.id, revision: review.revision }));if(action==='accept'){choice.classList.remove('quiet');choice.classList.add('send','approval-primary');}controls.append(choice); };
         content.append(controls);
       } else content.append(element('p', 'This proposal is already ' + review.status + '.', 'hint'));
     } else {

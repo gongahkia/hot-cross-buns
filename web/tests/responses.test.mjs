@@ -20,3 +20,10 @@ test('quotes support inline formatting and code and response edits invalidate ea
  assert.throws(()=>selectedResponse(state,code.id,'b'.repeat(64)));
  assert.equal(responseRecords({dialogue:[{...reply,state:'routing'},{...reply,issue:'failed'}]}).length,0);
 });
+
+test('user messages have exact reply, quote and reaction references without fork authority',()=>{
+ const input={messages:[{role:'You',text:'My own **prompt**.',created_at:'2026-11-28T00:00:00Z'}],dialogue:[{id:'user-turn',text:'Another prompt'}]};
+ const refs=responseReferences(input);assert.equal(refs.length,2);assert.ok(refs.every(ref=>ref.role==='user'&&!ref.can_fork));
+ const quote=quoteResponse(selectedResponse(input,refs[0].id,refs[0].digest),'My own prompt.');assert.equal(quote.role,'user');assert.ok(validResponseQuote(quote));assert.match(quotedRequest(quote,'Follow up'),/^Quoted user message/);assert.doesNotThrow(()=>checkQuote(input,quote));
+ assert.throws(()=>selectedResponse({...input,messages:[{...input.messages[0],text:'Changed'}]},refs[0].id,refs[0].digest));
+});

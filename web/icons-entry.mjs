@@ -25,7 +25,7 @@ const catalog = {
   link: Link, bookmark: Bookmark, settings: Settings, eye: Eye, history: History,
   power: Power, download: Download, cpu: Cpu, 'trash-2': Trash2, 'rotate-ccw': RotateCcw, 'refresh-cw': RefreshCw, play: Play, 'arrow-down': ArrowDown, 'chevron-up': ChevronUp,
 };
-const aliases = { send: 'arrow-up', close: 'x', chevron: 'chevron-down', helpers: 'workflow', file: 'file-text' };
+const aliases = { microsoft365: 'mail', linear: 'list-checks', todoist: 'list-checks', dropbox: 'folder-search', remote_mcp: 'code', http_json: 'code', send: 'arrow-up', close: 'x', chevron: 'chevron-down', helpers: 'workflow', file: 'file-text' };
 export const activityIconNames = Object.freeze(activityIcons);
 export function icon(name) {
   const selected = aliases[name] || name;

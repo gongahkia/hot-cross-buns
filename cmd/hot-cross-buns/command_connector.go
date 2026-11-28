@@ -463,6 +463,8 @@ func testConnector(id string, out io.Writer) error {
 
 func connectorTestInvocation(descriptor connector.Descriptor) (string, []byte) {
 	switch descriptor.Kind {
+	case connector.KindMicrosoft365, connector.KindLinear, connector.KindTodoist, connector.KindDropbox:
+		return "whoami", []byte(`{}`)
 	case connector.KindGitHub:
 		return "repo_get", []byte(`{}`)
 	case connector.KindGitLab:
@@ -479,11 +481,7 @@ func connectorTestInvocation(descriptor connector.Descriptor) (string, []byte) {
 	case connector.KindNotion:
 		return "search", []byte(`{}`)
 	case connector.KindRemoteMCP:
-		operation := "search"
-		if descriptor.SearchTool == "" {
-			operation = "read"
-		}
-		return operation, []byte(`{"arguments":{}}`)
+		return "status", []byte(`{}`)
 	default:
 		return "fetch", []byte(`{}`)
 	}

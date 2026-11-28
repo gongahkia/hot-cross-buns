@@ -32,6 +32,10 @@ func (c hotCrossBunsAppController) Inspect(ctx context.Context, query workrun.Ap
 		return nil, err
 	}
 	switch query.Topic {
+	case "folders":
+		return c.inspectFolders(query.ConversationID)
+	case "mcp":
+		return c.inspectMCP(query.Query)
 	case "memory_sync":
 		return c.inspectMemorySync()
 	case "schedules":
@@ -94,9 +98,9 @@ func (c hotCrossBunsAppController) Inspect(ctx context.Context, query workrun.Ap
 			if err != nil {
 				return nil, err
 			}
-			choices = append(choices, map[string]any{"id": descriptor.ID, "name": descriptor.Name, "kind": descriptor.Kind, "account_status": status, "operations": operations, "operation_access": operationAccess, "selected_for_this_run": slices.Contains(c.request.ConnectorIDs, descriptor.ID)})
+			choices = append(choices, map[string]any{"id": descriptor.ID, "name": descriptor.Name, "kind": descriptor.Kind, "account_status": status, "operations": operations, "operation_access": operationAccess, "selected_for_this_run": c.request != nil && slices.Contains(c.request.ConnectorIDs, descriptor.ID)})
 		}
-		return map[string]any{"connections": choices, "task_setup": "Use hot_cross_buns_request_access to retain this task’s missing account or operation requirement. This does not grant access; the user repairs setup and reviews the original task before continuing.", "note": "Manage accounts in Settings → Connections. Sign-in, live access checks and reconnect happen there; never ask for credentials in chat. Selection applies to future requests; it does not authenticate or authorize external changes."}, nil
+		return map[string]any{"connections": choices, "setup_choices": connectionSetupChoices(), "setup_note": "Use connection_setup to prepare public connection details for review in chat. Authentication happens privately in Connections. Local executable MCP setup is under topic mcp.", "task_setup": "Use hot_cross_buns_request_access to retain this task’s missing account or operation requirement. This does not grant access; the user repairs setup and reviews the original task before continuing.", "note": "Manage accounts in Settings → Connections. Sign-in, live access checks and reconnect happen there; never ask for credentials in chat. Selection applies to future requests; it does not authenticate or authorize external changes."}, nil
 	case "outputs":
 		return c.inspectOutputs(query.ID)
 	case "shortcuts":

@@ -57,3 +57,29 @@ func BenchmarkQuickAcknowledgement(b *testing.B) {
 		}
 	}
 }
+
+func TestEmojiOnlyMessageCanEndWithoutAnAssistantReply(t *testing.T) {
+	for _, emoji := range []string{"👍", "❤️", "😂", "😮", "😢", "🎉"} {
+		decision, err := RouteConversation(context.Background(), nil, ConversationRequest{Text: emoji})
+		if err != nil || decision.Reaction != "silent" || decision.Validate(ConversationRequest{Text: emoji}) != nil {
+			t.Fatal(emoji, decision, err)
+		}
+		if _, ok := QuickAcknowledgement(ConversationRequest{Text: emoji, AcknowledgementBlocked: true}); ok {
+			t.Fatal("emoji bypassed a pending review")
+		}
+	}
+}
+func TestAssistantCanChooseAnAvailableEmojiWithoutGrantingActionAuthority(t *testing.T) {
+	request := ConversationRequest{Text: "My garden finally bloomed."}
+	for _, emoji := range []string{"👍", "❤️", "😂", "😮", "😢", "🎉"} {
+		decision := ConversationDecision{Kind: "reply", Text: emoji, Reaction: emoji}
+		if err := decision.Validate(request); err != nil {
+			t.Fatal(emoji, err)
+		}
+		for _, blocked := range []ConversationRequest{{Text: request.Text, HasFiles: true}, {Text: request.Text, PlanFirst: true}, {Text: request.Text, AcknowledgementBlocked: true}, {Text: request.Text, Tasks: []ConversationTask{{ID: "pending", State: "review"}}}} {
+			if decision.Validate(blocked) == nil {
+				t.Fatal("reaction accepted in an actionable or uncertain context", blocked)
+			}
+		}
+	}
+}

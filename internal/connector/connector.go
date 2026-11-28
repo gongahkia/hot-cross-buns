@@ -121,7 +121,7 @@ func (d Descriptor) Validate() error {
 	if strings.TrimSpace(d.Name) != d.Name || d.Name == "" || len(d.Name) > 128 || strings.ContainsAny(d.Name, "\x00\r\n") {
 		return errors.New("connector display name is invalid")
 	}
-	if d.Kind != KindHTTPJSON && d.Kind != KindHTTPWebhook && d.Kind != KindSlack && d.Kind != KindGoogle && d.Kind != KindAtlassian && d.Kind != KindNotion && d.Kind != KindRemoteMCP && d.Kind != KindGitHub && d.Kind != KindGitLab {
+	if d.Kind != KindHTTPJSON && d.Kind != KindHTTPWebhook && d.Kind != KindSlack && d.Kind != KindGoogle && d.Kind != KindAtlassian && d.Kind != KindNotion && d.Kind != KindRemoteMCP && d.Kind != KindGitHub && d.Kind != KindGitLab && !productivityKind(d.Kind) {
 		return fmt.Errorf("unsupported connector kind %q", d.Kind)
 	}
 	resource, err := url.Parse(d.Resource)
@@ -133,6 +133,11 @@ func (d Descriptor) Validate() error {
 	}
 	if resource.Scheme != "https" && !(resource.Scheme == "http" && isLoopbackHost(resource.Hostname())) {
 		return errors.New("connector resource requires HTTPS except on loopback")
+	}
+	if productivityKind(d.Kind) {
+		if err := validateProductivityResource(d, resource); err != nil {
+			return err
+		}
 	}
 	if d.Kind == KindGitLab {
 		if err := validateGitLabResource(resource); err != nil {
@@ -210,6 +215,8 @@ func GoogleAccountPin(descriptor Descriptor, subject string) string {
 // Operations returns independent, Hot Cross Buns-owned operation metadata.
 func (d Descriptor) Operations() []Operation {
 	switch d.Kind {
+	case KindMicrosoft365, KindLinear, KindTodoist, KindDropbox:
+		return productivityOperations(d)
 	case KindHTTPJSON:
 		return []Operation{{
 			ID:          "fetch",
@@ -285,7 +292,7 @@ func (d Descriptor) Operations() []Operation {
 			{"page_update", "Prepare an update to a Notion page for exact approval.", action.ConnectedMutate},
 		}), notionExtraOperations()...)
 	case KindRemoteMCP:
-		var operations []Operation
+		operations := []Operation{{ID: "status", Description: "Discover remote MCP tool names and input schemas without invoking any tool; verify configured mappings.", Capability: action.ConnectedRead, InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`), OutputSchema: json.RawMessage(`{"type":"object"}`)}}
 		readSchema := json.RawMessage(`{"type":"object","required":["arguments"],"properties":{"arguments":{"type":"object"}},"additionalProperties":false}`)
 		if d.SearchTool != "" {
 			operations = append(operations, Operation{ID: "search", Description: "Search through the mapped trusted MCP service.", Capability: action.ConnectedRead, InputSchema: readSchema, OutputSchema: json.RawMessage(`{"type":"object"}`)})

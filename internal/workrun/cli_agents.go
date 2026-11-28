@@ -28,6 +28,11 @@ func (e Executor) externalCLISpecialist(request Request, work workspace.Work, cf
 	if cfg.Kind == "claude" {
 		description = "Work with Claude in a retained isolated conversation. Use start_agent with continue for follow-ups and answer_agent for structured questions. Active-turn steering is unavailable. Separate provider billing, bounded runtime. Returns findings"
 	}
+	if cfg.Kind == "codex" {
+		description += " Can run local diagnostic commands inside the host sandbox and granted filesystem scope."
+	} else {
+		description += " File tools only; shell/command execution is disabled. Do not assign local command diagnostics to this adapter."
+	}
 	if edit {
 		description += " and a reviewable patch; original files remain unchanged."
 	} else {

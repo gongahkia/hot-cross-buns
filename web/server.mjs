@@ -5,11 +5,14 @@ import { readFile, readdir } from "node:fs/promises";
 import { dirname, join, isAbsolute } from 'node:path';
 import { createServer } from "node:http";
 import { attachmentPreview } from "./attachment-preview.mjs";
+import { editAttachment } from '../app-host/src/attachment-edit.mjs';
 import { taskSummaries, delegatedSummaries, agentSummaries } from "./task-summaries.mjs";
 import { activeRunControl } from './run-control.mjs';
 import { localServers } from './local-servers.mjs';
 import { localAppStatus } from './local-app-status.mjs';
 import { taskDetails } from './task-details.mjs';
+import { fileIconNames } from "./public/file-types.mjs";
+import { workspaceMentions } from "./workspace-mentions.mjs";
 import { localFilePreview } from './local-file-preview.mjs';
 import { correctionDrafts } from './corrections.mjs';
 import { buildBrowserDependencies } from "./build.mjs";
@@ -24,7 +27,11 @@ import { MAX_AUDIO_BYTES } from "../app-host/src/voice.mjs";
 import brandCatalog from "../internal/branding/catalog.json" with { type: "json" };
 
 const assets = new Map([
+ ["/file-types.mjs",["file-types.mjs","text/javascript; charset=utf-8"]],
+ ...fileIconNames.map(name=>["/file-icons/"+name+".png",["file-icons/"+name+".png","image/png"]]),
   ["/composer-action.mjs", ["composer-action.mjs", "text/javascript; charset=utf-8"]],
+  ["/file-mentions.mjs", ["file-mentions.mjs", "text/javascript; charset=utf-8"]],
+  ["/prompt-history.mjs", ["prompt-history.mjs", "text/javascript; charset=utf-8"]],
   ["/bakery.json", ["../../internal/branding/bakery.json", "application/json"]],
 ["/context-meter.mjs",["context-meter.mjs","text/javascript; charset=utf-8"]],
   ["/event-hooks.mjs", ["event-hooks.mjs", "text/javascript; charset=utf-8"]],
@@ -64,6 +71,7 @@ const assets = new Map([
  ["/memory-sync.mjs",["memory-sync.mjs","text/javascript; charset=utf-8"]],
   ["/icons.mjs", ["icons.mjs", "text/javascript; charset=utf-8"]],
   ["/attachments.mjs", ["attachments.mjs", "text/javascript; charset=utf-8"]],
+  ["/attachment-editor.mjs", ["attachment-editor.mjs", "text/javascript; charset=utf-8"]],
   ["/caret.mjs", ["caret.mjs", "text/javascript; charset=utf-8"]],
   ["/activity.mjs", ["activity.mjs", "text/javascript; charset=utf-8"]],
   ["/technical-activity.mjs", ["technical-activity.mjs", "text/javascript; charset=utf-8"]],
@@ -72,6 +80,7 @@ const assets = new Map([
   ["/scheduled.mjs", ["scheduled.mjs", "text/javascript; charset=utf-8"]],
   ["/review-queue.mjs", ["review-queue.mjs", "text/javascript; charset=utf-8"]],
   ["/introduction.mjs", ["introduction.mjs", "text/javascript; charset=utf-8"]],
+  ["/transcript.mjs", ["transcript.mjs", "text/javascript; charset=utf-8"]],
   ["/palette.mjs", ["palette.mjs", "text/javascript; charset=utf-8"]],
 ]);
 const headers = {
@@ -111,7 +120,7 @@ function reviewFor(state, context) {
   // Go binds this message index to its pending interaction. Some typed reviews
   // replace the generic request-ID field with their own fields.
   if (!action?.token || message?.result?.kind !== "approval") return null;
-  return { id: digest([context, action, message]), result: message.result, permission: action.kind === "file_access", scheduling: action.kind === "schedule_change", canCorrect: state.can_correct_action === true };
+  return { id: digest([context, action, message]), result: message.result, permission: action.kind === "file_access", scheduling: action.kind === "schedule_change", mcp: action.kind === "mcp_call", canCorrect: state.can_correct_action === true };
 }
 
 function projection(host, corrections) {
@@ -220,6 +229,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
     if (result.error) throw new RequestError(409, result.error);
     return { rows: result.rows, inventory: result.inventory, review: result.review, confirmed: result.confirmed };
   }
+  const mentions = workspaceMentions(host);
   async function action(body) {
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new RequestError(400, "Choose a browser action.");
     const { context, op } = body;
@@ -271,6 +281,22 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
     }
     requireContext(context);
     switch (op) {
+      case 'file-navigation': {
+        if(!['status','focus','root'].includes(body.action))throw new RequestError(400,'Choose a folder action.');
+        const result=await host.backend.workspace({request_id:randomUUID(),operation:body.action,path:body.path || ''});requireContext(context);
+        if(result.error)throw new RequestError(409,result.error);return result.navigation;
+      }
+      case 'mention-search': return mentions.search(context, body.query);
+      case 'mention-attach': {
+        const saved = await draft();
+        if (saved.correction) throw new RequestError(409, 'Finish the correction before attaching a file.');
+        const file = await mentions.read(context, body.id);
+        if (saved.uploads.length >= uploadLimits.count || saved.uploads.reduce((sum,f)=>sum+f.size,file.bytes.length)>uploadLimits.total) throw new RequestError(413,'Remove an attachment before adding another file.');
+        const imported = await host.importFileBytes(file.name,file.bytes,context);
+        requireContext(context);
+        await mentions.remember(context,file.path);
+        return { ...await saveDraft({...saved,uploads:[...saved.uploads,imported]}), mentionPath:file.path };
+      }
       case 'begin-correction':
         await corrections.begin(body, context); broadcast(); return draft();
       case 'cancel-correction':
@@ -369,11 +395,10 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
       }
       case 'reaction': {
         if (!['👍','❤️','😂','😮','😢','🎉'].includes(body.emoji) || typeof body.requestId !== 'string' || !/^[a-f0-9-]{36}$/.test(body.requestId)) throw new RequestError(400,'Choose a response reaction.');
-        const response = selectedResponse(host.backend.state,body.id,body.digest);
+        selectedResponse(host.backend.state,body.id,body.digest);
         const saved = await draft();
         if (saved.correction) throw new RequestError(409,'Finish or cancel your correction before reacting.');
-        const text = quotedRequest(quoteResponse(response), 'Reacted with '+body.emoji+'. Respond naturally to my reaction in this context. This reaction is conversational feedback, not approval or permission for any action.');
-        await host.send({type:'upload_submit',upload:{request_id:body.requestId,context,text,files:[]}});
+        // Reactions are message metadata. They never submit a conversational turn.
         return {accepted:true};
       }
       case "response": {
@@ -475,7 +500,7 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         if (!review || body.id !== review.id || typeof body.approved !== "boolean") {
           throw new RequestError(409, "The request changed. Open the latest review.");
         }
-        if (body.permission_choice !== undefined && (!body.approved || !(review.permission ? ['once','always','full'] : review.scheduling ? ['once','always'] : []).includes(body.permission_choice))) throw new RequestError(400, 'Invalid permission choice for this review.');
+        if (body.permission_choice !== undefined && (!body.approved || !(review.permission ? ['once','always','full'] : (review.scheduling || review.mcp) ? ['once','always'] : []).includes(body.permission_choice))) throw new RequestError(400, 'Invalid permission choice for this review.');
         await host.send({ type: "approval", interaction_id: state.pending_approval.id, approval_token: state.pending_approval.token, approved: body.approved, ...(body.permission_choice ? {permission_choice:body.permission_choice} : {}) });
         break;
       }
@@ -543,6 +568,19 @@ export async function startWeb(options, port = 4317, voiceOptions = {}) {
         if (owner !== host.backend) throw new RequestError(409, "The conversation changed. Reopen Memory.");
         if (result.error) throw new RequestError(409, result.error);
         return result.catalog;
+      }
+      case 'edit-attachment': {
+        const saved = await draft();
+        if (saved.correction) throw new RequestError(409, 'Finish the correction before editing an attachment.');
+        const index = saved.uploads.findIndex(file => file.id === body.id);
+        if (index < 0) throw new RequestError(409, 'This file is no longer selected in the current draft.');
+        const original = await host.file({ context, action: 'export', ref: { kind: 'upload', id: body.id } });
+        const edited = await editAttachment(original.name, original.bytes, body.edit);
+        requireContext(context);
+        const uploads = [...saved.uploads];
+        if (edited) uploads[index] = await host.importFileBytes(edited.name, edited.bytes, context);
+        if (uploads.length > uploadLimits.count || uploads.reduce((sum, file) => sum + file.size, 0) > uploadLimits.total) throw new RequestError(413, 'The edited attachments exceed the message limits.');
+        return saveDraft({ ...saved, uploads });
       }
       case "file-view":
       case "attachment-preview": {

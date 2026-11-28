@@ -15,6 +15,8 @@ func QuickAcknowledgement(request ConversationRequest) (ConversationDecision, bo
 	text = strings.TrimRight(text, "!.")
 	var kind string
 	switch text {
+	case "👍", "❤️", "😂", "😮", "😢", "🎉":
+		return ConversationDecision{Kind: "reply", Text: "Acknowledged.", Reaction: "silent"}, true
 	case "thanks", "thank you", "thanks hot cross buns", "thank you hot cross buns", "appreciate it", "thanks, that was helpful", "thanks hot cross buns, that was helpful", "thank you, that was helpful":
 		kind = "appreciation"
 	case "haha", "hahaha", "hahahaha", "lol", "haha that's hilarious", "haha, that's hilarious":
@@ -59,6 +61,10 @@ func AcknowledgementContextSafe(tasks []ConversationTask, recent []ConversationM
 // readers retain the ordinary, nonempty reply text for every acknowledgement.
 func AcknowledgementPresentation(kind string) (emoji, level, fallback string) {
 	switch kind {
+	case "silent":
+		return "", "subtle", "Acknowledged."
+	case "👍", "❤️", "😂", "😮", "😢", "🎉":
+		return kind, "subtle", kind
 	case "appreciation":
 		return "❤️", "subtle", "You're welcome."
 	case "laughter":

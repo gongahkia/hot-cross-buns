@@ -75,6 +75,14 @@ physical-device checks require their separately documented setup.
   coding, usage and storage. Frontend changes do not grant execution authority.
 - `companion/`: optional authenticated phone extension with its own listener and access controls.
 
+Foreground Work gets one additional recovery assessment before finalizing after
+an observed tool or specialist failure. The agent is instructed to inspect the
+cause and pursue useful authorized recovery rather than repeat an unchanged
+failing call or ask the user to retry. This assessment uses the existing step,
+time and model-request budgets; it does not replay tools, grant access, or change
+the selected provider. Completion validation still applies, and genuine blockers
+can be reported after the assessment.
+
 The Go executable is a private application runtime. The browser host, scheduled
 workers and optional companion use explicit internal transport roles. It does not
 launch a terminal UI or expose a user command-line product. Headless tools and
@@ -173,6 +181,20 @@ Rich outputs and real memory editing remain available in their normal views.
 
 
 The composer has an attach icon, a model selector, and an arrow send control.
+Up recalls earlier prompts from the loaded current chat; Down moves forward and
+restores the unsent draft. Editing a recalled prompt leaves history navigation.
+In a multiline draft, Up starts history navigation only from the first line.
+The composer saves Markdown while displaying rich text outside the active span.
+Cmd/Ctrl+B toggles bold, Cmd/Ctrl+I italic, Cmd/Ctrl+E inline code, and
+Cmd/Ctrl+Shift+X strikethrough. Cmd/Ctrl+Shift+8 and Cmd/Ctrl+Shift+7 toggle
+bulleted and numbered lists. Typing `* `, `- ` or `+ ` starts a bullet.
+Tab indents a list item; Shift+Tab outdents it. Shift+Enter continues a list,
+or exits it from an empty item. Enter sends the message, including from a list.
+Outside a list, Shift+Enter inserts an ordinary line break. Links become clickable
+when the caret leaves them. Known services use bundled logos; other public HTTPS
+sites may load only their origin's favicon, with no draft text or URL query sent.
+Undo history resets when changing conversations.
+
 The selector uses the backend's configured model list and keeps the current draft.
 The model and effort buttons open one animated picker with provider filters,
 model search, and Low, Standard, or High work budgets for future messages.
@@ -187,6 +209,13 @@ Attachment cards show image thumbnails or document snippets. Open a card for a
 larger preview, PDF page navigation, or the original download. Office previews
 show extracted text or the first worksheet. Long previews are bounded and labeled.
 Attachment selections and previews are restored from the saved draft after reload.
+Selected draft uploads can be prepared inside their preview: crop images and
+choose PDF pages such as `1-3, 5`. Drawing, highlighting, text annotations and
+annotation notes are unavailable.
+Save creates a new private upload and replaces the selected attachment. Original
+bytes stay retained. Page selection removes excluded PDF pages. Edits are limited to selected draft
+uploads and remain subject to the message's file count and size limits.
+
 
 Open **Memory** from the app menu or command palette to inspect saved personal
 memories one topic at a time; related notes, goal context, and guidance have their
@@ -220,6 +249,13 @@ Off retains text replies, Subtle displays ordinary acknowledgements, and
 Expressive includes greetings. The choice is local to this browser. Exact backend
 conversation, turn, revision, kind, and fallback text must match; these chips
 never grant approval or establish completion of work.
+Assistant replies and user prompts both offer reply, quote and six emoji choices.
+A clicked reaction is retained as a browser-local message badge; it does not
+submit a synthetic prompt or make a model request. The assistant may choose any
+of those six emoji for an eligible conversational message. Standalone emoji-only
+messages can finish silently without a reply or reciprocal reaction. Pending
+reviews and ambiguous action contexts remain on their ordinary routing path.
+
 
 Task Details is available from the composer's expanded progress, delegated work,
 Settings → Recovery, and the command palette. It reads existing owners without
@@ -382,3 +418,52 @@ agent. Revisions retain the same ID; incoming agent changes do not overwrite a
 user-edited draft without choosing Use agent version. Canvas drafts stay in the
 browser; Ask agent sends the chosen source and instruction as a new conversation
 input while preserving the normal composer draft.
+
+Productivity account setup and operation boundaries are documented in
+[Productivity connections](PRODUCTIVITY-CONNECTORS.md). Chat can prepare reviewed
+public account configuration and project MCP configuration/trust. Private tokens
+and sign-in stay in Connections. [MCP setup](MCP.md#guided-setup-and-remote-hosts)
+includes outbound remote connections and Raspberry Pi tunnel examples.
+
+Composer bullet markers cycle filled disc, hollow circle and square across
+nested Markdown list levels. Tab/Shift+Tab indent/outdent list items;
+Shift+Enter continues a list and Enter sends the message.
+
+Type `@` in the composer to search supported files from the file-search root
+by name or relative path. The default is your home directory, not `/`. Up/Down selects a result; Enter or Tab adds
+it, and Escape dismisses the picker. Mouse selection also works. Selection inserts
+`@path` (quoted when the path has spaces) and attaches a private copy of the
+current file contents using the normal attachment limits and previews. Files are
+sent only when the message is submitted; editing/deleting the mention text does
+not remove the attachment card. Remove the card to exclude the copied file.
+The picker searches only the current working folder and its descendants; recent
+files outside it are excluded. Home remains the default when no folder is focused.
+Changing folders invalidates old picker selections and the name cache.
+It skips symlinks, hidden files and common dependency/build directories,
+returns up to 30 matches and bounds each scan to 12,000 entries. Narrow the query
+when results are truncated. Files outside the search root can use the existing
+attachment picker or the separately reviewed filesystem access flow.
+
+Ask HCB to “use ~/coding/projects/example as my working folder” to prepare a
+reviewed navigation change within the same chat. The `@` menu also offers
+**Change working folder**, with a folder browser and recent choices. Working
+folders are saved per conversation; the search root and up to 50 recent folders
+and files are profile metadata. File names are cached in memory for 30 seconds;
+file contents are copied only when a file is explicitly selected. Search results
+remain bounded, so focus a project when a broad home scan is truncated.
+
+File navigation is separate from a task's immutable snapshot and permission
+grants. Changing navigation never snapshots the home directory or retargets
+running tasks, sealed history, or existing project chats. HCB can read other
+folders through its normal filesystem access review; MCP setup uses the saved
+working Git project, or an explicit project directory, without requiring a chat switch.
+A combined Connect review saves, trusts and checks tool discovery within the same
+response; it does not invoke MCP business tools. Changing the search root
+requires an explicit reviewed `folder` update with action `root`.
+
+File suggestions use locally bundled PNG icons from vscode-icons; source revision,
+asset hashes and the MIT notice are retained in `web/public/file-icons/`.
+Approval dialogs use one dark primary action: “Allow once” for filesystem and
+scheduling permission reviews, or the exact approval for ordinary actions and
+plans. Persistent/wider grants remain separate secondary choices with unchanged
+authorization scope.

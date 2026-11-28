@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gongahkia/hot-cross-buns/internal/filenav"
 	"io"
 	"os"
 	"os/exec"
@@ -453,6 +454,9 @@ func workInteractiveConversationForGoal(startConversationID, goalID string) erro
 		NoteResult:         func(command string) (*uisnapshot.Result, error) { return workNoteResult(goalID, command) },
 		SkillAction:        workTUISkillAction,
 		SkillResult:        workSkillResult,
+		FileNavigation: func(operation, path, conversation, source string) (filenav.State, error) {
+			return fileNavigation(settingsStore, conversation, source, operation, path)
+		},
 		ResolveSource: func(path string) (string, error) {
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(workingDirectory, path)

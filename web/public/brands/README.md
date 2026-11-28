@@ -57,3 +57,15 @@ SHA-256 of checked-in PNGs:
 - GitLab: https://about.gitlab.com/images/press/gitlab-logo-500-rgb.png (official press-kit logomark).
 - `github.png`: `6d6ef7bede0416b6ebee2014be5852576dbce89235fe16ea5c44ed01bd522132`
 - `gitlab.png`: `d56b28d4ad3c65fb4e1a2fe79eee4b821f6e9ab3f01963fa5f1b71ec7c5b10cf`
+
+Additional connector marks (official site icons):
+
+- Microsoft 365 uses the Microsoft company symbol from https://learn.microsoft.com/favicon.ico (128×128 ICO frame converted to PNG with ImageMagick).
+- Linear: https://linear.app/static/favicon.svg?v=2 (linked by https://linear.app), rasterized to 128×128 PNG with @napi-rs/canvas.
+- Todoist: https://www.todoist.com/static/favicon-32x32.png (linked by https://www.todoist.com).
+- Dropbox: https://cfl.dropboxstatic.com/static/metaserver/static/images/favicon.ico (linked by https://www.dropbox.com), converted to PNG with ImageMagick.
+
+- `microsoft365.png`: `4ae080086c250819534e77f176c1796863882e387b35f06320bb10a1a29c1200`
+- `linear.png`: `378907003bd045840689c0552669cea5327fa83f02bbd55c110120b2145729c7`
+- `todoist.png`: `650fc64195dbf86f0a6783ea0c5c04a5b4b3e72e331fa99421a90bb383576fe8`
+- `dropbox.png`: `94511ce04704a60e57dfc889a8a3a84554c7af7910feca9b6a14b2a2ba58cb49`

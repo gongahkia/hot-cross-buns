@@ -19,6 +19,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
 	"github.com/gongahkia/hot-cross-buns/internal/desktop"
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/mcpaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/projectcapture"
 	"github.com/gongahkia/hot-cross-buns/internal/sandbox"
@@ -93,6 +94,7 @@ type Request struct {
 	LearnFromChats        bool
 	MaintainMemory        bool
 	DisableChatHistory    bool
+	ApproveMCPCall        func(context.Context, mcpaccess.Review) (string, error)
 	ApproveAppChange      func(context.Context, any) (bool, error)
 	ApproveScheduleChange func(context.Context, scheduleaccess.Review) (string, error)
 	OnAppChange           func(AppChange)

@@ -44,7 +44,7 @@ func TestCatalogMatchesImplementedAdapters(t *testing.T) {
 			t.Errorf("missing search %q", provider.ID)
 		}
 	}
-	for _, kind := range []string{"slack", "google_workspace", "atlassian", "notion", "github", "gitlab"} {
+	for _, kind := range []string{"slack", "google_workspace", "atlassian", "notion", "github", "gitlab", "microsoft365", "linear", "todoist", "dropbox"} {
 		if branding.Connector(kind) == "" {
 			t.Errorf("missing connector %q", kind)
 		}

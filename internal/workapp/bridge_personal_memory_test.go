@@ -23,6 +23,17 @@ func TestIntroductionAppearsAsAssistantMessageInItsOwnChatAndKeepsApprovalIndexe
 	if state.Desktop.IntroductionChat != nil {
 		t.Fatal("private intake draft leaked through desktop settings")
 	}
+	if !state.Messages[1].Introduction || state.Messages[0].Introduction {
+		t.Fatal("retained welcome cannot be ordered independently of work messages")
+	}
+	for _, status := range []string{"skipped", "completed"} {
+		m.desktop.Introduction = status
+		retained := m.BridgeState().Messages
+		if len(retained) != 2 || !retained[1].Introduction || !retained[1].CreatedAt.Equal(m.desktop.IntroductionChat.StartedAt) {
+			t.Fatal("finished introduction lost its historical timestamp", status, retained)
+		}
+	}
+	m.desktop.Introduction = "started"
 	if !m.conversationActive() || !m.acknowledgementBlocked() {
 		t.Fatal("first onboarding answer bypasses conversational agent")
 	}

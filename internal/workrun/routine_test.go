@@ -81,6 +81,7 @@ func TestReadOnlyRoutineCannotUseExistingFullFilesystemPermissionToWrite(t *test
 		{ToolCalls: []agent.ToolCall{{ID: "write", Name: "filesystem", Arguments: write}}},
 		{ToolCalls: []agent.ToolCall{{ID: "status", Name: "artifact_status", Arguments: json.RawMessage(`{}`)}}},
 		{Text: "The proposed file change was outside the read-only routine and was not performed."},
+		{Text: "The routine remains read-only; no authorized write is available."},
 	}}
 	_, err = (Executor{StateDir: state, Model: model}).Execute(context.Background(), Request{SourcePath: t.TempDir(), Objective: "Use the inspect routine", ForegroundApp: true, Mode: action.Draft, Contract: artifact.OptionalDraftContract(), MaxSteps: 6, DisableDelegation: true, ApproveAppChange: func(context.Context, any) (bool, error) { return true, nil }})
 	if err != nil {

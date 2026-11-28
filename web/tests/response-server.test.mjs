@@ -63,17 +63,16 @@ test('forking a dialogue response retains its boundary, leaves the parent draft 
  }finally{live?.close();await app.close();}
 });
 
-test('emoji reactions reach the model with their exact response context and preserve composer drafts',{timeout:45000},async()=>{
+test('emoji reactions preserve drafts and never submit a message or call the model',{timeout:45000},async()=>{
  const app=await fixture({chatCount:1,dialogueCount:2,conversationalReplies:true});let live;
  try{
   live=await events(app.url);const initial=await live.until(s=>s.responses?.length&&s.state?.conversation_id),context=initial.context,ref=initial.responses[0];
   await action(app,{op:'save',context,text:'Keep my unsent draft'});
   const request={op:'reaction',context,id:ref.id,digest:ref.digest,emoji:'❤️',requestId:randomUUID()};
   const accepted=await action(app,request);assert.equal(accepted.status,200,JSON.stringify(accepted.value));
-  await live.until(s=>s.state?.dialogue?.some(t=>t.text?.includes('Reacted with ❤️')));
-  await live.until(s=>!s.state?.working&&s.state?.dialogue?.some(t=>t.text?.includes('Reacted with ❤️')&&t.state==='answered'));
-  assert.ok(app.payloads.some(p=>JSON.stringify(p).includes('Reacted with ❤️')));
-  assert.ok(app.payloads.some(p=>JSON.stringify(p).includes('not approval or permission')));
+  assert.equal(app.payloads.length,0);
+  const readerState=await action(app,{op:'reaction',context,id:ref.id,digest:ref.digest,emoji:'👍',requestId:randomUUID()});assert.equal(readerState.status,200);
+  assert.equal(app.payloads.length,0);
   assert.equal((await action(app,{op:'draft',context})).value.text,'Keep my unsent draft');
   assert.equal((await action(app,{...request,emoji:'invalid'})).status,400);
   assert.notEqual((await action(app,{...request,digest:'f'.repeat(64)})).status,200);
@@ -91,4 +90,26 @@ test('Canvas revision requests send user instructions and source without replaci
   assert.equal((await action(app,{op:'draft',context})).value.text,'Keep the composer draft');
   assert.equal((await action(app,{...request,source:'x'.repeat(140000)})).status,400);
  }finally{live?.close();await app.close()}
+});
+
+test('standalone emoji prompts can finish silently without calling the model', {timeout:30000}, async()=>{
+ const app=await fixture({chatCount:1,dialogueCount:2,introductionStatus:'skipped'});let live;
+ try{
+  live=await events(app.url);const initial=await live.until(s=>s.state?.conversation_id),context=initial.context;
+  for(const emoji of ['👍','❤️','😂','😮','😢','🎉']){
+   assert.equal((await action(app,{op:'send',context,id:randomUUID(),text:emoji,files:[]})).status,200);
+   const state=await live.until(s=>s.state?.dialogue?.some(t=>t.text===emoji&&t.state==='answered'));
+   assert.equal(state.state.dialogue.find(t=>t.text===emoji).reaction.kind,'silent');
+  }
+  assert.equal(app.payloads.length,0);
+ }finally{live?.close();await app.close();}
+});
+
+test('replying to a user prompt retains its role and exact source without submitting a turn', {timeout:30000}, async()=>{
+ const app=await fixture({chatCount:1,dialogueCount:2});let live;
+ try{
+  live=await events(app.url);const initial=await live.until(s=>s.responses?.some(r=>r.role==='user')),context=initial.context,ref=initial.responses.find(r=>r.role==='user');
+  const result=await action(app,{op:'response',action:'reply',context,id:ref.id,digest:ref.digest,draftText:'My follow-up'});
+  assert.equal(result.status,200);assert.equal(result.value.response_quote.role,'user');assert.equal(result.value.text,'My follow-up');assert.equal(app.payloads.length,0);
+ }finally{live?.close();await app.close();}
 });

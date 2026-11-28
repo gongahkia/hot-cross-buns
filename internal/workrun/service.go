@@ -20,6 +20,7 @@ import (
 	"github.com/gongahkia/hot-cross-buns/internal/artifact"
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/fileaccess"
+	"github.com/gongahkia/hot-cross-buns/internal/mcpaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/orchestrator"
 	"github.com/gongahkia/hot-cross-buns/internal/scheduleaccess"
 	"github.com/gongahkia/hot-cross-buns/internal/tools"
@@ -318,7 +319,7 @@ func (o *Operation) respond(id int, digest string, approved bool, choices ...str
 		return errors.New("pending interaction preview changed")
 	}
 	if len(choices) > 0 {
-		valid := pending.interaction.Kind == "file_access" && fileaccess.ValidChoice(choices[0]) || pending.interaction.Kind == "schedule_change" && scheduleaccess.ValidChoice(choices[0])
+		valid := pending.interaction.Kind == "file_access" && fileaccess.ValidChoice(choices[0]) || pending.interaction.Kind == "schedule_change" && scheduleaccess.ValidChoice(choices[0]) || pending.interaction.Kind == "mcp_call" && mcpaccess.ValidChoice(choices[0])
 		if pending.choice == nil || !valid || len(choices) != 1 || !approved {
 			return errors.New("invalid permission choice for this review")
 		}
@@ -473,6 +474,17 @@ func (s Service) Start(ctx context.Context, request Request) *Operation {
 	}
 	request.ApproveAppChange = func(ctx context.Context, preview any) (bool, error) {
 		return ask(ctx, "app_change", preview)
+	}
+	request.ApproveMCPCall = func(ctx context.Context, review mcpaccess.Review) (string, error) {
+		choice := "once"
+		approved, err := ask(ctx, "mcp_call", review, &choice)
+		if err != nil {
+			return "", err
+		}
+		if !approved {
+			return "deny", nil
+		}
+		return choice, nil
 	}
 	request.ApproveScheduleChange = func(ctx context.Context, review scheduleaccess.Review) (string, error) {
 		choice := "once"

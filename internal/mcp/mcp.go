@@ -51,11 +51,14 @@ type manifest struct {
 }
 
 type server struct {
-	Name      string   `json:"name"`
-	Transport string   `json:"transport"`
-	Command   []string `json:"command,omitempty"`
-	URL       string   `json:"url,omitempty"`
-	Network   string   `json:"network,omitempty"`
+	Name               string   `json:"name"`
+	RuntimePath        string   `json:"runtime_path,omitempty"`
+	RuntimeSHA256      string   `json:"runtime_sha256,omitempty"`
+	RuntimeDirectories []string `json:"runtime_directories,omitempty"`
+	Transport          string   `json:"transport"`
+	Command            []string `json:"command,omitempty"`
+	URL                string   `json:"url,omitempty"`
+	Network            string   `json:"network,omitempty"`
 }
 
 type client interface {
@@ -67,6 +70,7 @@ type toolDescription struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"inputSchema"`
+	Annotations json.RawMessage `json:"annotations,omitempty"`
 }
 
 type loadedServer struct {
@@ -248,6 +252,10 @@ func loadManifest(root workspace.Root) (manifest, string, error) {
 	if err := requireEOF(decoder); err != nil {
 		return manifest{}, "", fmt.Errorf("decode %s: %w", manifestPath, err)
 	}
+	return validateManifest(root, document, contents)
+}
+
+func validateManifest(root workspace.Root, document manifest, contents []byte) (manifest, string, error) {
 	if document.Version != manifestVersion || len(document.Servers) > maxServers {
 		return manifest{}, "", errors.New("MCP manifest has an unsupported version or too many servers")
 	}
@@ -266,8 +274,8 @@ func loadManifest(root workspace.Root) (manifest, string, error) {
 		seen[specification.Name] = struct{}{}
 		if specification.Transport == "stdio" {
 			path := filepath.ToSlash(specification.Command[0])
-			if _, found := local[path]; !found {
-				contents, err := executableHash(root, path)
+			if _, found := local[path]; !found || specification.RuntimePath != "" {
+				contents, err := executableBundleHash(root, specification)
 				if err != nil {
 					return manifest{}, "", fmt.Errorf("MCP server %q: %w", specification.Name, err)
 				}
@@ -290,6 +298,12 @@ func loadManifest(root workspace.Root) (manifest, string, error) {
 func validateServer(server server) error {
 	if !namePattern.MatchString(server.Name) {
 		return fmt.Errorf("invalid server name %q", server.Name)
+	}
+	if (server.RuntimePath == "") != (server.RuntimeSHA256 == "") || server.RuntimePath != "" && (server.Transport != "stdio" || !filepath.IsAbs(server.RuntimePath) || len(server.RuntimeSHA256) != 64) {
+		return errors.New("invalid MCP runtime pin")
+	}
+	if err := validateRuntimeDirectories(server); err != nil {
+		return err
 	}
 	switch server.Transport {
 	case "stdio":
@@ -353,7 +367,14 @@ func connect(ctx context.Context, root workspace.Root, specification server, cre
 		}
 		return newAuthorizedHTTPClient(specification.URL, token), nil
 	}
+	if _, err := serverExecutableHash(root, specification); err != nil {
+		return nil, err
+	}
 	policy := sandbox.DefaultPolicy()
+	policy.WritableRoots = append([]string(nil), specification.RuntimeDirectories...)
+	if specification.RuntimePath != "" {
+		policy.ReadOnlyRoots = []string{specification.RuntimePath}
+	}
 	if specification.Network == "allow" {
 		policy.Network = sandbox.AllowNetwork
 	}

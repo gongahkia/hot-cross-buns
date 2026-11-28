@@ -78,3 +78,10 @@ func TestFollowupApprovalShowsAgreementAndKeepsLimitsExpandable(t *testing.T) {
 		t.Fatalf("agreement review lost content: %+v", m.result)
 	}
 }
+
+func TestMCPReadApprovalDescribesExactServerToolAndArguments(t *testing.T) {
+	message := approvalMessage(workrun.Interaction{ID: 9, Kind: "app_change", Preview: map[string]any{"kind": "mcp_read", "connection": workrun.MCPIdentity{Server: "sagasu", Repository: "/project", Hash: "pin"}, "tool": "list_bookings", "arguments": map[string]any{}}})
+	if message.result.Title != "Read from sagasu" || message.result.Preview != nil {
+		t.Fatal("MCP read review not rendered", message.result)
+	}
+}

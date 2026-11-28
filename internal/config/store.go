@@ -14,6 +14,7 @@ import (
 
 	"github.com/gongahkia/hot-cross-buns/internal/cliagent"
 	"github.com/gongahkia/hot-cross-buns/internal/connector"
+	"github.com/gongahkia/hot-cross-buns/internal/filenav"
 	"github.com/gongahkia/hot-cross-buns/internal/hooks"
 	"github.com/gongahkia/hot-cross-buns/internal/lsp"
 	"github.com/gongahkia/hot-cross-buns/internal/mcp"
@@ -35,6 +36,7 @@ type WorkRole struct {
 }
 
 type Settings struct {
+	FileNavigation filenav.Settings   `json:"file_navigation,omitzero"`
 	MemorySync     MemorySyncSettings `json:"memory_sync,omitzero"`
 	Search         SearchSettings     `json:"search,omitzero"`
 	ExternalAgents []cliagent.Config  `json:"external_agents,omitempty"`

@@ -2,6 +2,7 @@ package workapp
 
 import (
 	"fmt"
+	"github.com/gongahkia/hot-cross-buns/internal/filenav"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,16 +14,18 @@ import (
 // NativeWorkspaceAction resolves data, never terminal command text. The host
 // consumes the confirmed source as a new managed owner, not a source mutation.
 type NativeWorkspaceAction struct {
+	Operation string `json:"operation,omitempty"`
 	RequestID string `json:"request_id"`
 	Path      string `json:"path"`
 }
 
 type NativeWorkspaceResult struct {
-	RequestID      string `json:"request_id"`
-	ConversationID string `json:"conversation_id"`
-	Source         string `json:"source,omitempty"`
-	New            bool   `json:"new"`
-	Error          string `json:"error,omitempty"`
+	Navigation     *filenav.State `json:"navigation,omitempty"`
+	RequestID      string         `json:"request_id"`
+	ConversationID string         `json:"conversation_id"`
+	Source         string         `json:"source,omitempty"`
+	New            bool           `json:"new"`
+	Error          string         `json:"error,omitempty"`
 }
 
 type nativeWorkspaceResolved struct{ Result NativeWorkspaceResult }
@@ -40,6 +43,19 @@ func (m Model) ResolveNativeWorkspace(a NativeWorkspaceAction) (tea.Model, tea.C
 	return m, func() tea.Msg {
 		r := NativeWorkspaceResult{RequestID: a.RequestID, ConversationID: origin}
 		var err error
+		if a.Operation != "" {
+			if m.config.FileNavigation == nil {
+				r.Error = "file navigation is unavailable"
+			} else {
+				state, e := m.config.FileNavigation(a.Operation, a.Path, origin, previous)
+				r.Navigation = &state
+				if e != nil {
+					r.Error = e.Error()
+					r.Navigation = nil
+				}
+			}
+			return nativeWorkspaceResolved{Result: r}
+		}
 		switch {
 		case resolve == nil:
 			err = fmt.Errorf("workspace selection is unavailable")

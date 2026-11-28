@@ -14,6 +14,7 @@ import { taskConversations, composerProgress } from "./task-inspector.mjs";
 import { scheduledPane } from './scheduled.mjs';
 import { reviewQueue } from './review-queue.mjs';
 import { introduction } from './introduction.mjs';
+import { transcriptItems } from './transcript.mjs';
 import { canvasWorkspace } from './canvas.mjs';
 import { fileReferences } from './file-references.mjs';
 import { localBrowser } from './local-browser.mjs';
@@ -32,13 +33,18 @@ import { usageView, usageLimits } from './usage.mjs';
 import { taskDetailView } from './task-details.mjs';
 import { workspaceView } from './workspace.mjs';
 import { streamingResponse } from './streaming.mjs';
-import { schedulingApprovalActions, filesystemApprovalActions, currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
+import { mcpApprovalActions, schedulingApprovalActions, filesystemApprovalActions, currentPlan, planReview, planQuestions, correctionText } from './reviews.mjs';
 import { icon, setIcon } from "./icons.mjs";
+import { richComposer } from '/vendor/composer-entry.mjs';
 import { composerAction } from './composer-action.mjs';
+import { fileMentions } from './file-mentions.mjs';
+import { pastPrompts, promptHistory } from './prompt-history.mjs';
 import { attachmentCard, pastedFiles } from "./attachments.mjs";
+import { attachmentEditor } from './attachment-editor.mjs';
 
 const $ = id => document.getElementById(id);
 const input = $("message"), dialog = $("detail"), detail = $("detail-body");
+const composer = richComposer(input);
 animateSurfaceHeight($('history'));
 animateSurfaceHeight(dialog);
 const detailMotion = viewTransition(detail);
@@ -50,6 +56,24 @@ const storage = "hot-cross-buns.web.v1";
 let snapshot = {}, draft, pending, revision = 0, saveTimer, busy = false, online = false, issue = "";
 let transcriptKey = "", streamingText = "", panelKey = "", workKey = "", panelMode = false;
 let draftLoad = 0, saveTail = Promise.resolve(), detailGeneration = 0;
+const history = promptHistory(input, {
+  prompts: () => pastPrompts(snapshot.state || {}).map(text => parseQuotedRequest(text)?.text ?? text),
+  enabled: () => !!draft && draft.context === snapshot.context && !pending && !busy && !draft.correction,
+});
+const mentions = fileMentions(input, {
+  browse:()=>void execute(()=>navigate('/folders')),
+  parent: $('composer'), context:()=>snapshot.context,
+  enabled:()=>!dialog.open && !!draft && draft.context===snapshot.context && !input.disabled && !input.readOnly && !pending && !busy && !draft.correction,
+  search:query=>call({op:'mention-search',context:snapshot.context,query}),
+  select:(item,query)=>execute(async()=>{
+    if(query.context!==snapshot.context || input.value.slice(query.from,query.to)!=='@'+query.query || input.selectionStart!==query.to) return;
+    await flush();
+    const next=await call({op:'mention-attach',context:query.context,id:item.id});
+    if(snapshot.context!==query.context)return;
+    const text='@'+(/\s/.test(next.mentionPath)?JSON.stringify(next.mentionPath):next.mentionPath)+' ';
+    showDraft(next);input.setRangeText(text,query.from,query.to,'end');input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();
+  }),
+});
 let previewContext;
 const previewCache = new Map();
 const correctionBar = element('div', undefined, 'correction-context'); correctionBar.hidden = true;
@@ -71,7 +95,7 @@ async function respondTo(ref,action,text){
   });
   if(focusContext===snapshot.context&&!input.disabled)input.focus();
 }
-function quotedTurn(text,name){const parsed=parseQuotedRequest(text);const article=turn(parsed?.text??text,true,name);if(parsed){const quote=element('blockquote',parsed.quote.text,'message-quote');quote.prepend(element('small','In reply to Hot Cross Buns'));article.prepend(quote);}return article;}
+function quotedTurn(text,name){const parsed=parseQuotedRequest(text);const oldReaction=parsed?.text.match(/^Reacted with (👍|❤️|😂|😮|😢|🎉)\. Respond naturally to my reaction in this context\./);if(oldReaction)return turn(oldReaction[1],true,name);const article=turn(parsed?.text??text,true,name);if(parsed){const quote=element('blockquote',parsed.quote.text,'message-quote');quote.prepend(element('small',parsed.quote.role === 'user' ? 'In reply to you' : 'In reply to Hot Cross Buns'));article.prepend(quote);}return article;}
 const reading = readingPosition({ transcript: $('transcript'), streaming: $('streaming') });
 document.querySelector('.composer-wrap').prepend(reading.element);
 export const find = transcriptFind({ transcript: $('transcript'), revealed: reading.moved });
@@ -179,6 +203,7 @@ function controls() {
   voice.update({ ...state, context: snapshot.context, connected: online && snapshot.connection === 'connected' && !snapshot.switching }, writing && !waiting);
   input.disabled = !writing;
   input.readOnly = waiting;
+  composer.update();
   $("attach").disabled = !writing || waiting || !!draft?.correction;
   const correction = snapshot.correction?.id === draft?.correction?.id ? snapshot.correction : draft?.correction;
   const action = composerAction(snapshot, { text: input.value, files: draft?.uploads || [], pending: waiting, correction: !!correction });
@@ -252,17 +277,21 @@ async function call(data, binary = false) {
 }
 
 function showDraft(value) {
+  history.reset();
+  const contextChanged = draft?.context !== value?.context;
+  if(contextChanged) mentions.close();
   draft = value;
   taskReplyBar.replaceChildren();taskReplyBar.hidden=!value?.reply_to_task_id;
   if(value?.reply_to_task_id){const close=button('',()=>void execute(async()=>{if(pending)throw Error('Wait for this message to be confirmed.');await flush();const next=await call({op:'clear-task-reply',context:value.context});if(next.context===snapshot.context)showDraft(next)}),'quiet icon-button');close.append(icon('x'));close.setAttribute('aria-label','Clear task reply');taskReplyBar.append(icon('reply'),button('Replying about this task',()=>void execute(()=>showTaskDetails(value.reply_to_task_id))),close)}
   quoteCard.replaceChildren();quoteCard.hidden=!value?.response_quote;
   if(value?.response_quote){
     const text=element('div');
-    const origin=button('Replying to Hot Cross Buns',()=>void execute(()=>{const source=[...$('transcript').querySelectorAll('[data-response-id]')].find(node=>node.dataset.responseId===value.response_quote.id);if(!source)throw new Error('Load the earlier response to view the source.');reading.moved();source.scrollIntoView({block:'center',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});source.classList.add('quoted-source');setTimeout(()=>source.classList.remove('quoted-source'),1600);}), 'quiet quote-origin');origin.title='Show quoted response';text.append(origin,element('blockquote',value.response_quote.text));
+    const origin=button(value.response_quote.role === 'user' ? 'Replying to you' : 'Replying to Hot Cross Buns',()=>void execute(()=>{const source=[...$('transcript').querySelectorAll('[data-response-id]')].find(node=>node.dataset.responseId===value.response_quote.id);if(!source)throw new Error('Load the earlier response to view the source.');reading.moved();source.scrollIntoView({block:'center',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});source.classList.add('quoted-source');setTimeout(()=>source.classList.remove('quoted-source'),1600);}), 'quiet quote-origin');origin.title='Show quoted response';text.append(origin,element('blockquote',value.response_quote.text));
     const close=button('',()=>void execute(async()=>{if(pending)throw new Error('Resolve the pending message before changing the quote.');await flush();const next=await call({op:'response',action:'clear',context:value.context,draftText:input.value});if(next.context===snapshot.context)showDraft(next);}), 'quiet icon-button');close.append(icon('x'));close.setAttribute('aria-label','Remove quote');close.title='Remove quote';quoteCard.append(icon('quote'),text,close);
   }
   if (value?.correction) remember(':correction:' + value.context, { ...value.correction, text: value.text });
   input.value = value?.text || "";
+  if (contextChanged) composer.reset();
   const files = value?.uploads || [];
   $("attachments").hidden = !files.length;
   if (previewContext !== value?.context) { previewCache.clear(); previewContext = value?.context; }
@@ -447,6 +476,11 @@ $('history').addEventListener('toggle', event => {
 async function navigate(route) {
   await flush();
   showHistory(false);
+  if (route === '/folders') {
+    const context=snapshot.context,nav=await call({op:'file-navigation',context,action:'status'});
+    const view=workspaceView({source:nav.working,navigation:nav,request:body=>body.op==='workspace-select'?call({op:'file-navigation',context,action:'focus',path:body.path}):call({context,...body}),selected:()=>{dialog.close();input.focus()}});
+    openDetail('Working folder',view.element);await view.load();return;
+  }
   if (route === '/workspace') {
     const context = snapshot.context;
     const view = workspaceView({ source: snapshot.state?.source, request: body => call({ context, ...body }), selected: () => dialog.close() });
@@ -687,8 +721,10 @@ function renderPanel(panel) {
     if (!item.input) {
       if (item.label === 'Local tracking' && panel.kind === 'followup-form') { nodes.push(element('p', item.detail, 'hint')); continue; }
       const option = button(item.label, () => void execute(() => act("activate", { row })), "quiet option");
-      if (item.brand) option.prepend(brandIcon(item.brand, item.icon || "link"));
-      else if (item.icon) option.prepend(icon(item.icon));
+      if (!['remote_mcp', 'http_json'].includes(item.icon) && !['JSON API', 'Connect JSON API', 'Custom MCP server'].includes(item.label)) {
+        if (item.brand) option.prepend(brandIcon(item.brand, item.icon || "link"));
+        else if (item.icon) option.prepend(icon(item.icon));
+      }
       if (item.detail) option.append(element("small", item.detail));
       if (item.state_label || item.state) option.append(element('small', item.state_label || item.state, 'view-state'));
       for (const field of item.metadata || []) option.append(element('small', field.label + ' · ' + field.value));
@@ -708,7 +744,7 @@ function renderPanel(panel) {
       }, hint ? 'ctrl+r' : 'enter'));
     }, 'send'));
   } else if (panel.kind === "confirmation") {
-    nodes.push(button(panel.hints?.find(hint => /^(enter|y)$/i.test(hint.shortcut))?.action || "Confirm", () => void execute(() => act("key", {}, "enter")), "send"));
+    nodes.push(button(panel.hints?.find(hint => /^(enter|y)$/i.test(hint.shortcut))?.action || "Confirm", () => void execute(() => act("key", {}, "enter")), "send approval-primary"));
   }
   if (["connector", "login"].includes(snapshot.state.external)) nodes.push(button("Continue sign-in", () => void execute(() => call({ op: "continue-setup", context }))));
   if (!fields.size && panel.kind !== 'confirmation') {
@@ -775,10 +811,11 @@ function approval(review, context) {
   if (review.canCorrect) actions.append(button('Request correction', () => void execute(() => beginCorrection({ kind: 'action', review: review.id }, context))));
   if(review.permission) actions=filesystemApprovalActions(choose);
   else if(review.scheduling) actions=schedulingApprovalActions(choose);
-  else actions.append(button("Decline", () => choose(false)), button("Approve this action", () => choose(true), "send"));
-  if(review.scheduling) {
+  else if(review.mcp) actions=mcpApprovalActions(choose);
+  else actions.append(button("Decline", () => choose(false)), button("Approve this action", () => choose(true), "send approval-primary"));
+  if(review.scheduling || review.mcp) {
     const panel=element('div',undefined,'schedule-approval'),content=element('div',undefined,'schedule-approval-content');
-    content.append(describeResult({...review.result,fields:[]}));panel.append(content,actions);openDetail(review.result.title,panel);
+    content.append(describeResult({...review.result,...(review.scheduling?{fields:[]}:{})}));panel.append(content,actions);openDetail(review.result.title,panel);
   } else openDetail(review.result.title, describeResult({ ...review.result, footer: review.result.footer?.startsWith("/approve ") ? undefined : review.result.footer }), actions);
 }
 async function beginCorrection(target, context) {
@@ -805,16 +842,25 @@ function showPlan(plan, context, conversation) {
     })) : null;
     if (review.phase === 'review' && plan.canRevise) controls.append(button('Request revision', () => void execute(() => beginCorrection({ kind: 'plan', id: plan.id, revision: plan.revision, digest: plan.digest }, context))));
     if (review.state === "queued" && review.phase === "review" && !questions.length) {
-      controls.append(button("Approve and start", () => void execute(async () => { await action("approve"); dialog.close(); }), "send"));
+      controls.append(button("Approve and start", () => void execute(async () => { await action("approve"); dialog.close(); }), "send approval-primary"));
     } else if (review.state === "queued" && review.phase === "approved") {
-      controls.append(button("Start reviewed work", () => void execute(async () => { await action("start"); dialog.close(); }), "send"));
+      controls.append(button("Start reviewed work", () => void execute(async () => { await action("start"); dialog.close(); }), "send approval-primary"));
     }
     openDetail(questions.length ? 'Before we start' : 'Task plan', ...(answers ? [answers] : []), planReview(review), element('p', 'Approval starts this exact revision. External actions still need their own required reviews.', 'hint'), controls);
   });
 }
 
 function openSelectedFile(label, ref, context, trigger) {
+  const editState = {};
+  const selected = ref.kind === 'upload' && draft?.context === context && draft.uploads.some(file => file.id === ref.id);
   browser.openFile({ key: JSON.stringify([context, ref]), name: label, trigger,
+    ...(selected ? { prepare: view => attachmentEditor({ view, state: editState, save: edit => execute(async () => {
+      await flush();
+      if (draft?.context !== context || snapshot.context !== context || pending) throw new Error('Return to this draft before saving attachment changes.');
+      const index = draft.uploads.findIndex(file => file.id === ref.id);
+      const next = await call({ op: 'edit-attachment', context, id: ref.id, edit });
+      if (snapshot.context === context) { showDraft(next); browser.closeFiles(); const file = next.uploads[index]; if (file) openAttachment(file, context, trigger); }
+    }) }) } : {}),
     load: page => ref.kind === 'upload' ? loadPreview({ id: ref.id }, context, page) : call({ op: 'file-view', context, ref, page }),
     download: () => void execute(async () => {
       const blob = await call({ op: "download", ref, context }, true);
@@ -872,17 +918,7 @@ function renderTranscript(state) {
   const references=new Map((snapshot.responses||[]).map(ref=>[ref.message_id||ref.id,{...ref,context,conversation:state.conversation_id}]));
   const decorate=(article)=>{const ref=references.get(article.dataset.messageId);if(ref)interaction.decorate(article,ref);};
   reading.before(state.conversation_id || context);
-  const time = value => Math.max(0, Date.parse(value) || 0);
-  let lastMessageTime = 0;
-  const orderedMessages = messages.map(value => {
-    lastMessageTime = Math.max(lastMessageTime, time(value.created_at), time(value.activity?.started_at));
-    return { type: "message", value, at: lastMessageTime };
-  });
-  const items = [
-    ...orderedMessages,
-    ...talks.map(value => ({ type: "talk", value, at: Date.parse(value.created_at) || 0 })),
-    ...updates.map(value => ({ type: "update", value, at: Date.parse(value.created_at) || 0 })),
-  ].sort((a, b) => a.at - b.at);
+  const items = transcriptItems(messages, talks, updates);
   const nodes = [], completions = [];
   if (state.dialogueMore && talks[0]) nodes.push(button("Earlier messages", () => void execute(() => frame({ type: "dialogue_page", dialogue_before: talks[0].sequence }, context))));
   let response;
@@ -894,7 +930,8 @@ function renderTranscript(state) {
       if (correction) request.prepend(element('small', correction.label, 'hint'));
       request.dataset.messageId = 'dialogue:' + value.id + ':user';
       const reaction = reactionFor(value, state.conversation_id, reactionMode);
-      if (reaction) request.append(reactionChip(reaction));
+      if (reaction && !reaction.silent) request.append(reactionChip(reaction));
+      decorate(request);
       if (value.input_ids?.length) {
         const files = element("div", undefined, "meta");
         for (const id of value.input_ids) files.append(fileButton(id.split("/").at(-1), { kind: "upload", id }, context));

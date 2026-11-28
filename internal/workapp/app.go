@@ -4,6 +4,7 @@ package workapp
 
 import (
 	"context"
+	"github.com/gongahkia/hot-cross-buns/internal/filenav"
 	"github.com/gongahkia/hot-cross-buns/internal/modelcatalog"
 	"github.com/gongahkia/hot-cross-buns/internal/personalization"
 	"github.com/gongahkia/hot-cross-buns/internal/suggestion"
@@ -193,6 +194,7 @@ type ModelStatus struct {
 type GoalState struct{ Title, SourcePath, ConversationID string }
 
 type Config struct {
+	FileNavigation             func(operation, path, conversation, source string) (filenav.State, error)
 	MaintainHistory            func(context.Context) error
 	ConfigureHistoryEmbeddings func(provider string, enabled bool) error
 

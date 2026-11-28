@@ -1513,3 +1513,20 @@ test('memory sync settings keep credentials out of visible status and expose exa
   assert.deepEqual(calls.at(-1),{action:'resolve',key:'memory:one',revision:'conflict-revision',choice:'local-hash'});
   assert.match(view.element.textContent,/waiting for paired devices/);
 });
+
+test('assistant emoji choices attach to user messages and silent turns stay silent even with acknowledgements off',()=>{
+ for(const emoji of ['👍','❤️','😂','😮','😢','🎉']){
+  const value={id:'emoji',state:'answered',revision:2,response:emoji,reaction:{version:1,conversation_id:'chat',turn_id:'emoji',revision:2,kind:emoji,emoji,level:'subtle'}};
+  assert.equal(reactionFor(value,'chat').emoji,emoji);assert.equal(reactionFor({...value,revision:3},'chat'),null);
+ }
+ const silent={id:'silent',state:'answered',revision:2,response:'Acknowledged.',reaction:{version:1,conversation_id:'chat',turn_id:'silent',revision:2,kind:'silent',emoji:'',level:'subtle'}};
+ assert.equal(reactionFor(silent,'chat','off').silent,true);
+ assert.equal(reactionFor({...silent,response:'Some other text'},'chat','off'),null);
+});
+
+test('user prompts expose the same reply and reaction controls as assistant messages',()=>{
+ const transcript=document.createElement('div');document.body.append(transcript);const calls=[];
+ const view=responseInteractions({transcript,reply:ref=>calls.push(ref.id),quote:()=>{},storage:{getItem:()=>null,setItem(){}}});
+ const article=turn('My **prompt**',true,'You');transcript.append(article);view.decorate(article,{id:'user:one',digest:'a'.repeat(64),conversation:'chat',role:'user'});
+ article.querySelector('[aria-label="Reply to this response"]').click();assert.deepEqual(calls,['user:one']);assert.ok(article.querySelector('[aria-label="React to this response"]'));assert.equal(article.querySelector('strong').textContent,'prompt');view.dispose();transcript.remove();
+});

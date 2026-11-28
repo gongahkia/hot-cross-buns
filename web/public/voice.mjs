@@ -64,6 +64,7 @@ export function voiceInput({ getDraft, append, submit, closeSettings = () => {},
     conversation.disabled = !allowed || !idle || starting || loading || downloading || !status?.ready || !browserReady() || !environment.speechSynthesis;
     note.textContent = downloading ? 'Downloading the selected Whisper model…' : loading ? 'Checking voice settings…' : status?.issue || (local ? 'Audio is transcribed on this laptop. No API key is needed.' : 'Audio is sent to ' + destination.options[destination.selectedIndex].textContent.split(' · ')[0] + ' using its configured API credentials. Configure credentials in Settings → Models.');
     const recording = controller.state.phase === 'recording';
+    trigger.hidden = !status?.ready;
     trigger.disabled = !recording && (!idle || !allowed || starting || loading || downloading || !status?.ready || !browserReady());
     const label = recording ? 'Finish transcription' : 'Transcribe';
     trigger.setAttribute('aria-label', label);

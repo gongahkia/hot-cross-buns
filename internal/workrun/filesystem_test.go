@@ -23,6 +23,9 @@ func TestInlineFilesystemReviewResumesOriginalTaskAndPersistsOnlyChosenScope(t *
 			os.WriteFile(path, []byte("live fixture"), 0600)
 			raw, _ := json.Marshal(map[string]string{"operation": "read", "path": path})
 			model := &scriptedModel{turns: []agent.Turn{{ToolCalls: []agent.ToolCall{{ID: "live", Name: "filesystem", Arguments: raw}}}, {Text: "Inspected the live fixture."}}}
+			if choice == "deny" {
+				model.turns = append(model.turns, agent.Turn{Text: "File access was denied; no authorized recovery remains."})
+			}
 			operation := (Service{Executor: Executor{Model: model, StateDir: state}}).Start(context.Background(), Request{SourcePath: source, Objective: "Read this live file", Mode: action.Inspect, Contract: artifact.InspectionContract(), ForegroundApp: true, DisableDelegation: true, MaxSteps: 4})
 			defer operation.Cancel()
 			select {
